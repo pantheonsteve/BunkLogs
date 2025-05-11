@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script type="text/javascript"
+          src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+  <script type="text/javascript" src="{% static 'admin/js/jquery.init.js' %}"></script>
+  {{ form.media }}
+{% endblock extrahead %}
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+      <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    › <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    › <a href="{% url list_url %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    › {% trans 'Select Bunk' %}
+  </div>
+{% endblock breadcrumbs %}
+{% block content %}
+  <div id="content-main">
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <fieldset class="module aligned">
+          <div class="form-row">
+            {{ form.bunk.errors }}
+            <label for="{{ form.bunk.id_for_label }}">{{ form.bunk.label }}</label>
+            {{ form.bunk }}
+            <p class="help">{% trans 'Select a bunk to show available campers' %}</p>
+          </div>
+        </fieldset>
+        <div class="submit-row">
+          <input type="submit" value="{% trans 'Continue' %}" class="default" />
+        </div>
+      </div>
+    </form>
+  </div>
+{% endblock content %}

@@ -1,0 +1,43 @@
+volumes:
+  bunk_logs_local_postgres_data: {}
+  bunk_logs_local_postgres_data_backups: {}
+
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: bunk_logs_local_django
+    container_name: bunk_logs_local_django
+    depends_on:
+      - postgres
+      - mailpit
+    volumes:
+      - .:/app:z
+    env_file:
+      - ./.envs/.local/.django
+      - ./.envs/.local/.postgres
+    ports:
+      - '8000:8000'
+    command: /start
+    environment:
+      - USE_DOCKER=yes
+
+  postgres:
+    build:
+      context: .
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: bunk_logs_production_postgres
+    container_name: bunk_logs_local_postgres
+    volumes:
+      - bunk_logs_local_postgres_data:/var/lib/postgresql/data
+      - bunk_logs_local_postgres_data_backups:/backups
+    env_file:
+      - ./.envs/.local/.postgres
+
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    container_name: bunk_logs_local_mailpit
+    ports:
+      - "8025:8025"

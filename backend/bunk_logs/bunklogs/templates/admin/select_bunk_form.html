@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n admin_urls %}
+
+{% block content %}
+  <div id="content-main">
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <fieldset class="module aligned">
+          <div class="form-row">
+            {{ form.bunk.errors }}
+            <label for="{{ form.bunk.id_for_label }}">Bunk:</label>
+            {{ form.bunk }}
+            <p class="help">Select a bunk to show available campers</p>
+          </div>
+        </fieldset>
+        <div class="submit-row">
+          <input type="submit" value="Continue" class="default" />
+        </div>
+      </div>
+    </form>
+  </div>
+{% endblock content %}

@@ -1,0 +1,6 @@
+USE_DOCKER=yes
+DATABASE_URL=postgres://postgres:postgres@postgres:5432/bunk_logs
+DJANGO_DEBUG=True
+DJANGO_SETTINGS_MODULE=config.settings.local
+DJANGO_SECRET_KEY=your_secure_secret_key
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1

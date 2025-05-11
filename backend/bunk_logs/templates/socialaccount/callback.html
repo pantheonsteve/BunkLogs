@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Callback</title>
+    <script>
+        // Redirect to frontend with the auth code and state
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            
+            let redirectUrl = "{{ frontend_url }}/auth/callback";
+            if (code) {
+                redirectUrl += "?code=" + encodeURIComponent(code);
+                if (state) {
+                    redirectUrl += "&state=" + encodeURIComponent(state);
+                }
+            }
+            
+            window.location.href = redirectUrl;
+        };
+    </script>
+</head>
+<body>
+    <h1>Processing authentication...</h1>
+    <p>Please wait, you will be redirected shortly.</p>
+</body>
+</html>

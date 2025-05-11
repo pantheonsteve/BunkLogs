@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{{ import_bunks }}" class="addlink">{% trans 'Import Bunks' %}</a>
+  </li>
+  {{ block.super }}
+{% endblock object-tools-items %}
