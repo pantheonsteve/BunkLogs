@@ -83,6 +83,7 @@ THIRD_PARTY_APPS = [
     "allauth.socialaccount",
     'allauth.socialaccount.providers.google',
     'allauth.socialaccount.providers.facebook',
+    'allauth.usersessions',
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
@@ -112,10 +113,12 @@ MIGRATION_MODULES = {"sites": "bunk_logs.contrib.sites.migrations"}
 # AUTHENTICATION
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#authentication-backends
-AUTHENTICATION_BACKENDS = (
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin
     'django.contrib.auth.backends.ModelBackend',
+    # `allauth` specific authentication methods
     'allauth.account.auth_backends.AuthenticationBackend',
-)
+]
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
 AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
@@ -179,9 +182,9 @@ class CorsMiddleware:
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "config.settings.base.CorsMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -236,6 +239,7 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "bunk_logs.users.context_processors.allauth_settings",
+                'django.template.context_processors.request',
             ],
         },
     },
@@ -332,29 +336,22 @@ ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 ACCOUNT_LOGIN_METHODS = {"email"}
 
 # Social account settings
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'SCOPE': [
-            'profile',
-            'email',
-        ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        },
-        'OAUTH_PKCE_ENABLED': True,
-        'FETCH_USERINFO': True,
-        #'VERIFIED_EMAIL': True,
-    },
-    'facebook': {
-        'SCOPE': [
-            'email',
-            'public_profile',
-        ],
-        'AUTH_PARAMS': {
-            'auth_type': 'reauthenticate',
-        },
-    },
-}
+# SOCIALACCOUNT_PROVIDERS = {
+#     'google': {
+#         'APP': {
+#             'client_id': 'client_id',
+#             'secret': 'client_secret',
+#             'key': ''
+#         },
+#         'SCOPE': [
+#             'profile',
+#             'email',
+#         ],
+#         'AUTH_PARAMS': {
+#             'access_type': 'online',
+#         }
+#     }
+# }
 
 SOCIALACCOUNT_STORE_TOKENS = True
 
@@ -402,17 +399,19 @@ REST_FRAMEWORK = {
 }
 
 
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
-CORS_ORIGIN_ALLOW_ALL = True  # Allow all origins for development
+CORS_ALLOW_ALL_ORIGINS = False  # Allow all origins for development
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 #CORS_URLS_REGEX = r"^/api/.*$"
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "https://bunklogs.net",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "https://bunklogs.net",
+# ]
 #CORS_ALLOWED_ORIGINS = ['*']
+CORS_ALLOW_ALL_ORIGINS = True
+
+ALLOWED_HOSTS = ["localhost", "localhost:5173" ]
 
 
 # 6. Set the Access-Control-Max-Age header to a reasonable value
@@ -452,7 +451,7 @@ FRONTEND_URL = "http://localhost:5173"  # Default for development
 SPA_URL = "http://localhost:5173"
 
 # Django-allauth specific settings
-ACCOUNT_EMAIL_VERIFICATION = "optional"
+ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
@@ -478,7 +477,7 @@ SPECTACULAR_SETTINGS = {
 
 # Frontend URLs - These will be overridden in environment-specific settings
 FRONTEND_URL = "http://localhost:5173"  # Default for development
-LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/dashboard" 
+LOGIN_REDIRECT_URL = '/auth/success/' 
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
 
 # Add redirect URLs for Google OAuth # Redirect after successful login

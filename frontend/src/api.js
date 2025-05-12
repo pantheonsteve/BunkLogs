@@ -1,29 +1,22 @@
-import axios from "axios";
-import { ACCESS_TOKEN, GOOGLE_ACCESS_TOKEN } from "./token";
+import axios from 'axios';
 
-
-const apiUrl = '/choreo-apis/awbo/backend/rest-api-be2/v1.0';
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL : apiUrl,
-})
+  baseURL: apiUrl,
+  withCredentials: true, // Important for cookies
+});
 
+// Add request interceptor to attach token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(ACCESS_TOKEN);
+    const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    const googleAccessToken = localStorage.getItem(GOOGLE_ACCESS_TOKEN);
-    if (googleAccessToken) {
-      config.headers['X-Google-Access-Token'] = googleAccessToken;
-    }
     return config;
   },
-    (error) => {
-        return Promise.reject(error);
-    }
+  (error) => Promise.reject(error)
 );
 
 export default api;

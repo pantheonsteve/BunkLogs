@@ -20,6 +20,8 @@ function Dashboard() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  console.log('localStorage', localStorage);
+
   return (
     <div className="flex h-[100dvh] overflow-hidden">
 

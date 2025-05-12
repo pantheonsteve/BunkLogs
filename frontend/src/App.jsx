@@ -76,6 +76,7 @@ import AccordionPage from './pages/component/AccordionPage';
 import IconsPage from './pages/component/IconsPage';
 import TestPage from './pages/TestPage';
 import AuthPage from './pages/AuthPage';
+import AuthCallback from './pages/AuthCallback';
 
 function App() {
 
@@ -93,6 +94,7 @@ function App() {
         <Route exact path="/" element={<Dashboard />} />
         <Route path="/test" element={<TestPage/>} />
         <Route path="/register" element={<AuthPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/dashboard/analytics" element={<Analytics />} />
         <Route path="/dashboard/fintech" element={<Fintech />} />
         <Route path="/ecommerce/customers" element={<Customers />} />

@@ -18,6 +18,9 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .serializers import UserSerializer
 from allauth.socialaccount.models import SocialApp
 from rest_framework.renderers import JSONRenderer
+import logging
+logger = logging.getLogger(__name__)
+from django.http import HttpResponseRedirect
 
 class UserRedirectView(LoginRequiredMixin, RedirectView):
     """
@@ -41,43 +44,45 @@ class CustomEmailVerificationSentView(APIView):
             'redirectUrl': settings.FRONTEND_URL + '/verify-email-sent'
         })
 
+# Google OAuth2 login view
 class GoogleLoginView(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
-    callback_url = "http://localhost:5173/"  # For local development
+    callback_url = f"{settings.FRONTEND_URL}/auth/callback"
     client_class = OAuth2Client
 
-@method_decorator(csrf_exempt, name='dispatch')
-class GoogleCallbackView(APIView):
-    permission_classes = [AllowAny]
+    def get_response(self):
+        # Add some logging
+        logger.info("GoogleLoginView.get_response() called")
+        return super().get_response()
+
+# Google callback view
+class GoogleCallbackView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
     
-    def get(self, request):
-        """Handle the OAuth callback from Google"""
-        import logging
-        logger = logging.getLogger(__name__)
+    def get(self, request, *args, **kwargs):
+        logger.info("GoogleCallbackView.get() called")
+        logger.info(f"Query params: {request.GET}")
         
-        # Get tokens from session (populated by SocialAccountAdapter.save_user)
-        tokens = request.session.get('auth_tokens')
-        logger.info(f"Session contents: {request.session.keys()}")
-        
-        if not tokens:
-            logger.error("No auth tokens found in session")
-            return redirect(f"{settings.FRONTEND_URL}/signin?error=authentication_failed")
-        
-        # Instead of redirecting with cookies, pass tokens in URL fragments
-        # This avoids cross-domain cookie issues
-        frontend_url = (
-            f"{settings.FRONTEND_URL}/auth/success"
-            f"#access_token={tokens['access']}"
-            f"&refresh_token={tokens['refresh']}"
-            f"&token_type=Bearer"
-        )
-        
-        # Clean up session
-        if 'auth_tokens' in request.session:
-            del request.session['auth_tokens']
+        # Get tokens from the OAuth process
+        if request.user.is_authenticated:
+            logger.info(f"User authenticated: {request.user.email}")
             
-        logger.info(f"Redirecting to frontend with tokens in URL fragments")
-        return redirect(frontend_url)
+            # Generate tokens
+            refresh = RefreshToken.for_user(request.user)
+            
+            # Build redirect URL
+            redirect_url = (
+                f"{settings.FRONTEND_URL}/auth/callback"
+                f"#access_token={str(refresh.access_token)}"
+                f"&refresh_token={str(refresh)}"
+            )
+            
+            logger.info(f"Redirecting to: {redirect_url}")
+            return HttpResponseRedirect(redirect_url)
+        else:
+            logger.warning("User not authenticated in callback view")
+            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/signin?error=auth_failed")
 
 @ensure_csrf_cookie
 @api_view(['GET'])

@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import GoogleLoginButton from "../components/GoogleLoginButton";
+import SocialLoginButton from "../components/SocialLoginButton";
 
 
 import AuthImage from "../images/auth-image.jpg";
@@ -51,7 +52,7 @@ function Signin() {
                   <Link className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3" to="/">
                     Sign In
                   </Link>
-                  <GoogleLoginButton />
+                  <SocialLoginButton />
                 </div>
               </form>
               {/* Footer */}
