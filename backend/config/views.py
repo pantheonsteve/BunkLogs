@@ -25,6 +25,13 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 User = get_user_model()
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def test_cors(request):
+    return JsonResponse({"message": "CORS is working!"})
+
 
 class CustomEmailVerificationSentView(TemplateView):
     template_name = "account/verification_sent.html"
@@ -81,109 +88,57 @@ def token_authenticate(request):
     # Useful when transitioning from token to session auth
     return Response({"message": "Authentication successful"})
 
-
+@csrf_exempt
 class GoogleLoginView(APIView):
     """
-    Custom view for initiating Google OAuth login using AllAuth
-    This handles the backend exchange for auth code flow
+    View for initiating Google OAuth login
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
-        # Used for redirecting to Google's auth page directly
-        adapter = GoogleOAuth2Adapter(request)
-        app = SocialApp.objects.get(provider="google")
-        client = OAuth2Client(
-            request,
-            app.client_id,
-            app.secret,
-            adapter.access_token_url,
-            adapter.callback_url,
-        )
-        authorization_url = adapter.authorize_url
-        auth_url, state = client.get_redirect_url()
-        request.session["socialaccount_state"] = state
-        return Response({"authorization_url": auth_url})
-    
-    def post(self, request):
         """
-        Handle the 'auth-code' flow from @react-oauth/google
-        Uses the code to authenticate with Google and get user info
+        Handle GET request to initiate OAuth flow
+        This returns the URL where the user should be redirected for Google login
         """
-        code = request.data.get('code')
-        
         try:
             # Get the Google SocialApp configuration
-            social_app = SocialApp.objects.get(provider="google")
+            try:
+                app = SocialApp.objects.get(provider="google")
+            except SocialApp.DoesNotExist:
+                return Response({'error': 'Google authentication is not configured'}, status=500)
             
-            # Exchange the authorization code for tokens
-            token_url = 'https://oauth2.googleapis.com/token'
-            payload = {
-                'code': code,
-                'client_id': social_app.client_id,
-                'client_secret': social_app.secret,
-                'redirect_uri': 'postmessage',  # Special value for popup flow
-                'grant_type': 'authorization_code'
-            }
+            # Callback URL where Google will redirect after authentication
+            callback_url = request.build_absolute_uri(reverse('google_callback'))
             
-            # Exchange code for tokens
-            response = requests.post(token_url, data=payload)
-            token_data = response.json()
-            
-            if 'error' in token_data:
-                return Response({
-                    'error': token_data.get('error'),
-                    'error_description': token_data.get('error_description')
-                }, status=400)
-            
-            # Get user info with access token
-            userinfo_url = 'https://www.googleapis.com/oauth2/v3/userinfo'
-            headers = {'Authorization': f'Bearer {token_data["access_token"]}'}
-            userinfo_response = requests.get(userinfo_url, headers=headers)
-            userinfo = userinfo_response.json()
-            
-            # Create a login using AllAuth
+            # Create OAuth adapter and client
             adapter = GoogleOAuth2Adapter(request)
-            login_data = adapter.parse_token({
-                'access_token': token_data['access_token'],
-                'id_token': token_data.get('id_token'),
-                'expires_in': token_data.get('expires_in')
+            client = OAuth2Client(
+                request,
+                app.client_id,
+                app.secret,
+                adapter.access_token_url,
+                callback_url
+            )
+            
+            # Get the authorization URL
+            auth_url, state = client.get_redirect_url()
+            
+            # Store the state in the session for later verification
+            request.session['socialaccount_state'] = state
+            
+            return Response({
+                'authorization_url': auth_url
             })
-            login_data.update(userinfo)
             
-            # Create the social account
-            social_login = adapter.complete_login(request, login_data)
-            social_login.token = token_data
-            
-            # Complete the login process
-            login_completion = complete_social_login(request, social_login)
-            
-            if isinstance(login_completion, HttpResponseRedirect):
-                # If login was successful and redirected
-                user = social_login.account.user
-                refresh = RefreshToken.for_user(user)
-                
-                return Response({
-                    'user': {
-                        'id': user.id,
-                        'email': user.email,
-                        'name': user.get_full_name(),
-                    },
-                    'tokens': {
-                        'refresh': str(refresh),
-                        'access': str(refresh.access_token),
-                    }
-                })
-            else:
-                # If there was an error during login completion
-                return Response({'error': 'Login failed'}, status=400)
-                
-        except SocialApp.DoesNotExist:
-            return Response({'error': 'Google authentication is not configured'}, status=500)
         except Exception as e:
-            return Response({'error': str(e)}, status=400)
-
-
+            import traceback
+            error_traceback = traceback.format_exc()
+            print(f"Error generating Google auth URL: {e}")
+            print(error_traceback)
+            return Response({
+                'error': str(e),
+                'detail': error_traceback if settings.DEBUG else None
+            }, status=500)
 class GoogleCallbackView(APIView):
     """
     Handles the callback from Google OAuth
@@ -265,7 +220,7 @@ def validate_google_token(request):
     print(f"Request method: {request.method}")
     print(f"Request headers: {request.headers}")
     print(f"Request data: {request.data}")
-    
+
     credential = request.data.get('credential')
     
     if not credential:

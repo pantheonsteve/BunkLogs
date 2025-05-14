@@ -3,14 +3,6 @@ import { getAuth, getConfig } from '../lib/allauth'
 
 export const AuthContext = createContext(null)
 
-function Loading () {
-  return <div>Starting...</div>
-}
-
-function LoadingError () {
-  return <div>Loading error!</div>
-}
-
 export function AuthContextProvider (props) {
   const [auth, setAuth] = useState(undefined)
   const [config, setConfig] = useState(undefined)
@@ -24,8 +16,7 @@ export function AuthContextProvider (props) {
           console.log('Authentication status updated')
         }
         return e.detail
-      }
-      )
+      })
     }
 
     document.addEventListener('allauth.auth.change', onAuthChanged)
@@ -40,13 +31,14 @@ export function AuthContextProvider (props) {
       document.removeEventListener('allauth.auth.change', onAuthChanged)
     }
   }, [])
+  
   const loading = (typeof auth === 'undefined') || config?.status !== 200
   return (
     <AuthContext.Provider value={{ auth, config }}>
       {loading
-        ? <Loading />
+        ? <div>Loading...</div>
         : (auth === false
-            ? <LoadingError />
+            ? <div>Authentication Error</div>
             : props.children)}
     </AuthContext.Provider>
   )

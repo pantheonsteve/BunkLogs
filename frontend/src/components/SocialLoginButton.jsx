@@ -1,10 +1,25 @@
 import React from 'react';
 
+async function testCors() {
+    try {
+      const response = await fetch('http://localhost:8000/api/test-cors/', {
+        method: 'GET',
+        credentials: 'include',  // For cookies
+      });
+      const data = await response.json();
+      console.log('CORS test successful:', data);
+    } catch (error) {
+      console.error('CORS test failed:', error);
+    }
+  }
+
 const SocialLoginButton = ({ provider = 'google' }) => {
   const handleLogin = () => {
-    // Redirect directly to Django's social auth URL
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    window.location.href = `${backendUrl}/custom-google-login/`;
+    // Direct to the Google login view
+    window.location.href = `${backendUrl}/api/auth/google/`;
+    testCors();
+    console.log('Login button clicked');
   };
 
   return (

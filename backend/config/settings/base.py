@@ -183,8 +183,8 @@ class CorsMiddleware:
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.security.SecurityMiddleware",
     "config.settings.base.CorsMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -336,22 +336,17 @@ ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 ACCOUNT_LOGIN_METHODS = {"email"}
 
 # Social account settings
-# SOCIALACCOUNT_PROVIDERS = {
-#     'google': {
-#         'APP': {
-#             'client_id': 'client_id',
-#             'secret': 'client_secret',
-#             'key': ''
-#         },
-#         'SCOPE': [
-#             'profile',
-#             'email',
-#         ],
-#         'AUTH_PARAMS': {
-#             'access_type': 'online',
-#         }
-#     }
-# }
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        }
+    }
+}
 
 SOCIALACCOUNT_STORE_TOKENS = True
 
@@ -399,17 +394,28 @@ REST_FRAMEWORK = {
 }
 
 
-CORS_ALLOW_ALL_ORIGINS = False  # Allow all origins for development
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 #CORS_URLS_REGEX = r"^/api/.*$"
-CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "https://bunklogs.net",
-# ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost",
+    "http://localhost:5173",
+    "https://bunklogs.net",
+]
 #CORS_ALLOWED_ORIGINS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = (
+    *default_headers,
+    "x-session-token",
+    "x-email-verification-key",
+    "x-password-reset-key",
+)
+CORS_ALLOW_CREDENTIALS = True
 
 ALLOWED_HOSTS = ["localhost", "localhost:5173" ]
 
@@ -426,25 +432,25 @@ CSRF_COOKIE_SAMESITE = None
 CSRF_COOKIE_SECURE = True
 
 # If needed for development purposes, you can also enable specific headers and methods
-# CORS_ALLOW_HEADERS = [
-#     "accept",
-#     "accept-encoding",
-#     "authorization",
-#     "content-type",
-#     "dnt",
-#     "origin",
-#     "user-agent",
-#     "x-csrftoken",
-#     "x-requested-with",
-# ]
-# CORS_ALLOW_METHODS = [
-#     "DELETE",
-#     "GET",
-#     "OPTIONS",
-#     "PATCH",
-#     "POST",
-#     "PUT",
-# ]
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
 
 # Frontend URLs - These will be overridden in environment-specific settings
 FRONTEND_URL = "http://localhost:5173"  # Default for development
@@ -460,7 +466,7 @@ ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
 ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
 # Add redirect URLs for Google OAuth 
-LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
+LOGIN_REDIRECT_URL = '/auth/success/'
 ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
 
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
