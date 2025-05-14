@@ -6,9 +6,9 @@ import {
   import { Flows, AuthenticatorType } from '../lib/allauth'
   
   export const URLs = Object.freeze({
-    LOGIN_URL: '/account/login',
-    LOGIN_REDIRECT_URL: '/calculator',
-    LOGOUT_REDIRECT_URL: '/'
+    LOGIN_URL: '/signin',
+    LOGIN_REDIRECT_URL: '/dashboard',
+    LOGOUT_REDIRECT_URL: '/signin'
   })
   
   const flow2path = {}

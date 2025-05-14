@@ -16,7 +16,7 @@ export default function LoginWithSocialButton({
     form.action = `${import.meta.env.VITE_API_URL}/_allauth/browser/v1/auth/provider/redirect`;
     const data = {
       provider: id,
-      callback_url: import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173",
+      callback_url: import.meta.env.VITE_FRONTEND_URL || "http://localhost:8000",
       csrfmiddlewaretoken: getCSRFToken() || "",
       process: "login",
     };

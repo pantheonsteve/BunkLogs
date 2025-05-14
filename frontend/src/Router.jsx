@@ -18,10 +18,6 @@ function createRouter(config) {
       children: [
         // ... other routes
         {
-          path: '/account/login',
-          element: <AnonymousRoute><Signin /></AnonymousRoute>
-        },
-        {
           path: '/account/provider/callback',
           element: <ProviderCallback />
         },
