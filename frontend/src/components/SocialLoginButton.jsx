@@ -1,10 +1,18 @@
 import { getCSRFToken } from "../utils/cookies";
+import { useEffect } from "react";
 
-function SocialLoginButton({ provider = "google" }) {
+function SocialLoginButton({ provider = "GoogleOAuth" }) {
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/get-csrf-token/", {
+      credentials: "include"
+    });
+  }, []);
+
   const handleLogin = () => {
     // Get backend URL from env or default
     const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const callbackUrl = window.location.origin + "/api/auth/google/callback/";
+    const callbackUrl = "http://localhost:8000/api/auth/google/callback/";
     
     console.log("Initiating social login with:", {
       provider,
@@ -19,7 +27,7 @@ function SocialLoginButton({ provider = "google" }) {
     
     // Add form data
     const formData = {
-      provider: provider,
+      provider: provider, // Now it will use "GoogleOAuth"
       callback_url: callbackUrl,
       csrfmiddlewaretoken: getCSRFToken() || "",
       process: "login"
@@ -33,12 +41,14 @@ function SocialLoginButton({ provider = "google" }) {
       input.value = value;
       form.appendChild(input);
     });
-
-    console.log("Form action:", form.action);
-    console.log("Form data:", formData);
     
     // Append and submit form
     document.body.appendChild(form);
+    console.log("Form action:", form.action);
+    console.log("Form data:", formData);
+
+    //debugger;
+    
     form.submit();
   };
 

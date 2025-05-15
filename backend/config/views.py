@@ -23,6 +23,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from urllib.parse import urlencode
+
 User = get_user_model()
 
 from django.http import JsonResponse
@@ -47,7 +49,7 @@ class UserRedirectView(RedirectView):
 @require_GET
 def get_csrf_token(request):
     token = get_token(request)
-    return JsonResponse({"csrfToken": token})
+    return JsonResponse({'csrfToken': token})
 
 
 @require_GET
@@ -330,6 +332,7 @@ def google_login(request):
 def google_callback(request):
     """Handle Google OAuth callback"""
     error = request.GET.get('error')
+    code = request.GET.get('code')
     
     if error:
         # Log the error for debugging
