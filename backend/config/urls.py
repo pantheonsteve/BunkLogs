@@ -45,6 +45,7 @@ urlpatterns += [
 
     path('api/auth/google/', views.google_login, name='google_login'),
     path('api/auth/google/callback/', views.google_callback, name='google_callback'),
+    path('api/auth/google/callback/token/', views.google_login_callback, name='google_login_callback'),
     path('api/get-csrf-token/', views.get_csrf_token, name='get-csrf-token'),
 ]
 

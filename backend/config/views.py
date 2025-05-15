@@ -420,7 +420,7 @@ def google_login_callback(request):
     
     try:
         # Generate full callback URL
-        callback_url = request.build_absolute_uri(reverse('callback'))
+        callback_url = request.build_absolute_uri(reverse('google_login_callback'))
         
         # Get the Google SocialApp
         social_app = SocialApp.objects.get(provider="google")
