@@ -10,9 +10,6 @@ export const settings = {
   baseUrl: `/_allauth/${Client.BROWSER}/v1`,
   withCredentials: false
 }
-console.log('allauth.js: settings.baseUrl', settings.baseUrl)
-console.log('allauth.js: settings.client', settings.client)
-console.log('allauth.js: settings.withCredentials', settings.withCredentials)
 
 const ACCEPT_JSON = {
   accept: 'application/json'
@@ -146,6 +143,7 @@ async function request (method, path, data, headers) {
   const resp = await fetch(settings.baseUrl + path, options)
   console.log(resp)
   const msg = await resp.json()
+  console.log(msg)
   if (msg.status === 410) {
     tokenStorage.removeItem('sessionToken')
   }
@@ -374,4 +372,9 @@ export function setup (client, baseUrl, withCredentials) {
   settings.client = client
   settings.baseUrl = baseUrl
   settings.withCredentials = withCredentials
+  
+  // Log settings after they've been updated
+  console.log('allauth.js: settings.baseUrl', settings.baseUrl)
+  console.log('allauth.js: settings.client', settings.client)
+  console.log('allauth.js: settings.withCredentials', settings.withCredentials)
 }

@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import ProviderList from '../socialaccount/ProviderList'
-//import SocialLoginButton from "../components/SocialLoginButton";
+import SocialLoginButton from "../components/SocialLoginButton";
 
 
 import AuthImage from "../images/auth-image.jpg";
@@ -56,6 +56,7 @@ function Signin() {
                   <ProviderList callbackURL="/account/provider/callback" />
                 </div>
               </form>
+              <SocialLoginButton />
               {/* Footer */}
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
                 <div className="text-sm">

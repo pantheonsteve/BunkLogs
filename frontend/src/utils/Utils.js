@@ -11,7 +11,17 @@ export const formatThousands = (value) => Intl.NumberFormat('en-US', {
 }).format(value);
 
 export const getCssVariable = (variable) => {
-  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+    if (!value) {
+      console.warn(`CSS variable ${variable} returned an empty value`);
+      return '#000000'; // Return a default color if the variable is not set
+    }
+    return value;
+  } catch (error) {
+    console.error(`Error getting CSS variable ${variable}:`, error);
+    return '#000000'; // Return a default color on error
+  }
 };
 
 const adjustHexOpacity = (hexColor, opacity) => {
@@ -38,14 +48,26 @@ const adjustOKLCHOpacity = (oklchColor, opacity) => {
 };
 
 export const adjustColorOpacity = (color, opacity) => {
+  // Trim whitespace to handle possible formatting issues
+  color = color?.trim();
+  
+  if (!color) {
+    console.warn('Empty or undefined color provided to adjustColorOpacity');
+    return 'rgba(0, 0, 0, ' + opacity + ')'; // Return a default color instead of throwing
+  }
+  
   if (color.startsWith('#')) {
     return adjustHexOpacity(color, opacity);
   } else if (color.startsWith('hsl')) {
     return adjustHSLOpacity(color, opacity);
   } else if (color.startsWith('oklch')) {
     return adjustOKLCHOpacity(color, opacity);
+  } else if (color.startsWith('rgb')) {
+    // Handle RGB format by converting to RGBA
+    return color.replace('rgb(', 'rgba(').replace(')', `, ${opacity})`);
   } else {
-    throw new Error('Unsupported color format');
+    console.warn('Unsupported color format:', color);
+    return 'rgba(0, 0, 0, ' + opacity + ')'; // Return a default color instead of throwing
   }
 };
 

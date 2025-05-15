@@ -8,6 +8,7 @@ from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
+from config import views
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
@@ -41,6 +42,9 @@ urlpatterns += [
     ),
     path("_allauth/", include("allauth.headless.urls")),
     path("api/v1/", include("bunk_logs.api.urls")),
+
+    path('api/auth/google/', views.google_login, name='google_login'),
+    path('api/auth/google/callback/', views.google_callback, name='google_callback'),
 ]
 
 if settings.DEBUG:

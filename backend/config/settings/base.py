@@ -150,42 +150,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # MIDDLEWARE
 # ------------------------------------------------------------------------------
 
-class CorsMiddleware:
-    """
-    Django middleware that adds CORS headers to responses to allow all origins.
-    
-    This middleware should be added to your MIDDLEWARE setting in settings.py.
-    For security in production, consider using django-cors-headers package
-    with more restrictive settings.
-    """
-    
-    def __init__(self, get_response):
-        self.get_response = get_response
-        
-    def __call__(self, request):
-        response = self.get_response(request)
-        
-        # Add CORS headers to allow all origins
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Origin, Content-Type, Accept, Authorization, X-Requested-With, x-csrftoken"
-        response["Access-Control-Allow-Credentials"] = "true"
-        response["Access-Control-Max-Age"] = "86400"  # 24 hours
-        
-        # Handle preflight OPTIONS requests
-        if request.method == "OPTIONS":
-            response.status_code = 200
-            
-        return response
-
-
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "config.settings.base.CorsMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     #"django.middleware.csrf.CsrfViewMiddleware",
@@ -371,13 +341,18 @@ HEADLESS_FRONTEND_URLS = {
     "account_reset_password": "/account/password/reset",
     "account_reset_password_from_key": "/account/password/reset/key/{key}",
     "account_signup": "/account/signup",
-    "socialaccount_login_error": "/account/provider/callback",
+    "socialaccount_login_error": "/api/auth/google/callback/",
 }
 HEADLESS_SERVE_SPECIFICATION = True
 
-
-
 SOCIALACCOUNT_QUERY_EMAIL = True
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    }
+}
 
 ACCOUNT_LOGOUT_REDIRECT_URL = 'http://localhost:5173/signin'
 
@@ -394,7 +369,7 @@ REST_FRAMEWORK = {
 }
 
 
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
+# CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 #CORS_URLS_REGEX = r"^/api/.*$"
@@ -404,8 +379,6 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://bunklogs.net",
 ]
-#CORS_ALLOWED_ORIGINS = ['*']
-CORS_ALLOW_ALL_ORIGINS = True
 
 from corsheaders.defaults import default_headers
 

@@ -306,6 +306,102 @@ def validate_google_token(request):
         
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+    
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def google_login(request):
+    """Initiate Google OAuth flow"""
+    try:
+        # Get Google provider configuration
+        social_app = SocialApp.objects.get(provider="google")
+        
+        # Define redirect URL back to backend
+        redirect_uri = request.build_absolute_uri(reverse('google_callback'))
+        
+        # Build Google OAuth URL
+        auth_url = f"https://accounts.google.com/o/oauth2/auth?client_id={social_app.client_id}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile"
+        
+        return Response({"auth_url": auth_url})
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def google_callback(request):
+    """Handle Google OAuth callback"""
+    error = request.GET.get('error')
+    
+    if error:
+        # Log the error for debugging
+        print(f"Google OAuth error: {error}")
+        # Redirect to frontend with error message
+        return HttpResponseRedirect(
+            f"{settings.FRONTEND_URL}/signin?auth_error={error}"
+        )
+    
+    if not code:
+        return Response({"error": "No authorization code received"}, status=400)
+    
+    try:
+        # Get Google app config
+        social_app = SocialApp.objects.get(provider="google")
+        
+        # Exchange code for token
+        token_url = "https://oauth2.googleapis.com/token"
+        redirect_uri = request.build_absolute_uri(reverse('google_callback'))
+        
+        payload = {
+            'code': code,
+            'client_id': social_app.client_id,
+            'client_secret': social_app.secret,
+            'redirect_uri': redirect_uri,
+            'grant_type': 'authorization_code'
+        }
+        
+        # Get token from Google
+        response = requests.post(token_url, data=payload)
+        token_data = response.json()
+        
+        # Get user info from Google
+        userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
+        headers = {'Authorization': f'Bearer {token_data["access_token"]}'}
+        userinfo = requests.get(userinfo_url, headers=headers).json()
+        
+        # Get or create user
+        try:
+            social_account = SocialAccount.objects.get(provider='google', uid=userinfo['sub'])
+            user = social_account.user
+        except SocialAccount.DoesNotExist:
+            # Find or create user by email
+            email = userinfo.get('email')
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                user = User.objects.create_user(
+                    email=email,
+                    first_name=userinfo.get('given_name', ''),
+                    last_name=userinfo.get('family_name', ''),
+                    role='Counselor'  # Default role
+                )
+                
+                # Create social account
+                SocialAccount.objects.create(
+                    user=user,
+                    provider='google',
+                    uid=userinfo['sub'],
+                    extra_data=userinfo
+                )
+        
+        # Generate JWT token
+        refresh = RefreshToken.for_user(user)
+        
+        # Redirect to frontend with token
+        frontend_url = settings.FRONTEND_URL
+        redirect_url = f"{frontend_url}/auth/callback#{urlencode({'access_token': str(refresh.access_token), 'refresh_token': str(refresh)})}"
+        
+        return HttpResponseRedirect(redirect_url)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 
 @api_view(['POST'])

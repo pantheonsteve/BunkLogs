@@ -1,21 +1,21 @@
 import { useContext, useRef, useState, useEffect } from 'react'
 import { AuthContext } from './AuthContext'
 
-export function useAuth () {
+export function useAuthFromContext() {
   return useContext(AuthContext)?.auth
 }
 
-export function useConfig () {
+export function useConfig() {
   return useContext(AuthContext)?.config
 }
 
-export function useUser () {
-  const auth = useContext(AuthContext)?.auth
+export function useUser() {
+  const auth = useAuthFromContext()
   return authInfo(auth).user
 }
 
-export function useAuthInfo () {
-  const auth = useContext(AuthContext)?.auth
+export function useAuthInfo() {
+  const auth = useAuthFromContext()
   return authInfo(auth)
 }
 
@@ -98,7 +98,7 @@ export function useAuthChange () {
   return [auth, event]
 }
 
-export function useAuthStatus () {
-  const auth = useAuth()
+export function useAuthStatus() {
+  const auth = useAuthFromContext()
   return [auth, authInfo(auth)]
 }

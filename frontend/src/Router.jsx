@@ -1,44 +1,50 @@
-import { useState, useEffect } from 'react'
-import { AuthChangeRedirector, AnonymousRoute, AuthenticatedRoute } from './auth/routing'
-import {
-  createBrowserRouter,
-  RouterProvider
-} from 'react-router-dom'
-import Signin from './pages/Signin'
-import ProviderCallback from './socialaccount/ProviderCallback'
-// import Calculator from './Calculator'
-import Root from './Root'
-import { useConfig } from './auth/hooks'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './auth/AuthContext';
+import Signin from './pages/Signin';
+import Signup from './pages/Signup';
+import Dashboard from './pages/Dashboard';
+import AuthCallback from './pages/AuthCallback';
 
-function createRouter(config) {
-  return createBrowserRouter([
-    {
-      path: '/',
-      element: <Root />,
-      children: [
-        // ... other routes
-        {
-          path: '/account/provider/callback',
-          element: <ProviderCallback />
-        },
-        {
-          path: '/signin',
-          element: <AnonymousRoute><Signin /></AnonymousRoute>
-        },
-        // ... other routes
-      ]
-    }
-  ]);
+// Protected route component
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/signin" />;
+  }
+  
+  return children;
 }
 
-export default function Router () {
-  // If we create the router globally, the loaders of the routes already trigger
-  // even before the <AuthContext/> trigger the initial loading of the auth.
-  // state.
-  const [router, setRouter] = useState(null)
-  const config = useConfig()
-  useEffect(() => {
-    setRouter(createRouter(config))
-  }, [config])
-  return router ? <RouterProvider router={router} /> : null
+function Router() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/signin" element={<Signin />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        
+        {/* Protected routes */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="*" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
+
+export default Router;
