@@ -129,15 +129,39 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     try {
+      // Try to call the logout endpoint if it exists
+      // This will fail silently if the endpoint doesn't exist or there's no token
+      try {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          await api.post('/api/logout/', {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(e => console.log('Logout API call failed, proceeding with local logout'));
+        }
+      } catch (apiError) {
+        // Continue with local logout even if API call fails
+        console.log('API logout attempt failed:', apiError);
+      }
+      
+      // Clear all auth data from localStorage
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_profile');
+      
+      // Also clear any other potential auth-related items
+      localStorage.removeItem('auth_state');
+      
+      // Clear user from state
+      setUser(null);
+      
+      console.log('User successfully logged out');
     } catch (error) {
-      console.error("Logout localStorage error:", error);
+      console.error("Logout error:", error);
+      // Even if localStorage fails, still reset the user state
+      setUser(null);
     }
-    setUser(null);
   };
 
   const value = {
