@@ -65,21 +65,42 @@ function AuthCallback() {
         }
       }
       
-      // Now fetch user details using the email
-      if (userEmail) {
-        try {
+      // Now fetch user details using the email or user_id
+      try {
+        let userProfile = null;
+        
+        if (userEmail) {
+          // Try to fetch profile by email
           const profileResponse = await api.get(`/api/v1/users/email/${userEmail}/`);
+          userProfile = profileResponse.data;
+        } else if (userId) {
+          // If no email but we have userId, fetch by user_id
+          const profileResponse = await api.get(`/api/v1/users/${userId}/`);
+          userProfile = profileResponse.data;
+        }
+        
+        if (userProfile) {
           // Store full profile data
-          localStorage.setItem('user_profile', JSON.stringify(profileResponse.data));
+          localStorage.setItem('user_profile', JSON.stringify(userProfile));
           
-          // Important: Update the auth context with login
-          login({ access_token: accessToken, refresh_token: refreshToken });
+          // Important: Update the auth context with login AND pass the user profile
+          login({ 
+            access_token: accessToken, 
+            refresh_token: refreshToken,
+            user_profile: userProfile // Pass the user profile to the login function
+          });
           
           setStatus('Authentication successful. Redirecting...');
-        } catch (profileError) {
-          console.error('Error fetching user profile:', profileError);
-          setStatus('Error loading user profile.');
+        } else {
+          // If we couldn't get a profile but we have a token, still login
+          login({ access_token: accessToken, refresh_token: refreshToken });
+          setStatus('Authenticated with limited profile info. Redirecting...');
         }
+      } catch (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        // Even if profile fetch fails, we can still login with the token
+        login({ access_token: accessToken, refresh_token: refreshToken });
+        setStatus('Authentication successful, but profile error. Redirecting...');
       }
       
       // Wait briefly to ensure context is updated before redirect

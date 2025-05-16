@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 import Sidebar from '../partials/Sidebar';
 import Header from '../partials/Header';
@@ -17,10 +18,13 @@ import DashboardCard10 from '../partials/dashboard/DashboardCard10';
 import DashboardCard11 from '../partials/dashboard/DashboardCard11';
 
 function Dashboard() {
-
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { userProfile, isAuthenticated } = useAuth();
 
-  console.log('localStorage', localStorage);
+  useEffect(() => {
+    // Log user profile data when dashboard mounts
+    console.log('User profile in dashboard:', userProfile);
+  }, [userProfile]);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -43,6 +47,12 @@ function Dashboard() {
               {/* Left: Title */}
               <div className="mb-4 sm:mb-0">
                 <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">Dashboard</h1>
+                {userProfile && (
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Welcome, {userProfile.first_name || userProfile.email || 'User'} 
+                    {userProfile.role && <span className="ml-2 px-2 py-1 bg-violet-100 text-violet-800 dark:bg-violet-800/30 dark:text-violet-400 rounded-full text-xs">{userProfile.role}</span>}
+                  </div>
+                )}
               </div>
 
               {/* Right: Actions */}
@@ -61,6 +71,35 @@ function Dashboard() {
               </div>
 
             </div>
+
+            {/* User Profile Summary Card */}
+            {userProfile && (
+              <div className="bg-white dark:bg-gray-800 shadow-lg rounded-sm border border-gray-200 dark:border-gray-700 mb-8">
+                <div className="px-5 py-4">
+                  <h2 className="font-semibold text-gray-800 dark:text-gray-100">User Profile</h2>
+                  <div className="grid md:grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Name</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-100">
+                        {userProfile.first_name || ''} {userProfile.last_name || ''}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Email</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{userProfile.email || 'Not available'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Role</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{userProfile.role || 'Not specified'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">User ID</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{userProfile.id || 'Not available'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Cards */}
             <div className="grid grid-cols-12 gap-6">

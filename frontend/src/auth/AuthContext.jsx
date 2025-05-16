@@ -78,15 +78,35 @@ export function AuthProvider({ children }) {
         localStorage.setItem('refresh_token', tokens.refresh_token);
       }
       
-      // Decode and set user from token
+      // If we have a full user profile passed directly, use that
+      if (tokens.user_profile) {
+        console.log('Setting user from provided profile:', tokens.user_profile);
+        setUser(tokens.user_profile);
+        return;
+      }
+      
+      // Otherwise decode and set user from token
       const decoded = jwtDecode(tokens.access_token);
       console.log('Login successful, decoded token:', decoded);
       
-      // If we have user data in the token or in memory, use it
+      // If we have user data in the token, use it
       if (decoded.user_data) {
         setUser(decoded.user_data);
       } else {
-        // Just set minimal user info from token
+        // Try to get user profile from localStorage as a fallback
+        const storedProfile = localStorage.getItem('user_profile');
+        if (storedProfile) {
+          try {
+            const profile = JSON.parse(storedProfile);
+            setUser(profile);
+            console.log('User set from stored profile:', profile);
+            return;
+          } catch (e) {
+            console.warn('Failed to parse stored profile:', e);
+          }
+        }
+        
+        // As a last resort, set minimal user info from token
         setUser({
           id: decoded.user_id,
           email: decoded.email,
@@ -122,6 +142,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    setUser, // Expose setUser for direct profile updates
     loading,
     error,
     login,
@@ -137,7 +158,28 @@ export function useAuth() {
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context;
+  
+  // Enhanced context with additional helper methods
+  return {
+    ...context,
+    // Get user profile or an empty object
+    userProfile: context.user || {},
+    // Convenience method to update user profile
+    updateUserProfile: (profileData) => {
+      if (!context.user) return; // Don't update if no user exists
+      
+      // Merge existing user data with new profile data
+      const updatedProfile = { ...context.user, ...profileData };
+      context.setUser(updatedProfile);
+      
+      // Update localStorage if available
+      try {
+        localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
+      } catch (e) {
+        console.warn('Could not save updated profile to localStorage:', e);
+      }
+    }
+  };
 }
 
 export default AuthContext;
