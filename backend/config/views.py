@@ -400,7 +400,9 @@ def google_callback(request):
         
         # Redirect to frontend with token
         frontend_url = settings.FRONTEND_URL
+        # Ensure we're using the correct URL format and encoding tokens properly
         redirect_url = f"{frontend_url}/auth/callback#{urlencode({'access_token': str(refresh.access_token), 'refresh_token': str(refresh)})}"
+        print(f"Redirecting to: {redirect_url}")
         
         return HttpResponseRedirect(redirect_url)
     except Exception as e:

@@ -57,6 +57,17 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
     
+def get_user_by_id(request, user_id):
+    """
+    Endpoint to get user details by ID.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+        serializer = UserSerializer(user)
+        return JsonResponse(serializer.data)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    
 
 @login_required
 def google_login_callback(request):

@@ -1,94 +1,122 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import api from '../api';
-import { getConfig } from '../lib/allauth';
 
-export const AuthContext = createContext(null);
+const AuthContext = createContext(null);
+export { AuthContext }; // Add named export alongside default export
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [config, setConfig] = useState(null);
 
   // Check for token on mount
   useEffect(() => {
-    const checkAuth = async () => {
+  const checkAuth = async () => {
+    try {
+      // Check if localStorage is accessible (might not be in incognito with certain browser settings)
+      let token = null;
+      let storedProfile = null;
+      
       try {
-        const accessToken = localStorage.getItem('access_token');
-        if (!accessToken) {
-          setLoading(false);
-          return;
-        }
-
-        // Validate token and get user data
-        try {
-          const decoded = jwtDecode(accessToken);
-          
-          // Check if token is expired
-          if (decoded.exp * 1000 < Date.now()) {
-            // Try to refresh the token
-            const refreshToken = localStorage.getItem('refresh_token');
-            if (refreshToken) {
-              const response = await api.post('/api/token/refresh/', {
-                refresh: refreshToken
-              });
-              
-              if (response.status === 200) {
-                localStorage.setItem('access_token', response.data.access);
-                setUser(jwtDecode(response.data.access));
-              } else {
-                // Failed to refresh, logout
-                logout();
-              }
-            } else {
-              logout();
-            }
-          } else {
-            // Token is valid
-            setUser(decoded);
-          }
-        } catch (error) {
-          console.error('Token validation error:', error);
-          logout();
-        }
-      } catch (error) {
-        setError(error);
-      } finally {
+        token = localStorage.getItem('access_token');
+        storedProfile = localStorage.getItem('user_profile');
+        // Test writing to localStorage to verify it's available
+        localStorage.setItem('test_storage', 'test');
+        localStorage.removeItem('test_storage');
+      } catch (storageError) {
+        console.error("LocalStorage not available:", storageError);
+        // Handle case when localStorage is not available (e.g., incognito mode with restrictions)
         setLoading(false);
+        return;
       }
-    };
-
-    checkAuth();
-  }, []);
-
-  // Load configuration information
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const configResponse = await getConfig();
-        if (configResponse && configResponse.status === 200) {
-          setConfig(configResponse);
+      
+      if (token) {
+        const decoded = jwtDecode(token);
+        console.log('Token found, decoded:', decoded);
+        
+        // Use stored profile if available, or fetch it
+        if (storedProfile) {
+          const profile = JSON.parse(storedProfile);
+          setUser(profile);
+          console.log('User set from stored profile:', profile);
+        } else if (decoded.email || decoded.user_id) {
+          // Try to fetch by email first, then by user_id if available
+          try {
+            const endpoint = decoded.email 
+              ? `/api/v1/users/email/${decoded.email}/` 
+              : `/api/v1/users/${decoded.user_id}/`;
+              
+            const response = await api.get(endpoint);
+            setUser(response.data);
+            console.log('User set from API:', response.data);
+            try {
+              localStorage.setItem('user_profile', JSON.stringify(response.data));
+            } catch (e) {
+              console.warn('Could not save profile to localStorage:', e);
+            }
+          } catch (apiError) {
+            console.error("Error fetching user data:", apiError);
+          }
         }
-      } catch (error) {
-        console.error('Error loading configuration:', error);
       }
-    };
-    
-    loadConfig();
-  }, []);
+    } catch (error) {
+      console.error("Auth error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  checkAuth();
+}, []);
 
   const login = (tokens) => {
-    localStorage.setItem('access_token', tokens.access_token);
-    if (tokens.refresh_token) {
-      localStorage.setItem('refresh_token', tokens.refresh_token);
+    try {
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', tokens.access_token);
+      if (tokens.refresh_token) {
+        localStorage.setItem('refresh_token', tokens.refresh_token);
+      }
+      
+      // Decode and set user from token
+      const decoded = jwtDecode(tokens.access_token);
+      console.log('Login successful, decoded token:', decoded);
+      
+      // If we have user data in the token or in memory, use it
+      if (decoded.user_data) {
+        setUser(decoded.user_data);
+      } else {
+        // Just set minimal user info from token
+        setUser({
+          id: decoded.user_id,
+          email: decoded.email,
+          name: decoded.name || decoded.email
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      // Even if localStorage fails, we can still set the user in memory
+      try {
+        const decoded = jwtDecode(tokens.access_token);
+        setUser({
+          id: decoded.user_id,
+          email: decoded.email,
+          name: decoded.name || decoded.email
+        });
+      } catch (decodeError) {
+        console.error("Failed to decode token:", decodeError);
+      }
     }
-    setUser(jwtDecode(tokens.access_token));
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    try {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_profile');
+    } catch (error) {
+      console.error("Logout localStorage error:", error);
+    }
     setUser(null);
   };
 
@@ -98,9 +126,7 @@ export function AuthProvider({ children }) {
     error,
     login,
     logout,
-    isAuthenticated: !!user,
-    isAuthorized: !!user, // Added for compatibility with existing components
-    config
+    isAuthenticated: !!user
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

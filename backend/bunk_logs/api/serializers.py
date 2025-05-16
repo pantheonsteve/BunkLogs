@@ -44,7 +44,7 @@ class SimpleBunkSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Bunk
-        fields = ['counselors', 'session', 'unit', 'cabin']  # Exclude the field causing recursion
+        fields = ['counselors', 'session', 'unit', 'cabin', 'id']  # Exclude the field causing recursion
 
 
 class UserSerializer(serializers.ModelSerializer):

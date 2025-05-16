@@ -49,13 +49,9 @@ function Signin() {
                       Forgot Password?
                     </Link>
                   </div>
-                  <Link className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3" to="/">
-                    Sign In
-                  </Link>
-                  <h2>Or use a social account</h2>
-                  <ProviderList callbackURL="/account/provider/callback" />
                 </div>
               </form>
+              <h2>Or use a social account</h2>
               <SocialLoginButton />
               {/* Footer */}
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">

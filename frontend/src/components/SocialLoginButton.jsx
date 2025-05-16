@@ -12,11 +12,14 @@ function SocialLoginButton({ provider = "GoogleOAuth" }) {
   const handleLogin = () => {
     // Get backend URL from env or default
     const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const callbackUrl = "http://localhost:8000/api/auth/google/callback/";
+    // Set callback URL to be full absolute URL
+    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+    const callbackUrl = `${backendUrl}/api/auth/google/callback/`;
     
     console.log("Initiating social login with:", {
       provider,
       callbackUrl,
+      frontendUrl,
       csrfToken: getCSRFToken()
     });
     
