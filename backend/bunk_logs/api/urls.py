@@ -13,6 +13,8 @@ router.register(r'bunklogs', views.BunkLogViewSet, basename='bunklog')
 
 urlpatterns = [
     path('', include(router.urls)),
+    # Add a URL pattern for an individual bunk
+    path('bunk/<str:id>/', views.BunkViewSet.as_view({'get': 'retrieve'}), name='bunk-detail'),
     
     # Add dedicated endpoint for email-based user retrieval
     path('users/email/<str:email>/', views.get_user_by_email, name='user-by-email'),

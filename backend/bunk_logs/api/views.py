@@ -221,6 +221,17 @@ class BunkViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = Bunk.objects.all()
     serializer_class = BunkSerializer
+    lookup_field = 'id'  # Set lookup_field to match the URL parameter name
+    
+    def get_queryset(self):
+        """
+        Optionally filter bunks by ID.
+        """
+        queryset = Bunk.objects.all()
+        bunk_id = self.request.query_params.get('id', None)
+        if bunk_id is not None:
+            queryset = queryset.filter(id=bunk_id)
+        return queryset
 
 class BunkLogsInfoByDateViewSet(APIView):
     """         
