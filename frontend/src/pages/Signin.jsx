@@ -1,12 +1,60 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import ProviderList from '../socialaccount/ProviderList'
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import ProviderList from '../socialaccount/ProviderList';
 import SocialLoginButton from "../components/SocialLoginButton";
-
+import api from "../api";
 
 import AuthImage from "../images/auth-image.jpg";
 
 function Signin() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    
+    try {
+      // Call the JWT token endpoint
+      const response = await api.post("/api/auth/token/", {
+        email,
+        password
+      });
+      
+      console.log("Login successful:", response.data);
+      
+      // Store the tokens and user data
+      const tokens = {
+        access_token: response.data.access,
+        refresh_token: response.data.refresh,
+        user: response.data.user // Include user data from response
+      };
+      
+      // Call the login function from AuthContext
+      login(tokens);
+      
+      // Redirect to dashboard
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Login error:", error);
+      
+      if (error.response?.status === 401) {
+        setError("Invalid email or password");
+      } else if (error.response?.data?.detail) {
+        setError(error.response.data.detail);
+      } else {
+        setError("Login failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <main className="bg-white dark:bg-gray-900">
       <div className="relative md:flex">
@@ -26,29 +74,59 @@ function Signin() {
             </div>
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
-              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">Welcome back!</h1>
+              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">Welcome back!</h1>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">Sign in to your account to continue</p>
               {/* Form */}
-              <form>
+              <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1" htmlFor="email">
                       Email Address
                     </label>
-                    <input id="email" className="form-input w-full" type="email" />
+                    <input 
+                      id="email" 
+                      className="form-input w-full" 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1" htmlFor="password">
                       Password
                     </label>
-                    <input id="password" className="form-input w-full" type="password" autoComplete="on" />
+                    <input 
+                      id="password" 
+                      className="form-input w-full" 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password" 
+                      required
+                    />
                   </div>
+                  
+                  {error && (
+                    <div className="text-red-600 text-sm mt-1">
+                      {error}
+                    </div>
+                  )}
                 </div>
+                
                 <div className="flex items-center justify-between mt-6">
                   <div className="mr-1">
                     <Link className="text-sm underline hover:no-underline" to="/reset-password">
                       Forgot Password?
                     </Link>
                   </div>
+                  <button
+                    type="submit"
+                    className="btn bg-violet-600 hover:bg-violet-700 text-white ml-3"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Signing in..." : "Sign In"}
+                  </button>
                 </div>
               </form>
               <h2>Or use a social account</h2>

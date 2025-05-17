@@ -2,8 +2,46 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth import get_user_model
 from django.middleware.csrf import get_token
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 User = get_user_model()
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = User.EMAIL_FIELD
+
+    def validate(self, attrs):
+        # Strip whitespace from email
+        if self.username_field in attrs:
+            attrs[self.username_field] = attrs[self.username_field].strip()
+            
+        # Add custom claims to the token
+        data = super().validate(attrs)
+        refresh = self.get_token(self.user)
+        
+        # Add extra claims to the token
+        refresh['email'] = self.user.email
+        refresh['user_id'] = str(self.user.id)
+        if hasattr(self.user, 'role'):
+            refresh['role'] = getattr(self.user, 'role', 'User')
+            
+        # Return the token data
+        data['access'] = str(refresh.access_token)
+        data['refresh'] = str(refresh)
+        
+        # Add basic user details
+        data['user'] = {
+            'id': str(self.user.id),
+            'email': self.user.email,
+            'first_name': getattr(self.user, 'first_name', ''),
+            'last_name': getattr(self.user, 'last_name', ''),
+            'role': getattr(self.user, 'role', 'User'),
+        }
+        
+        return data
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
 
 @ensure_csrf_cookie
 def get_csrf_token(request):

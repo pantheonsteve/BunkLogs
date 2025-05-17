@@ -78,7 +78,16 @@ export function AuthProvider({ children }) {
         localStorage.setItem('refresh_token', tokens.refresh_token);
       }
       
-      // If we have a full user profile passed directly, use that
+      // If we have a user object directly from the API response (username/password login)
+      if (tokens.user) {
+        console.log('Setting user from API response:', tokens.user);
+        setUser(tokens.user);
+        // Also store in localStorage
+        localStorage.setItem('user_profile', JSON.stringify(tokens.user));
+        return;
+      }
+      
+      // If we have a full user profile passed directly (social login), use that
       if (tokens.user_profile) {
         console.log('Setting user from provided profile:', tokens.user_profile);
         setUser(tokens.user_profile);

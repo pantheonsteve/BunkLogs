@@ -42,7 +42,11 @@ urlpatterns += [
     ),
     path("_allauth/", include("allauth.headless.urls")),
     path("api/v1/", include("bunk_logs.api.urls")),
+    
+    # JWT Authentication
+    path("api/auth/", include("config.auth_urls")),
 
+    # Google OAuth
     path('api/auth/google/', views.google_login, name='google_login'),
     path('api/auth/google/callback/', views.google_callback, name='google_callback'),
     path('api/auth/google/callback/token/', views.google_login_callback, name='google_login_callback'),
