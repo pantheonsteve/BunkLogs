@@ -75,7 +75,7 @@ function AuthCallback() {
           userProfile = profileResponse.data;
         } else if (userId) {
           // If no email but we have userId, fetch by user_id
-          const profileResponse = await api.get(`/api/v1/users/${userId}/`);
+          const profileResponse = await api.get(`/api/v1/users/${userId}`);
           userProfile = profileResponse.data;
         }
         
