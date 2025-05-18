@@ -49,7 +49,7 @@ function BunkCard({ cabin, session, bunk_id, counselors}) {
   console.log('Bunk data:', bunkData);
 
   return (
-    <Link to={`/bunk/${bunk_id}`} className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-xs rounded-lg">
+    <Link to={`/bunk/${bunk_id}/2025-04-22`} className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-xs rounded-lg">
     <div className="flex flex-col col-span-full sm:col-span-6 xl:col-span-4 bg-white dark:bg-gray-800 shadow-xs rounded-xl">
       <div className="px-5 pt-5 pb-5">
         <header className="flex justify-between items-start mb-2">

@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext';
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
+import BunkDashboard from './pages/BunkDashboard';
 import AuthCallback from './pages/AuthCallback';
 
 // Protected route component
@@ -27,6 +28,7 @@ function Router() {
         {/* Public routes */}
         <Route path="/signin" element={<Signin />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/bunk/:bunk_id/:date" element={<BunkDashboard />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Protected routes */}
