@@ -15,7 +15,7 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
             setLoading(true);
             const response = await axios.get(
               //`https://dev-camper-care-bunk-logs.pantheonsite.io/api/v1/campers?bunk_id=${bunk_id}`
-              `http://127.0.0.1:8000/api/v1/bunklogs/${bunk_id}/logs/${date}/`
+              `http://localhost:8000/api/v1/bunklogs/${bunk_id}/logs/${date}/`
             );
             setData(response.data.campers);
           } catch (error) {
@@ -39,9 +39,10 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
                         aria-controls="feedback-modal"
                         onClick={(e) => {
                           console.log('Clicked');
+                          console.log(camper);
                           e.stopPropagation();
                           // Use the function from props and pass camper_id
-                          openBunkModal(camper.camper_id, camper.bunk_assignment.id);
+                          openBunkModal(camper.camper_id, camper.bunk_assignment_id);
                         }}
                         title={camper.bunk_log ? "View/Edit Bunk Log" : "Create Bunk Log"}
                       >

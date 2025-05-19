@@ -92,7 +92,7 @@ function CamperLogsBunkViewItem(props) {
             <div className="text-sm mb-3">
               {/* Note: Using dangerouslySetInnerHTML requires that content is properly sanitized to prevent XSS attacks */}
               <div dangerouslySetInnerHTML={{ __html: props.description }}></div>
-              <div className="font-medium text-gray-800 dark:text-gray-100 mb-1">Reporting Counselor: {props.counselor_name}</div>
+              <div className="font-medium text-gray-800 dark:text-gray-100 mb-1">Reporting Counselor: {props.counselor_first_name} {props.counselor_last_name}</div>
             </div>
           </div>
         </td>

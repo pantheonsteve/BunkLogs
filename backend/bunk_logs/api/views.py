@@ -268,6 +268,12 @@ class BunkLogsInfoByDateViewSet(APIView):
                         date=date
                     )
                     serialized_log = BunkLogSerializer(bunk_log).data
+                    
+                    # Add counselor details to the serialized log
+                    if bunk_log.counselor:
+                        serialized_log['counselor_first_name'] = bunk_log.counselor.first_name
+                        serialized_log['counselor_last_name'] = bunk_log.counselor.last_name
+                        serialized_log['counselor_email'] = bunk_log.counselor.email
                 except BunkLog.DoesNotExist:
                     serialized_log = None
                 # Add to campers list
@@ -275,6 +281,7 @@ class BunkLogsInfoByDateViewSet(APIView):
                     "camper_id": str(assignment.camper.id),
                     "camper_first_name": assignment.camper.first_name,
                     "camper_last_name": assignment.camper.last_name,
+                    "bunk_assignment_id": str(assignment.id),
                     "bunk_log": serialized_log,
                 })
             # Get counselors for this bunk

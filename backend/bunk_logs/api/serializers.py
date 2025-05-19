@@ -105,7 +105,7 @@ class BunkSerializer(serializers.ModelSerializer):
 class CamperSerializer(serializers.ModelSerializer):
     class Meta:
         model = Camper
-        fields = "__all__"
+        fields = ["bunk_assignment", "first_name", "last_name", "date_of_birth", "emergency_contact_name",]
 
 
 class CamperBunkAssignmentSerializer(serializers.ModelSerializer):

@@ -7,6 +7,7 @@ import Image02 from '../../images/user-36-06.jpg';
 import Image03 from '../../images/user-36-07.jpg';
 import Image04 from '../../images/user-36-08.jpg';
 import Image05 from '../../images/user-36-09.jpg';
+import axios from 'axios';
 
 function BunkLogsTableViewCard({ bunkData }) {
 
@@ -121,6 +122,11 @@ function BunkLogsTableViewCard({ bunkData }) {
                     const uniqueKey = item.id || `${item.camper_first_name}-${item.camper_last_name}-${index}`;
                     const counselor = item?.bunk_assignment?.bunk?.counselors?.find(c => c.id === item.bunk_log.counselor) || "Unknown";
                     const counselorName = `${counselor.first_name} ${counselor.last_name}`;
+                    console.log("Counselor Name: ", getCounselorName(item.bunk_log.counselor, item));
+                    console.log("data: ", data);
+                    console.log("item: ", item);
+                    console.log("item.bunk_log: ", item.bunk_log);
+                    console.log("item.bunk_log.counselor: ", item.bunk_log.counselor);
                     return (
                       <CamperLogsBunkViewItem
                         key={uniqueKey}
@@ -129,7 +135,9 @@ function BunkLogsTableViewCard({ bunkData }) {
                         image={item.image}
                         camper_first_name={item.camper_first_name}
                         camper_last_name={item.camper_last_name}
-                        counselor_name={counselorName}
+                        counselor_first_name={item.bunk_log.counselor_first_name}
+                        counselor_last_name={item.bunk_log.counselor_last_name}
+                        counselor_email={item.bunk_log.counselor_email}
                         social_score={item.bunk_log.social_score}
                         behavior_score={item.bunk_log.behavior_score}
                         participation_score={item.bunk_log.participation_score}

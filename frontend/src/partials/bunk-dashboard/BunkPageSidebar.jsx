@@ -135,7 +135,7 @@ function BunkPageSidebar({
                         </div>
                       </a>
                       <div className="lg:hidden lg:sidebar-expanded:block 2xl:block">
-                        <ul className={`pl-8 mt-1 ${!open && "hidden"}`}>
+                        <ul className={`mt-1 ${!open && "hidden"}`}>
                           <li className="mb-1 last:mb-0">
                           <CamperList 
                             bunk_id={bunk} 

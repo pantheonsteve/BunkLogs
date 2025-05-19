@@ -202,7 +202,7 @@ def _process_assignment_row(
     _validate_names(camper_first_name, camper_last_name)
 
     # Find or create camper
-    camper = _find_or_create_camper(camper_first_name, camper_last_name, dry_run)
+    camper = _find_or_create_camper(camper_first_name, camper_last_name, dry_run=dry_run)
 
     # Extract and validate cabin/session
     cabin_name = row.get("cabin_name", "").strip()
@@ -260,7 +260,7 @@ def import_bunk_assignments_from_csv(
             # Process each row in its own transaction
             try:
                 with transaction.atomic():
-                    _process_assignment_row(row, dry_run)
+                    _process_assignment_row(row, dry_run=dry_run)
                     success_count += 1
             except (ValueError, CamperBunkAssignmentError) as e:
                 error_records.append(

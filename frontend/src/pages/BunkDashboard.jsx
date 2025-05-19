@@ -3,6 +3,7 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useBunk } from '../contexts/BunkContext';
 import { saveSelectedDate, getSelectedDate } from '../utils/stateUtils';
+import { useAuth } from '../auth/AuthContext';
 
 import BunkPageSidebar from '../partials/bunk-dashboard/BunkPageSidebar';
 import Header from '../partials/Header';
@@ -19,6 +20,7 @@ import BunkLogFormModal from '../components/modals/BunkLogFormModal';
 function BunkDashboard() {
   console.log('[BunkDashboard] Component initializing');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { token } = useAuth(); // Get authentication token
   const [bunkLogModalOpen, setBunkLogFormModalOpen] = useState(false);
   const [selectedCamperId, setSelectedCamperId] = useState(null);
   const [camperBunkAssignmentId, setCamperBunkAssignmentId] = useState(null);
@@ -135,8 +137,19 @@ function BunkDashboard() {
         
         const url = `http://127.0.0.1:8000/api/v1/bunklogs/${bunk_id}/logs/${formattedDate}/`;
         console.log(`[BunkDashboard] Fetching data from URL: ${url}`);
+        
+        // Get token from context or localStorage
+        const currentToken = token || localStorage.getItem('access_token');
+        console.log(`[BunkDashboard] Token available: ${currentToken ? 'Yes' : 'No'}`);
+        
+        // Set headers with token if available
+        const headers = currentToken ? {
+          'Authorization': `Token ${currentToken}`
+        } : {};
+        
         const response = await axios.get(url, {
-          withCredentials: true
+          withCredentials: true,
+          headers
         })
          
         console.log(`[BunkDashboard] Data fetched successfully. Campers: ${response.data?.campers?.length || 0}`);
@@ -230,6 +243,8 @@ function BunkDashboard() {
                   date={selected_date}
                   data={data}
                   onClose={handleModalClose}
+                  // Pass token explicitly through props as a backup
+                  token={token || localStorage.getItem('access_token')}
                 />
               </BunkLogFormModal>
               <NotOnCampCard bunkData={data} />

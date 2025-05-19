@@ -2,13 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth, AuthContext } from '../../auth/AuthContext';
 
-function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
+function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToken }) {
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
-  const { token } = useAuth(); // Extract token from auth context
+  const auth = useAuth();
+  // Priority chain: 1. Props token 2. Auth context token 3. localStorage token
+  const token = propsToken || auth?.token || localStorage.getItem('access_token');
+  console.log('Token:', token); // Debug token value
   
   // Use props or fallback to params
   const bunkIdToUse = bunk_id || params.bunk_id; //WORKING
@@ -50,6 +53,11 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
   });
 
   
+  // Add debug log for token
+  useEffect(() => {
+    console.log('Auth token available:', token ? 'Yes' : 'No');
+  }, [token]);
+
   // Update form data when camperIdToUse changes
   useEffect(() => {
     console.log('CamperIdToUse:', camperIdToUse); // Debug
@@ -66,7 +74,7 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
         setFormData(prev => ({
           ...prev,
           ...existingData.bunk_log,
-          bunk_assignment: existingData.bunk_assignment.id,
+          bunk_assignment: existingData.bunk_assignment_id,
           date: dateToUse,
           description: existingData?.bunk_log?.description || '',
         }));
@@ -97,19 +105,25 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
     async function fetchCamperData() {
       if (camperIdToUse) {
         try {
+          // Get the latest token directly from localStorage to ensure it's current
+          const currentToken = localStorage.getItem('access_token');
+
           // Check if token exists
-          if (!token) {
+          if (!currentToken) {
             console.error('No authentication token available');
             setError('Authentication required. Please log in again.');
             return;
           }
           
+          console.log('Using token for API request:', currentToken ? 'Token available' : 'No token');
+          
           const headers = {
-            'Authorization': `Token ${token}`
+            'Authorization': `Bearer ${currentToken}`
           };
+          console.log('Headers:', headers); // Debug headers
           
           const response = await axios.get(
-            `http://127.0.0.1:8000/api/v1/bunklogs/${bunkIdToUse}/${date}/`,
+            `http://localhost:8000/api/v1/bunklogs/${bunkIdToUse}/logs/${date}/`,
             { headers }
           );
           setCamperData(response.data);
@@ -222,14 +236,17 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
       return;
     }
     
+    // Get the latest token directly from localStorage
+    const currentToken = localStorage.getItem('access_token');
+    
     // Verify token exists before attempting submission
-    if (!token) {
+    if (!currentToken) {
       setError('Authentication required. Please log in again.');
       setLoading(false);
       return;
     }
     
-    console.log('Form submission with token:', token); // Debug token value
+    console.log('Form submission with token:', currentToken ? 'Token available' : 'No token'); // Debug token value
     
     // Log complete form data including WYSIWYG content
     console.log('Form Data being submitted:', {
@@ -250,10 +267,10 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
       }
       
       // Get API base URL from environment variable or use default
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/v1';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
       
-      // Make sure we have a token
-      if (!token) {
+      // Make sure we have a token - redundant check but keeping for safety
+      if (!currentToken) {
         setError('You must be logged in to submit a bunk log');
         setLoading(false);
         return;
@@ -262,7 +279,7 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose }) {
       // Setup headers with proper authentication
       const headers = {
         'Content-Type': 'application/json',
-        'Authorization': `Token ${token}` // Ensure token is always included
+        'Authorization': `Bearer ${currentToken}` // Use Bearer token format instead of Token
       };
       
       console.log('Sending with headers:', headers); // Debug headers

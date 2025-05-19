@@ -173,6 +173,9 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Get token directly from localStorage
+  const token = localStorage.getItem('access_token');
+  
   const value = {
     user,
     setUser, // Expose setUser for direct profile updates
@@ -180,7 +183,8 @@ export function AuthProvider({ children }) {
     error,
     login,
     logout,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    token // Expose token directly in the context
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -197,6 +201,8 @@ export function useAuth() {
     ...context,
     // Get user profile or an empty object
     userProfile: context.user || {},
+    // Add token directly from localStorage
+    token: localStorage.getItem('access_token'),
     // Convenience method to update user profile
     updateUserProfile: (profileData) => {
       if (!context.user) return; // Don't update if no user exists
