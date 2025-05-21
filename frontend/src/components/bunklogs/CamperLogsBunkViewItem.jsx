@@ -38,7 +38,7 @@ function CamperLogsBunkViewItem(props) {
     <tbody className="text-sm font-medium divide-y divide-gray-100 dark:divide-gray-700/60">
       <tr>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-        <Link className="font-medium text-gray-800 dark:text-gray-100" to={`/camper/${props.camper_id}`}>
+        <Link className="font-medium text-gray-800 dark:text-gray-100" to={`/camper/${props.camper_id}/${props.date}`}>
           <div className="flex items-center text-gray-800">
             <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
               <img className="rounded-full ml-1" src={props.image} width="40" height="40" alt={props.customer} />

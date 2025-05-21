@@ -4,6 +4,7 @@ import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import BunkDashboard from './pages/BunkDashboard';
+import CamperDashboard from './pages/CamperDashboard';
 import AuthCallback from './pages/AuthCallback';
 
 // Protected route component
@@ -28,7 +29,6 @@ function Router() {
         {/* Public routes */}
         <Route path="/signin" element={<Signin />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/bunk/:bunk_id/:date" element={<BunkDashboard />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Protected routes */}
@@ -40,6 +40,25 @@ function Router() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/bunk/:bunk_id/:date" 
+          element={
+            <ProtectedRoute>
+              <BunkDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/camper/:camper_id/:date" 
+          element={
+            <ProtectedRoute>
+              <CamperDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        
         
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" />} />

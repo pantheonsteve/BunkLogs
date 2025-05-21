@@ -2,7 +2,7 @@ import {useState, useEffect} from "react";
 import {useAuth} from "../../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import BunkCard from "../../components/BunkCard";
+import BunkCard from "../../components/bunklogs/BunkCard";
 
 function BunkGrid() {
   const [error, setError] = useState(null);

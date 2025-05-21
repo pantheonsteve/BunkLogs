@@ -105,7 +105,8 @@ class BunkSerializer(serializers.ModelSerializer):
 class CamperSerializer(serializers.ModelSerializer):
     class Meta:
         model = Camper
-        fields = ["bunk_assignment", "first_name", "last_name", "date_of_birth", "emergency_contact_name",]
+        fields = ["id", "first_name", "last_name", "date_of_birth", "emergency_contact_name", 
+                  "emergency_contact_phone", "camper_notes"]
 
 
 class CamperBunkAssignmentSerializer(serializers.ModelSerializer):
@@ -186,4 +187,33 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
     
     def get_bunk(self, obj):
         return SimpleBunkSerializer(obj.bunk_assignment.bunk).data  # Use SimpleBunkSerializer
+
+
+class SimpleCamperBunkAssignmentSerializer(serializers.ModelSerializer):
+    """
+    Simple serializer for CamperBunkAssignment to avoid circular imports
+    """
+    bunk_name = serializers.CharField(source='bunk.name', read_only=True)
+    
+    class Meta:
+        model = CamperBunkAssignment
+        fields = ["id", "bunk_name", "bunk", "start_date", "end_date", "is_active"]
+
+
+class CamperWithAssignmentsSerializer(serializers.ModelSerializer):
+    """
+    Extended Camper serializer that includes bunk assignments
+    Use this when you need to display a camper with their bunk assignments
+    """
+    bunk_assignments = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Camper
+        fields = ["id", "first_name", "last_name", "date_of_birth", "emergency_contact_name", 
+                  "emergency_contact_phone", "camper_notes", "bunk_assignments"]
+    
+    def get_bunk_assignments(self, obj):
+        from bunk_logs.api.serializers import SimpleCamperBunkAssignmentSerializer
+        assignments = obj.bunk_assignments.filter(is_active=True)
+        return SimpleCamperBunkAssignmentSerializer(assignments, many=True).data
 

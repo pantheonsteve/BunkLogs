@@ -1,17 +1,17 @@
 import React, { use } from 'react';
 import { useState } from 'react';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
-import LineChart from '../charts/LineChart01';
-import { chartAreaGradient } from '../charts/ChartjsConfig';
-import EditMenu from '../components/DropdownEditMenu';
 import { useEffect } from 'react';
 import axios from 'axios';
 
 // Import utilities
-import { adjustColorOpacity, getCssVariable } from '../utils/Utils';
+import { adjustColorOpacity, getCssVariable } from '../../utils/Utils';
+
+// Today's date constant - uses current date
+const TODAY = new Date();
 
 function BunkCard({ cabin, session, bunk_id, counselors}) {
   const location = useLocation();
@@ -23,6 +23,7 @@ function BunkCard({ cabin, session, bunk_id, counselors}) {
   const [bunkData, setBunkData] = useState(null);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [fetchingUserData, setFetchingUserData] = useState(false);
+  
 
   console.log(counselors);
 
@@ -48,8 +49,11 @@ function BunkCard({ cabin, session, bunk_id, counselors}) {
 
   console.log('Bunk data:', bunkData);
 
+  // Format today's date as YYYY-MM-DD for the URL
+  const formattedDate = TODAY.toISOString().split('T')[0];
+
   return (
-    <Link to={`/bunk/${bunk_id}/2025-04-22`} className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-xs rounded-lg">
+    <Link to={`/bunk/${bunk_id}/${formattedDate}`} className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-xs rounded-lg">
     <div className="flex flex-col col-span-full sm:col-span-6 xl:col-span-4 bg-white dark:bg-gray-800 shadow-xs rounded-xl">
       <div className="px-5 pt-5 pb-5">
         <header className="flex justify-between items-start mb-2">
