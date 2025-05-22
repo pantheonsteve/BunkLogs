@@ -5,7 +5,7 @@ function CamperLogsCamperViewItem(props) {
 
   const getBunkIdForBunkLog = (bunk_log) => {
       // Check if bunk_log is an object and has the 'bunk' property
-      console.log('IN FUNCTION', bunk_log);
+      // console.log('IN FUNCTION', bunk_log);
       if ((typeof bunk_log === 'object') && (bunk_log !== null) && ('bunk_assignment' in bunk_log)) {
           // Check if 'bunk' is an object and has the 'id' property
           if ((typeof bunk_log.bunk_assignment === 'object') && (bunk_log.bunk_assignment !== null) && ('id' in bunk_log.bunk_assignment)) {
@@ -50,20 +50,22 @@ function CamperLogsCamperViewItem(props) {
 
   const [open, setOpen] = useState(false);
 
-  console.log('CamperLogsCamperViewItem props:', props); // Debug
+  // console.log('CamperLogsCamperViewItem props:', props); // Debug
 
   return (
     <tbody className="text-sm divide-y divide-gray-100 dark:divide-gray-700/60">
       <tr>
+        <td className="p-3 whitespace-wrap">
         <Link 
           className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap" 
           to={`/bunk/${props.bunk_id}/${props.date}`}
           state={{ selectedDate: props.date }}
         >
-          <td className="p-3 whitespace-wrap">
+          
             <div className="text-center">{props.date}</div>
-          </td>
+          
         </Link>
+        </td>
         { props.not_on_camp === false && (
         <>
           <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap ${getScoreBackgroundColor(props.social_score)}`}>

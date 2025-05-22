@@ -26,8 +26,8 @@ function BunkLogsCamperViewCard({camperData}) {
       }
 
       const bunk_logs = camperData.bunk_logs;
-      console.log('Bunk Logs:', bunk_logs); // Works
-      console.log('Camper Data:', camperData); // Debug
+    //   console.log('Bunk Logs:', bunk_logs); // Works
+    //   console.log('Camper Data:', camperData); // Debug
       
 
       useEffect(() => {
@@ -37,8 +37,8 @@ function BunkLogsCamperViewCard({camperData}) {
       if (loading) return <p>Loading...</p>;
       if (error) return <p>Error: {error.message}</p>;
 
-      console.log('Rendering BunkLogsCamperViewCard:', data); // Debug
-      console.log('Bunk Assignments:', camperData.bunk_assignments); // Debug
+    //   console.log('Rendering BunkLogsCamperViewCard:', data); // Debug
+    //   console.log('Bunk Assignments:', camperData.bunk_assignments); // Debug
       
       const getBunkIdFromBunkAssignment = (bunk_assignment) => {
         if (camperData.bunk_assignments && camperData.bunk_assignments.length > 0) {
@@ -49,7 +49,7 @@ function BunkLogsCamperViewCard({camperData}) {
         }
       } // Debug
 
-        console.log('Bunk ID:', getBunkIdFromBunkAssignment('9')); // Debug
+        // console.log('Bunk ID:', getBunkIdFromBunkAssignment('9')); // Debug
 
       return (
 

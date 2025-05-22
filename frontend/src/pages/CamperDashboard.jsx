@@ -7,6 +7,7 @@ import CamperPageSidebar from '../partials/camper-dashboard/CamperPageSidebar';
 import Header from '../partials/Header';
 import BunkLogsCamperViewCard from '../partials/camper-dashboard/BunkLogsCamperViewCard';
 import ScoresLineChartCard from '../partials/camper-dashboard/ScoresLineChartCard';
+import CamperScoresChart from '../components/bunklogs/CamperScoresChart';
 
 function CamperDashboard() {
 
@@ -162,10 +163,12 @@ function CamperDashboard() {
 
             {/* Cards - only render when data is loaded and no errors */}
             {!loading && !error && (
+              <>
               <div className="grid grid-cols-12 gap-6">
-                <ScoresLineChartCard camperData={data.bunk_logs} />
+                <CamperScoresChart logEntries={data.bunk_logs}/>
                 <BunkLogsCamperViewCard camperData={data} />
               </div>
+              </>
             )}
 
           </div>
