@@ -15,7 +15,10 @@ function CamperPageSidebar({
 }) {
   const location = useLocation();
   const { pathname } = location;
-  const date = new Date().toISOString().split("T")[0]; // Get today's date in YYYY-MM-DD format
+  
+  // Extract date from the URL path if available
+  const urlParts = pathname.split('/');
+  const date = urlParts.length > 3 ? urlParts[3] : new Date().toISOString().split("T")[0];
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -96,11 +99,18 @@ function CamperPageSidebar({
           <div>
             <Link
               to={`/bunk/${bunk_id}/${date}`}
+              className="flex items-center p-2 mb-4 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-            <h3 className="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3">
-              <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">{bunk_name}</span>
-            </h3>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+              </svg>
+              <h3 className="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3">
+                <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">Back to Bunk Page</span>
+              </h3>
             </Link>
+            <h3 className="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3">
+              <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">Campers</span>
+            </h3>
             <ul className="mt-3">
               {/* Bunk */}
               <SidebarLinkGroup activecondition={pathname === "/" || pathname.includes("bunk")}>

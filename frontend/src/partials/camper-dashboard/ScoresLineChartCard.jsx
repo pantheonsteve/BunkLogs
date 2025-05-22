@@ -143,8 +143,14 @@ function ScoresLineChartCard({ camperData }) {
       callbacks: {
         title: function(tooltipItems) {
           if (!tooltipItems.length) return '';
-          const date = new Date(tooltipItems[0].label);
-          return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+          // Format the date more clearly
+          const dateParts = tooltipItems[0].label.split('-');
+          if (dateParts.length === 3) {
+            const [month, day, year] = dateParts;
+            const date = new Date(`${year}-${month}-${day}`);
+            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
+          }
+          return tooltipItems[0].label;
         },
         label: function(context) {
           return `${context.dataset.label}: ${context.raw}`;

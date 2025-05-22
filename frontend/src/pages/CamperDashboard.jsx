@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useBunk } from '../contexts/BunkContext';
 
 import CamperPageSidebar from '../partials/camper-dashboard/CamperPageSidebar';
 import Header from '../partials/Header';
@@ -10,12 +11,27 @@ import ScoresLineChartCard from '../partials/camper-dashboard/ScoresLineChartCar
 function CamperDashboard() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { camper_id } = useParams();
+  const { camper_id, date } = useParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState([]);
+  const { bunkData } = useBunk(); // Access bunk data from context
 
   useEffect(() => {
+    // Add redirect if no date parameter
+    if (!date || date === 'undefined') {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      console.log(`[CamperDashboard] No date in URL, redirecting to today: ${formattedDate}`);
+      navigate(`/camper/${camper_id}/${formattedDate}`, { replace: true });
+      return;
+    }
+    
     async function fetchData() {
       try {
         setLoading(true);
@@ -28,10 +44,20 @@ function CamperDashboard() {
           return;
         }
         
+        // Format the URL with the date parameter
         const url = `http://localhost:8000/api/v1/campers/${camper_id}/logs`;
         console.log('API URL:', url);
         
-        const response = await axios.get(url);
+        // Include bunk data in the request if available
+        const requestConfig = {};
+        if (bunkData) {
+          console.log('Using bunk data from context:', bunkData.bunk?.id);
+          requestConfig.params = {
+            bunk_id: bunkData.bunk?.id
+          };
+        }
+        
+        const response = await axios.get(url, requestConfig);
         console.log('API Response Status:', response.status);
         console.log('API Response Data:', response.data);
         
@@ -50,7 +76,7 @@ function CamperDashboard() {
     }
     
     fetchData();
-  }, [camper_id]);
+  }, [camper_id, date, navigate, bunkData]);
 
   console.log('Camper Data:', data); // Debug
   
@@ -71,8 +97,8 @@ function CamperDashboard() {
       <CamperPageSidebar 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen} 
-        bunk_id={activeBunkId}
-        bunk_name = {activeBunkName}
+        bunk_id={bunkData?.bunk?.id || activeBunkId}
+        bunk_name={bunkData?.bunk?.name || activeBunkName}
       />
 
       {/* Content area */}
@@ -102,6 +128,16 @@ function CamperDashboard() {
 
               {/* Right: Actions */}
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
+                {bunkData && bunkData.bunk && (
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Viewing from: <span className="font-medium">{bunkData.bunk.name}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      Date: {date}
+                    </p>
+                  </div>
+                )}
               </div>
 
             </div>

@@ -15,14 +15,15 @@ function CamperPageCamperList({ bunk_id, date }) {
     console.log('CamperList data:', bunkData); // Debug
 
     return (
+      <>
       <div>
           {campers.map((camper) => (
                   <p key={camper.camper_id} className='w-full'>
                     <NavLink
                       className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap"
-                      to={`/camper/${camper.camper_id}`}
+                      to={`/camper/${camper.camper_id}/${date}`}
                     >
-                      <td className="p-3 whitespace-wrap">
+                      <td className="btn text-black-100 has-bunklog">
                         <div className="text-center">{camper.camper_first_name} {camper.camper_last_name}</div>
                       </td>
                     </NavLink>
@@ -30,7 +31,8 @@ function CamperPageCamperList({ bunk_id, date }) {
                   ) 
                 )
               }
-          </div>
+        </div>
+        </>
     );
 }
 

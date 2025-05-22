@@ -15,7 +15,8 @@ Chart.register(LineController, LineElement, Filler, PointElement, LinearScale, T
 function LineChart02({
   data,
   width,
-  height
+  height,
+  options = {}
 }) {
 
   const [chart, setChart] = useState(null)
@@ -45,20 +46,28 @@ function LineChart02({
             max: 5,
             ticks: {
               maxTicksLimit: 5,
-              callback: (value) => value, // Display just the number
+              callback: (value) => {
+                // Apply custom formatter if provided
+                if (options.formatYAxisLabel) {
+                  return options.formatYAxisLabel(value);
+                }
+                return value;
+              },
               color: darkMode ? textColor.dark : textColor.light,
+              // Apply custom ticks if provided
+              ...(options.yAxis?.ticks || {})
             },
             grid: {
-              color: darkMode ? gridColor.dark : gridColor.light,
+              color: options.yAxis?.grid?.color || (darkMode ? gridColor.dark : gridColor.light),
             },
           },
           x: {
             type: 'time',
             time: {
               parser: 'MM-DD-YYYY',
-              unit: 'month',
+              unit: 'day',
               displayFormats: {
-                month: 'MMM YY',
+                day: 'MMM DD'
               },
             },
             border: {
@@ -71,7 +80,12 @@ function LineChart02({
               autoSkipPadding: 48,
               maxRotation: 0,
               color: darkMode ? textColor.dark : textColor.light,
+              align: 'start',
+              font: {
+                size: 12
+              }
             },
+            position: 'bottom',
           },
         },
         plugins: {
@@ -80,8 +94,20 @@ function LineChart02({
           },
           tooltip: {
             callbacks: {
-              title: () => false, // Disable tooltip title
-              label: (context) => context.parsed.y, // Display just the number
+              title: (tooltipItems) => {
+                // Apply custom title callback if provided
+                if (options.tooltip?.callbacks?.title) {
+                  return options.tooltip.callbacks.title(tooltipItems);
+                }
+                return false;
+              },
+              label: (context) => {
+                // Apply custom label callback if provided
+                if (options.tooltip?.callbacks?.label) {
+                  return options.tooltip.callbacks.label(context);
+                }
+                return context.parsed.y;
+              },
             },
             bodyColor: darkMode ? tooltipBodyColor.dark : tooltipBodyColor.light,
             backgroundColor: darkMode ? tooltipBgColor.dark : tooltipBgColor.light,
@@ -89,8 +115,8 @@ function LineChart02({
           },
         },
         interaction: {
-          intersect: false,
-          mode: 'nearest',
+          intersect: options.tooltip?.intersect ?? false,
+          mode: options.tooltip?.mode || 'nearest',
         },
         maintainAspectRatio: false,
         resizeDelay: 200,

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
 import AuthCallback from './pages/AuthCallback';
+import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
 function ProtectedRoute({ children }) {
