@@ -98,7 +98,7 @@ LOCAL_APPS = [
     "bunk_logs.bunks",
     "bunk_logs.campers",
     "bunk_logs.bunklogs",
-    "bunk_logs.tickets",
+    "bunk_logs.orders",
     "bunk_logs.api",
     # Your stuff: custom apps go here
 ]

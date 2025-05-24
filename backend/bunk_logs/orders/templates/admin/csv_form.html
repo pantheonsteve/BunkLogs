@@ -1,0 +1,86 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    › <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+    › <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    › {% trans 'Import CSV' %}
+  </div>
+{% endblock breadcrumbs %}
+{% block content %}
+  <div id="content-main">
+    <form action="." method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div>
+        <fieldset class="module aligned">
+          <h2>{% trans 'Import CSV' %}</h2>
+          <div class="form-row">
+            <div class="help">
+              <p>
+                Upload a CSV file to import data. 
+                {% if opts.model_name == 'itemcategory' %}
+                The CSV should have the following headers:
+                category_name, category_description
+                {% elif opts.model_name == 'item' %}
+                The CSV should have the following headers:
+                item_name, item_description, available, category_name
+                {% endif %}
+              </p>
+              <p>
+                <a href="#" onclick="downloadSampleCSV(); return false;">Download Sample CSV</a>
+              </p>
+            </div>
+          </div>
+          {% for field in form %}
+            <div class="form-row">
+              <div>
+                <label class="required" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                <div class="help">{{ field.help_text }}</div>
+                {% if field.errors %}{{ field.errors }}{% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </fieldset>
+        <div class="submit-row">
+          <input type="submit" value="{% trans 'Import' %}" class="default" />
+        </div>
+      </div>
+    </form>
+  </div>
+  
+  <script>
+    function downloadSampleCSV() {
+      let csvContent = "";
+      
+      {% if opts.model_name == 'itemcategory' %}
+        csvContent = "category_name,category_description\n";
+        csvContent += "Camper Care,Items for camper care and health\n";
+        csvContent += "Maintenance,Items for maintenance requests\n";
+        csvContent += "Activities,Items for activities and programs";
+      {% elif opts.model_name == 'item' %}
+        csvContent = "item_name,item_description,available,category_name\n";
+        csvContent += "Toothbrush,Standard child toothbrush,TRUE,Camper Care\n";
+        csvContent += "Toothpaste,Mint flavored toothpaste,TRUE,Camper Care\n";
+        csvContent += "Soap,Hypoallergenic soap,TRUE,Camper Care\n";
+        csvContent += "Lightbulb,60W replacement bulb,TRUE,Maintenance\n";
+        csvContent += "Basketball,Regulation size basketball,FALSE,Activities";
+      {% endif %}
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "{{ opts.model_name }}_sample.csv");
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+{% endblock content %}
