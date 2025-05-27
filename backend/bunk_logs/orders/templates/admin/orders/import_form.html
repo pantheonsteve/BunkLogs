@@ -1,5 +1,5 @@
 {% extends "admin/base_site.html" %}
-{% load i18n admin_urls %}
+{% load i18n admin_urls static %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
@@ -13,6 +13,14 @@
 {% block content %}
 <div id="content-main">
     <h1>{{ title }}</h1>
+    
+    {% if opts.model_name == 'itemcategory' %}
+    <div class="module">
+        <p>Download a <a href="{% static 'admin/orders/sample_itemcategory_template.csv' %}">sample CSV template</a> to see the expected format.</p>
+        <p>Required columns: <code>category_name</code>, <code>category_description</code></p>
+    </div>
+    {% endif %}
+    
     <form enctype="multipart/form-data" method="post" id="import-form">
         {% csrf_token %}
         <fieldset class="module aligned">
