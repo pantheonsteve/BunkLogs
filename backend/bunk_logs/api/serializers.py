@@ -8,6 +8,10 @@ from bunks.models import Cabin
 from bunks.models import Session
 from bunks.models import Unit
 from bunklogs.models import BunkLog
+# from orders.models import Order
+# from orders.models import Item
+# from orders.models import ItemCategory
+# from orders.models import OrderType
 
 
 class CabinSerializer(serializers.ModelSerializer):
@@ -217,3 +221,69 @@ class CamperWithAssignmentsSerializer(serializers.ModelSerializer):
         assignments = obj.bunk_assignments.filter(is_active=True)
         return SimpleCamperBunkAssignmentSerializer(assignments, many=True).data
 
+
+# class OrderSerializer(serializers.ModelSerializer):
+#     """
+#     Serializer for Order model.
+#     For POST requests, you need to provide:
+#     - user (id)
+#     - order_bunk (id)
+#     - order_type (id)
+#     - items (list of item ids)
+#     """
+#     user = SimpleUserSerializer(read_only=True)
+#     order_bunk = SimpleBunkSerializer(read_only=True)
+    
+#     class Meta:
+#         model = Order
+#         fields = '__all__'
+#         read_only_fields = ['user', 'order_date']
+    
+#     def create(self, validated_data):
+#         items_data = validated_data.pop('items', [])
+#         order = Order.objects.create(**validated_data)
+        
+#         # Handle items if provided
+#         for item_data in items_data:
+#             order.items.add(item_data['id'])
+        
+#         return order
+    
+# class ItemSerializer(serializers.ModelSerializer):
+#     """
+#     Serializer for Item model.
+#     For POST requests, you need to provide:
+#     - item_name
+#     - item_category (id)
+#     """
+#     class Meta:
+#         model = Item
+#         fields = '__all__'
+#         read_only_fields = ['available']
+    
+#     def validate(self, data):
+#         """
+#         Validate the Item data.
+#         """
+#         if not data.get('item_name'):
+#             raise serializers.ValidationError({"item_name": "This field is required."})
+        
+#         return data
+# class ItemCategorySerializer(serializers.ModelSerializer):
+#     """
+#     Serializer for ItemCategory model.
+#     For POST requests, you need to provide:
+#     - category_name
+#     """
+#     class Meta:
+#         model = ItemCategory
+#         fields = '__all__'
+    
+#     def validate(self, data):
+#         """
+#         Validate the ItemCategory data.
+#         """
+#         if not data.get('category_name'):
+#             raise serializers.ValidationError({"category_name": "This field is required."})
+        
+#         return data

@@ -98,8 +98,8 @@ LOCAL_APPS = [
     "bunk_logs.bunks",
     "bunk_logs.campers",
     "bunk_logs.bunklogs",
-    "bunk_logs.tickets",
     "bunk_logs.api",
+    "bunk_logs.orders",  # Changed to match the app_label in models.py
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

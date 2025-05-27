@@ -20,6 +20,8 @@ from campers.models import CamperBunkAssignment
 from bunks.models import Bunk
 from bunks.models import Unit
 from bunklogs.models import BunkLog
+# from orders.models import Order
+# from orders.models import Item
 
 from .serializers import BunkLogSerializer
 from .serializers import BunkSerializer
@@ -28,6 +30,8 @@ from .serializers import CamperSerializer
 from .serializers import UnitSerializer, SimpleBunkSerializer
 from .serializers import CamperBunkLogSerializer
 from .serializers import UserSerializer
+# from .serializers import OrderSerializer
+# from .serializers import ItemSerializer
 
 from rest_framework.decorators import api_view, permission_classes
 
@@ -392,6 +396,38 @@ class CamperBunkLogViewSet(APIView):
             return Response(response_data)
         except Camper.DoesNotExist:
             return Response({"error": f"Camper with ID {camper_id} not found"}, status=404)
+
+
+# class OrderViewSet(viewsets.ModelViewSet):
+#     """
+#     Viewset for managing orders.
+#     """
+#     renderer_classes = [JSONRenderer]
+#     permission_classes = [IsAuthenticated]
+#     queryset = Order.objects.all()
+#     serializer_class = OrderSerializer
+
+#     def get_queryset(self):
+#         user = self.request.user
+#         if user.is_staff or user.role == 'Admin':
+#             return Order.objects.all()
+#         return Order.objects.filter(user=user)
+    
+
+# class ItemViewSet(viewsets.ModelViewSet):
+#     """
+#     Viewset for managing items.
+#     """
+#     renderer_classes = [JSONRenderer]
+#     permission_classes = [IsAuthenticated]
+#     queryset = Item.objects.all()
+#     serializer_class = ItemSerializer
+
+#     def get_queryset(self):
+#         user = self.request.user
+#         if user.is_staff or user.role == 'Admin':
+#             return Item.objects.all()
+#         return Item.objects.filter(available=True)  # Non-staff users only see available items
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
