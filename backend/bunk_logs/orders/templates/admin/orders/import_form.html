@@ -19,6 +19,18 @@
         <p>Download a <a href="{% static 'admin/orders/sample_itemcategory_template.csv' %}">sample CSV template</a> to see the expected format.</p>
         <p>Required columns: <code>category_name</code>, <code>category_description</code></p>
     </div>
+    {% elif opts.model_name == 'item' %}
+    <div class="module">
+        <p>Download a <a href="{% static 'admin/orders/sample_item_template.csv' %}">sample CSV template</a> to see the expected format.</p>
+        <p>Required columns: <code>item_name</code>, <code>item_description</code>, <code>item_category_id</code>, <code>available</code></p>
+        <p>Set <code>available</code> to 'true' or 'false' to indicate if the item is available.</p>
+    </div>
+    {% elif opts.model_name == 'order' %}
+    <div class="module">
+        <p>Download a <a href="{% static 'admin/orders/sample_order_template.csv' %}">sample CSV template</a> to see the expected format.</p>
+        <p>Required columns: <code>user_id</code>, <code>order_bunk_id</code></p>
+        <p>Optional columns: <code>order_status</code> (values: submitted, pending, completed, cancelled), <code>items</code> (format: "item_id:quantity,item_id:quantity")</p>
+    </div>
     {% endif %}
     
     <form enctype="multipart/form-data" method="post" id="import-form">

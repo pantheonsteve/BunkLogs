@@ -40,7 +40,25 @@ class ItemImportForm(CsvImportForm):
         if csv_file.size > 10 * 1024 * 1024:  # 10MB limit
             raise forms.ValidationError('File too large. Size should not exceed 10MB.')
             
-        return csv_file
+        # Try to read the CSV file to validate format
+        import csv
+        import io
+        try:
+            csv_file_io = io.StringIO(csv_file.read().decode('utf-8'))
+            reader = csv.reader(csv_file_io)
+            header = next(reader)  # Read header row
+            
+            # Check if the required columns are in the header
+            required_fields = ['item_name', 'item_description', 'item_category_id', 'available']
+            for field in required_fields:
+                if field not in header:
+                    raise forms.ValidationError(f'CSV file must contain a {field} column')
+                    
+            # Reset the file pointer so it can be read again later
+            csv_file.seek(0)
+            return csv_file
+        except Exception as e:
+            raise forms.ValidationError(f'Invalid CSV file: {str(e)}')
 
 
 class OrderImportForm(CsvImportForm):
@@ -55,11 +73,29 @@ class OrderImportForm(CsvImportForm):
         csv_file = self.cleaned_data['csv_file']
         
         # Check file extension
-        if not csv_file.name.endswith(('.csv', '.xlsx')):
-            raise forms.ValidationError('File must be a CSV or Excel file (.csv or .xlsx).')
+        if not csv_file.name.endswith('.csv'):
+            raise forms.ValidationError('File must be a CSV file with .csv extension.')
         
         # Add more validations as needed
         if csv_file.size > 15 * 1024 * 1024:  # 15MB limit
             raise forms.ValidationError('File too large. Size should not exceed 15MB.')
             
-        return csv_file
+        # Try to read the CSV file to validate format
+        import csv
+        import io
+        try:
+            csv_file_io = io.StringIO(csv_file.read().decode('utf-8'))
+            reader = csv.reader(csv_file_io)
+            header = next(reader)  # Read header row
+            
+            # Check if the required columns are in the header
+            required_fields = ['user_id', 'order_bunk_id']
+            for field in required_fields:
+                if field not in header:
+                    raise forms.ValidationError(f'CSV file must contain a {field} column')
+                    
+            # Reset the file pointer so it can be read again later
+            csv_file.seek(0)
+            return csv_file
+        except Exception as e:
+            raise forms.ValidationError(f'Invalid CSV file: {str(e)}')
