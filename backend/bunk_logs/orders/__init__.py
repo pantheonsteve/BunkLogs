@@ -1,0 +1,1 @@
+default_app_config = "bunk_logs.orders.apps.OrdersConfig"
