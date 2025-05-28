@@ -8,10 +8,7 @@ from bunks.models import Cabin
 from bunks.models import Session
 from bunks.models import Unit
 from bunklogs.models import BunkLog
-# from orders.models import Order
-# from orders.models import Item
-# from orders.models import ItemCategory
-# from orders.models import OrderType
+from bunk_logs.orders.models import Order, OrderItem, Item, ItemCategory, OrderType
 
 
 class CabinSerializer(serializers.ModelSerializer):
@@ -222,68 +219,112 @@ class CamperWithAssignmentsSerializer(serializers.ModelSerializer):
         return SimpleCamperBunkAssignmentSerializer(assignments, many=True).data
 
 
-# class OrderSerializer(serializers.ModelSerializer):
-#     """
-#     Serializer for Order model.
-#     For POST requests, you need to provide:
-#     - user (id)
-#     - order_bunk (id)
-#     - order_type (id)
-#     - items (list of item ids)
-#     """
-#     user = SimpleUserSerializer(read_only=True)
-#     order_bunk = SimpleBunkSerializer(read_only=True)
+# Order-related serializers
+class ItemCategorySerializer(serializers.ModelSerializer):
+    """Serializer for ItemCategory model."""
+    class Meta:
+        model = ItemCategory
+        fields = ['id', 'category_name', 'category_description']
+
+
+class ItemSerializer(serializers.ModelSerializer):
+    """Serializer for Item model."""
+    item_category_name = serializers.CharField(source='item_category.category_name', read_only=True)
     
-#     class Meta:
-#         model = Order
-#         fields = '__all__'
-#         read_only_fields = ['user', 'order_date']
+    class Meta:
+        model = Item
+        fields = ['id', 'item_name', 'item_description', 'available', 'item_category', 'item_category_name']
+
+
+class OrderTypeSerializer(serializers.ModelSerializer):
+    """Serializer for OrderType model."""
+    item_categories = ItemCategorySerializer(many=True, read_only=True)
+    item_category_ids = serializers.PrimaryKeyRelatedField(
+        queryset=ItemCategory.objects.all(),
+        many=True,
+        write_only=True,
+        source='item_categories'
+    )
     
-#     def create(self, validated_data):
-#         items_data = validated_data.pop('items', [])
-#         order = Order.objects.create(**validated_data)
+    class Meta:
+        model = OrderType
+        fields = ['id', 'type_name', 'type_description', 'item_categories', 'item_category_ids']
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    """Serializer for OrderItem model."""
+    item_name = serializers.CharField(source='item.item_name', read_only=True)
+    item_description = serializers.CharField(source='item.item_description', read_only=True)
+    
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'item', 'item_name', 'item_description', 'item_quantity']
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    """Serializer for Order model."""
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_name = serializers.SerializerMethodField()
+    order_bunk_name = serializers.CharField(source='order_bunk.name', read_only=True)
+    order_type_name = serializers.CharField(source='order_type.type_name', read_only=True)
+    order_items = OrderItemSerializer(many=True, read_only=True)
+    order_status_display = serializers.CharField(source='get_order_status_display', read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'user', 'user_email', 'user_name', 'order_date', 'order_status', 
+            'order_status_display', 'order_bunk', 'order_bunk_name', 'order_type', 
+            'order_type_name', 'order_items'
+        ]
+        read_only_fields = ['order_date', 'user']
+    
+    def get_user_name(self, obj):
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return ""
+
+
+class OrderCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating orders with order items."""
+    order_items = OrderItemSerializer(many=True)
+    
+    class Meta:
+        model = Order
+        fields = ['order_status', 'order_bunk', 'order_type', 'order_items']
+    
+    def create(self, validated_data):
+        order_items_data = validated_data.pop('order_items')
+        # Set user from request context
+        validated_data['user'] = self.context['request'].user
+        order = Order.objects.create(**validated_data)
         
-#         # Handle items if provided
-#         for item_data in items_data:
-#             order.items.add(item_data['id'])
+        # Create order items
+        for item_data in order_items_data:
+            OrderItem.objects.create(order=order, **item_data)
         
-#         return order
+        return order
     
-# class ItemSerializer(serializers.ModelSerializer):
-#     """
-#     Serializer for Item model.
-#     For POST requests, you need to provide:
-#     - item_name
-#     - item_category (id)
-#     """
-#     class Meta:
-#         model = Item
-#         fields = '__all__'
-#         read_only_fields = ['available']
-    
-#     def validate(self, data):
-#         """
-#         Validate the Item data.
-#         """
-#         if not data.get('item_name'):
-#             raise serializers.ValidationError({"item_name": "This field is required."})
+    def validate_order_items(self, value):
+        """Validate that order items are not empty and quantities are positive."""
+        if not value:
+            raise serializers.ValidationError("At least one order item is required.")
         
-#         return data
-# class ItemCategorySerializer(serializers.ModelSerializer):
-#     """
-#     Serializer for ItemCategory model.
-#     For POST requests, you need to provide:
-#     - category_name
-#     """
-#     class Meta:
-#         model = ItemCategory
-#         fields = '__all__'
-    
-#     def validate(self, data):
-#         """
-#         Validate the ItemCategory data.
-#         """
-#         if not data.get('category_name'):
-#             raise serializers.ValidationError({"category_name": "This field is required."})
+        for item_data in value:
+            if item_data.get('item_quantity', 0) <= 0:
+                raise serializers.ValidationError("Item quantity must be greater than 0.")
         
-#         return data
+        return value
+
+
+# Simplified serializers for nested relationships
+class SimpleOrderTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderType
+        fields = ['id', 'type_name']
+
+
+class SimpleItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Item
+        fields = ['id', 'item_name', 'available']

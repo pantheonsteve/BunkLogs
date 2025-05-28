@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path
 from django.urls import reverse
 from django.utils.html import format_html
+from django import forms
 
 from .models import Order, OrderItem, Item, OrderType, ItemCategory, BunkLogsOrderTypeItemCategory
 
@@ -32,13 +33,41 @@ class ImportAdminMixin:
             pass
         return super().changelist_view(request, extra_context=extra_context)
 
+# Custom OrderItem form for dynamic item filtering
+class OrderItemForm(forms.ModelForm):
+    """Custom form for OrderItem with filtered item dropdown"""
+    class Meta:
+        model = OrderItem
+        fields = ['item', 'item_quantity']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only filter items if the parent order is available and the form is bound to an instance
+        if self.instance and hasattr(self.instance, 'order') and self.instance.order:
+            order = self.instance.order
+            # Get available item categories for this order's type
+            available_categories = order.order_type.item_categories.all()
+            # Filter items to only show those from these categories
+            self.fields['item'].queryset = Item.objects.filter(
+                item_category__in=available_categories,
+                available=True
+            )
+            # Set a helpful help text
+            category_names = ", ".join([cat.category_name for cat in available_categories])
+            self.fields['item'].help_text = f"Available items from categories: {category_names}"
+        else:
+            # If creating a new inline item with no parent order yet, 
+            # show a placeholder message in the dropdown
+            self.fields['item'].help_text = "Select an Order Type first, then items will be filtered automatically."
+            # Empty queryset initially - our JavaScript will populate it
+            self.fields['item'].choices = [('', '---------')]
+
 # Inline classes first
 class OrderItemInline(admin.TabularInline):
     """Inline admin for OrderItems in an Order"""
     model = OrderItem
+    form = OrderItemForm
     extra = 1
-    # Using a regular dropdown for item selection
-    raw_id_fields = ('item',)
 
 class CategoryInline(admin.TabularInline):
     """Inline admin for the relationship between OrderType and ItemCategory"""
@@ -63,11 +92,46 @@ class OrderAdmin(ImportAdminMixin, admin.ModelAdmin):
         }),
     )
     inlines = [OrderItemInline]
+    # Use our custom change form template for better UX
+    change_form_template = 'admin/orders/order_change_form.html'
     
     def user_email(self, obj):
         return obj.user.email if obj.user else 'N/A'
     user_email.short_description = 'User Email'
     user_email.admin_order_field = 'user__email'
+    
+    def get_urls(self):
+        """Add AJAX URL to fetch data for dynamic item filtering"""
+        urls = super().get_urls()
+        custom_urls = [
+            path('get_type_categories/', self.admin_site.admin_view(self.get_type_categories),
+                name='orders_order_get_type_categories'),
+        ]
+        return custom_urls + urls
+    
+    def get_type_categories(self, request):
+        """AJAX view to get category data for order types"""
+        from django.http import JsonResponse
+        
+        # Get all order types with their categories
+        order_type_categories = {}
+        for order_type in OrderType.objects.all():
+            order_type_categories[order_type.id] = list(
+                order_type.item_categories.values_list('id', flat=True)
+            )
+        
+        # Get all items with their categories
+        item_categories = {}
+        item_names = {}
+        for item in Item.objects.filter(available=True):
+            item_categories[item.id] = item.item_category_id
+            item_names[item.id] = item.item_name
+            
+        return JsonResponse({
+            'order_type_categories': order_type_categories,
+            'item_categories': item_categories,
+            'item_names': item_names,
+        })
     
     def import_view(self, request):
         """View for importing orders"""

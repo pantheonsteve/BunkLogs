@@ -1,0 +1,87 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script type="text/javascript">
+    // This function will be called when the document is loaded
+    window.addEventListener('DOMContentLoaded', function() {
+        // Get the order_type select field
+        const orderTypeSelect = document.getElementById('id_order_type');
+        
+        if (orderTypeSelect) {
+            // Store mapping of order type IDs to their available item categories
+            const orderTypeCategoryMap = {};
+            const itemCategoryMap = {};
+            
+            // Function to refresh item options based on selected order type
+            function updateItemChoices() {
+                const orderTypeId = orderTypeSelect.value;
+                if (!orderTypeId) return;
+                
+                // Find all item select fields (in each inline formset)
+                const itemSelects = document.querySelectorAll('[id$="-item"]');
+                
+                // For each item select
+                itemSelects.forEach(function(itemSelect) {
+                    // Get current value if any
+                    const currentValue = itemSelect.value;
+                    
+                    // Clear existing options but keep the empty option
+                    const emptyOption = itemSelect.querySelector('option[value=""]');
+                    itemSelect.innerHTML = '';
+                    if (emptyOption) {
+                        itemSelect.appendChild(emptyOption);
+                    }
+                    
+                    // If we have category data for this order type, filter items
+                    if (orderTypeCategoryMap[orderTypeId]) {
+                        const categoryIds = orderTypeCategoryMap[orderTypeId];
+                        // Add options for each item that belongs to allowed categories
+                        for (const itemId in itemCategoryMap) {
+                            if (categoryIds.includes(itemCategoryMap[itemId])) {
+                                const itemOption = document.createElement('option');
+                                itemOption.value = itemId;
+                                itemOption.text = document.getElementById(`item-${itemId}-text`).textContent;
+                                itemSelect.appendChild(itemOption);
+                                
+                                // Re-select the previously selected value if still available
+                                if (itemId === currentValue) {
+                                    itemSelect.value = currentValue;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Add event listener for order type changes
+            orderTypeSelect.addEventListener('change', updateItemChoices);
+            
+            // Fetch order type category data via AJAX
+            fetch('{% url "admin:orders_order_get_type_categories" %}')
+                .then(response => response.json())
+                .then(data => {
+                    // Copy the data into our maps
+                    Object.assign(orderTypeCategoryMap, data.order_type_categories);
+                    Object.assign(itemCategoryMap, data.item_categories);
+                    
+                    // Call once to initialize the items dropdown
+                    updateItemChoices();
+                    
+                    // Add hidden elements with item names for options
+                    const hiddenContainer = document.createElement('div');
+                    hiddenContainer.style.display = 'none';
+                    for (const itemId in data.item_names) {
+                        const itemNameElem = document.createElement('span');
+                        itemNameElem.id = `item-${itemId}-text`;
+                        itemNameElem.textContent = data.item_names[itemId];
+                        hiddenContainer.appendChild(itemNameElem);
+                    }
+                    document.body.appendChild(hiddenContainer);
+                })
+                .catch(error => console.error('Error fetching category data:', error));
+        }
+    });
+</script>
+{% endblock %}

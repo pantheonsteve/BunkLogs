@@ -20,8 +20,7 @@ from campers.models import CamperBunkAssignment
 from bunks.models import Bunk
 from bunks.models import Unit
 from bunklogs.models import BunkLog
-# from orders.models import Order
-# from orders.models import Item
+from bunk_logs.orders.models import Order, OrderItem, Item, ItemCategory, OrderType
 
 from .serializers import BunkLogSerializer
 from .serializers import BunkSerializer
@@ -30,10 +29,14 @@ from .serializers import CamperSerializer
 from .serializers import UnitSerializer, SimpleBunkSerializer
 from .serializers import CamperBunkLogSerializer
 from .serializers import UserSerializer
-# from .serializers import OrderSerializer
-# from .serializers import ItemSerializer
+from .serializers import (
+    OrderSerializer, OrderCreateSerializer, ItemSerializer, 
+    ItemCategorySerializer, OrderTypeSerializer, SimpleOrderTypeSerializer,
+    SimpleItemSerializer
+)
 
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
@@ -398,37 +401,189 @@ class CamperBunkLogViewSet(APIView):
             return Response({"error": f"Camper with ID {camper_id} not found"}, status=404)
 
 
-# class OrderViewSet(viewsets.ModelViewSet):
-#     """
-#     Viewset for managing orders.
-#     """
-#     renderer_classes = [JSONRenderer]
-#     permission_classes = [IsAuthenticated]
-#     queryset = Order.objects.all()
-#     serializer_class = OrderSerializer
+# Order-related API Views
 
-#     def get_queryset(self):
-#         user = self.request.user
-#         if user.is_staff or user.role == 'Admin':
-#             return Order.objects.all()
-#         return Order.objects.filter(user=user)
+class OrderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Order model with CRUD operations.
+    - GET /api/orders/ - List all orders
+    - GET /api/orders/{id}/ - Retrieve specific order
+    - POST /api/orders/ - Create new order
+    - PUT /api/orders/{id}/ - Update order
+    - DELETE /api/orders/{id}/ - Delete order
+    """
+    permission_classes = [IsAuthenticated]
     
+    def get_queryset(self):
+        """Filter orders based on user role."""
+        user = self.request.user
+        if user.is_staff or user.role in ['counselor', 'admin']:
+            # Staff and counselors can see all orders
+            return Order.objects.all().select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
+        else:
+            # Regular users can only see their own orders
+            return Order.objects.filter(user=user).select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
+    
+    def get_serializer_class(self):
+        """Use different serializers for create vs read operations."""
+        if self.action == 'create':
+            return OrderCreateSerializer
+        return OrderSerializer
+    
+    def perform_create(self, serializer):
+        """Set the user to the current authenticated user."""
+        serializer.save(user=self.request.user)
 
-# class ItemViewSet(viewsets.ModelViewSet):
-#     """
-#     Viewset for managing items.
-#     """
-#     renderer_classes = [JSONRenderer]
-#     permission_classes = [IsAuthenticated]
-#     queryset = Item.objects.all()
-#     serializer_class = ItemSerializer
 
-#     def get_queryset(self):
-#         user = self.request.user
-#         if user.is_staff or user.role == 'Admin':
-#             return Item.objects.all()
-#         return Item.objects.filter(available=True)  # Non-staff users only see available items
+class ItemViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Item model.
+    - GET /api/items/ - List all available items
+    - GET /api/items/{id}/ - Retrieve specific item
+    - POST /api/items/ - Create new item (staff only)
+    - PUT /api/items/{id}/ - Update item (staff only)
+    - DELETE /api/items/{id}/ - Delete item (staff only)
+    """
+    serializer_class = ItemSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Return available items, optionally filtered by category."""
+        queryset = Item.objects.filter(available=True).select_related('item_category')
+        category_id = self.request.query_params.get('category', None)
+        if category_id:
+            queryset = queryset.filter(item_category_id=category_id)
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Only staff can create items."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can create items.")
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Only staff can update items."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can update items.")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Only staff can delete items."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can delete items.")
+        instance.delete()
 
+
+class ItemCategoryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for ItemCategory model.
+    - GET /api/item-categories/ - List all categories
+    - GET /api/item-categories/{id}/ - Retrieve specific category
+    - POST /api/item-categories/ - Create new category (staff only)
+    - PUT /api/item-categories/{id}/ - Update category (staff only)
+    - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+    """
+    queryset = ItemCategory.objects.all()
+    serializer_class = ItemCategorySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def perform_create(self, serializer):
+        """Only staff can create categories."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can create categories.")
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Only staff can update categories."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can update categories.")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Only staff can delete categories."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can delete categories.")
+        instance.delete()
+
+
+class OrderTypeViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for OrderType model.
+    - GET /api/order-types/ - List all order types
+    - GET /api/order-types/{id}/ - Retrieve specific order type
+    - POST /api/order-types/ - Create new order type (staff only)
+    - PUT /api/order-types/{id}/ - Update order type (staff only)
+    - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+    """
+    queryset = OrderType.objects.all().prefetch_related('item_categories')
+    serializer_class = OrderTypeSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def perform_create(self, serializer):
+        """Only staff can create order types."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can create order types.")
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Only staff can update order types."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can update order types.")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Only staff can delete order types."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can delete order types.")
+        instance.delete()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_items_for_order_type(request, order_type_id):
+    """
+    Get available items for a specific order type.
+    Returns items from categories associated with the order type.
+    """
+    try:
+        order_type = OrderType.objects.get(id=order_type_id)
+        items = Item.objects.filter(
+            item_category__in=order_type.item_categories.all(),
+            available=True
+        ).select_related('item_category')
+        serializer = SimpleItemSerializer(items, many=True)
+        return Response(serializer.data)
+    except OrderType.DoesNotExist:
+        return Response({"error": "Order type not found"}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_order_statistics(request):
+    """
+    Get order statistics for the current user or all users (if staff).
+    """
+    user = request.user
+    
+    if user.is_staff:
+        # Staff can see all order statistics
+        total_orders = Order.objects.count()
+        pending_orders = Order.objects.filter(order_status='pending').count()
+        completed_orders = Order.objects.filter(order_status='completed').count()
+        cancelled_orders = Order.objects.filter(order_status='cancelled').count()
+    else:
+        # Regular users see their own statistics
+        total_orders = Order.objects.filter(user=user).count()
+        pending_orders = Order.objects.filter(user=user, order_status='pending').count()
+        completed_orders = Order.objects.filter(user=user, order_status='completed').count()
+        cancelled_orders = Order.objects.filter(user=user, order_status='cancelled').count()
+    
+    return Response({
+        'total_orders': total_orders,
+        'pending_orders': pending_orders,
+        'completed_orders': completed_orders,
+        'cancelled_orders': cancelled_orders,
+    })
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def debug_user_bunks(request):
