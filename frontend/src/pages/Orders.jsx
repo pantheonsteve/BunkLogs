@@ -23,6 +23,17 @@ function Orders() {
     setSelectedItems([...selectedItems]);
   };
 
+  const handleOrderUpdate = (orderId, newStatus, updatedOrder) => {
+    // Update the local data state
+    setData(prevData => 
+      prevData.map(order => 
+        order.id === parseInt(orderId) 
+          ? { ...order, ...updatedOrder }
+          : order
+      )
+    );
+  };
+
   useEffect(() => {
     async function fetchOrders() {
       if (!isAuthenticated) {

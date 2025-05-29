@@ -417,8 +417,8 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filter orders based on user role."""
         user = self.request.user
-        if user.is_staff or user.role in ['counselor', 'admin']:
-            # Staff and counselors can see all orders
+        if user.is_staff or user.role in ['Counselor', 'Admin', 'Camper Care']:
+            # Staff, counselors, and camper care can see all orders
             return Order.objects.all().select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
         else:
             # Regular users can only see their own orders
@@ -433,6 +433,43 @@ class OrderViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set the user to the current authenticated user."""
         serializer.save(user=self.request.user)
+    
+    def perform_update(self, serializer):
+        """Handle order updates with permission checks."""
+        user = self.request.user
+        order = self.get_object()
+        
+        # Check if user can update orders
+        if not (user.is_staff or user.role in ['Admin', 'Camper Care']):
+            # Regular users can only update their own pending orders
+            if order.user != user:
+                raise PermissionDenied("You can only update your own orders.")
+            if order.order_status != 'submitted':
+                raise PermissionDenied("You can only update orders that are in 'Submitted' status.")
+        
+        # For status updates, check if user has permission to change from submitted
+        if 'order_status' in serializer.validated_data:
+            new_status = serializer.validated_data['order_status']
+            if order.order_status == 'submitted' and new_status != 'submitted':
+                # Only Camper Care and Admin can change status from 'submitted'
+                if not (user.is_staff or user.role in ['Admin', 'Camper Care']):
+                    raise PermissionDenied("Only Camper Care and Admin users can update order status from 'Submitted'.")
+        
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Handle order deletion with permission checks."""
+        user = self.request.user
+        
+        # Check if user can delete orders
+        if not (user.is_staff or user.role in ['Admin', 'Camper Care']):
+            # Regular users can only delete their own submitted orders
+            if instance.user != user:
+                raise PermissionDenied("You can only delete your own orders.")
+            if instance.order_status != 'submitted':
+                raise PermissionDenied("You can only delete orders that are in 'Submitted' status.")
+        
+        instance.delete()
 
 
 class ItemViewSet(viewsets.ModelViewSet):

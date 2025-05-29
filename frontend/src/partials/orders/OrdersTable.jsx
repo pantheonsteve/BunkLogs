@@ -7,7 +7,8 @@ import Image03 from '../../images/icon-03.svg';
 
 function OrdersTable({
   selectedItems,
-  data
+  data,
+  onOrderUpdate
 }) {
 
   console.log('Orders table received data:', data);
@@ -30,6 +31,7 @@ function OrdersTable({
       customer: order.user_name,
       total: `$${order.order_items?.reduce((sum, item) => sum + (item.item_quantity * 10), 0).toFixed(2)}`, // Estimated total since we don't have pricing
       status: order.order_status_display,
+      rawStatus: order.order_status, // Keep the raw status for the API
       bunk: order.order_bunk_cabin,
       items: order.order_items?.length.toString() || '0',
       order_items: order.order_items || [],
@@ -37,6 +39,26 @@ function OrdersTable({
       type: order.order_type_name,
       description: `${order.order_items?.map(item => item.item_description).join(', ')} from ${order.order_bunk_name}`
     }));
+  };
+
+  const handleStatusUpdate = (orderId, newStatus, updatedOrder) => {
+    // Update the local list
+    setList(prevList => 
+      prevList.map(order => 
+        order.id === orderId.toString() 
+          ? { 
+              ...order, 
+              status: updatedOrder.order_status_display,
+              rawStatus: updatedOrder.order_status
+            }
+          : order
+      )
+    );
+
+    // Call parent callback if provided
+    if (onOrderUpdate) {
+      onOrderUpdate(orderId, newStatus, updatedOrder);
+    }
   };
 
   useEffect(() => {
@@ -129,8 +151,10 @@ function OrdersTable({
                     order_items={order.order_items}
                     type={order.type}
                     description={order.description}
+                    rawStatus={order.rawStatus}
                     handleClick={handleClick}
                     isChecked={isCheck.includes(order.id)}
+                    onStatusUpdate={handleStatusUpdate}
                   />
                 )
               })

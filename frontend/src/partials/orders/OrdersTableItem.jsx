@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../auth/AuthContext';
+import StatusDropdown from '../../components/StatusDropdown';
 
 function OrdersTableItem(props) {
-
+  const { user } = useAuth();
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+
+  const handleStatusUpdate = (orderId, newStatus, updatedOrder) => {
+    // Call parent callback to update the order in the main list
+    if (props.onStatusUpdate) {
+      props.onStatusUpdate(orderId, newStatus, updatedOrder);
+    }
+  };
 
   const statusColor = (status) => {
     switch (status) {
@@ -61,7 +70,12 @@ function OrdersTableItem(props) {
           <div className="font-medium text-gray-800 dark:text-gray-100">{props.customer}</div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className={`inline-flex font-medium rounded-full text-center px-2.5 py-0.5 ${statusColor(props.status)}`}>{props.status}</div>
+          <StatusDropdown
+            orderId={props.id}
+            currentStatus={props.rawStatus || props.status?.toLowerCase()}
+            onStatusUpdate={handleStatusUpdate}
+            userRole={user?.role}
+          />
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
           <div className="text-center">{props.items}</div>
