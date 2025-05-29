@@ -132,7 +132,7 @@ function Orders() {
             )}
 
             {/* Table */}
-            {!loading && !error && <OrdersTable selectedItems={handleSelectedItems} data={data} />}
+            {!loading && !error && <OrdersTable selectedItems={handleSelectedItems} data={data} onOrderUpdate={handleOrderUpdate} />}
 
             {/* Pagination */}
             {!loading && !error && (

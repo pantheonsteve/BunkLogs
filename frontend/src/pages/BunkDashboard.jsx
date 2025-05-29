@@ -16,12 +16,14 @@ import BunkLogsTableViewCard from '../partials/bunk-dashboard/BunkLogsTableViewC
 import BunkLabelCard from '../partials/bunk-dashboard/BunkLabelCard';
 import BunkLogForm from '../components/form/BunkLogForm';
 import BunkLogFormModal from '../components/modals/BunkLogFormModal';
+import CreateOrderModal from '../components/modals/CreateOrderModal';
 
 function BunkDashboard() {
   console.log('[BunkDashboard] Component initializing');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { token } = useAuth(); // Get authentication token
+  const { token, user } = useAuth(); // Get authentication token and user
   const [bunkLogModalOpen, setBunkLogFormModalOpen] = useState(false);
+  const [createOrderModalOpen, setCreateOrderModalOpen] = useState(false);
   const [selectedCamperId, setSelectedCamperId] = useState(null);
   const [camperBunkAssignmentId, setCamperBunkAssignmentId] = useState(null);
   const { bunk_id, date } = useParams();
@@ -121,6 +123,16 @@ function BunkDashboard() {
     }
     setBunkLogFormModalOpen(false);
   };
+
+  const handleOrderCreated = () => {
+    console.log('[BunkDashboard] Order created successfully');
+    setCreateOrderModalOpen(false);
+    // Optionally refresh data here if needed
+    // You might want to refetch the data to show updated orders
+  };
+
+  // Check if user is a counselor
+  const isCounselor = user?.role === 'Counselor';
 
   useEffect(() => {
     async function fetchData() {
@@ -225,6 +237,16 @@ function BunkDashboard() {
                 </div>
                 
                 {/* Column C: Action Buttons that become full width on small screens */}
+                <div className="p-4">
+                  {isCounselor && (
+                    <button
+                      onClick={() => setCreateOrderModalOpen(true)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+                    >
+                      Create Order
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -247,6 +269,16 @@ function BunkDashboard() {
                   token={token || localStorage.getItem('access_token')}
                 />
               </BunkLogFormModal>
+              
+              {/* Create Order Modal */}
+              <CreateOrderModal
+                isOpen={createOrderModalOpen}
+                onClose={() => setCreateOrderModalOpen(false)}
+                onOrderCreated={handleOrderCreated}
+                bunkId={bunk_id}
+                date={selected_date}
+              />
+              
               <NotOnCampCard bunkData={data} />
               <UnitHeadHelpRequestedCard bunkData={data} />
               <CamperCareHelpRequestedCard bunkData={data} />
