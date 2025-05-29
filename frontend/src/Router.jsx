@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
 import AuthCallback from './pages/AuthCallback';
+import Orders from './pages/Orders';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -55,6 +56,15 @@ function Router() {
           element={
             <ProtectedRoute>
               <CamperDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/orders" 
+          element={
+            <ProtectedRoute>
+              <Orders />
             </ProtectedRoute>
           } 
         />

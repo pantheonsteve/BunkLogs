@@ -19,6 +19,8 @@ function CamperDashboard() {
   const [data, setData] = useState([]);
   const { bunkData } = useBunk(); // Access bunk data from context
 
+  console.log('Date from URL:', date); // Debug
+
   useEffect(() => {
     // Add redirect if no date parameter
     if (!date || date === 'undefined') {

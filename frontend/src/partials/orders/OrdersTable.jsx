@@ -6,150 +6,45 @@ import Image02 from '../../images/icon-02.svg';
 import Image03 from '../../images/icon-03.svg';
 
 function OrdersTable({
-  selectedItems
+  selectedItems,
+  data
 }) {
 
-  const orders = [
-    {
-      id: '0',
-      image: Image01,
-      order: '#123567',
-      date: '22/01/2024',
-      customer: 'Patricia Semklo',
-      total: '$129.00',
-      status: 'Refunded',
-      items: '1',
-      location: '🇨🇳 Shanghai, CN',
-      type: 'Subscription',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '1',
-      image: Image01,
-      order: '#779912',
-      date: '22/01/2024',
-      customer: 'Dominik Lamakani',
-      total: '$89.00',
-      status: 'Approved',
-      items: '2',
-      location: '🇲🇽 Mexico City, MX',
-      type: 'Subscription',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '2',
-      image: Image02,
-      order: '#889924',
-      date: '22/01/2024',
-      customer: 'Ivan Mesaros',
-      total: '$89.00',
-      status: 'Approved',
-      items: '2',
-      location: '🇮🇹 Milan, IT',
-      type: 'One-time',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '3',
-      image: Image01,
-      order: '#897726',
-      date: '22/01/2024',
-      customer: 'Maria Martinez',
-      total: '$59.00',
-      status: 'Pending',
-      items: '1',
-      location: '🇮🇹 Bologna, IT',
-      type: 'One-time',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '4',
-      image: Image03,
-      order: '#123567',
-      date: '22/01/2024',
-      customer: 'Vicky Jung',
-      total: '$39.00',
-      status: 'Refunded',
-      items: '1',
-      location: '🇬🇧 London, UK',
-      type: 'Subscription',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '5',
-      image: Image01,
-      order: '#896644',
-      date: '21/01/2024',
-      customer: 'Tisho Yanchev',
-      total: '$59.00',
-      status: 'Approved',
-      items: '1',
-      location: '🇫🇷 Paris, FR',
-      type: 'One-time',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '6',
-      image: Image03,
-      order: '#136988',
-      date: '21/01/2024',
-      customer: 'James Cameron',
-      total: '$89.00',
-      status: 'Approved',
-      items: '1',
-      location: '🇫🇷 Marseille, FR',
-      type: 'Subscription',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '7',
-      image: Image03,
-      order: '#442206',
-      date: '21/01/2024',
-      customer: 'Haruki Masuno',
-      total: '$129.00',
-      status: 'Approved',
-      items: '2',
-      location: '🇺🇸 New York, USA',
-      type: 'Subscription',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '8',
-      image: Image02,
-      order: '#764321',
-      date: '21/01/2024',
-      customer: 'Joe Huang',
-      total: '$89.00',
-      status: 'Pending',
-      items: '2',
-      location: '🇨🇳 Shanghai, CN',
-      type: 'One-time',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    },
-    {
-      id: '9',
-      image: Image01,
-      order: '#908764',
-      date: '21/01/2024',
-      customer: 'Carolyn McNeail',
-      total: '$59.00',
-      status: 'Refunded',
-      items: '1',
-      location: '🇬🇧 Sheffield, UK',
-      type: 'Subscription',
-      description: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
-    }
-  ];
+  console.log('Orders table received data:', data);
 
   const [selectAll, setSelectAll] = useState(false);
   const [isCheck, setIsCheck] = useState([]);
   const [list, setList] = useState([]);
 
+  // Transform API data to match the expected format for the table
+  const transformOrderData = (orders) => {
+    return orders.map(order => ({
+      id: order.id.toString(),
+      image: Image01, // You might want to assign different images based on order type
+      order: `#${order.id}`,
+      date: new Date(order.order_date).toLocaleDateString('en-US', {
+        month: 'long',
+        day: '2-digit',
+        year: 'numeric',
+      }),
+      customer: order.user_name,
+      total: `$${order.order_items?.reduce((sum, item) => sum + (item.item_quantity * 10), 0).toFixed(2)}`, // Estimated total since we don't have pricing
+      status: order.order_status_display,
+      bunk: order.order_bunk_cabin,
+      items: order.order_items?.length.toString() || '0',
+      order_items: order.order_items || [],
+      location: order.order_bunk_name,
+      type: order.order_type_name,
+      description: `${order.order_items?.map(item => item.item_description).join(', ')} from ${order.order_bunk_name}`
+    }));
+  };
+
   useEffect(() => {
-    setList(orders);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (data && Array.isArray(data)) {
+      const transformedData = transformOrderData(data);
+      setList(transformedData);
+    }
+  }, [data]);
 
   const handleSelectAll = () => {
     setSelectAll(!selectAll);
@@ -176,7 +71,7 @@ function OrdersTable({
   return (
     <div className="bg-white dark:bg-gray-800 shadow-xs rounded-xl relative">
       <header className="px-5 py-4">
-        <h2 className="font-semibold text-gray-800 dark:text-gray-100">All Orders <span className="text-gray-400 dark:text-gray-500 font-medium">442</span></h2>
+        <h2 className="font-semibold text-gray-800 dark:text-gray-100">All Orders <span className="text-gray-400 dark:text-gray-500 font-medium">{list.length}</span></h2>
       </header>
       <div>
 
@@ -195,16 +90,16 @@ function OrdersTable({
                   </div>
                 </th>
                 <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                  <div className="font-semibold text-left">Order</div>
+                  <div className="font-semibold text-left">Order #</div>
                 </th>
                 <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                   <div className="font-semibold text-left">Date</div>
                 </th>
                 <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                  <div className="font-semibold text-left">Customer</div>
+                  <div className="font-semibold text-left">Bunk</div>
                 </th>
                 <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                  <div className="font-semibold text-left">Total</div>
+                  <div className="font-semibold text-left">Counselor</div>
                 </th>
                 <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
                   <div className="font-semibold text-left">Status</div>
@@ -213,18 +108,12 @@ function OrdersTable({
                   <div className="font-semibold">Items</div>
                 </th>
                 <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                  <div className="font-semibold text-left">Location</div>
-                </th>
-                <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                  <div className="font-semibold text-left">Payment type</div>
-                </th>
-                <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                  <span className="sr-only">Menu</span>
+                  <div className="font-semibold text-left">Order Type</div>
                 </th>
               </tr>
             </thead>
             {/* Table body */}
-            {
+            {list.length > 0 ? (
               list.map(order => {
                 return (
                   <Orders
@@ -234,10 +123,10 @@ function OrdersTable({
                     order={order.order}
                     date={order.date}
                     customer={order.customer}
-                    total={order.total}
                     status={order.status}
+                    bunk={order.bunk}
                     items={order.items}
-                    location={order.location}
+                    order_items={order.order_items}
                     type={order.type}
                     description={order.description}
                     handleClick={handleClick}
@@ -245,7 +134,20 @@ function OrdersTable({
                   />
                 )
               })
-            }
+            ) : (
+              <tbody>
+                <tr>
+                  <td colSpan="10" className="px-2 first:pl-5 last:pr-5 py-8 text-center">
+                    <div className="text-gray-500 dark:text-gray-400">
+                      <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p>No orders found</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            )}
           </table>
 
         </div>

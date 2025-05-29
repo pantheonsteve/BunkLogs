@@ -55,10 +55,22 @@ function BunkCard({ cabin, session, bunk_id, counselors}) {
   return (
     <Link to={`/bunk/${bunk_id}/${formattedDate}`} className="relative col-span-full xl:col-span-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-xs rounded-lg">
     <div className="flex flex-col col-span-full sm:col-span-6 xl:col-span-4 bg-white dark:bg-gray-800 shadow-xs rounded-xl">
-      <div className="px-5 pt-5 pb-5">
-        <header className="flex justify-between items-start mb-2">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
-            {bunkData ? `${bunkData.cabin?.name || 'No Cabin'} (${bunkData.session?.name || 'No Session'})` : `${cabin} (${session})`}
+      <div className="px-5 pt-2 pb-2">
+        <div className="flex justify-between mb-1">
+          <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">
+            {bunkData && (
+              <span className="text-blue-300">{bunkData.unit.name}</span>
+            )}
+          </div>
+          <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">
+            {bunkData && (
+              <span className="text-yellow-300">{bunkData.session.name}</span>
+            )}
+          </div>
+        </div>
+        <header className="justify-between items-start mb-2 text-center">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 text-center">
+            {bunkData ? `${bunkData.cabin?.name || 'No Cabin'}` : `${cabin}`}
           </h2>
         </header>
         {isFetchingData ? (
@@ -67,16 +79,11 @@ function BunkCard({ cabin, session, bunk_id, counselors}) {
           <>
             {bunkData && (
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">
-                  Unit: {bunkData.unit && (
-                  <span className="text-purple-300">{bunkData.unit.name}</span>
-                )}
-                </div>
                 {bunkData.counselors && bunkData.counselors.length > 0 && (
-                  <div className="mt-2">
+                  <div className="mt-2 text-center">
                     <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-1">Counselors</div>
                     {bunkData.counselors.map((counselor, index) => (
-                      <div key={counselor.id} className="text-sm text-gray-600 dark:text-gray-300">
+                      <div key={counselor.id} className="text-sm text-blue-400 dark:text-gray-300">
                         {counselor.first_name} {counselor.last_name}
                       </div>
                     ))}

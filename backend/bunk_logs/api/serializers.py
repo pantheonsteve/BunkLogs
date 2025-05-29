@@ -164,6 +164,7 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
     camper = serializers.SerializerMethodField()
     bunk = SimpleBunkSerializer(read_only=True)  # Use SimpleBunkSerializer
     bunk_assignment = CamperBunkAssignmentSerializer(read_only=True)
+    counselor = SimpleUserSerializer(read_only=True)  # Use SimpleUserSerializer for counselor
 
     class Meta:
         model = BunkLog
@@ -266,6 +267,8 @@ class OrderSerializer(serializers.ModelSerializer):
     user_email = serializers.CharField(source='user.email', read_only=True)
     user_name = serializers.SerializerMethodField()
     order_bunk_name = serializers.CharField(source='order_bunk.name', read_only=True)
+    order_bunk_cabin = serializers.CharField(source='order_bunk.cabin', read_only=True)
+    order_bunk_session = serializers.CharField(source='order_bunk.session', read_only=True)
     order_type_name = serializers.CharField(source='order_type.type_name', read_only=True)
     order_items = OrderItemSerializer(many=True, read_only=True)
     order_status_display = serializers.CharField(source='get_order_status_display', read_only=True)
@@ -274,7 +277,7 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'user', 'user_email', 'user_name', 'order_date', 'order_status', 
-            'order_status_display', 'order_bunk', 'order_bunk_name', 'order_type', 
+            'order_status_display', 'order_bunk', 'order_bunk_name', 'order_bunk_cabin', 'order_bunk_session', 'order_type', 
             'order_type_name', 'order_items'
         ]
         read_only_fields = ['order_date', 'user']

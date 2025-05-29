@@ -96,6 +96,8 @@ function BunkLogsCamperViewCard({camperData}) {
                                 request_camper_care_help={item.request_camper_care_help}
                                 request_unit_head_help={item.request_unit_head_help}
                                 description={item.description}
+                                counselor_first_name={item.counselor.first_name}
+                                counselor_last_name={item.counselor.last_name}
                             />
                         ))}
                 </table>

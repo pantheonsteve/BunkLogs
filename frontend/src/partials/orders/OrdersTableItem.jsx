@@ -46,9 +46,6 @@ function OrdersTableItem(props) {
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
           <div className="flex items-center text-gray-800">
-            <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
-              <img className="ml-1" src={props.image} width="20" height="20" alt={props.order} />
-            </div>
             <div className="font-medium text-sky-600">{props.order}</div>
           </div>
         </td>
@@ -56,19 +53,18 @@ function OrdersTableItem(props) {
           <div>{props.date}</div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="font-medium text-gray-800 dark:text-gray-100">{props.customer}</div>
+          <div className="flex items-center">
+            <div className="text-gray-800 dark:text-gray-100">{props.bunk}</div>
+          </div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="text-left font-medium text-green-600">{props.total}</div>
+          <div className="font-medium text-gray-800 dark:text-gray-100">{props.customer}</div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
           <div className={`inline-flex font-medium rounded-full text-center px-2.5 py-0.5 ${statusColor(props.status)}`}>{props.status}</div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
           <div className="text-center">{props.items}</div>
-        </td>
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="text-left">{props.location}</div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
           <div className="flex items-center">
@@ -98,12 +94,39 @@ function OrdersTableItem(props) {
       and it should match the number of columns in your table
       */}
       <tr id={`description-${props.id}`} role="region" className={`${!descriptionOpen && 'hidden'}`}>
-        <td colSpan="10" className="px-2 first:pl-5 last:pr-5 py-3">
-          <div className="flex items-center bg-gray-50 dark:bg-gray-950/[0.15] dark:text-gray-400 p-3 -mt-3">
-            <svg className="shrink-0 fill-current text-gray-400 dark:text-gray-500 mr-2" width="16" height="16">
-              <path d="M1 16h3c.3 0 .5-.1.7-.3l11-11c.4-.4.4-1 0-1.4l-3-3c-.4-.4-1-.4-1.4 0l-11 11c-.2.2-.3.4-.3.7v3c0 .6.4 1 1 1zm1-3.6l10-10L13.6 4l-10 10H2v-1.6z" />
-            </svg>
-            <div className="italic">{props.description}</div>
+        <td colSpan="8" className="px-2 first:pl-5 last:pr-5 py-3">
+          <div className="bg-gray-50 dark:bg-gray-950/[0.15] p-4 -mt-3">            
+            {props.order_items && props.order_items.length > 0 && (
+              <div>
+                <h4 className="font-medium text-gray-800 dark:text-gray-100 mb-3">Items Requested</h4>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Item</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Description</th>
+                        <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantity</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {props.order_items.map((item, index) => (
+                        <tr key={item.id || index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                          <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">
+                            {item.item_name}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                            {item.item_description}
+                          </td>
+                          <td className="px-4 py-3 text-center font-medium text-gray-800 dark:text-gray-100">
+                            {item.item_quantity}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </td>
       </tr>
