@@ -17,6 +17,8 @@ import BunkLabelCard from '../partials/bunk-dashboard/BunkLabelCard';
 import BunkLogForm from '../components/form/BunkLogForm';
 import BunkLogFormModal from '../components/modals/BunkLogFormModal';
 import CreateOrderModal from '../components/modals/CreateOrderModal';
+import BunkOrderDetail from '../partials/bunk-dashboard/BunkOrderDetail';
+import BunkOrderEdit from '../partials/bunk-dashboard/BunkOrderEdit';
 
 function BunkDashboard() {
   console.log('[BunkDashboard] Component initializing');
@@ -26,7 +28,7 @@ function BunkDashboard() {
   const [createOrderModalOpen, setCreateOrderModalOpen] = useState(false);
   const [selectedCamperId, setSelectedCamperId] = useState(null);
   const [camperBunkAssignmentId, setCamperBunkAssignmentId] = useState(null);
-  const { bunk_id, date } = useParams();
+  const { bunk_id, date, orderId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [data, setData] = useState([]);
@@ -50,6 +52,18 @@ function BunkDashboard() {
       navigate(`/bunk/${bunk_id}/${formattedDate}`, { replace: true });
     }
   }, [date, bunk_id, navigate]);
+  
+  // Handle route changes (e.g., when navigating back from order views)
+  useEffect(() => {
+    console.log(`[BunkDashboard] Route change detected: orderId=${orderId}, pathname=${location.pathname}`);
+    
+    // If we're back to the main dashboard view (no orderId), ensure we refetch data if needed
+    if (!orderId && (!data?.bunk || Object.keys(data).length === 0)) {
+      console.log('[BunkDashboard] Back to main dashboard but no data, triggering refetch');
+      setLoading(true);
+      setError(null);
+    }
+  }, [orderId, location.pathname, data]);
   
   // Ensure proper date handling with timezone consistency
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -177,14 +191,149 @@ function BunkDashboard() {
     }
     
     fetchData();
-  }, [bunk_id, selectedDate]);
+  }, [bunk_id, selectedDate, token]);
 
   const cabin_name = data?.bunk?.cabin?.name || "Bunk X"; // Default if cabin_name is not available
   const session_name = data?.bunk?.session?.name || "Session X"; // Default if session_name is not available
-  const bunk_label = `${cabin_name} - ${session_name}`; 
+  const bunk_label = `${cabin_name}`;
   const selected_date = data?.date || "2025-01-01"; // Format date as YYYY-MM-DD
   
   console.log(`[BunkDashboard] Rendering with bunk label: "${bunk_label}", date: ${selected_date}`);
+  
+  // Determine what content to show based on URL parameters
+  const isOrderView = Boolean(orderId);
+  const isOrderEdit = Boolean(orderId && location.pathname.includes('/edit'));
+  
+  console.log(`[BunkDashboard] Route analysis: orderId=${orderId}, isOrderView=${isOrderView}, isOrderEdit=${isOrderEdit}, pathname=${location.pathname}`);
+  
+  const renderMainContent = () => {
+    if (isOrderEdit) {
+      return <BunkOrderEdit orderId={orderId} bunk_id={bunk_id} date={date} />;
+    } else if (isOrderView) {
+      return <BunkOrderDetail orderId={orderId} bunk_id={bunk_id} date={date} />;
+    } else {
+      // Default dashboard content - show loading if data is still being fetched
+      if (loading) {
+        return (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <span className="ml-2 text-gray-600">Loading dashboard...</span>
+          </div>
+        );
+      }
+      
+      if (error) {
+        return (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
+            <p className="text-sm text-red-800 dark:text-red-200">
+              Error loading dashboard: {error.message || error}
+            </p>
+          </div>
+        );
+      }
+      
+      // Debug: Check if we have the necessary data
+      console.log(`[BunkDashboard] Rendering dashboard with data:`, { 
+        hasData: !!data, 
+        hasBunk: !!data?.bunk, 
+        dataKeys: data ? Object.keys(data) : [],
+        loading, 
+        error,
+        bunk_id,
+        date,
+        selected_date
+      });
+      
+      // If no data at all, show a minimal loading state
+      if (!data || Object.keys(data).length === 0) {
+        console.log('[BunkDashboard] No data available, showing loading state');
+        return (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <span className="ml-2 text-gray-600">Loading dashboard data...</span>
+          </div>
+        );
+      }
+      
+      return (
+        <>
+          {/* Dashboard actions - Main Row Container */}
+          <div className="w-full mb-8">
+            {/* Responsive Grid: 3 columns that stack on smaller screens */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* Column A: Title */}
+              <div className="p-4">
+                <BunkLabelCard bunkLabel={bunk_label} session={session_name} />
+              </div>
+              
+              {/* Column B: Filter & Date Picker that stay side by side */}
+              <div className="p-4">
+                <div className="flex flex-row">
+                  
+                  {/* Date Picker (9/12 width) */}
+                  <div className="w-9/12">
+                    <SingleDatePicker 
+                      align="left" 
+                      date={selectedDate} 
+                      setDate={handleDateChange} 
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Column C: Action Buttons that become full width on small screens */}
+              <div className="p-4">
+                {isCounselor && (
+                  <button
+                    onClick={() => setCreateOrderModalOpen(true)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+                  >
+                    Create Order
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Cards */}
+          <div className="grid grid-cols-12 gap-6">
+            <BunkLogFormModal 
+              id="bunk-log-form"
+              title="Add Bunk Log"
+              modalOpen={bunkLogModalOpen}
+              setModalOpen={setBunkLogFormModalOpen}
+              formSubmitted={formSubmitted}
+            >
+              <BunkLogForm 
+                bunk_id={bunk_id}
+                camper_id={selectedCamperId}
+                date={selected_date}
+                data={data}
+                onClose={handleModalClose}
+                // Pass token explicitly through props as a backup
+                token={token || localStorage.getItem('access_token')}
+              />
+            </BunkLogFormModal>
+            
+            {/* Create Order Modal */}
+            <CreateOrderModal
+              isOpen={createOrderModalOpen}
+              onClose={() => setCreateOrderModalOpen(false)}
+              onOrderCreated={handleOrderCreated}
+              bunkId={bunk_id}
+              date={selected_date}
+            />
+            
+            <NotOnCampCard bunkData={data} />
+            <UnitHeadHelpRequestedCard bunkData={data} />
+            <CamperCareHelpRequestedCard bunkData={data} />
+            <BunkLogsTableViewCard bunkData={data} />
+          </div>
+        </>
+      );
+    }
+  };
   
   return (
     <div className="flex h-screen overflow-hidden">
@@ -206,83 +355,8 @@ function BunkDashboard() {
 
         <main className="grow">
           <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
-
-            {/* Dashboard actions - Main Row Container */}
-            <div className="w-full mb-8">
-              {/* Responsive Grid: 3 columns that stack on smaller screens */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                {/* Column A: Title */}
-                <div className="p-4">
-                  <BunkLabelCard bunkLabel={bunk_label} />
-                </div>
-                
-                {/* Column B: Filter & Date Picker that stay side by side */}
-                <div className="p-4">
-                  <div className="flex flex-row">
-                    {/* Filter Button (3/12 width) */}
-                    <div className="w-3/12 pr-2">
-                      <FilterButton align="left" />
-                    </div>
-                    
-                    {/* Date Picker (9/12 width) */}
-                    <div className="w-9/12">
-                      <SingleDatePicker 
-                        align="left" 
-                        date={selectedDate} 
-                        setDate={handleDateChange} 
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Column C: Action Buttons that become full width on small screens */}
-                <div className="p-4">
-                  {isCounselor && (
-                    <button
-                      onClick={() => setCreateOrderModalOpen(true)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
-                    >
-                      Create Order
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Cards */}
-            <div className="grid grid-cols-12 gap-6">
-              <BunkLogFormModal 
-                id="bunk-log-form"
-                title="Add Bunk Log"
-                modalOpen={bunkLogModalOpen}
-                setModalOpen={setBunkLogFormModalOpen}
-                formSubmitted={formSubmitted}
-              >
-                <BunkLogForm 
-                  bunk_id={bunk_id}
-                  camper_id={selectedCamperId}
-                  date={selected_date}
-                  data={data}
-                  onClose={handleModalClose}
-                  // Pass token explicitly through props as a backup
-                  token={token || localStorage.getItem('access_token')}
-                />
-              </BunkLogFormModal>
-              
-              {/* Create Order Modal */}
-              <CreateOrderModal
-                isOpen={createOrderModalOpen}
-                onClose={() => setCreateOrderModalOpen(false)}
-                onOrderCreated={handleOrderCreated}
-                bunkId={bunk_id}
-                date={selected_date}
-              />
-              
-              <NotOnCampCard bunkData={data} />
-              <UnitHeadHelpRequestedCard bunkData={data} />
-              <CamperCareHelpRequestedCard bunkData={data} />
-              <BunkLogsTableViewCard bunkData={data} />
+            <div key={`${orderId || 'dashboard'}-${location.pathname}`}>
+              {renderMainContent()}
             </div>
           </div>
         </main>

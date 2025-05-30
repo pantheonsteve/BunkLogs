@@ -270,7 +270,7 @@ class OrderSerializer(serializers.ModelSerializer):
     order_bunk_cabin = serializers.CharField(source='order_bunk.cabin', read_only=True)
     order_bunk_session = serializers.CharField(source='order_bunk.session', read_only=True)
     order_type_name = serializers.CharField(source='order_type.type_name', read_only=True)
-    order_items = OrderItemSerializer(many=True, read_only=True)
+    order_items = OrderItemSerializer(many=True)
     order_status_display = serializers.CharField(source='get_order_status_display', read_only=True)
     
     class Meta:
@@ -286,6 +286,38 @@ class OrderSerializer(serializers.ModelSerializer):
         if obj.user:
             return f"{obj.user.first_name} {obj.user.last_name}".strip()
         return ""
+    
+    def update(self, instance, validated_data):
+        """Handle updating order with nested order items."""
+        order_items_data = validated_data.pop('order_items', None)
+        
+        # Update the order instance
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Handle order items update if provided
+        if order_items_data is not None:
+            # Delete existing order items
+            instance.order_items.all().delete()
+            
+            # Create new order items
+            for item_data in order_items_data:
+                OrderItem.objects.create(order=instance, **item_data)
+        
+        return instance
+    
+    def validate_order_items(self, value):
+        """Validate that order items are not empty and quantities are positive."""
+        if value is not None:
+            if not value:
+                raise serializers.ValidationError("At least one order item is required.")
+            
+            for item_data in value:
+                if item_data.get('item_quantity', 0) <= 0:
+                    raise serializers.ValidationError("Item quantity must be greater than 0.")
+        
+        return value
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):

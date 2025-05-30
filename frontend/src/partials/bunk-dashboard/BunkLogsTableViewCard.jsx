@@ -33,16 +33,19 @@ function BunkLogsTableViewCard({ bunkData }) {
 
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);  // Changed to false since data is passed as prop
-  const [data, setData] = useState(bunkData);
+  const [data, setData] = useState([]);
   
 
   const filterNotOnCamp = (campers) => {
+    if (!Array.isArray(campers)) return [];
     return campers.filter((camper) => camper.bunk_log?.not_on_camp === false);
   }
 
   useEffect(() => {
     if (bunkData && bunkData.campers) {
       setData(filterNotOnCamp(bunkData.campers));
+    } else {
+      setData([]);
     }
   }, [bunkData]);
 
@@ -117,7 +120,7 @@ function BunkLogsTableViewCard({ bunkData }) {
                 </th>
               </tr>
             </thead>
-                { 
+                {Array.isArray(data) && data.length > 0 ? (
                   data.map((item, index) => {
                     const uniqueKey = item.id || `${item.camper_first_name}-${item.camper_last_name}-${index}`;
                     const counselor = item?.bunk_assignment?.bunk?.counselors?.find(c => c.id === item.bunk_log.counselor) || "Unknown";
@@ -148,7 +151,13 @@ function BunkLogsTableViewCard({ bunkData }) {
                       />
                     )
                   })
-                }
+                ) : (
+                  <tr>
+                    <td colSpan="7" className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      {loading ? 'Loading camper logs...' : 'No camper logs found'}
+                    </td>
+                  </tr>
+                )}
               </table>
             </div>
           </div>

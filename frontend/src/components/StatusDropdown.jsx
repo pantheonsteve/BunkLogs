@@ -84,7 +84,7 @@ function StatusDropdown({ orderId, currentStatus, onStatusUpdate, userRole, disa
           
           {/* Dropdown */}
           <div className="absolute z-20 mt-1 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700">
-            <div className="py-1">
+            <div className="py-1 flex flex-col">
               {STATUS_OPTIONS.map((option) => (
                 <button
                   key={option.value}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-function BunkLabelCard({ bunkLabel }) {
+function BunkLabelCard({ bunkLabel, session }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false); // Changed to false since data is passed as prop
 
@@ -23,9 +23,9 @@ function BunkLabelCard({ bunkLabel }) {
 
   return (
     <div className="col-span-full xl:col-span-4 dark:bg-gray-800 shadow-xs rounded-xl">
-      <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
-        <h1 className="font-semibold text-gray-800 dark:text-gray-100">{bunkLabel}</h1>
-      </header>
+      <span className="font-semibold text-gray-800 dark:text-gray-100 text-2xl text-center">
+        {bunkLabel}
+      </span>
     </div>
   );
 }

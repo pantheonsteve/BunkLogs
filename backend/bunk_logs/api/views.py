@@ -415,14 +415,23 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Filter orders based on user role."""
+        """Filter orders based on user role and optional bunk parameter."""
         user = self.request.user
+        
+        # Start with base queryset based on user role
         if user.is_staff or user.role in ['Counselor', 'Admin', 'Camper Care']:
             # Staff, counselors, and camper care can see all orders
-            return Order.objects.all().select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
+            queryset = Order.objects.all().select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
         else:
             # Regular users can only see their own orders
-            return Order.objects.filter(user=user).select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
+            queryset = Order.objects.filter(user=user).select_related('user', 'order_bunk', 'order_type').prefetch_related('order_items__item')
+        
+        # Apply bunk filter if provided
+        bunk_id = self.request.query_params.get('bunk', None)
+        if bunk_id is not None:
+            queryset = queryset.filter(order_bunk_id=bunk_id)
+            
+        return queryset
     
     def get_serializer_class(self):
         """Use different serializers for create vs read operations."""

@@ -7,6 +7,8 @@ import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
 import AuthCallback from './pages/AuthCallback';
 import Orders from './pages/Orders';
+import OrderDetail from './pages/OrderDetail';
+import OrderEdit from './pages/OrderEdit';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -50,6 +52,42 @@ function Router() {
             </ProtectedRoute>
           } 
         />
+        
+        <Route 
+          path="/bunk/:bunk_id/:date/orders/:orderId" 
+          element={
+            <ProtectedRoute>
+              <BunkDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/bunk/:bunk_id/:date/orders/:orderId/edit" 
+          element={
+            <ProtectedRoute>
+              <BunkDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/bunk/:bunk_id/:date/orders/:orderId" 
+          element={
+            <ProtectedRoute>
+              <BunkDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/bunk/:bunk_id/:date/orders/:orderId/edit" 
+          element={
+            <ProtectedRoute>
+              <BunkDashboard />
+            </ProtectedRoute>
+          } 
+        />
 
         <Route 
           path="/camper/:camper_id/:date" 
@@ -65,6 +103,24 @@ function Router() {
           element={
             <ProtectedRoute>
               <Orders />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/orders/:orderId" 
+          element={
+            <ProtectedRoute>
+              <OrderDetail />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/orders/:orderId/edit" 
+          element={
+            <ProtectedRoute>
+              <OrderEdit />
             </ProtectedRoute>
           } 
         />
