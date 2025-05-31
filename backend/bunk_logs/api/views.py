@@ -363,6 +363,52 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         # Set the counselor automatically to the current user
         serializer.save(counselor=self.request.user)
 
+    def perform_update(self, serializer):
+        # Verify the user is allowed to update this bunk log
+        instance = self.get_object()
+        user = self.request.user
+        
+        # Admin/staff can update any log
+        if user.is_staff or user.role == 'Admin':
+            serializer.save()
+            return
+            
+        # Unit heads can update logs for bunks in their units
+        if user.role == 'Unit Head':
+            if user.managed_units.filter(bunks=instance.bunk_assignment.bunk).exists():
+                serializer.save()
+                return
+            else:
+                raise PermissionDenied("You are not authorized to update logs for this bunk.")
+        
+        # Counselors have specific restrictions
+        if user.role == 'Counselor':
+            # Check if user is a counselor for this bunk
+            if not user.assigned_bunks.filter(id=instance.bunk_assignment.bunk.id).exists():
+                raise PermissionDenied("You are not authorized to update logs for this bunk.")
+            
+            # Check if user is the original counselor who created the log
+            if instance.counselor.id != user.id:
+                raise PermissionDenied("You can only update logs you created.")
+            
+            # Check if the update is happening on the same day the log was created
+            from django.utils import timezone
+            today = timezone.now().date()
+            log_created_date = instance.created_at.date() if instance.created_at else instance.date
+            
+            if today != log_created_date:
+                raise PermissionDenied("You can only update logs on the day they were created.")
+            
+            # Don't allow changing the counselor field during update
+            if 'counselor' in serializer.validated_data:
+                serializer.validated_data['counselor'] = instance.counselor
+            
+            serializer.save()
+            return
+        
+        # Default: deny access
+        raise PermissionDenied("You are not authorized to update this bunk log.")
+
 class CamperBunkLogViewSet(APIView):
     renderer_classes = [JSONRenderer]
     permission_classes = [AllowAny]

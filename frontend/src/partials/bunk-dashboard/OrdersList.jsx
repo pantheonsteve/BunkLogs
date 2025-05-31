@@ -103,7 +103,7 @@ function OrdersList({ bunk_id, date }) {
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               <NavLink
-                to={canEditOrder(order) ? `/bunk/${bunk_id}/${date}/orders/${order.id}/edit` : `/bunk/${bunk_id}/${date}/orders/${order.id}`}
+                to={canEditOrder(order) ? `/bunk/${bunk_id}/${date}/orders/${order.id}` : `/bunk/${bunk_id}/${date}/orders/${order.id}`}
                 className="block group"
               >
                 <div className="flex items-center space-x-2">

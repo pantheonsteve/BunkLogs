@@ -214,11 +214,26 @@ function OrderEdit() {
             <div className="sm:flex sm:justify-between sm:items-center mb-8">
               <div className="mb-4 sm:mb-0">
                 <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-                  Edit Order #{order?.id} ({order.order_bunk_cabin})
+                  Edit Order #{order?.id}
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Make changes to your order before it's processed
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Bunk:</span> {order?.order_bunk_name || order?.order_bunk_cabin || 'N/A'}
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Created:</span> {order?.order_date ? new Date(order.order_date).toLocaleDateString('en-US', { 
+                      weekday: 'long',
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) : 'N/A'}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500">
+                    Make changes to your order before it's processed
+                  </p>
+                </div>
               </div>
 
               <div className="flex space-x-3">

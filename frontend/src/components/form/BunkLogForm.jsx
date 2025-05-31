@@ -22,9 +22,45 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
   const Data = data || null;
   const bunk_assignment = Data?.campers?.find(c => c.camper_id == camperIdToUse)?.bunk_assignment?.id || null;
   
-  // For Quill editor
-  const editorRef = useRef(null);
-  const quillRef = useRef(null);
+  // Check if user can edit based on role and date
+  const canEdit = () => {
+    const currentUser = auth?.user;
+    if (!currentUser) return false;
+    
+    // Admin and staff can always edit
+    if (currentUser.is_staff || currentUser.role === 'Admin' || currentUser.role === 'Unit Head') {
+      return true;
+    }
+    
+    // Check if there's an existing log
+    const existingBunkLogCheck = Data?.campers?.find(item => item.camper_id === camperIdToUse);
+    const existingLog = existingBunkLogCheck?.bunk_log;
+    
+    // For counselors
+    if (currentUser.role === 'Counselor') {
+      // If there's no existing log, counselors can create new logs for any date
+      if (!existingLog) {
+        return true;
+      }
+      
+      // If there's an existing log, check two conditions:
+      // 1. The counselor must be the one who created the log
+      // 2. The edit must be happening on the same day the log was created
+      const logCounselorId = existingLog.counselor;
+      const today = new Date().toISOString().split('T')[0];
+      const logCreatedDate = existingLog.created_at ? 
+        new Date(existingLog.created_at).toISOString().split('T')[0] : 
+        dateToUse; // Fallback to log date if created_at is not available
+      
+      // Must be the original counselor AND editing on the day it was created
+      return logCounselorId === currentUser.id && today === logCreatedDate;
+    }
+    
+    return false;
+  };
+  
+  // For WYSIWYG editor
+  const wysiwygRef = useRef(null);
   
   // State for camper data
   const [camperData, setCamperData] = useState(null);
@@ -33,8 +69,8 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
   const existingBunkLogCheck = Data?.campers?.find(item => item.camper_id === camperIdToUse);
   const hasExistingBunkLog = existingBunkLogCheck?.bunk_log ? true : false;
   
-  // View/Edit mode toggle - start in view mode if there's existing data
-  const [isViewMode, setIsViewMode] = useState(hasExistingBunkLog);
+  // View/Edit mode toggle - start in view mode if there's existing data or if user can't edit
+  const [isViewMode, setIsViewMode] = useState(hasExistingBunkLog || !canEdit());
 
   // Form state
   const [formData, setFormData] = useState({
@@ -67,17 +103,38 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
         item.camper_id === camperIdToUse
       );
       if (existingData) {
+        console.log('=== BunkLogForm: Found existing data ===');
         console.log('camper:', existingData); // Debug
         if (existingData.bunk_log) {
           console.log('bunk_log_data:', existingData.bunk_log); // Debug
+          console.log('bunk_log description:', existingData.bunk_log.description); // Debug
         }
-        setFormData(prev => ({
-          ...prev,
-          ...existingData.bunk_log,
-          bunk_assignment: existingData.bunk_assignment_id,
-          date: dateToUse,
-          description: existingData?.bunk_log?.description || '',
-        }));
+        
+        setFormData(prev => {
+          const newFormData = {
+            ...prev,
+            ...existingData.bunk_log,
+            bunk_assignment: existingData.bunk_assignment_id,
+            date: dateToUse,
+            description: existingData?.bunk_log?.description || '',
+          };
+          
+          console.log('=== BunkLogForm: Setting FormData ===');
+          console.log('FormData being set:', newFormData); // Debug
+          console.log('Description being set:', newFormData.description); // Debug
+          console.log('Description type:', typeof newFormData.description); // Debug
+          console.log('Description length:', newFormData.description ? newFormData.description.length : 0); // Debug
+          
+          // Use setTimeout to ensure Wysiwyg component receives the updated value
+          setTimeout(() => {
+            if (wysiwygRef.current && newFormData.description) {
+              console.log('=== BunkLogForm: Manually setting Wysiwyg content ===');
+              wysiwygRef.current.setContent(newFormData.description);
+            }
+          }, 100);
+          
+          return newFormData;
+        });
       } else {
         setFormData(prev => ({
           ...prev,
@@ -140,64 +197,6 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     
     fetchCamperData();
   }, [camperIdToUse, token, bunkIdToUse, date]); // Added missing dependencies
-
-
-  // Initialize Quill editor
-  useEffect(() => {
-    if (editorRef.current && !quillRef.current) {
-      const toolbarOptions = [
-        [{ 'header': [1, 2, false] }],
-        ['bold', 'italic', 'underline'],
-        ['link', 'list', 'align', 'justify'],
-        ['clean']
-      ];
-
-      quillRef.current = new Quill(editorRef.current, {
-        modules: {
-          toolbar: isViewMode ? false : toolbarOptions
-        },
-        theme: 'snow',
-        readOnly: isViewMode
-      });
-
-      // Update form data when editor content changes
-      quillRef.current.on('text-change', function() {
-        if (!isViewMode) {
-          setFormData(prev => ({
-            ...prev,
-            description: quillRef.current.root.innerHTML
-          }));
-        }
-      });
-    }
-    
-    // If not on camp is checked, clear the editor
-    if (formData.not_on_camp && quillRef.current) {
-      quillRef.current.setText('');
-    }
-    
-    // Update editor's readonly state when view mode changes
-    if (quillRef.current) {
-      quillRef.current.enable(!isViewMode);
-      
-      // Hide/show toolbar based on view mode
-      const toolbarElement = editorRef.current.parentElement.querySelector('.ql-toolbar');
-      if (toolbarElement) {
-        toolbarElement.style.display = isViewMode ? 'none' : 'block';
-      }
-    }
-  }, [formData.not_on_camp, isViewMode]);
-  
-  // Update Quill editor content when description changes in formData
-  useEffect(() => {
-    if (quillRef.current && formData.description) {
-      // Only update if the current content differs from formData.description
-      // to avoid an infinite loop
-      if (quillRef.current.root.innerHTML !== formData.description) {
-        quillRef.current.root.innerHTML = formData.description;
-      }
-    }
-  }, [formData.description]);
   
   // Fetch counselors
   useEffect(() => {
@@ -226,6 +225,13 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     e.preventDefault();
     if (isViewMode) return; // Don't submit in view mode
     
+    // Check permissions before submission
+    if (!canEdit()) {
+      setError('You do not have permission to submit this bunk log.');
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -251,7 +257,7 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     // Log complete form data including WYSIWYG content
     console.log('Form Data being submitted:', {
       ...formData,
-      description: formData.description || (quillRef.current ? quillRef.current.root.innerHTML : '')
+      description: formData.description
     });
     
     try {
@@ -284,12 +290,28 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
       
       console.log('Sending with headers:', headers); // Debug headers
       
-      // API call to submit the form
-      const response = await axios.post(
-        `${API_BASE_URL}/bunklogs/`,
-        submissionData,
-        { headers, withCredentials: true } // Add withCredentials to include cookies
-      );
+      // Determine if this is an update or create based on existing bunk log
+      const existingBunkLog = Data?.campers?.find(item => item.camper_id === camperIdToUse)?.bunk_log;
+      const isUpdate = existingBunkLog && existingBunkLog.id;
+      
+      let response;
+      if (isUpdate) {
+        // Update existing bunk log using PUT
+        console.log('Updating existing bunk log with ID:', existingBunkLog.id);
+        response = await axios.put(
+          `${API_BASE_URL}/bunklogs/${existingBunkLog.id}/`,
+          submissionData,
+          { headers, withCredentials: true }
+        );
+      } else {
+        // Create new bunk log using POST
+        console.log('Creating new bunk log');
+        response = await axios.post(
+          `${API_BASE_URL}/bunklogs/`,
+          submissionData,
+          { headers, withCredentials: true }
+        );
+      }
 
       console.log('submission response:', response); // Debug
       
@@ -366,22 +388,73 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
         </h1>
         {/* View/Edit Mode Toggle - Only show if there's an existing bunk log */}
         {hasExistingBunkLog && (
-          <div className="flex items-center">
-            <span className="mr-2 text-sm text-gray-600 dark:text-gray-300">
-              {isViewMode ? 'View Mode' : 'Edit Mode'}
-            </span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox"
-                className="sr-only peer"
-                checked={!isViewMode}
-                onChange={() => setIsViewMode(!isViewMode)}
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
+          <div className="flex items-center space-x-3">
+            {/* Permission indicator when editing is restricted */}
+            {!canEdit() && (
+              <div className="flex items-center text-yellow-600 dark:text-yellow-400">
+                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs">
+                  {auth?.user?.role === 'Counselor' 
+                    ? (() => {
+                        const existingLog = Data?.campers?.find(item => item.camper_id === camperIdToUse)?.bunk_log;
+                        if (existingLog) {
+                          const logCounselorId = existingLog.counselor;
+                          const today = new Date().toISOString().split('T')[0];
+                          const logCreatedDate = existingLog.created_at ? 
+                            new Date(existingLog.created_at).toISOString().split('T')[0] : 
+                            dateToUse;
+                          
+                          if (logCounselorId !== auth.user.id) {
+                            return 'Not your log - View only';
+                          } else if (today !== logCreatedDate) {
+                            return 'Can only edit on creation day - View only';
+                          }
+                        }
+                        return 'View only';
+                      })()
+                    : 'View only'
+                  }
+                </span>
+              </div>
+            )}
+            
+            <div className="flex items-center">
+              <span className="mr-2 text-sm text-gray-600 dark:text-gray-300">
+                {isViewMode ? 'View Mode' : 'Edit Mode'}
+              </span>
+              <label className={`relative inline-flex items-center ${canEdit() ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                <input 
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={!isViewMode}
+                  onChange={() => canEdit() && setIsViewMode(!isViewMode)}
+                  disabled={!canEdit()}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+              </label>
+            </div>
           </div>
         )}
       </div>
+      
+      {/* Permission warning for creating new logs */}
+      {!hasExistingBunkLog && !canEdit() && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium">Cannot Create Bunk Log</h3>
+              <p className="text-sm mt-1">
+                You do not have permission to create bunk logs.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {success && (
         <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
@@ -639,16 +712,20 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
               </div>
             </div>
             
-            {/* Quill WYSIWYG Editor */}
+            {/* Enhanced WYSIWYG Editor */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Daily Report
               </label>
               <div className={`border border-gray-300 rounded-md dark:border-gray-600 overflow-hidden ${isViewMode ? 'quill-view-only' : ''}`}>
                 <Wysiwyg 
-                  ref={editorRef} 
+                  ref={wysiwygRef} 
+                  value={formData.description}
+                  readOnly={isViewMode}
+                  showToolbar={!isViewMode}
                   onChange={(content) => {
                     if (!isViewMode) {
+                      console.log('WYSIWYG onChange called with:', content);
                       setFormData(prev => ({ ...prev, description: content }))
                     }
                   }}
@@ -658,8 +735,8 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
           </>
         )}
 
-        {/* Submit Button - Only show in edit mode */}
-        {!isViewMode && (
+        {/* Submit Button - Only show in edit mode and when user can edit */}
+        {!isViewMode && canEdit() && (
           <div className="flex justify-end">
             <button
               type="submit"
