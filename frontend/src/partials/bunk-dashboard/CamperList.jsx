@@ -64,7 +64,7 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
                     : 'bg-gray-100 text-gray-600 border border-gray-200'
                 }`}
               >
-                All ({data.length})
+                All
               </button>
               <button
                 onClick={() => setFilterStatus('completed')}
@@ -74,7 +74,7 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
                     : 'bg-gray-100 text-gray-600 border border-gray-200'
                 }`}
               >
-                Completed ({completedCount})
+                Completed
               </button>
               <button
                 onClick={() => setFilterStatus('pending')}
@@ -84,7 +84,7 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
                     : 'bg-gray-100 text-gray-600 border border-gray-200'
                 }`}
               >
-                Pending ({pendingCount})
+                Pending
               </button>
             </div>
           </div>

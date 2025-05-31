@@ -8,6 +8,7 @@ import DateSelect from '../components/DateSelect';
 import FilterButton from '../components/DropdownFilter';
 import OrdersTable from '../partials/orders/OrdersTable';
 import PaginationClassic from '../components/PaginationClassic';
+import OrderFilters from '../components/OrderFilters';
 
 
 function Orders() {
@@ -17,6 +18,11 @@ function Orders() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({
+    bunk: '',
+    status: '',
+    orderType: ''
+  });
   const { isAuthenticated, token } = useAuth();
 
   const handleSelectedItems = (selectedItems) => {
@@ -34,6 +40,12 @@ function Orders() {
     );
   };
 
+  const handleFiltersChange = (newFilters) => {
+    setFilters(newFilters);
+    // Reset selected items when filters change
+    setSelectedItems([]);
+  };
+
   useEffect(() => {
     async function fetchOrders() {
       if (!isAuthenticated) {
@@ -45,7 +57,24 @@ function Orders() {
       try {
         setLoading(true);
         setError(null);
-        const response = await api.get('/api/orders/');
+        
+        // Build query parameters based on filters
+        const queryParams = new URLSearchParams();
+        
+        if (filters.bunk) {
+          queryParams.append('bunk', filters.bunk);
+        }
+        if (filters.status) {
+          queryParams.append('status', filters.status);
+        }
+        if (filters.orderType) {
+          queryParams.append('order_type', filters.orderType);
+        }
+        
+        const queryString = queryParams.toString();
+        const url = `/api/orders/${queryString ? `?${queryString}` : ''}`;
+        
+        const response = await api.get(url);
         setData(response.data);
       } catch (error) {
         console.error('Error fetching orders:', error);
@@ -60,7 +89,7 @@ function Orders() {
     }
 
     fetchOrders();
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, filters]);
 
   console.log('Orders data:', data);
   
@@ -92,6 +121,14 @@ function Orders() {
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
               </div>
 
+            </div>
+
+            {/* Filters */}
+            <div className="mb-6">
+              <OrderFilters 
+                filters={filters} 
+                onFiltersChange={handleFiltersChange}
+              />
             </div>
 
             {/* Error Display */}

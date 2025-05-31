@@ -191,7 +191,7 @@ function BunkOrderDetail({ orderId, bunk_id, date }) {
             <div>
               <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Created</dt>
               <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                {formatDate(order.created_at)}
+                {formatDate(order.order_date)}
               </dd>
             </div>
             <div>
@@ -203,7 +203,7 @@ function BunkOrderDetail({ orderId, bunk_id, date }) {
             <div>
               <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Counselor</dt>
               <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                {order?.order_counselor_name || 'N/A'}
+                {order?.user_name || 'N/A'}
               </dd>
             </div>
             {order.order_description && (

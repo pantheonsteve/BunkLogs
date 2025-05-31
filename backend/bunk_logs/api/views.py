@@ -461,7 +461,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Filter orders based on user role and optional bunk parameter."""
+        """Filter orders based on user role and optional filter parameters."""
         user = self.request.user
         
         # Start with base queryset based on user role
@@ -476,6 +476,16 @@ class OrderViewSet(viewsets.ModelViewSet):
         bunk_id = self.request.query_params.get('bunk', None)
         if bunk_id is not None:
             queryset = queryset.filter(order_bunk_id=bunk_id)
+        
+        # Apply status filter if provided
+        status = self.request.query_params.get('status', None)
+        if status is not None:
+            queryset = queryset.filter(order_status=status)
+        
+        # Apply order type filter if provided
+        order_type_id = self.request.query_params.get('order_type', None)
+        if order_type_id is not None:
+            queryset = queryset.filter(order_type_id=order_type_id)
             
         return queryset
     
