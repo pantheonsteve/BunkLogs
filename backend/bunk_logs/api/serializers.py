@@ -60,7 +60,6 @@ class UserSerializer(serializers.ModelSerializer):
                   "bunks", "unit", "unit_bunks", "username", "password")
         extra_kwargs = {
             'password': {'write_only': True},
-            'is_active': {'read_only': True},
             'is_staff': {'read_only': True},
             'is_superuser': {'read_only': True},
         }
@@ -68,7 +67,15 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """
         Create a new user and set the password.
+        Automatically set role to "Counselor" and is_active to True for new registrations.
         """
+        # Set default role for new users if not provided
+        if 'role' not in validated_data or not validated_data['role']:
+            validated_data['role'] = 'Counselor'
+        
+        # Set user as active by default
+        validated_data['is_active'] = True
+        
         user = User(**validated_data)
         user.set_password(validated_data['password'])
         user.save()

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import ProviderList from '../socialaccount/ProviderList';
 import SocialLoginButton from "../components/SocialLoginButton";
@@ -11,9 +11,20 @@ function Signin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  useEffect(() => {
+    // Check for success message from signup
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the state to prevent showing the message on refresh
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location, navigate]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,6 +87,13 @@ function Signin() {
             <div className="max-w-sm mx-auto w-full px-4 py-8">
               <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">Welcome back!</h1>
               <p className="text-gray-600 dark:text-gray-400 mb-6">Sign in to your account to continue</p>
+              
+              {successMessage && (
+                <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+                  {successMessage}
+                </div>
+              )}
+
               {/* Form */}
               <form onSubmit={handleSubmit}>
                 <div className="space-y-4">

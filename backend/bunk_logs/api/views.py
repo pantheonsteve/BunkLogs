@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 from rest_framework import generics
 from rest_framework import viewsets
@@ -49,12 +50,14 @@ import json
 User = get_user_model()
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserCreate(generics.CreateAPIView):
     """
     User registration view.
     """
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for user creation
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()

@@ -1,9 +1,104 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api";
 
 import AuthImage from "../images/auth-image.jpg";
 
 function Signup() {
+  const [formData, setFormData] = useState({
+    email: "",
+    first_name: "",
+    last_name: "",
+    password: "",
+    password_confirm: ""
+  });
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const validateForm = () => {
+    if (!formData.email || !formData.first_name || !formData.last_name || !formData.password || !formData.password_confirm) {
+      setError("All fields are required");
+      return false;
+    }
+
+    if (formData.password !== formData.password_confirm) {
+      setError("Passwords do not match");
+      return false;
+    }
+
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters long");
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Create user account
+      const userData = {
+        email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        password: formData.password
+      };
+
+      const response = await api.post("/api/v1/users/create/", userData);
+      
+      console.log("Signup successful:", response.data);
+      
+      // Redirect to signin page with success message
+      navigate("/signin", { 
+        state: { 
+          message: "Account created successfully! Please sign in to continue." 
+        }
+      });
+
+    } catch (error) {
+      console.error("Signup error:", error);
+      
+      if (error.response?.status === 400) {
+        // Handle validation errors
+        const errorData = error.response.data;
+        if (errorData.email) {
+          setError("A user with this email already exists");
+        } else if (errorData.password) {
+          setError(errorData.password[0] || "Password is invalid");
+        } else {
+          setError("Please check your information and try again");
+        }
+      } else {
+        setError("Signup failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="bg-white dark:bg-gray-900">
       <div className="relative md:flex">
@@ -24,48 +119,97 @@ function Signup() {
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
               <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">Create your Account</h1>
+              
+              {error && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                  {error}
+                </div>
+              )}
+
               {/* Form */}
-              <form>
+              <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1" htmlFor="email">
                       Email Address <span className="text-red-500">*</span>
                     </label>
-                    <input id="email" className="form-input w-full" type="email" />
+                    <input 
+                      id="email" 
+                      name="email"
+                      className="form-input w-full" 
+                      type="email" 
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="name">
-                      Full Name <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium mb-1" htmlFor="first_name">
+                      First Name <span className="text-red-500">*</span>
                     </label>
-                    <input id="name" className="form-input w-full" type="text" />
+                    <input 
+                      id="first_name" 
+                      name="first_name"
+                      className="form-input w-full" 
+                      type="text" 
+                      value={formData.first_name}
+                      onChange={handleChange}
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="role">
-                      Your Role <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium mb-1" htmlFor="last_name">
+                      Last Name <span className="text-red-500">*</span>
                     </label>
-                    <select id="role" className="form-select w-full">
-                      <option>Designer</option>
-                      <option>Developer</option>
-                      <option>Accountant</option>
-                    </select>
+                    <input 
+                      id="last_name" 
+                      name="last_name"
+                      className="form-input w-full" 
+                      type="text" 
+                      value={formData.last_name}
+                      onChange={handleChange}
+                      required
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1" htmlFor="password">
-                      Password
+                      Password <span className="text-red-500">*</span>
                     </label>
-                    <input id="password" className="form-input w-full" type="password" autoComplete="on" />
+                    <input 
+                      id="password" 
+                      name="password"
+                      className="form-input w-full" 
+                      type="password" 
+                      value={formData.password}
+                      onChange={handleChange}
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" htmlFor="password_confirm">
+                      Confirm Password <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      id="password_confirm" 
+                      name="password_confirm"
+                      className="form-input w-full" 
+                      type="password" 
+                      value={formData.password_confirm}
+                      onChange={handleChange}
+                      autoComplete="new-password"
+                      required
+                    />
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-6">
-                  <div className="mr-1">
-                    <label className="flex items-center">
-                      <input type="checkbox" className="form-checkbox" />
-                      <span className="text-sm ml-2">Email me about product news.</span>
-                    </label>
-                  </div>
-                  <Link className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3 whitespace-nowrap" to="/">
-                    Sign Up
-                  </Link>
+                <div className="flex items-center justify-end mt-6">
+                  <button 
+                    type="submit"
+                    disabled={isLoading}
+                    className="btn bg-violet-500 text-white hover:bg-violet-600 dark:bg-violet-600 dark:hover:bg-violet-700 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? "Creating Account..." : "Create Account"}
+                  </button>
                 </div>
               </form>
               {/* Footer */}

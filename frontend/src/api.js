@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCSRFToken } from './django';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -7,13 +8,48 @@ const api = axios.create({
   withCredentials: true, // Important for cookies
 });
 
-// Add request interceptor to attach token
+// Function to get CSRF token from the server
+const getServerCSRFToken = async () => {
+  try {
+    const response = await axios.get(`${apiUrl}/api/get-csrf-token/`, {
+      withCredentials: true
+    });
+    return response.data.csrfToken;
+  } catch (error) {
+    console.warn('Failed to get CSRF token from server:', error);
+    return null;
+  }
+};
+
+// Add request interceptor to attach token and CSRF token
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Add CSRF token for non-GET requests (except user creation)
+    if (config.method !== 'get' && !config.url.includes('/users/create/')) {
+      // First try to get CSRF token from cookie
+      let csrfToken = getCSRFToken();
+      console.log('CSRF token from cookie:', csrfToken);
+      
+      // If no cookie token, get it from the server
+      if (!csrfToken) {
+        console.log('Getting CSRF token from server...');
+        csrfToken = await getServerCSRFToken();
+        console.log('CSRF token from server:', csrfToken);
+      }
+      
+      if (csrfToken) {
+        config.headers['x-csrftoken'] = csrfToken;
+        console.log('Added CSRF token to request headers');
+      } else {
+        console.warn('No CSRF token available for request');
+      }
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -24,6 +60,8 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    console.log('API Error:', error.response?.status, error.response?.data);
     
     // If the error is due to an expired token (401) and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {

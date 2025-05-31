@@ -18,6 +18,9 @@ urlpatterns = [
     # Add a URL pattern for an individual bunk
     path('bunk/<str:id>/', views.BunkViewSet.as_view({'get': 'retrieve'}), name='bunk-detail'),
     
+    # User registration endpoint
+    path('users/create/', views.UserCreate.as_view(), name='user-create'),
+    
     # Add dedicated endpoint for email-based user retrieval
     path('users/email/<str:email>/', views.get_user_by_email, name='user-by-email'),
      # Add a URL pattern for the BunkLogsInfoByDateViewSet
