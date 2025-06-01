@@ -489,3 +489,12 @@ def google_login_callback(request):
         return Response({'error': 'Google authentication is not configured'}, status=500)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+def password_reset_redirect(request, key):
+    """
+    Redirect password reset confirmation links to the frontend.
+    This handles the case where users click password reset links from emails
+    and redirects them to the frontend with the reset key.
+    """
+    frontend_url = f"{settings.FRONTEND_URL}/accounts/password/reset/key/{key}"
+    return HttpResponseRedirect(frontend_url)

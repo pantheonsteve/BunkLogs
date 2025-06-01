@@ -337,10 +337,10 @@ ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
 HEADLESS_ONLY = True
 HEADLESS_FRONTEND_URLS = {
-    "account_confirm_email": "/account/verify-email/{key}",
-    "account_reset_password": "/account/password/reset",
-    "account_reset_password_from_key": "/account/password/reset/key/{key}",
-    "account_signup": "/account/signup",
+    "account_confirm_email": "/accounts/verify-email/{key}",
+    "account_reset_password": "/accounts/password/reset",
+    "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
+    "account_signup": "/accounts/signup",
     "socialaccount_login_error": "/api/auth/google/callback/",
 }
 HEADLESS_SERVE_SPECIFICATION = True

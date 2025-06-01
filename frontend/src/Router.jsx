@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
 import AuthCallback from './pages/AuthCallback';
+import ResetPassword from './pages/ResetPassword';
+import ResetPasswordConfirm from './pages/ResetPasswordConfirm';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import OrderEdit from './pages/OrderEdit';
@@ -33,6 +35,8 @@ function Router() {
         {/* Public routes */}
         <Route path="/signin" element={<Signin />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/accounts/password/reset/key/:key" element={<ResetPasswordConfirm />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Protected routes */}

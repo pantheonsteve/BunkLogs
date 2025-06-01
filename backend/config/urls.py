@@ -21,6 +21,8 @@ urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     # User management
     path("users/", include("bunk_logs.users.urls", namespace="users")),
+    # Custom password reset confirmation redirect for headless mode (must come before allauth.urls)
+    path("accounts/password/reset/key/<str:key>", views.password_reset_redirect, name="password_reset_redirect"),
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
     # ...

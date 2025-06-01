@@ -17,6 +17,10 @@ class AccountAdapter(DefaultAccountAdapter):
         
         return f"{settings.FRONTEND_URL}/verify-email/{emailconfirmation.key}"
     
+    def get_password_reset_url(self, request, passwordreset):
+        """Constructs the password reset url."""
+        return f"{settings.FRONTEND_URL}/accounts/password/reset/key/{passwordreset.key}"
+    
     def get_login_redirect_url(self, request):
         """
         Override to redirect to frontend after login
