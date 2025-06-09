@@ -11,6 +11,8 @@ BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 APPS_DIR = BASE_DIR / "bunk_logs"
 env = environ.Env()
 
+CAMP_PREFIX = "clc"
+
 READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
 if READ_DOT_ENV_FILE:
     # OS environment variables take precedence over variables from .env
@@ -122,9 +124,6 @@ AUTHENTICATION_BACKENDS = [
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
 AUTH_USER_MODEL = "users.User"
-# https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
-#LOGIN_REDIRECT_URL = "users:redirect"
-LOGIN_REDIRECT_URL = '/callback/'
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-url
 LOGIN_URL = "account_login"
 
@@ -157,6 +156,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     #"django.middleware.csrf.CsrfViewMiddleware",
@@ -341,7 +341,7 @@ HEADLESS_FRONTEND_URLS = {
     "account_reset_password": "/accounts/password/reset",
     "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
     "account_signup": "/accounts/signup",
-    "socialaccount_login_error": "/api/auth/google/callback/",
+    "socialaccount_login_error": "/auth/callback/",
 }
 HEADLESS_SERVE_SPECIFICATION = True
 
@@ -354,7 +354,7 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-ACCOUNT_LOGOUT_REDIRECT_URL = 'http://localhost:5173/signin'
+ACCOUNT_LOGOUT_REDIRECT_URL = f"http://{CAMP_PREFIX}.bunklogs.net/signin"
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -378,6 +378,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost",
     "http://localhost:5173",
     "https://bunklogs.net",
+    "https://clc.bunklogs.net",
 ]
 
 from corsheaders.defaults import default_headers
@@ -390,7 +391,7 @@ CORS_ALLOW_HEADERS = (
 )
 CORS_ALLOW_CREDENTIALS = True
 
-ALLOWED_HOSTS = ["localhost", "localhost:5173" ]
+ALLOWED_HOSTS = ["localhost", "localhost:5173", "0.0.0.0", "bunklogs.net", "clc.bunklogs.net"]
 
 
 # 6. Set the Access-Control-Max-Age header to a reasonable value
@@ -400,7 +401,7 @@ ALLOWED_HOSTS = ["localhost", "localhost:5173" ]
 #CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
 
 # 8. CSRF settings for cross-domain requests
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'https://bunklogs.net']
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'https://bunklogs.net', 'https://clc.bunklogs.net']
 CSRF_COOKIE_SAMESITE = None
 CSRF_COOKIE_SECURE = True
 
@@ -425,10 +426,6 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
-# Frontend URLs - These will be overridden in environment-specific settings
-FRONTEND_URL = "http://localhost:5173"  # Default for development
-SPA_URL = "http://localhost:5173"
-
 # Django-allauth specific settings
 ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_LOGIN_METHODS = {"email"}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
@@ -438,7 +435,6 @@ ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
 ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
 # Add redirect URLs for Google OAuth 
-LOGIN_REDIRECT_URL = '/auth/success/'
 ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
 
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
@@ -454,14 +450,11 @@ SPECTACULAR_SETTINGS = {
 # ------------------------------------------------------------------------------
 
 # Frontend URLs - These will be overridden in environment-specific settings
-FRONTEND_URL = "http://localhost:5173"  # Default for development
-LOGIN_REDIRECT_URL = '/auth/success/' 
-ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
+FRONTEND_URL = env('FRONTEND_URL', default="http://localhost:5173")  # Can be overridden by environment
 
 # Add redirect URLs for Google OAuth # Redirect after successful login
-LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default='http://localhost:5173/dashboard')
-#LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
-ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
+LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f'{FRONTEND_URL}/dashboard')
+ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f'{FRONTEND_URL}/signin')
 
 # Django AllAuth settings
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' in production
