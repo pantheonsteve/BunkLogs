@@ -90,7 +90,7 @@ def google_login_callback(request):
 
     if not social_account:
         print("No social account found for user.", user)
-        return redirect('http://localhost:5173/login/callback/?error=NoSocialAccount')
+        return redirect(f'{settings.FRONTEND_URL}/login/callback/?error=NoSocialAccount')
     
     token = SocialToken.objects.filter(account=social_account, account__providers='google').first()
 
@@ -98,7 +98,7 @@ def google_login_callback(request):
         print("Google token found:", token)
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
-        return redirect(f'http://localhost:5173/login/callback/?token={access_token}')
+        return redirect(f'{settings.FRONTEND_URL}/login/callback/?token={access_token}')
         # Here you can use the token to fetch user data from Google if needed
     else:
         print("No token found for social account.")

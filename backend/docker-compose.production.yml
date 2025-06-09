@@ -2,16 +2,73 @@ volumes:
   production_postgres_data: {}
   production_postgres_data_backups: {}
   production_traefik: {}
+  node_modules: {}
+  logs: {}
 
-
+networks:
+  default:
+    name: bunk-logs-production
+    external: true
 
 services:
-  django:
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    pid: "host"
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - SYS_PTRACE
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - CHOWN
+    volumes:
+      - /var/run/datadog:/var/run/datadog
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /:/host/root:ro
+      - ./datadog/init.sh:/init.sh
+      - ./datadog/datadog_prefect-1.0.0-py3-none-any.whl:/tmp/datadog_prefect-1.0.0-py3-none-any.whl
+      - ./datadog/prefect.d:/etc/datadog-agent/conf.d/prefect.d
+    env_file:
+      - ./.envs/.production/.django
+
+    privileged: true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    healthcheck:
+      test: ["CMD", "agent", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "1.5g"
+    
+  bunk-logs-backend:
+    image: bunk-logs-backend
     build:
       context: .
       dockerfile: ./compose/production/django/Dockerfile
-
-    image: bunk_logs_production_django
+      args:
+        - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+        - POSTGRES_HOST=${POSTGRES_HOST}
+        - POSTGRES_DB=${POSTGRES_DB}
+        - POSTGRES_USER=${POSTGRES_USER}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        - POSTGRES_PORT=${POSTGRES_PORT}
+        - DATABASE_URL=${DATABASE_URL:-}
     depends_on:
       - postgres
       - redis
@@ -19,6 +76,14 @@ services:
       - ./.envs/.production/.django
       - ./.envs/.production/.postgres
     command: /start
+
+  bunk-logs-frontend:
+    image: bunk-logs-frontend
+    depends_on:
+      - bunk-logs-backend
+    build:
+      context: ../frontend
+      dockerfile: ../frontend/Dockerfile
 
   postgres:
     build:
@@ -35,9 +100,9 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/traefik/Dockerfile
-    image: bunk_logs_production_traefik
+    image: traefik
     depends_on:
-      - django
+      - bunk-logs-backend
     volumes:
       - production_traefik:/etc/traefik/acme
     ports:

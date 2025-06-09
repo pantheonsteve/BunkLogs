@@ -98,13 +98,17 @@ function Signin() {
               <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="email">
+                    <label className="block text-sm font-medium mb-1" htmlFor="username">
                       Email Address
                     </label>
                     <input 
-                      id="email" 
-                      className="form-input w-full" 
+                      id="username" 
+                      className="form-input w-full"
+                      name="username"
                       type="email" 
+                      autoComplete="username"
+                      placeholder="Enter your email address"
+                      autoFocus
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -117,10 +121,12 @@ function Signin() {
                     <input 
                       id="password" 
                       className="form-input w-full" 
-                      type="password" 
+                      type="password"
+                      name="password"
+                      autoComplete="current-password"
+                      placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password" 
                       required
                     />
                   </div>

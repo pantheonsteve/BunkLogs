@@ -3,7 +3,7 @@ import React from 'react';
 const SimpleGoogleLogin = () => {
   const handleClick = () => {
     // Get the backend URL
-    const backendUrl = 'http://localhost:8000';
+    const backendUrl = 'https://admin.bunklogs.net';
     
     // Log to console for debugging
     console.log('Starting Google authentication flow');
@@ -25,7 +25,7 @@ const SimpleGoogleLogin = () => {
     // Add all necessary fields
     addField('provider', 'google');
     addField('process', 'login');
-    addField('callback_url', `${window.location.origin}/account/provider/callback`);
+    addField('callback_url', `${backendUrl}/api/auth/google/callback/`);
     
     // Try to get CSRF token from cookie
     const getCsrfToken = () => {
@@ -55,7 +55,7 @@ const SimpleGoogleLogin = () => {
     // Log for debugging
     console.log('Form action:', form.action);
     console.log('Provider:', 'google');
-    console.log('Callback URL:', `${window.location.origin}/account/provider/callback`);
+    console.log('Callback URL:', `${backendUrl}/api/auth/google/callback/`);
     
     // Append and submit
     document.body.appendChild(form);

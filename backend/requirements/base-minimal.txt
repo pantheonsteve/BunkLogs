@@ -1,0 +1,43 @@
+# Minimal base requirements - only absolutely essential packages
+# Remove heavy packages like pandas, pillow optimization, etc.
+
+python-slugify==8.0.4
+# Pillow==11.1.0  # Large package - comment out if not essential
+argon2-cffi==23.1.0
+redis==5.2.1
+hiredis==3.1.0
+python-dotenv==1.0.1
+
+# Core Django
+django==5.0.13
+django-environ==0.12.0
+django-model-utils==5.0.0
+
+# Essential Django auth (without MFA to reduce dependencies)
+django-allauth==65.7.0  # Remove [mfa,socialaccount] for faster build
+
+django-crispy-forms==2.3
+crispy-bootstrap5==2024.10
+django-redis==5.4.0
+
+# Core DRF
+djangorestframework==3.15.2
+django-cors-headers==4.7.0
+drf-spectacular==0.28.0
+
+# Auth packages
+dj-rest-auth
+pyjwt
+djangorestframework-simplejwt
+
+# Django Ninja (lightweight)
+django-ninja >= 1.3.0
+
+# Essential for deployment
+dj-database-url
+whitenoise[brotli]
+
+# Comment out heavy packages for now:
+# pandas==2.1.4  # Very heavy package - only include if absolutely needed
+# qrcode >= 7.0.0  # Include only if QR features are essential
+# fido2>=1.1.2,<1.2.0  # MFA dependency - heavy

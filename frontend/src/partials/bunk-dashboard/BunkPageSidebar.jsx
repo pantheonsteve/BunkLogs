@@ -6,6 +6,8 @@ import SidebarLinkGroup from "../SidebarLinkGroup";
 import CamperList from "./CamperList";
 import OrdersList from "./OrdersList";
 
+import CampLogo from "../../images/clc-logo.jpeg";
+
 function BunkPageSidebar({
   sidebarOpen,
   setSidebarOpen,
@@ -86,7 +88,7 @@ function BunkPageSidebar({
           </button>
           {/* Logo */}
           <NavLink end to="/" className="block">
-          <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src="../../src/images/clc-logo.jpeg" />
+            <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src={CampLogo} />
           </NavLink>
         </div>
 

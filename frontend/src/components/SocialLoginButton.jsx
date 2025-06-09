@@ -1,58 +1,38 @@
 import { getCSRFToken } from "../utils/cookies";
 import { useEffect } from "react";
 
-function SocialLoginButton({ provider = "GoogleOAuth" }) {
+function SocialLoginButton({ provider = "google" }) {
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/get-csrf-token/", {
+    fetch("https://admin.bunklogs.net/api/get-csrf-token/", {
       credentials: "include"
     });
   }, []);
 
-  const handleLogin = () => {
-    // Get backend URL from env or default
-    const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    // Set callback URL to be full absolute URL
-    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
-    const callbackUrl = `${backendUrl}/api/auth/google/callback/`;
-    
-    console.log("Initiating social login with:", {
-      provider,
-      callbackUrl,
-      frontendUrl,
-      csrfToken: getCSRFToken()
-    });
-    
-    // Create and submit a form
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = `${backendUrl}/_allauth/browser/v1/auth/provider/redirect`;
-    
-    // Add form data
-    const formData = {
-      provider: provider, // Now it will use "GoogleOAuth"
-      callback_url: callbackUrl,
-      csrfmiddlewaretoken: getCSRFToken() || "",
-      process: "login"
-    };
-    
-    // Create and append input fields
-    Object.entries(formData).forEach(([key, value]) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = key;
-      input.value = value;
-      form.appendChild(input);
-    });
-    
-    // Append and submit form
-    document.body.appendChild(form);
-    console.log("Form action:", form.action);
-    console.log("Form data:", formData);
+  const handleLogin = async () => {
+    // Use the custom Google OAuth endpoint instead of allauth
+    const backendUrl = import.meta.env.VITE_API_URL || "https://admin.bunklogs.net";
 
-    //debugger;
-    
-    form.submit();
+    try {
+      // Get the Google OAuth URL from backend
+      const response = await fetch(`${backendUrl}/api/auth/google/`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.auth_url) {
+        // Redirect to the Google OAuth URL
+        window.location.href = data.auth_url;
+      } else {
+        console.error("No auth_url found in response:", data);
+      }     
+    } catch (error) {
+      console.error("Error fetching auth URL:", error);
+    }
   };
 
   return (

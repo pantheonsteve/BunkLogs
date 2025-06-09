@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CamperLogsBunkViewItem from '../../components/bunklogs/CamperLogsBunkViewItem';
+import CamperAvatar from '../../images/camper_avatar_generic.png';
 
 import Image01 from '../../images/user-36-05.jpg';
 import Image02 from '../../images/user-36-06.jpg';
@@ -15,7 +16,7 @@ function BunkLogsTableViewCard({ bunkData }) {
   const items = [
     {
       id: '0',
-      image: Image01,
+      image: CamperAvatar,
       camper_first_name: 'Mark',
       camper_last_name: 'Cameron',
       email: 'mark.cameron@app.com',
@@ -135,7 +136,8 @@ function BunkLogsTableViewCard({ bunkData }) {
                         key={uniqueKey}
                         id={item.id}
                         camper_id={item.camper_id}
-                        image={item.image}
+                        // image={item.image}
+                        image={CamperAvatar} // Use a default avatar for now
                         camper_first_name={item.camper_first_name}
                         camper_last_name={item.camper_last_name}
                         counselor_first_name={item.bunk_log.counselor_first_name}

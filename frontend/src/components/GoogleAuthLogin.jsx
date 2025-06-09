@@ -22,7 +22,7 @@ const GoogleAuthLogin = ({ onLoginSuccess, buttonText = "Sign in with Google" })
   // Exchange the code for a token with our backend
   const exchangeCodeForToken = async (code) => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth-token/', {
+      const response = await fetch('http://admin.bunklogs.net/api/auth-token/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

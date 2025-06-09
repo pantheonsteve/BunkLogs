@@ -1,0 +1,57 @@
+# Ultra-fast Dockerfile for Elastic Beanstalk
+# Optimized for sub-10 minute builds
+FROM python:3.12.9-slim-bookworm AS builder
+
+# Install minimal build dependencies
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip toolchain first
+RUN pip install --no-cache-dir --upgrade pip wheel setuptools
+
+# Copy requirements and build wheels with optimizations
+COPY requirements/ /requirements/
+RUN pip wheel --wheel-dir /wheels --no-cache-dir --no-deps \
+    -r /requirements/production-minimal.txt
+
+# Production stage - ultra-minimal
+FROM python:3.12.9-slim-bookworm
+
+# Essential environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# Install only essential runtime libraries
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install wheels (fastest method)
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/* \
+    && rm -rf /wheels
+
+# Copy application code (do this last for better caching)
+COPY --chown=root:root . /app/
+
+# Create directories
+RUN mkdir -p /app/staticfiles /app/media
+
+# Minimal startup script
+RUN printf '#!/bin/bash\n\
+set -e\n\
+echo "Starting Django..."\n\
+python manage.py migrate --noinput --verbosity=0 || true\n\
+python manage.py collectstatic --noinput --clear --verbosity=0 || true\n\
+exec gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 120 --preload config.wsgi:application\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+EXPOSE 8000
+CMD ["/app/start.sh"]

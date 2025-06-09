@@ -180,7 +180,7 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
           console.log('Headers:', headers); // Debug headers
           
           const response = await axios.get(
-            `http://localhost:8000/api/v1/bunklogs/${bunkIdToUse}/logs/${date}/`,
+            `https://admin.bunklogs.net/api/v1/bunklogs/${bunkIdToUse}/logs/${date}/`,
             { headers }
           );
           setCamperData(response.data);
@@ -273,7 +273,7 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
       }
       
       // Get API base URL from environment variable or use default
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://admin.bunklogs.net/api/v1';
       
       // Make sure we have a token - redundant check but keeping for safety
       if (!currentToken) {

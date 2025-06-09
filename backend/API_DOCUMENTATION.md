@@ -4,7 +4,7 @@ This document describes the CRUD API endpoints for the Orders system in the Bunk
 
 ## Base URL
 ```
-http://localhost:8000/api/
+https://admin.bunklogs.net/api/
 ```
 
 ## Authentication

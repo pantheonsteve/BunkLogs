@@ -1,0 +1,11 @@
+# Minimal production requirements for faster Docker builds
+# Only essential packages - remove heavy/optional dependencies
+
+-r base-minimal.txt
+
+gunicorn==23.0.0
+psycopg[c]==3.2.5
+
+# Essential Django packages only
+django-storages[s3]==1.14.5
+django-anymail[mailgun]==12.0

@@ -1,0 +1,54 @@
+# Dockerfile optimized for Elastic Beanstalk deployment
+# This version avoids build-time Django commands that can cause timeouts
+FROM python:3.12.9-slim-bookworm
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Set work directory
+WORKDIR /app
+
+# Install system dependencies with minimal packages for faster build
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    build-essential \
+    libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libffi-dev \
+    libssl-dev \
+    gettext \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy entire requirements directory for proper relative imports
+COPY requirements/ /app/requirements/
+
+# Install Python dependencies with timeout and better error handling
+RUN pip install --no-cache-dir --timeout=1000 -r /app/requirements/production.txt
+
+# Copy application code
+COPY . /app/
+
+# Create necessary directories
+RUN mkdir -p /app/staticfiles /app/media
+
+# Create a startup script that handles Django setup at runtime
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting Django application..."\n\
+echo "Running database migrations..."\n\
+python manage.py migrate --noinput || echo "Migration failed, continuing..."\n\
+echo "Collecting static files..."\n\
+python manage.py collectstatic --noinput --clear || echo "Static collection failed, continuing..."\n\
+echo "Compiling messages..."\n\
+python manage.py compilemessages || echo "Message compilation failed, continuing..."\n\
+echo "Starting Gunicorn..."\n\
+exec gunicorn --bind 0.0.0.0:8000 --workers 2 --worker-class sync --timeout 60 --keep-alive 2 --max-requests 1000 --max-requests-jitter 100 config.wsgi:application\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Expose port 8000
+EXPOSE 8000
+
+# Use the startup script
+CMD ["/app/start.sh"]

@@ -26,7 +26,7 @@ const CSRFDebug = () => {
     setCookies(document.cookie);
     
     // Try to get a CSRF token by making a request to the backend
-    fetch('http://localhost:8000/', {
+    fetch('https://admin.bunklogs.net/', {
       credentials: 'include',
     })
     .then(() => {

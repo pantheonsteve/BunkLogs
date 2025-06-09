@@ -48,7 +48,7 @@ function CamperDashboard() {
         }
         
         // Format the URL with the date parameter
-        const url = `http://localhost:8000/api/v1/campers/${camper_id}/logs`;
+        const url = `https://admin.bunklogs.net/api/v1/campers/${camper_id}/logs`;
         console.log('API URL:', url);
         
         // Include bunk data in the request if available

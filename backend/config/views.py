@@ -35,6 +35,12 @@ def test_cors(request):
     return JsonResponse({"message": "CORS is working!"})
 
 
+@csrf_exempt
+def health_check(request):
+    """Simple health check endpoint for Elastic Beanstalk load balancer"""
+    return JsonResponse({"status": "healthy", "timestamp": "2025-06-06"})
+
+
 class CustomEmailVerificationSentView(TemplateView):
     template_name = "account/verification_sent.html"
 
@@ -323,6 +329,7 @@ def google_login(request):
         # Build Google OAuth URL
         auth_url = f"https://accounts.google.com/o/oauth2/auth?client_id={social_app.client_id}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile"
         
+        # Return the auth URL instead of redirecting directly
         return Response({"auth_url": auth_url})
     except Exception as e:
         return Response({"error": str(e)}, status=500)

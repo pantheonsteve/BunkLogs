@@ -29,7 +29,7 @@ function BunkCard({ cabin, session, bunk_id, counselors }) {
       if (bunk_id) {
         setIsFetchingData(true);
         try {
-          const response = await axios.get(`http://localhost:8000/api/v1/bunk/${bunk_id}`);
+          const response = await axios.get(`https://admin.bunklogs.net/api/v1/bunk/${bunk_id}`);
           console.log(response.data);
           setBunkData(response.data);
         } catch (err) {

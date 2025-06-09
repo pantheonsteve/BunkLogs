@@ -8,7 +8,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "http://admin.bunklogs.net/api"
 
 def test_endpoint(url, method="GET", data=None, headers=None):
     """Test an API endpoint and return the response."""

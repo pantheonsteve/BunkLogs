@@ -11,7 +11,7 @@ export default defineConfig({
     proxy: {
       // Proxy all requests starting with /_allauth to your Django backend
       '/_allauth': {
-        target: 'http://localhost:8000',
+        target: 'http://admin.bunklogs.net',
         changeOrigin: true,
       }
     }

@@ -5,11 +5,6 @@ entryPoints:
   web:
     # http
     address: ':80'
-    http:
-      # https://doc.traefik.io/traefik/routing/entrypoints/#entrypoint
-      redirections:
-        entryPoint:
-          to: web-secure
 
   web-secure:
     # https
@@ -37,6 +32,27 @@ http:
       tls:
         # https://doc.traefik.io/traefik/routing/routers/#certresolver
         certResolver: letsencrypt
+    
+    web-redirect-router:
+      rule: 'Host(`bunklogs.net`) || Host(`www.bunklogs.net`)'
+      entryPoints:
+        - web
+      middlewares:
+        - https-redirect
+      service: django
+    
+    web-localhost-router:
+      rule: 'Host(`localhost`)'
+      entryPoints:
+        - web
+      service: frontend
+    
+    web-localhost-secure-router:
+      rule: 'Host(`localhost`)'
+      entryPoints:
+        - web-secure
+      service: frontend
+      tls: {}
 
   middlewares:
     csrf:
@@ -44,12 +60,22 @@ http:
       # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
       headers:
         hostsProxyHeaders: ['X-CSRFToken']
+    
+    https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
 
   services:
     django:
       loadBalancer:
         servers:
-          - url: http://django:5000
+          - url: http://bunk-logs-backend:5000
+    
+    frontend:
+      loadBalancer:
+        servers:
+          - url: http://bunk-logs-frontend:80
 
 providers:
   # https://doc.traefik.io/traefik/master/providers/file/

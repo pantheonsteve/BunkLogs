@@ -4,8 +4,8 @@
 echo "🧪 Testing BunkLogs Signup and Password Reset Workflows"
 echo "======================================================"
 
-API_BASE="http://localhost:8000"
-FRONTEND_BASE="http://localhost:5173"
+API_BASE="https://admin.bunklogs.net"
+FRONTEND_BASE="https://clc.bunklogs.net"
 
 # Colors for output
 GREEN='\033[0;32m'

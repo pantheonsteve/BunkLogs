@@ -1,0 +1,44 @@
+# Version Control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+.venv
+env/
+venv/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.mypy_cache/
+
+# Docker
+docker-compose*.yml
+.envs/
+
+# Development
+.ipynb_checkpoints
+*.log
+local.sqlite3
+media/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend (if accidentally included)
+frontend/
+node_modules/

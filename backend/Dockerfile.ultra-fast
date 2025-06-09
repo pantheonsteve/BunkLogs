@@ -1,0 +1,33 @@
+# ULTRA-FAST Dockerfile for Emergency EB Deployments
+# Target: 5-8 minute builds (vs 25+ minutes)
+# Removes pandas, Pillow, MFA packages temporarily
+FROM python:3.12.9-slim-bookworm
+
+# Single-layer optimization
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# Minimal system dependencies
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install minimal Python packages directly (no wheel building)
+COPY requirements/production-fast.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy application
+COPY . /app/
+
+# Minimal setup
+RUN mkdir -p /app/staticfiles /app/media
+
+# Ultra-minimal startup
+RUN echo '#!/bin/bash\nset -e\npython manage.py migrate --noinput 2>/dev/null || true\npython manage.py collectstatic --noinput --clear 2>/dev/null || true\nexec gunicorn --bind 0.0.0.0:8000 --workers 2 config.wsgi:application' > /app/start.sh && chmod +x /app/start.sh
+
+EXPOSE 8000
+CMD ["/app/start.sh"]

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getCSRFToken } from './django';
 
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
 
 const api = axios.create({
   baseURL: apiUrl,

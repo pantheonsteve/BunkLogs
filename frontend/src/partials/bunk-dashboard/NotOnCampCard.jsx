@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBunk } from '../../contexts/BunkContext';
+import CamperAvatar from '../../images/camper_avatar_generic.png'; // Placeholder for camper avatar
 
 function NotOnCampCard({ bunkData }) {
 
@@ -54,7 +55,7 @@ function NotOnCampCard({ bunkData }) {
                   <tr key={uniqueKey}>
                       <td className="p-2">
                       <div className="flex items-center">
-                          <img className="shrink-0 mr-2 sm:mr-3" width="36" height="36" viewBox="0 0 36 36" src="../../src/images/user-36-06.jpg" />
+                          <img className="shrink-0 mr-2 sm:mr-3" width="36" height="36" viewBox="0 0 36 36" src={CamperAvatar} />
                           <div className="text-gray-800 dark:text-gray-100">{item.camper_first_name} {item.camper_last_name}</div>
                       </div>
                       </td>

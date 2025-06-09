@@ -3,8 +3,8 @@
 # End-to-End Signup and Signin Test
 # Tests the complete user registration and authentication workflow
 
-API_BASE="http://localhost:8000"
-FRONTEND_BASE="http://localhost:5173"
+API_BASE="https://admin.bunklogs.net"
+FRONTEND_BASE="https://clc.bunklogs.net"
 EMAIL="e2etest$(date +%s)@example.com"
 PASSWORD="testpassword123"
 FIRST_NAME="E2E"

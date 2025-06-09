@@ -58,7 +58,7 @@ const AuthForm = ({ route, method }) => {
     };
 
     const handleGoogleLogin = async () => {
-        window.location.href = "http://localhost:8000/accounts/login" //Google Callback URL
+        window.location.href = "http://admin.bunklogs.net/accounts/login" //Google Callback URL
     };
 
     useEffect(() => {

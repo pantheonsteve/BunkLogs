@@ -1,0 +1,14 @@
+# Minimal production requirements for ultra-fast EB builds
+# Removes heavy packages that cause long build times
+
+-r base-fast.txt
+
+gunicorn==23.0.0
+psycopg[c]==3.2.5
+
+# Essential Django packages only
+django-storages[s3]==1.14.5
+django-anymail[mailgun]==12.0
+
+# Remove ddtrace for faster builds (re-add after successful deployment)
+# ddtrace>=2.0.0

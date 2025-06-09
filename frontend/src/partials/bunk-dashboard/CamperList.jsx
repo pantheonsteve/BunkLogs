@@ -8,13 +8,14 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'completed', 'pending'
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
                 const response = await axios.get(
-                    `http://localhost:8000/api/v1/bunklogs/${bunk_id}/logs/${date}/`
+                    `${apiUrl}/api/v1/bunklogs/${bunk_id}/logs/${date}/`
                 );
                 setData(response.data.campers);
             } catch (error) {

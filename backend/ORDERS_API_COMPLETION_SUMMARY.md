@@ -66,7 +66,7 @@ Successfully implemented comprehensive CRUD API endpoints for the orders system 
 - Confirmed all API endpoints are properly registered
 - Verified authentication requirements are working
 - Tested endpoint accessibility (all correctly return auth errors when not authenticated)
-- Server running successfully on http://localhost:8000
+- Server running successfully on http://admin.bunklogs.net
 
 ### 7. Documentation ✅
 - Created comprehensive API documentation (`API_DOCUMENTATION.md`)
@@ -146,10 +146,10 @@ POST   /api/auth-token/          # Get authentication token
 
 ## 🔧 Development Environment
 
-**Server Status**: ✅ Running on http://localhost:8000  
+**Server Status**: ✅ Running on http://admin.bunklogs.net  
 **Container**: `bunk_logs_local_django` (Podman)  
 **Database**: PostgreSQL (connected and migrated)  
-**API Documentation**: http://localhost:8000/api/docs/  
+**API Documentation**: http://admin.bunklogs.net/api/docs/  
 
 ## 📁 Files Modified/Created
 

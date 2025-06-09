@@ -17,6 +17,8 @@ urlpatterns = [
         TemplateView.as_view(template_name="pages/about.html"),
         name="about",
     ),
+    # Health check endpoint for Elastic Beanstalk
+    path("health/", views.health_check, name="health_check"),
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management

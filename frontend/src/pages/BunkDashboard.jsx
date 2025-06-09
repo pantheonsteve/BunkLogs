@@ -38,6 +38,7 @@ function BunkDashboard() {
   const [formSubmitted, setFormSubmitted] = useState(false);
 
   const { bunkData, setBunkData } = useBunk();
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
   
   // Add redirect if no date parameter
   useEffect(() => {
@@ -160,8 +161,7 @@ function BunkDashboard() {
         const formattedDate = `${year}-${month}-${day}`;
         console.log(`Formatted Date: ${formattedDate}`);
         
-        
-        const url = `http://127.0.0.1:8000/api/v1/bunklogs/${bunk_id}/logs/${formattedDate}/`;
+        const url = `${apiUrl}/api/v1/bunklogs/${bunk_id}/logs/${formattedDate}/`;
         console.log(`[BunkDashboard] Fetching data from URL: ${url}`);
         
         // Get token from context or localStorage

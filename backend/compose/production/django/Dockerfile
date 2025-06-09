@@ -1,4 +1,3 @@
-
 # define an alias for the specific python version used in this file.
 FROM docker.io/python:3.12.9-slim-bookworm AS python
 
@@ -78,8 +77,5 @@ RUN chown -R django:django ${APP_HOME}
 
 USER django
 
-RUN DATABASE_URL="" \
-  DJANGO_SETTINGS_MODULE="config.settings.test" \
-  python manage.py compilemessages
 
 ENTRYPOINT ["/entrypoint"]
