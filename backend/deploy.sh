@@ -23,7 +23,7 @@ gcloud run deploy bunk-logs-backend \
   --platform=managed \
   --region=$REGION \
   --allow-unauthenticated \
-  --add-cloudsql-instances=$PROJECT_ID:$REGION:bunk-logs-db \
+  --add-cloudsql-instances=$PROJECT_ID:$REGION:bunk-logs \
   --env-vars-file=.envs/.production/.django \
   --max-instances=10 \
   --memory=1Gi \

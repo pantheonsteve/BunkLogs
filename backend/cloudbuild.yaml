@@ -1,8 +1,10 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest', '-f', './compose/production/django/Dockerfile', '.']
+  timeout: 1200s
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest']
+  timeout: 600s
 images:
 - 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest'
-timeout: '1200s'
+timeout: '1800s'
