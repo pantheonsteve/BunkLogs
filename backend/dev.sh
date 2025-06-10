@@ -115,6 +115,7 @@ case "$1" in
     
     test)
         check_venv
+        setup_podman_env
         print_status "Running tests..."
         export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py test
@@ -122,6 +123,7 @@ case "$1" in
     
     test-coverage)
         check_venv
+        setup_podman_env
         print_status "Running tests with coverage..."
         export DJANGO_READ_DOT_ENV_FILE=True
         if command -v coverage &> /dev/null; then
