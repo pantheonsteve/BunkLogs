@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Cloud Run provides DATABASE_URL directly
+if [ -n "${DATABASE_URL:-}" ]; then
+    >&2 echo 'DATABASE_URL is set, proceeding with Cloud SQL connection'
+else
+    >&2 echo 'ERROR: DATABASE_URL is not set'
+    exit 1
+fi
+
+>&2 echo 'Cloud SQL connection ready'
+
+exec "$@"

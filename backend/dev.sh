@@ -1,0 +1,247 @@
+#!/bin/bash
+
+# Development Commands Helper
+# Usage: ./dev.sh [command]
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if virtual environment is activated
+check_venv() {
+    if [[ -z "${VIRTUAL_ENV}" ]]; then
+        print_warning "Virtual environment not activated. Activating..."
+        source venv/bin/activate
+    fi
+}
+
+# Detect available compose command
+get_compose_command() {
+    if command -v podman-compose &> /dev/null; then
+        echo "podman-compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        echo "docker compose"
+    else
+        print_error "No container compose tool found. Please install Docker Compose or Podman Compose."
+        exit 1
+    fi
+}
+
+# Function to show help
+show_help() {
+    echo "BunkLogs Backend Development Helper"
+    echo "=================================="
+    echo ""
+    echo "Usage: ./dev.sh [command]"
+    echo ""
+    echo "Commands:"
+    echo "  setup           - Set up local development environment"
+    echo "  start           - Start local development server"
+    echo "  test            - Run tests"
+    echo "  test-coverage   - Run tests with coverage"
+    echo "  migrate         - Run database migrations"
+    echo "  makemigrations  - Create new migrations"
+    echo "  shell           - Open Django shell"
+    echo "  superuser       - Create superuser"
+    echo "  collectstatic   - Collect static files"
+    echo "  docker-up       - Start Docker services"
+    echo "  docker-down     - Stop Docker services"
+    echo "  docker-reset    - Reset Docker services and volumes"
+    echo "  lint            - Run code linting"
+    echo "  format          - Format code with black"
+    echo "  requirements    - Update requirements.txt files"
+    echo "  clean           - Clean cache and temp files"
+    echo "  logs            - Show application logs"
+    echo "  backup-db       - Backup local database"
+    echo "  restore-db      - Restore local database"
+    echo "  help            - Show this help message"
+}
+
+case "$1" in
+    setup)
+        print_status "Setting up local development environment..."
+        ./setup-local-dev.sh
+        print_success "Setup complete!"
+        ;;
+    
+    start)
+        check_venv
+        print_status "Starting Django development server..."
+        python manage.py runserver
+        ;;
+    
+    test)
+        check_venv
+        print_status "Running tests..."
+        python manage.py test
+        ;;
+    
+    test-coverage)
+        check_venv
+        print_status "Running tests with coverage..."
+        if command -v coverage &> /dev/null; then
+            coverage run --source='.' manage.py test
+            coverage report
+            coverage html
+            print_success "Coverage report generated in htmlcov/index.html"
+        else
+            print_warning "Coverage not installed. Install with: pip install coverage"
+            python manage.py test
+        fi
+        ;;
+    
+    migrate)
+        check_venv
+        print_status "Running database migrations..."
+        python manage.py migrate
+        print_success "Migrations complete!"
+        ;;
+    
+    makemigrations)
+        check_venv
+        print_status "Creating new migrations..."
+        python manage.py makemigrations
+        print_success "Migrations created!"
+        ;;
+    
+    shell)
+        check_venv
+        print_status "Opening Django shell..."
+        python manage.py shell
+        ;;
+    
+    superuser)
+        check_venv
+        print_status "Creating superuser..."
+        python manage.py createsuperuser
+        ;;
+    
+    collectstatic)
+        check_venv
+        print_status "Collecting static files..."
+        python manage.py collectstatic --noinput
+        print_success "Static files collected!"
+        ;;
+    
+    docker-up)
+        print_status "Starting Docker services..."
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml up -d
+        print_success "Docker services started!"
+        ;;
+    
+    docker-down)
+        print_status "Stopping Docker services..."
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml down
+        print_success "Docker services stopped!"
+        ;;
+    
+    docker-reset)
+        print_status "Resetting Docker services and volumes..."
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml down -v
+        $COMPOSE_CMD -f docker-compose.local.yml up -d
+        sleep 5
+        check_venv
+        python manage.py migrate
+        print_success "Docker services reset!"
+        ;;
+    
+    lint)
+        check_venv
+        print_status "Running code linting..."
+        if command -v flake8 &> /dev/null; then
+            flake8 --max-line-length=120 --exclude=migrations,venv,env .
+            print_success "Linting complete!"
+        else
+            print_warning "Flake8 not installed. Install with: pip install flake8"
+        fi
+        ;;
+    
+    format)
+        check_venv
+        print_status "Formatting code with black..."
+        if command -v black &> /dev/null; then
+            black --line-length=120 --exclude=migrations .
+            print_success "Code formatting complete!"
+        else
+            print_warning "Black not installed. Install with: pip install black"
+        fi
+        ;;
+    
+    requirements)
+        check_venv
+        print_status "Updating requirements files..."
+        pip freeze > requirements/local.txt.new
+        print_warning "Review requirements/local.txt.new and update manually"
+        ;;
+    
+    clean)
+        print_status "Cleaning cache and temp files..."
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+        find . -type f -name "*.pyc" -delete 2>/dev/null || true
+        find . -type f -name "*.pyo" -delete 2>/dev/null || true
+        find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+        rm -rf .coverage htmlcov/ .pytest_cache/ .tox/ 2>/dev/null || true
+        print_success "Cache cleaned!"
+        ;;
+    
+    logs)
+        print_status "Showing Django application logs..."
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml logs -f django
+        ;;
+    
+    backup-db)
+        print_status "Backing up local database..."
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres pg_dump -U postgres bunk_logs_local > backup_$(date +%Y%m%d_%H%M%S).sql
+        print_success "Database backed up!"
+        ;;
+    
+    restore-db)
+        if [ -z "$2" ]; then
+            print_error "Please provide backup file: ./dev.sh restore-db backup_file.sql"
+            exit 1
+        fi
+        print_status "Restoring database from $2..."
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml exec -T postgres psql -U postgres bunk_logs_local < "$2"
+        print_success "Database restored!"
+        ;;
+    
+    help|"")
+        show_help
+        ;;
+    
+    *)
+        print_error "Unknown command: $1"
+        show_help
+        exit 1
+        ;;
+esac

@@ -1,0 +1,33 @@
+# .envs/.production/.django
+
+# Django Core Settings
+DEBUG=False
+SECRET_KEY='$#u&&du@pa3k)bn-)7s&hvr=i#a*qs9t=@g!%y5huhw)g9&yi!'
+ALLOWED_HOSTS='bunklogs.net,*.bunklogs.net,localhost:5173,*.run.app,bunklogs.run.app'
+
+# Database Configuration
+DATABASE_URL='postgresql://stevebresnick:April221979!@bunk-logs-clc?host=/cloudsql/bunklogsauth:us-central1:bunk-logs'
+GOOGLE_CLOUD_PROJECT=bunklogsauth
+USE_CLOUD_SQL_AUTH_PROXY=True
+
+# Static Files (Google Cloud Storage)
+DEFAULT_FILE_STORAGE='storages.backends.gcloud.GoogleCloudStorage'
+GS_BUCKET_NAME=bunk-logs-static
+GS_DEFAULT_ACL=publicRead
+
+# Security Settings
+SECURE_SSL_REDIRECT=True
+SECURE_PROXY_SSL_HEADER='HTTP_X_FORWARDED_PROTO,https'
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+
+# Email Settings
+EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=stevebresnick@gmail.com
+EMAIL_HOST_PASSWORD='$am0$3tLane'
+
+# Logging
+DJANGO_LOG_LEVEL=INFO

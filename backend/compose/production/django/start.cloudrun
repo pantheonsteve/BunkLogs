@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Collect static files
+python /app/manage.py collectstatic --noinput
+
+# Use Cloud Run's PORT environment variable
+PORT=${PORT:-8080}
+
+# Start gunicorn with Cloud Run settings
+exec gunicorn config.wsgi \
+    --bind 0.0.0.0:$PORT \
+    --chdir=/app \
+    --workers=3 \
+    --timeout=900
