@@ -1,85 +1,61 @@
-
-# define an alias for the specific python version used in this file.
-FROM docker.io/python:3.12.9-slim-bookworm AS python
+FROM python:3.12 AS python
 
 # Python build stage
 FROM python AS python-build-stage
-
 ARG BUILD_ENVIRONMENT=production
 
-# Install apt packages
+# Install build dependencies in one layer
 RUN apt-get update && apt-get install --no-install-recommends -y \
-  # dependencies for building Python packages
   build-essential \
-  # psycopg dependencies
-  libpq-dev
+  libpq-dev \
+  && rm -rf /var/lib/apt/lists/*
 
-
-# Requirements are installed here to ensure they will be cached.
-COPY ./requirements .
-
-# Create Python Dependency and Sub-Dependency Wheels.
-RUN pip wheel --wheel-dir /usr/src/app/wheels  \
-  -r ${BUILD_ENVIRONMENT}.txt
-
+COPY requirements/ ./requirements/
+RUN pip wheel --wheel-dir /usr/src/app/wheels -r requirements/${BUILD_ENVIRONMENT}.txt
 
 # Python 'run' stage
 FROM python AS python-run-stage
-
 ARG BUILD_ENVIRONMENT=production
 ARG APP_HOME=/app
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV BUILD_ENV=${BUILD_ENVIRONMENT}
+ENV PORT=8080
 
 WORKDIR ${APP_HOME}
 
+# Create user and install runtime dependencies in one layer
 RUN addgroup --system django \
-  && adduser --system --ingroup django django
-
-
-# Install required system dependencies
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  # psycopg dependencies
-  libpq-dev \
-  # Translations dependencies
-  gettext \
-  # entrypoint
-  wait-for-it \
-  # cleaning up unused files
+  && adduser --system --ingroup django django \
+  && apt-get update \
+  && apt-get install --no-install-recommends -y \
+    libpq-dev \
+    gettext \
+    curl \
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
 
-# All absolute dir copies ignore workdir instruction. All relative dir copies are wrt to the workdir instruction
-# copy python dependency wheels from python-build-stage
-COPY --from=python-build-stage /usr/src/app/wheels  /wheels/
+# Install Cloud SQL Proxy
+ADD https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 /cloud_sql_proxy
+RUN chmod +x /cloud_sql_proxy
 
-# use wheels to install python dependencies
+# Install Python packages
+COPY --from=python-build-stage /usr/src/app/wheels /wheels/
 RUN pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/* \
   && rm -rf /wheels/
 
+# Copy entrypoint and start scripts
+COPY ./compose/production/django/entrypoint /entrypoint
+COPY ./compose/production/django/start /start
+RUN sed -i 's/\r$//g' /entrypoint && chmod +x /entrypoint \
+  && sed -i 's/\r$//g' /start && chmod +x /start
 
-COPY --chown=django:django ./compose/production/django/entrypoint /entrypoint
-RUN sed -i 's/\r$//g' /entrypoint
-RUN chmod +x /entrypoint
-
-
-COPY --chown=django:django ./compose/production/django/start /start
-RUN sed -i 's/\r$//g' /start
-RUN chmod +x /start
-
-
-# copy application code to WORKDIR
+# Copy application code
 COPY --chown=django:django . ${APP_HOME}
-
-# make django owner of the WORKDIR directory as well.
 RUN chown -R django:django ${APP_HOME}
 
 USER django
 
-RUN DATABASE_URL="" \
-  DJANGO_SETTINGS_MODULE="config.settings.test" \
-  python manage.py compilemessages
-
+EXPOSE 8080
 ENTRYPOINT ["/entrypoint"]

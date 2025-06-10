@@ -8,8 +8,8 @@ volumes:
 services:
   django:
     build:
-      context: .
-      dockerfile: ./compose/production/django/Dockerfile
+      context: ../../
+      dockerfile: backend/compose/production/django/Dockerfile
 
     image: bunk_logs_production_django
     depends_on:
