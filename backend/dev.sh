@@ -37,16 +37,33 @@ check_venv() {
     fi
 }
 
-# Detect available compose command
+# Setup Podman environment
+setup_podman_env() {
+    if command -v podman &> /dev/null; then
+        # Check if Podman machine is running
+        if ! podman machine list | grep -q "Currently running"; then
+            print_status "Starting Podman machine..."
+            podman machine start
+        fi
+        
+        # The machine start should set up the environment automatically
+        # but let's verify podman is accessible
+        if ! podman info &> /dev/null; then
+            print_error "Podman is not accessible. Please check your Podman installation."
+            exit 1
+        fi
+    fi
+}
+
+# Detect available compose command - prefer Podman
 get_compose_command() {
     if command -v podman-compose &> /dev/null; then
         echo "podman-compose"
-    elif command -v docker-compose &> /dev/null; then
-        echo "docker-compose"
-    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        echo "docker compose"
+    elif command -v podman &> /dev/null; then
+        echo "podman compose"
     else
-        print_error "No container compose tool found. Please install Docker Compose or Podman Compose."
+        print_error "Podman not found. Please install Podman Desktop or Podman CLI."
+        print_error "Install from: https://podman-desktop.io/"
         exit 1
     fi
 }
@@ -90,19 +107,23 @@ case "$1" in
     
     start)
         check_venv
+        setup_podman_env
         print_status "Starting Django development server..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py runserver
         ;;
     
     test)
         check_venv
         print_status "Running tests..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py test
         ;;
     
     test-coverage)
         check_venv
         print_status "Running tests with coverage..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         if command -v coverage &> /dev/null; then
             coverage run --source='.' manage.py test
             coverage report
@@ -117,6 +138,7 @@ case "$1" in
     migrate)
         check_venv
         print_status "Running database migrations..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py migrate
         print_success "Migrations complete!"
         ;;
@@ -124,6 +146,7 @@ case "$1" in
     makemigrations)
         check_venv
         print_status "Creating new migrations..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py makemigrations
         print_success "Migrations created!"
         ;;
@@ -131,45 +154,51 @@ case "$1" in
     shell)
         check_venv
         print_status "Opening Django shell..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py shell
         ;;
     
     superuser)
         check_venv
         print_status "Creating superuser..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py createsuperuser
         ;;
     
     collectstatic)
         check_venv
         print_status "Collecting static files..."
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py collectstatic --noinput
         print_success "Static files collected!"
         ;;
     
     docker-up)
-        print_status "Starting Docker services..."
+        setup_podman_env
+        print_status "Starting Podman services..."
         COMPOSE_CMD=$(get_compose_command)
         $COMPOSE_CMD -f docker-compose.local.yml up -d
-        print_success "Docker services started!"
+        print_success "Podman services started!"
         ;;
     
     docker-down)
-        print_status "Stopping Docker services..."
+        setup_podman_env
+        print_status "Stopping Podman services..."
         COMPOSE_CMD=$(get_compose_command)
         $COMPOSE_CMD -f docker-compose.local.yml down
-        print_success "Docker services stopped!"
+        print_success "Podman services stopped!"
         ;;
     
     docker-reset)
-        print_status "Resetting Docker services and volumes..."
+        setup_podman_env
+        print_status "Resetting Podman services and volumes..."
         COMPOSE_CMD=$(get_compose_command)
         $COMPOSE_CMD -f docker-compose.local.yml down -v
         $COMPOSE_CMD -f docker-compose.local.yml up -d
         sleep 5
         check_venv
         python manage.py migrate
-        print_success "Docker services reset!"
+        print_success "Podman services reset!"
         ;;
     
     lint)
