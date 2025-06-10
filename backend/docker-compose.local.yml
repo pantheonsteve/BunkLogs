@@ -2,13 +2,14 @@ services:
   django:
     build:
       context: .
-      dockerfile: ./compose/production/django/Dockerfile
+      dockerfile: ./compose/local/django/Dockerfile
       args:
         BUILD_ENVIRONMENT: local
     image: bunk_logs_local_django
     container_name: bunk_logs_local_django
     depends_on:
       - postgres
+      - redis
       - mailpit
     volumes:
       - .:/app:z
@@ -18,22 +19,27 @@ services:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
     ports:
-      - '8000:8080'
+      - '8000:8000'
     command: /start
     environment:
       - USE_DOCKER=yes
 
   postgres:
-    build:
-      context: .
-      dockerfile: ./compose/production/postgres/Dockerfile
-    image: bunk_logs_production_postgres
+    image: postgres:15
     container_name: bunk_logs_local_postgres
     volumes:
       - bunk_logs_local_postgres_data:/var/lib/postgresql/data
       - bunk_logs_local_postgres_data_backups:/backups
     env_file:
       - ./.envs/.local/.postgres
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: bunk_logs_local_redis
+    ports:
+      - "6379:6379"
 
   mailpit:
     image: docker.io/axllent/mailpit:latest

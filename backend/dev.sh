@@ -37,6 +37,20 @@ check_venv() {
     fi
 }
 
+# Detect available compose command
+get_compose_command() {
+    if command -v podman-compose &> /dev/null; then
+        echo "podman-compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        echo "docker compose"
+    else
+        print_error "No container compose tool found. Please install Docker Compose or Podman Compose."
+        exit 1
+    fi
+}
+
 # Function to show help
 show_help() {
     echo "BunkLogs Backend Development Helper"
@@ -135,20 +149,23 @@ case "$1" in
     
     docker-up)
         print_status "Starting Docker services..."
-        docker compose -f docker-compose.local.yml up -d
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml up -d
         print_success "Docker services started!"
         ;;
     
     docker-down)
         print_status "Stopping Docker services..."
-        docker compose -f docker-compose.local.yml down
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml down
         print_success "Docker services stopped!"
         ;;
     
     docker-reset)
         print_status "Resetting Docker services and volumes..."
-        docker compose -f docker-compose.local.yml down -v
-        docker compose -f docker-compose.local.yml up -d
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml down -v
+        $COMPOSE_CMD -f docker-compose.local.yml up -d
         sleep 5
         check_venv
         python manage.py migrate
@@ -196,12 +213,14 @@ case "$1" in
     
     logs)
         print_status "Showing application logs..."
-        docker compose -f docker-compose.local.yml logs -f
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml logs -f
         ;;
     
     backup-db)
         print_status "Backing up local database..."
-        docker compose -f docker-compose.local.yml exec postgres pg_dump -U postgres bunk_logs_local > backup_$(date +%Y%m%d_%H%M%S).sql
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres pg_dump -U postgres bunk_logs_local > backup_$(date +%Y%m%d_%H%M%S).sql
         print_success "Database backed up!"
         ;;
     
@@ -211,7 +230,8 @@ case "$1" in
             exit 1
         fi
         print_status "Restoring database from $2..."
-        docker compose -f docker-compose.local.yml exec -T postgres psql -U postgres bunk_logs_local < "$2"
+        COMPOSE_CMD=$(get_compose_command)
+        $COMPOSE_CMD -f docker-compose.local.yml exec -T postgres psql -U postgres bunk_logs_local < "$2"
         print_success "Database restored!"
         ;;
     
