@@ -1,53 +1,142 @@
-# Bunk Logs
+# BunkLogs Backend API
 
-Bunk Logs Application
+A comprehensive Django-based REST API for managing summer camp operations, including campers, bunks, orders, and logistics.
 
 [![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 License: MIT
 
-## Settings
+## 🚀 Quick Start
 
-Moved to [settings](https://cookiecutter-django.readthedocs.io/en/latest/1-getting-started/settings.html).
+### Prerequisites
+- Python 3.12+
+- Docker/Podman with Compose
+- Git
 
-## Basic Commands
+### Local Development Setup
 
-### Setting Up Your Users
+1. **Clone and Setup Environment:**
+   ```bash
+   git clone <repository-url>
+   cd BunkLogs/backend
+   ./setup-local-dev.sh
+   ```
 
-- To create a **normal user account**, just go to Sign Up and fill out the form. Once you submit it, you'll see a "Verify Your E-mail Address" page. Go to your console to see a simulated email verification message. Copy the link into your browser. Now the user's email should be verified and ready to go.
+2. **Start Development Environment:**
+   ```bash
+   ./dev.sh docker-up
+   ```
 
-- To create a **superuser account**, use this command:
+3. **Access the Application:**
+   - API Documentation: http://localhost:8000/api/schema/swagger-ui/
+   - Admin Panel: http://localhost:8000/admin/
+   - Email Testing: http://localhost:8025/
 
-      $ python manage.py createsuperuser
+### Development Commands
 
-For convenience, you can keep your normal user logged in on Chrome and your superuser logged in on Firefox (or similar), so that you can see how the site behaves for both kinds of users.
+Use the `./dev.sh` helper script for common development tasks:
 
-### Type checks
+```bash
+./dev.sh docker-up      # Start all services
+./dev.sh docker-down    # Stop all services
+./dev.sh logs           # View Django logs
+./dev.sh test           # Run tests
+./dev.sh migrate        # Run database migrations
+./dev.sh shell          # Django shell
+./dev.sh superuser      # Create admin user
+./dev.sh help           # Show all commands
+```
 
-Running type checks with mypy:
+## 🏗️ Architecture
 
-    $ mypy bunk_logs
+### Tech Stack
+- **Backend**: Django 5.0, Django REST Framework
+- **Database**: PostgreSQL 15
+- **Cache**: Redis 7
+- **Authentication**: Django Allauth with MFA support
+- **API Docs**: DRF Spectacular (OpenAPI 3.0)
+- **Deployment**: Google Cloud Run
 
-### Test coverage
+### Key Features
+- RESTful API with comprehensive documentation
+- Multi-factor authentication
+- Role-based access control
+- File upload and storage
+- Real-time notifications
+- Comprehensive test suite
 
-To run the tests, check your test coverage, and generate an HTML coverage report:
+## 📱 API Endpoints
 
-    $ coverage run -m pytest
-    $ coverage html
-    $ open htmlcov/index.html
+### Authentication
+- `POST /auth/signup/` - User registration
+- `POST /auth/login/` - User login
+- `POST /auth/logout/` - User logout
+- `GET /auth/user/` - Current user profile
 
-#### Running tests with pytest
+### Core Resources
+- `/api/campers/` - Camper management
+- `/api/bunks/` - Bunk assignments
+- `/api/orders/` - Order processing
+- `/api/users/` - User management
 
-    $ pytest
+### Documentation
+- `/api/schema/` - OpenAPI schema
+- `/api/schema/swagger-ui/` - Interactive API docs
+- `/api/schema/redoc/` - ReDoc documentation
 
-### Live reloading and Sass CSS compilation
+## 🔧 Configuration
 
-Moved to [Live reloading and SASS compilation](https://cookiecutter-django.readthedocs.io/en/latest/2-local-development/developing-locally.html#using-webpack-or-gulp).
+### Environment Variables
+See `DEVELOPMENT_GUIDE.md` for complete environment setup instructions.
 
-### Email Server
+### Docker Services
+- **Django**: Main application server
+- **PostgreSQL**: Primary database
+- **Redis**: Caching and sessions
+- **Mailpit**: Email testing (development only)
 
-In development, it is often nice to be able to see emails that are being sent from your application. For that reason local SMTP server [Mailpit](https://github.com/axllent/mailpit) with a web interface is available as docker container.
+## 🧪 Testing
+
+```bash
+./dev.sh test              # Run all tests
+./dev.sh test-coverage     # Run with coverage report
+```
+
+## 🚢 Deployment
+
+### Production Deployment (Google Cloud Run)
+Automatic deployment via GitHub Actions on push to main branch.
+
+**Required GitHub Secrets:**
+- `GCP_SA_KEY` - Service account credentials
+- `DJANGO_SECRET_KEY` - Production secret key
+- `POSTGRES_PASSWORD` - Database password
+
+### Manual Deployment
+See deployment scripts in the project root for manual deployment options.
+
+## 📚 Documentation
+
+- `DEVELOPMENT_GUIDE.md` - Complete development setup
+- `API_DOCUMENTATION.md` - Detailed API reference
+- `/api/schema/swagger-ui/` - Interactive API documentation
+
+## 🤝 Development Workflow
+
+1. **Setup**: Run `./setup-local-dev.sh` for initial setup
+2. **Code**: Make changes with hot-reload via `./dev.sh docker-up`
+3. **Test**: Ensure tests pass with `./dev.sh test`
+4. **Deploy**: Push to main for automatic deployment
+
+## 📞 Support
+
+For development issues, refer to `DEVELOPMENT_GUIDE.md` or check the container logs with `./dev.sh logs`.
+
+## Production URLs
+- **API**: https://bunk-logs-backend-461994890254.us-central1.run.app
+- **Admin**: https://bunk-logs-backend-461994890254.us-central1.run.app/admin/
+- **Docs**: https://bunk-logs-backend-461994890254.us-central1.run.app/api/schema/swagger-ui/
 
 Container mailpit will start automatically when you will run all docker containers.
 Please check [cookiecutter-django Docker documentation](https://cookiecutter-django.readthedocs.io/en/latest/2-local-development/developing-locally-docker.html) for more details how to start all containers.

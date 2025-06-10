@@ -212,9 +212,9 @@ case "$1" in
         ;;
     
     logs)
-        print_status "Showing application logs..."
+        print_status "Showing Django application logs..."
         COMPOSE_CMD=$(get_compose_command)
-        $COMPOSE_CMD -f docker-compose.local.yml logs -f
+        $COMPOSE_CMD -f docker-compose.local.yml logs -f django
         ;;
     
     backup-db)
