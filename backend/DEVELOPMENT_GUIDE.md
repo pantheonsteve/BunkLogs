@@ -285,14 +285,14 @@ gcloud builds submit --config cloudbuild.yaml .
 ## 👤 **Admin Credentials**
 
 ### Local Development
-- **Username**: `admin`
-- **Email**: `admin@bunklogs.com`
-- **Password**: `admin123`
+- **Username**: `**********`
+- **Email**: `**********`
+- **Password**: `**********`
 
 ### Production
-- **Username**: `admin`
-- **Email**: `steve@binklogs.com`
-- **Password**: `admin123456`
+- **Username**: `**********`
+- **Email**: `**********`
+- **Password**: `**********`
 
 ## 🔒 **Security Notes**
 
