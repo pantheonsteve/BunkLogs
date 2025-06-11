@@ -10,6 +10,7 @@ os.environ.setdefault('DJANGO_AWS_SECRET_ACCESS_KEY', 'dummy')
 os.environ.setdefault('DJANGO_AWS_STORAGE_BUCKET_NAME', 'dummy-bucket')
 os.environ.setdefault('MAILGUN_API_KEY', 'dummy')
 os.environ.setdefault('MAILGUN_DOMAIN', 'dummy.mailgun.org')
+os.environ.setdefault('DJANGO_ADMIN_URL', 'admin/')
 
 from .production import *  # noqa: F403, F401
 

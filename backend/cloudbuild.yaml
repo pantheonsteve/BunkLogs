@@ -1,10 +1,28 @@
 steps:
+# Build Django application with Datadog support
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest', '-f', './compose/production/django/Dockerfile', '.']
+  args: 
+    - 'build'
+    - '-t'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest'
+    - '-t'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:$BUILD_ID'
+    - '-f'
+    - './compose/production/django/Dockerfile'
+    - '.'
   timeout: 1200s
+
+# Push both tags
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest']
   timeout: 600s
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:$BUILD_ID']
+  timeout: 600s
+
 images:
 - 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:latest'
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django:$BUILD_ID'
+
 timeout: '1800s'

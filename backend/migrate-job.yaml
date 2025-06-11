@@ -1,0 +1,43 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: migrate-job
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cloudsql-instances: bunklogsauth:us-central1:bunk-logs
+    spec:
+      template:
+        spec:
+          containers:
+          - image: us-central1-docker.pkg.dev/bunklogsauth/bunk-logs/django:latest
+            command: ["python"]
+            args: ["manage.py", "migrate"]
+            env:
+            - name: DEBUG
+              value: "False"
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "bunklogsauth"
+            - name: USE_CLOUD_SQL_AUTH_PROXY
+              value: "True"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "config.settings.production"
+            - name: POSTGRES_USER
+              value: "stevebresnick"
+            - name: POSTGRES_HOST
+              value: "/cloudsql/bunklogsauth:us-central1:bunk-logs"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: "bunk-logs-clc"
+            - name: ALLOWED_HOSTS
+              value: "bunklogs.net,bunklogs.run.app,localhost:5173"
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+          restartPolicy: Never
+      backoffLimit: 3
