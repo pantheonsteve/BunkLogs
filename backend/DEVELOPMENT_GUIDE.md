@@ -175,8 +175,9 @@ backend/
 │   ├── settings/           # Environment-specific settings
 │   │   ├── base.py         # Base settings
 │   │   ├── local.py        # Local development settings
-│   │   ├── production.py   # Production settings
-│   │   └── cloudrun.py     # Cloud Run specific settings
+│   │   ├── production.py   # Production settings (legacy)
+│   │   ├── production_gcs.py # Production settings with Google Cloud Storage
+│   │   └── cloudrun.py     # Cloud Run specific settings (deprecated)
 │   ├── urls.py             # URL routing
 │   └── wsgi.py             # WSGI application
 ├── compose/                # Docker configurations
@@ -242,27 +243,71 @@ The `./dev.sh` script provides these commands:
 
 ## 🚀 **Deployment Pipeline**
 
+### Google Cloud Storage Configuration
+
+The application now uses Google Cloud Storage for static file serving instead of AWS S3. Key components:
+
+#### Static Files Storage
+- **Bucket**: `bunk-logs-static`
+- **Settings Module**: `config.settings.production_gcs`
+- **Dependencies**: `django-storages[gcloud]`, `google-cloud-storage`
+- **Permissions**: Public read access for static files
+
+#### Cloud Run Jobs
+- **migrate-job**: Runs database migrations on deployment
+- **collectstatic-job**: Uploads static files to Google Cloud Storage
+- **Service Account**: `461994890254-compute@developer.gserviceaccount.com`
+- **IAM Role**: `roles/storage.objectAdmin` for bucket access
+
+#### Storage Configuration Details
+```python
+# Production storage settings (production_gcs.py)
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+        "OPTIONS": {
+            "bucket_name": "bunk-logs-static",
+            "location": "media",
+            "default_acl": None,  # Uniform bucket-level access
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+        "OPTIONS": {
+            "bucket_name": "bunk-logs-static", 
+            "location": "static",
+            "default_acl": None,  # Uniform bucket-level access
+        },
+    },
+}
+```
+
 ### Automatic Deployment Flow
 
 1. **Code Push** → GitHub repository
 2. **CI/CD Trigger** → GitHub Actions workflow starts
 3. **Testing** → Run tests with PostgreSQL and Redis
-4. **Build** → Create Docker image
+4. **Build** → Create Docker image with Google Cloud Storage dependencies
 5. **Deploy** → Push to Google Cloud Run
-6. **Migrate** → Run database migrations
-7. **Live** → Application available at production URL
+6. **Migrate** → Run database migrations via Cloud Run job
+7. **Static Files** → Upload to Google Cloud Storage via collectstatic job
+8. **Live** → Application available at production URL with static files from GCS
 
 ### Manual Deployment (if needed)
 
 ```bash
 # Build and deploy with the enhanced script
-./deploy-cloudrun-fixed.sh
+./deploy-cloudrun.sh
 
-# Or use the simple deployment script
-./deploy-cloudrun-simple.sh
-
-# Or manually with gcloud
+# Or manually with gcloud (includes migrations and static files)
 gcloud builds submit --config cloudbuild.yaml .
+
+# Manual Cloud Run job execution
+gcloud run jobs execute migrate-job --region=us-central1
+gcloud run jobs execute collectstatic-job --region=us-central1
+
+# Check static files in Google Cloud Storage
+gsutil ls gs://bunk-logs-static/static/
 ```
 
 ## 🌍 **Environment URLs**
@@ -281,6 +326,7 @@ gcloud builds submit --config cloudbuild.yaml .
 - **API Documentation**: https://bunk-logs-backend-koumwfa74a-uc.a.run.app/api/schema/swagger-ui/
 - **API Schema**: https://bunk-logs-backend-koumwfa74a-uc.a.run.app/api/schema/
 - **ReDoc Documentation**: https://bunk-logs-backend-koumwfa74a-uc.a.run.app/api/schema/redoc/
+- **Static Files**: https://storage.googleapis.com/bunk-logs-static/static/ (Google Cloud Storage)
 
 ## 👤 **Admin Credentials**
 
@@ -310,10 +356,15 @@ gcloud builds submit --config cloudbuild.yaml .
 
 3. **Use environment-specific settings**:
    - Local: `config.settings.local`
-   - Production: `config.settings.production` 
-   - Cloud Run: `config.settings.cloudrun`
+   - Production: `config.settings.production_gcs` 
+   - Cloud Run: `config.settings.production_gcs`
 
-4. **Container and dependency management**:
+4. **Static file storage**:
+   - Local: Django's default static file handling
+   - Production: Google Cloud Storage bucket `bunk-logs-static`
+   - Bucket permissions: Public read access for static files
+
+5. **Container and dependency management**:
    - Use Podman Desktop or Docker for containers
    - Keep requirements files updated
    - Test with `./dev.sh test` before pushing
@@ -338,9 +389,16 @@ gcloud builds submit --config cloudbuild.yaml .
    - Verify service account permissions
    - Check logs in GitHub Actions tab
 
-4. **Static files not loading**:
+4. **Static files not loading in production**:
    ```bash
-   ./dev.sh collectstatic
+   # Check Google Cloud Storage bucket
+   gsutil ls gs://bunk-logs-static/static/
+   
+   # Verify bucket permissions
+   gsutil iam get gs://bunk-logs-static
+   
+   # Run collectstatic job manually
+   gcloud run jobs execute collectstatic-job --region=us-central1
    ```
 
 5. **Container services not accessible**:
@@ -481,7 +539,7 @@ EMAIL_PORT=1025
 ```bash
 # Django
 DEBUG=False
-DJANGO_SETTINGS_MODULE=config.settings.cloudrun
+DJANGO_SETTINGS_MODULE=config.settings.production_gcs
 DJANGO_SECRET_KEY=<strong-production-secret>
 DJANGO_ALLOWED_HOSTS=bunklogs.net,*.run.app
 
@@ -489,8 +547,13 @@ DJANGO_ALLOWED_HOSTS=bunklogs.net,*.run.app
 DATABASE_URL=postgresql://user:pass@/db?host=/cloudsql/project:region:instance
 USE_CLOUD_SQL_AUTH_PROXY=True
 
-# Static Files
+# Google Cloud Storage
 GS_BUCKET_NAME=bunk-logs-static
+GOOGLE_CLOUD_PROJECT=bunklogsauth
+
+# Static Files
+STATIC_URL=https://storage.googleapis.com/bunk-logs-static/static/
+MEDIA_URL=https://storage.googleapis.com/bunk-logs-static/media/
 ```
 
 ### Updating Environment Variables
@@ -632,9 +695,13 @@ The backend is configured to accept requests from:
 | Podman not found | Install [Podman Desktop](https://podman-desktop.io/) |
 | Permission denied on scripts | Run `chmod +x ./dev.sh ./setup-local-dev.sh` |
 | Database connection error | Run `./dev.sh docker-reset` |
-| Static files not loading | Run `./dev.sh collectstatic` |
+| Static files not loading locally | Run `./dev.sh collectstatic` |
+| Static files not loading in production | Check GCS bucket: `gsutil ls gs://bunk-logs-static/static/` |
+| Static files 403 error | Ensure bucket has public read: `gsutil iam ch allUsers:objectViewer gs://bunk-logs-static` |
 | Tests failing | Ensure containers are running: `./dev.sh docker-up` |
 | Port already in use | Check for other Django instances: `pkill -f runserver` |
+| Cloud Run job failing | Check job logs: `gcloud run jobs executions describe JOB_EXECUTION_ID --region=us-central1` |
+| Collectstatic job errors | Verify service account permissions and GCS bucket access |
 
 ## 📊 **Project Status**
 
@@ -647,8 +714,12 @@ The backend is configured to accept requests from:
 - ✅ Role-based permissions
 - ✅ API documentation
 - ✅ Local development environment
-- ✅ Production deployment
-- ✅ CI/CD pipeline
+- ✅ Production deployment to Google Cloud Run
+- ✅ CI/CD pipeline with GitHub Actions
+- ✅ Google Cloud Storage for static files
+- ✅ Cloud SQL database integration
+- ✅ Automated migrations and static file deployment
+- ✅ Public static file serving from GCS
 
 ### 🚧 In Development
 - Frontend React application
@@ -676,13 +747,24 @@ docker stats
 ### Production Monitoring
 ```bash
 # View Cloud Run logs
-gcloud run services logs read bunk-logs-backend --region=us-central1 --limit=50
+gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"bunk-logs-backend\"" --project=bunklogsauth --limit=50
 
 # Monitor service health
 gcloud run services describe bunk-logs-backend --region=us-central1
 
 # Check deployment history
 gcloud run revisions list --service=bunk-logs-backend --region=us-central1
+
+# Monitor Cloud Run jobs
+gcloud run jobs executions list --job=migrate-job --region=us-central1
+gcloud run jobs executions list --job=collectstatic-job --region=us-central1
+
+# Check Google Cloud Storage bucket
+gsutil ls -la gs://bunk-logs-static/
+gsutil du -sh gs://bunk-logs-static/
+
+# Verify bucket permissions
+gsutil iam get gs://bunk-logs-static
 ```
 
 ### Maintenance Tasks
@@ -699,6 +781,19 @@ pip install -r requirements/local.txt --upgrade
 
 # Reset development environment
 ./dev.sh docker-reset
+
+# Production maintenance
+# Redeploy with latest dependencies
+./deploy-cloudrun.sh
+
+# Clean up old Cloud Run revisions
+gcloud run revisions list --service=bunk-logs-backend --region=us-central1
+# Delete old revisions to save space
+gcloud run revisions delete REVISION_NAME --region=us-central1
+
+# Monitor Google Cloud Storage usage and costs
+gsutil du -sh gs://bunk-logs-static/
+gcloud logging read "resource.type=\"gcs_bucket\"" --project=bunklogsauth --limit=10
 ```
 
 ### Performance Optimization

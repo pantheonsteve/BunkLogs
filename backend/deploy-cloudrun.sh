@@ -1,5 +1,5 @@
 #!/bin/bash
-# Enhanced deployment script for Google Cloud Run
+# Enhanced deployment script for Google Cloud Run with Datadog
 
 set -e
 
@@ -13,12 +13,81 @@ CLOUD_SQL_INSTANCE="$PROJECT_ID:$REGION:bunk-logs"
 
 echo "🚀 Starting deployment to Google Cloud Run..."
 
+# Create environment variables file
+echo "📝 Creating environment variables file..."
+cat > env.yaml << EOF
+DEBUG: "False"
+GOOGLE_CLOUD_PROJECT: "$PROJECT_ID"
+USE_CLOUD_SQL_AUTH_PROXY: "True"
+GS_BUCKET_NAME: "bunk-logs-static"
+DJANGO_SETTINGS_MODULE: "config.settings.production_gcs"
+POSTGRES_USER: "stevebresnick"
+POSTGRES_HOST: "/cloudsql/bunklogsauth:us-central1:bunk-logs"
+POSTGRES_PORT: "5432"
+POSTGRES_DB: "bunk-logs-clc"
+DJANGO_ALLOWED_HOSTS: "bunklogs.net,bunklogs.run.app,localhost:5173,bunk-logs-backend-koumwfa74a-uc.a.run.app,bunk-logs-backend-461994890254.us-central1.run.app"
+DD_SERVICE: "bunk-logs-backend"
+DD_ENV: "production"
+DD_VERSION: "latest"
+DD_LOGS_INJECTION: "false"
+DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT: "true"
+DD_DJANGO_INSTRUMENT_TEMPLATES: "true"
+EOF
+
 # Authenticate and set project
 echo "🔐 Setting up authentication..."
 gcloud config set project $PROJECT_ID
 gcloud auth configure-docker $REGISTRY
 
-# Build image using Cloud Build (more reliable than local build)
+# Grant Secret Manager access to Cloud Run service account
+echo "🔑 Granting Secret Manager access..."
+PROJECT_NUMBER=$(gcloud projects list --filter="project_id:$PROJECT_ID" --format="value(project_number)")
+SERVICE_ACCOUNT="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+echo "Using service account: $SERVICE_ACCOUNT"
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Grant Cloud Storage access to Cloud Run service account for static files
+echo "☁️ Granting Cloud Storage access..."
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role="roles/storage.objectAdmin"
+
+# Create required secrets if they don't exist
+echo "🔐 Creating required secrets..."
+
+# Create DJANGO_SECRET_KEY secret (Django expects this name)
+if ! gcloud secrets describe DJANGO_SECRET_KEY --project=$PROJECT_ID &>/dev/null; then
+  echo "Creating DJANGO_SECRET_KEY secret..."
+  echo "\$#u&&du@pa3k)bn-)7s&hvr=i#a*qs9t=@g!%y5huhw)g9&yi" | gcloud secrets create DJANGO_SECRET_KEY --data-file=- --project=$PROJECT_ID
+else
+  echo "DJANGO_SECRET_KEY secret already exists"
+fi
+
+# Create DATABASE_URL secret
+if ! gcloud secrets describe DATABASE_URL --project=$PROJECT_ID &>/dev/null; then
+  echo "Creating DATABASE_URL secret..."
+  DATABASE_URL="postgres://stevebresnick:\$(gcloud secrets versions access latest --secret=DB_PASSWORD --project=$PROJECT_ID)@/cloudsql/bunklogsauth:us-central1:bunk-logs/bunk-logs-clc"
+  echo "$DATABASE_URL" | gcloud secrets create DATABASE_URL --data-file=- --project=$PROJECT_ID
+else
+  echo "DATABASE_URL secret already exists"
+fi
+
+# Create DD_API_KEY secret
+if ! gcloud secrets describe DD_API_KEY --project=$PROJECT_ID &>/dev/null; then
+  echo "Creating DD_API_KEY secret..."
+  echo "f326b91021b9866c6d93fadced72b167" | gcloud secrets create DD_API_KEY --data-file=- --project=$PROJECT_ID
+else
+  echo "DD_API_KEY secret already exists"
+fi
+
+# Grant Secret Manager access to Cloud Run service account
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Build image using Cloud Build
 echo "📦 Building image with Cloud Build..."
 gcloud builds submit --config cloudbuild.yaml .
 
@@ -30,133 +99,90 @@ gcloud run deploy $SERVICE_NAME \
   --region=$REGION \
   --allow-unauthenticated \
   --add-cloudsql-instances=$CLOUD_SQL_INSTANCE \
-  --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,USE_CLOUD_SQL_AUTH_PROXY=True,GS_BUCKET_NAME=bunk-logs-static,DJANGO_SETTINGS_MODULE=config.settings.production,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc \
-  --set-env-vars="DATABASE_URL=postgresql://stevebresnick:April221979!@bunk-logs-clc?host=/cloudsql/bunklogsauth:us-central1:bunk-logs" \
-  --set-env-vars="SECRET_KEY=\$#u&&du@pa3k)bn-)7s&hvr=i#a*qs9t=@g!%y5huhw)g9&yi!" \
-  --set-env-vars="POSTGRES_PASSWORD=April221979!" \
-  --set-env-vars="ALLOWED_HOSTS=bunklogs.net,bunklogs.run.app,localhost:5173" \
+  --port=8080 \
+  --execution-environment=gen2 \
+  --env-vars-file=env.yaml \
+  --set-secrets="POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DD_API_KEY=DD_API_KEY:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest,DJANGO_AWS_ACCESS_KEY_ID=DJANGO_AWS_ACCESS_KEY_ID:latest,DJANGO_AWS_SECRET_ACCESS_KEY=DJANGO_AWS_SECRET_ACCESS_KEY:latest,DJANGO_AWS_STORAGE_BUCKET_NAME=DJANGO_AWS_STORAGE_BUCKET_NAME:latest,DJANGO_ADMIN_URL=DJANGO_ADMIN_URL:latest,MAILGUN_API_KEY=MAILGUN_API_KEY:latest,MAILGUN_DOMAIN=MAILGUN_DOMAIN:latest" \
   --max-instances=10 \
   --min-instances=0 \
   --memory=1Gi \
   --cpu=1 \
   --timeout=900 \
-  --port=8080 \
   --no-traffic
 
 # Create and run migration job
 echo "🔄 Running database migrations..."
-gcloud run jobs replace --region=$REGION << EOF
-apiVersion: run.googleapis.com/v1
-kind: Job
-metadata:
-  name: migrate-job
-  annotations:
-    run.googleapis.com/launch-stage: BETA
-spec:
-  template:
-    spec:
-      template:
-        metadata:
-          annotations:
-            run.googleapis.com/cloudsql-instances: $CLOUD_SQL_INSTANCE
-        spec:
-          containers:
-          - image: $IMAGE_NAME:latest
-            command: ["python"]
-            args: ["manage.py", "migrate"]
-            env:
-            - name: DEBUG
-              value: "False"
-            - name: GOOGLE_CLOUD_PROJECT
-              value: "$PROJECT_ID"
-            - name: USE_CLOUD_SQL_AUTH_PROXY
-              value: "True"
-            - name: DJANGO_SETTINGS_MODULE
-              value: "config.settings.production"
-            - name: DATABASE_URL
-              value: "postgresql://stevebresnick:April221979!@bunk-logs-clc?host=/cloudsql/bunklogsauth:us-central1:bunk-logs"
-            - name: SECRET_KEY
-              value: "$#u&&du@pa3k)bn-)7s&hvr=i#a*qs9t=@g!%y5huhw)g9&yi!"
-            - name: ALLOWED_HOSTS
-              value: "bunklogs.net,*.bunklogs.net,localhost:5173,*.run.app,bunklogs.run.app"
-            - name: POSTGRES_USER
-              value: "stevebresnick"
-            - name: POSTGRES_PASSWORD
-              value: "April221979!"
-            - name: POSTGRES_HOST
-              value: "/cloudsql/bunklogsauth:us-central1:bunk-logs"
-            - name: POSTGRES_PORT
-              value: "5432"
-            - name: POSTGRES_DB
-              value: "bunk-logs-clc"
-            resources:
-              limits:
-                cpu: 1000m
-                memory: 1Gi
-          restartPolicy: Never
-      backoffLimit: 3
-EOF
+gcloud run jobs create migrate-job \
+  --image=$IMAGE_NAME:latest \
+  --region=$REGION \
+  --task-timeout=900 \
+  --max-retries=3 \
+  --parallelism=1 \
+  --cpu=1 \
+  --memory=1Gi \
+  --set-cloudsql-instances=$CLOUD_SQL_INSTANCE \
+  --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,USE_CLOUD_SQL_AUTH_PROXY=True,DJANGO_SETTINGS_MODULE=config.settings.production_gcs,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc,DJANGO_ALLOWED_HOSTS=bunklogs.net \
+  --set-secrets=POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest \
+  --command=python \
+  --args=manage.py,migrate \
+  --execute-now \
+  --wait || echo "Migration job may already exist, trying to update and execute..."
 
-# Execute migration job
-gcloud run jobs execute migrate-job --region=$REGION --wait
+if [ $? -ne 0 ]; then
+  echo "Creating job failed, trying to update existing job..."
+  gcloud run jobs update migrate-job \
+    --image=$IMAGE_NAME:latest \
+    --region=$REGION \
+    --task-timeout=900 \
+    --max-retries=3 \
+    --parallelism=1 \
+    --cpu=1 \
+    --memory=1Gi \
+    --set-cloudsql-instances=$CLOUD_SQL_INSTANCE \
+    --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,USE_CLOUD_SQL_AUTH_PROXY=True,DJANGO_SETTINGS_MODULE=config.settings.production_gcs,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc,DJANGO_ALLOWED_HOSTS=bunklogs.net \
+    --set-secrets=POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest \
+    --command=python \
+    --args=manage.py,migrate
+  
+  gcloud run jobs execute migrate-job --region=$REGION --wait
+fi
 
 # Collect static files job
 echo "📁 Collecting static files..."
-gcloud run jobs replace --region=$REGION << EOF
-apiVersion: run.googleapis.com/v1
-kind: Job
-metadata:
-  name: collectstatic-job
-  annotations:
-    run.googleapis.com/launch-stage: BETA
-spec:
-  template:
-    spec:
-      template:
-        metadata:
-          annotations:
-            run.googleapis.com/cloudsql-instances: $CLOUD_SQL_INSTANCE
-        spec:
-          containers:
-          - image: $IMAGE_NAME:latest
-            command: ["python"]
-            args: ["manage.py", "collectstatic", "--noinput"]
-            env:
-            - name: DEBUG
-              value: "False"
-            - name: GOOGLE_CLOUD_PROJECT
-              value: "$PROJECT_ID"
-            - name: USE_CLOUD_SQL_AUTH_PROXY
-              value: "True"
-            - name: GS_BUCKET_NAME
-              value: "bunk-logs-static"
-            - name: DJANGO_SETTINGS_MODULE
-              value: "config.settings.production"
-            - name: DATABASE_URL
-              value: "postgresql://stevebresnick:April221979!@bunk-logs-clc?host=/cloudsql/bunklogsauth:us-central1:bunk-logs"
-            - name: SECRET_KEY
-              value: "$#u&&du@pa3k)bn-)7s&hvr=i#a*qs9t=@g!%y5huhw)g9&yi!"
-            - name: ALLOWED_HOSTS
-              value: "bunklogs.net,*.bunklogs.net,localhost:5173,*.run.app,bunklogs.run.app"
-            - name: POSTGRES_USER
-              value: "stevebresnick"
-            - name: POSTGRES_PASSWORD
-              value: "April221979!"
-            - name: POSTGRES_HOST
-              value: "/cloudsql/bunklogsauth:us-central1:bunk-logs"
-            - name: POSTGRES_PORT
-              value: "5432"
-            - name: POSTGRES_DB
-              value: "bunk-logs-clc"
-            resources:
-              limits:
-                cpu: 1000m
-                memory: 1Gi
-          restartPolicy: Never
-      backoffLimit: 3
-EOF
+gcloud run jobs create collectstatic-job \
+  --image=$IMAGE_NAME:latest \
+  --region=$REGION \
+  --task-timeout=900 \
+  --max-retries=3 \
+  --parallelism=1 \
+  --cpu=1 \
+  --memory=1Gi \
+  --set-cloudsql-instances=$CLOUD_SQL_INSTANCE \
+  --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,USE_CLOUD_SQL_AUTH_PROXY=True,GS_BUCKET_NAME=bunk-logs-static,DJANGO_SETTINGS_MODULE=config.settings.production_gcs,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc,DJANGO_ALLOWED_HOSTS=bunklogs.net \
+  --set-secrets=POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest \
+  --command=python \
+  --args=manage.py,collectstatic,--noinput \
+  --execute-now \
+  --wait || echo "Collectstatic job may already exist, trying to update and execute..."
 
-gcloud run jobs execute collectstatic-job --region=$REGION --wait
+if [ $? -ne 0 ]; then
+  echo "Creating collectstatic job failed, trying to update existing job..."
+  gcloud run jobs update collectstatic-job \
+    --image=$IMAGE_NAME:latest \
+    --region=$REGION \
+    --task-timeout=900 \
+    --max-retries=3 \
+    --parallelism=1 \
+    --cpu=1 \
+    --memory=1Gi \
+    --set-cloudsql-instances=$CLOUD_SQL_INSTANCE \
+    --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,USE_CLOUD_SQL_AUTH_PROXY=True,GS_BUCKET_NAME=bunk-logs-static,DJANGO_SETTINGS_MODULE=config.settings.production_gcs,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc,DJANGO_ALLOWED_HOSTS=bunklogs.net \
+    --set-secrets=POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest \
+    --command=python \
+    --args=manage.py,collectstatic,--noinput
+  
+  gcloud run jobs execute collectstatic-job --region=$REGION --wait
+fi
 
 # Shift traffic to new revision
 echo "🔀 Shifting traffic to new revision..."
@@ -169,7 +195,21 @@ echo "✅ Deployment completed!"
 SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
 echo "🌐 Service URL: $SERVICE_URL"
 
+# Clean up temporary files
+echo "🧹 Cleaning up..."
+rm -f env.yaml
+
 echo "📋 Next steps:"
 echo "1. Test the application at: $SERVICE_URL"
 echo "2. Check logs: gcloud logs read --service=$SERVICE_NAME"
-echo "3. Update your frontend to use the new backend URL"
+echo "3. Monitor with Datadog: https://app.datadoghq.com/apm/services"
+echo "4. Update your frontend to use the new backend URL"
+
+# Test the deployment
+echo "🧪 Testing deployment..."
+if curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL" | grep -q "200\|302\|301"; then
+    echo "✅ Service is responding!"
+else
+    echo "⚠️  Service may not be responding correctly. Check logs:"
+    echo "   gcloud logs read --service=$SERVICE_NAME --limit=50"
+fi

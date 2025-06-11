@@ -1,0 +1,67 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+set -e  # Exit on any error
+
+echo "Starting Django application with Datadog monitoring..."
+
+# Set default values for Datadog environment variables if not provided
+export DD_SERVICE="${DD_SERVICE:-django-app}"
+export DD_ENV="${DD_ENV:-production}"
+export DD_VERSION="${DD_VERSION:-1.0.0}"
+
+# Enable Datadog features
+export DD_LOGS_INJECTION=true
+export DD_TRACE_ENABLED=true
+
+# Django-specific Datadog configuration
+export DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT=true
+export DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT=false
+export DD_DJANGO_INSTRUMENT_TEMPLATES=true
+export DD_DJANGO_CACHE_SERVICE_NAME="${DD_SERVICE}-cache"
+export DD_DJANGO_DATABASE_SERVICE_NAME="${DD_SERVICE}-db"
+
+# Configure logging for sidecar collection (if using sidecar)
+if [ -n "$DD_SERVERLESS_LOG_PATH" ]; then
+    echo "Configuring logging for sidecar collection..."
+    # Try to create log directory, continue if it fails
+    mkdir -p /shared-volume/logs 2>/dev/null || {
+        echo "Warning: Cannot create shared volume directory, skipping sidecar logging setup"
+        echo "Sidecar logging will be handled by the sidecar container"
+    }
+    export DD_LOGS_ENABLED=true
+fi
+
+echo "Collecting static files..."
+python /app/manage.py collectstatic --noinput
+
+# Optional: Run database migrations
+# echo "Running database migrations..."
+# python /app/manage.py migrate --noinput
+
+# Health check for Datadog tracer
+echo "Checking Datadog tracer configuration..."
+ddtrace-run --info || echo "Warning: ddtrace-run --info failed, but continuing..."
+
+# Start Gunicorn with Datadog tracing
+echo "Starting Gunicorn with Datadog instrumentation..."
+echo "Service: $DD_SERVICE, Environment: $DD_ENV, Version: $DD_VERSION"
+
+
+
+exec ddtrace-run /usr/local/bin/gunicorn config.wsgi \
+    --bind 0.0.0.0:$PORT \
+    --chdir=/app \
+    --workers=2 \
+    --worker-class=sync \
+    --worker-connections=1000 \
+    --max-requests=1000 \
+    --max-requests-jitter=100 \
+    --timeout=30 \
+    --keep-alive=5 \
+    --log-level=info \
+    --access-logfile=- \
+    --error-logfile=-

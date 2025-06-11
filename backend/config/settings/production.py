@@ -6,6 +6,8 @@ from .base import REDIS_URL
 from .base import SPECTACULAR_SETTINGS
 from .base import env
 
+import os
+
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
@@ -202,3 +204,51 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# Datadog configuration - simplified to avoid formatting issues
+if os.getenv('DD_LOGS_INJECTION') == 'true':
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'verbose': {
+                'format': '[{levelname}] {asctime} {name} {message}',
+                'style': '{',
+            },
+        },
+        'handlers': {
+            'console': {
+                'level': 'INFO',
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+            },
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': True,
+            },
+            'ddtrace': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+            },
+        },
+        'root': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    }
+
+    # If using sidecar, also log to file
+    if os.getenv('DD_SERVERLESS_LOG_PATH'):
+        LOGGING['handlers']['file'] = {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': '/shared-volume/logs/django.log',
+            'formatter': 'verbose',
+        }
+        # Add file handler to all loggers
+        for logger_config in LOGGING['loggers'].values():
+            if 'handlers' in logger_config:
+                logger_config['handlers'].append('file')

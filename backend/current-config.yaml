@@ -1,0 +1,142 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/client-name: gcloud
+    run.googleapis.com/client-version: 526.0.0
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/operation-id: 600a2e94-6d9c-4054-bdbb-af12c7aa9f95
+    run.googleapis.com/urls: '["https://bunk-logs-backend-461994890254.us-central1.run.app","https://bunk-logs-backend-koumwfa74a-uc.a.run.app"]'
+    serving.knative.dev/creator: 461994890254-compute@developer.gserviceaccount.com
+    serving.knative.dev/lastModifier: 461994890254-compute@developer.gserviceaccount.com
+  creationTimestamp: '2025-06-09T22:37:04.761768Z'
+  generation: 33
+  labels:
+    cloud.googleapis.com/location: us-central1
+  name: bunk-logs-backend
+  namespace: '461994890254'
+  resourceVersion: AAY3PaehUaE
+  selfLink: /apis/serving.knative.dev/v1/namespaces/461994890254/services/bunk-logs-backend
+  uid: 1be7f634-9be7-42e2-abb7-0aa849df13c1
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '10'
+        run.googleapis.com/client-name: gcloud
+        run.googleapis.com/client-version: 526.0.0
+        run.googleapis.com/cloudsql-instances: bunklogsauth:us-central1:bunk-logs
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/startup-cpu-boost: 'true'
+      labels:
+        client.knative.dev/nonce: xobqzpcwsz
+        run.googleapis.com/startupProbeType: Default
+    spec:
+      containerConcurrency: 80
+      containers:
+      - env:
+        - name: DD_SERVICE
+          value: bunk-logs-backend
+        - name: DD_ENV
+          value: production
+        - name: DD_VERSION
+          value: fbdb80ec-6790-40da-a4df-41485f1b59b1
+        - name: DD_LOGS_INJECTION
+          value: 'true'
+        - name: DD_SERVERLESS_LOG_PATH
+          value: /shared-volume/logs/*.log
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_DB
+          value: bunk-logs
+        - name: POSTGRES_HOST
+          value: /cloudsql/bunklogsauth:us-central1:bunk-logs
+        - name: POSTGRES_PORT
+          value: '5432'
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: DB_PASSWORD
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: DATABASE_URL
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: DD_API_KEY
+        image: us-central1-docker.pkg.dev/bunklogsauth/bunk-logs/django:fbdb80ec-6790-40da-a4df-41485f1b59b1
+        name: django-1
+        ports:
+        - containerPort: 8080
+          name: http1
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        startupProbe:
+          failureThreshold: 1
+          periodSeconds: 240
+          tcpSocket:
+            port: 8080
+          timeoutSeconds: 240
+      - env:
+        - name: DD_SERVICE
+          value: bunk-logs-backend
+        - name: DD_ENV
+          value: production
+        - name: DD_VERSION
+          value: 1.0.0
+        - name: DD_SERVERLESS_LOG_PATH
+          value: /shared-volume/logs/*.log
+        - name: DD_HEALTH_PORT
+          value: '8080'
+        - name: DD_LOGS_ENABLED
+          value: 'true'
+        - name: DD_LOGS_INJECTION
+          value: 'true'
+        - name: DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT
+          value: 'true'
+        - name: DD_DJANGO_INSTRUMENT_TEMPLATES
+          value: 'true'
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: '1'
+              name: datadog-api-key
+        image: gcr.io/datadoghq/serverless-init:latest
+        name: datadoghq
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+      serviceAccountName: 461994890254-compute@developer.gserviceaccount.com
+      timeoutSeconds: 300
+  traffic:
+  - latestRevision: true
+    percent: 100
+status:
+  address:
+    url: https://bunk-logs-backend-koumwfa74a-uc.a.run.app
+  conditions:
+  - lastTransitionTime: '2025-06-10T20:36:45.163937Z'
+    status: 'True'
+    type: Ready
+  - lastTransitionTime: '2025-06-10T20:36:43.895857Z'
+    status: 'True'
+    type: ConfigurationsReady
+  - lastTransitionTime: '2025-06-10T20:36:45.122716Z'
+    status: 'True'
+    type: RoutesReady
+  latestCreatedRevisionName: bunk-logs-backend-00033-rh6
+  latestReadyRevisionName: bunk-logs-backend-00033-rh6
+  observedGeneration: 33
+  traffic:
+  - latestRevision: true
+    percent: 100
+    revisionName: bunk-logs-backend-00033-rh6
+  url: https://bunk-logs-backend-koumwfa74a-uc.a.run.app

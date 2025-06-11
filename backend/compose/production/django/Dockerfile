@@ -4,11 +4,12 @@ FROM python:3.12 AS python
 FROM python AS python-build-stage
 ARG BUILD_ENVIRONMENT=production
 
-# Install build dependencies in one layer
+# Install build dependencies and Datadog tracing library
 RUN apt-get update && apt-get install --no-install-recommends -y \
   build-essential \
   libpq-dev \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && pip install ddtrace
 
 COPY requirements/ ./requirements/
 RUN pip wheel --wheel-dir /usr/src/app/wheels -r requirements/${BUILD_ENVIRONMENT}.txt
@@ -22,6 +23,14 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV BUILD_ENV=${BUILD_ENVIRONMENT}
 ENV PORT=8080
+
+# Datadog environment variables (will be overridden by Cloud Run)
+ENV DD_SERVICE="bunk-logs-backend"
+ENV DD_ENV="production"
+ENV DD_LOGS_INJECTION=false
+ENV DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT=true
+ENV DD_DJANGO_INSTRUMENT_TEMPLATES=true
+ENV DD_SERVERLESS_LOG_PATH="/shared-volume/logs/*.log"
 
 WORKDIR ${APP_HOME}
 
@@ -47,19 +56,22 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/* \
 
 # Copy entrypoint and start scripts
 COPY ./compose/production/django/entrypoint /entrypoint
+COPY ./compose/production/django/entrypoint.cloudrun /entrypoint.cloudrun
 COPY ./compose/production/django/start /start
 RUN sed -i 's/\r$//g' /entrypoint && chmod +x /entrypoint \
+  && sed -i 's/\r$//g' /entrypoint.cloudrun && chmod +x /entrypoint.cloudrun \
   && sed -i 's/\r$//g' /start && chmod +x /start
 
 # Copy application code
 COPY --chown=django:django . ${APP_HOME}
 RUN chown -R django:django ${APP_HOME}
 
-# Create staticfiles directory
-RUN mkdir -p ${APP_HOME}/staticfiles && chown django:django ${APP_HOME}/staticfiles
+# Create staticfiles directory and log directory for Datadog
+RUN mkdir -p ${APP_HOME}/staticfiles && chown django:django ${APP_HOME}/staticfiles \
+  && mkdir -p /shared-volume/logs && chown django:django /shared-volume/logs
 
 USER django
 
 EXPOSE 8080
-ENTRYPOINT ["/entrypoint"]
+ENTRYPOINT ["/entrypoint.cloudrun"]
 CMD ["/start"]
