@@ -374,11 +374,49 @@ REST_FRAMEWORK = {
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 #CORS_URLS_REGEX = r"^/api/.*$"
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost",
-    "http://localhost:5173",
-    "https://bunklogs.net",
-]
+# Frontend URLs - Environment-aware defaults
+# ------------------------------------------------------------------------------
+# Detect if we're in production based on DEBUG setting or other indicators
+IS_PRODUCTION = not env.bool("DJANGO_DEBUG", False) or env.str("DJANGO_SETTINGS_MODULE", "").endswith("production")
+
+if IS_PRODUCTION:
+    DEFAULT_FRONTEND_URL = "https://bunklogs.net"
+else:
+    DEFAULT_FRONTEND_URL = "http://localhost:5173"
+
+FRONTEND_URL = env("FRONTEND_URL", default=DEFAULT_FRONTEND_URL)
+SPA_URL = FRONTEND_URL
+
+# Environment-aware CORS settings
+if IS_PRODUCTION:
+    CORS_ALLOWED_ORIGINS = [
+        "https://bunklogs.net",
+        "https://www.bunklogs.net",
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'https://bunklogs.net',
+        'https://www.bunklogs.net',
+    ]
+    # Remove localhost from allowed hosts in production
+    ALLOWED_HOSTS = [
+        "bunklogs.net",
+        "www.bunklogs.net", 
+        "*.run.app",
+        "bunk-logs-backend-461994890254.us-central1.run.app",
+        "bunk-logs-backend-koumwfa74a-uc.a.run.app",
+    ]
+else:
+    # Development settings
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost",
+        "http://localhost:5173",
+        "https://bunklogs.net",  # Keep this for testing
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:5173', 
+        'https://bunklogs.net'
+    ]
+    ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1"]
 
 from corsheaders.defaults import default_headers
 
@@ -387,25 +425,6 @@ CORS_ALLOW_HEADERS = (
     "x-session-token",
     "x-email-verification-key",
     "x-password-reset-key",
-)
-CORS_ALLOW_CREDENTIALS = True
-
-ALLOWED_HOSTS = ["localhost", "localhost:5173" ]
-
-
-# 6. Set the Access-Control-Max-Age header to a reasonable value
-#CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
-
-# 7. CORS_EXPOSE_HEADERS allows your frontend to access specific headers from responses
-#CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
-
-# 8. CSRF settings for cross-domain requests
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'https://bunklogs.net']
-CSRF_COOKIE_SAMESITE = None
-CSRF_COOKIE_SECURE = True
-
-# If needed for development purposes, you can also enable specific headers and methods
-CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
     "authorization",
@@ -415,7 +434,11 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
-]
+)
+CORS_ALLOW_CREDENTIALS = True
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_SECURE = True
+
 CORS_ALLOW_METHODS = [
     "DELETE",
     "GET",
@@ -425,21 +448,9 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
-# Frontend URLs - These will be overridden in environment-specific settings
-FRONTEND_URL = "http://localhost:5173"  # Default for development
-SPA_URL = "http://localhost:5173"
-
-# Django-allauth specific settings
-ACCOUNT_EMAIL_VERIFICATION = "none"
-ACCOUNT_LOGIN_METHODS = {"email"}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
-ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
-ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
-
-# Add redirect URLs for Google OAuth 
-LOGIN_REDIRECT_URL = '/auth/success/'
-ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
+# Set redirect URLs based on environment
+LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f"{FRONTEND_URL}/dashboard")
+ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRONTEND_URL}/signin")
 
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
@@ -453,16 +464,6 @@ SPECTACULAR_SETTINGS = {
 # Your stuff...
 # ------------------------------------------------------------------------------
 
-# Frontend URLs - These will be overridden in environment-specific settings
-FRONTEND_URL = "http://localhost:5173"  # Default for development
-LOGIN_REDIRECT_URL = '/auth/success/' 
-ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
-
-# Add redirect URLs for Google OAuth # Redirect after successful login
-LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default='http://localhost:5173/dashboard')
-#LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
-ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
-
 # Django AllAuth settings
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' in production
 ACCOUNT_LOGIN_METHODS = {'email'}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
@@ -470,6 +471,8 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces EMAIL
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGOUT_ON_GET = True
+ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
+ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
 
 # dj-rest-auth settings

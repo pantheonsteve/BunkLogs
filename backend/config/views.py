@@ -337,7 +337,7 @@ def google_callback(request):
     if error:
         # Log the error for debugging
         print(f"Google OAuth error: {error}")
-        # Redirect to frontend with error message
+        # Redirect to frontend with error message - use dynamic FRONTEND_URL
         return HttpResponseRedirect(
             f"{settings.FRONTEND_URL}/signin?auth_error={error}"
         )
@@ -398,7 +398,7 @@ def google_callback(request):
         # Generate JWT token
         refresh = RefreshToken.for_user(user)
         
-        # Redirect to frontend with token
+        # Redirect to frontend with token - use dynamic FRONTEND_URL
         frontend_url = settings.FRONTEND_URL
         # Ensure we're using the correct URL format and encoding tokens properly
         redirect_url = f"{frontend_url}/auth/callback#{urlencode({'access_token': str(refresh.access_token), 'refresh_token': str(refresh)})}"
@@ -406,7 +406,9 @@ def google_callback(request):
         
         return HttpResponseRedirect(redirect_url)
     except Exception as e:
-        return Response({"error": str(e)}, status=500)
+        print(f"Google callback error: {str(e)}")
+        # Redirect to frontend with error - use dynamic FRONTEND_URL  
+        return HttpResponseRedirect(f"{settings.FRONTEND_URL}/signin?auth_error=callback_failed")
 
 
 @api_view(['POST'])
@@ -496,5 +498,6 @@ def password_reset_redirect(request, key):
     This handles the case where users click password reset links from emails
     and redirects them to the frontend with the reset key.
     """
+    # Use dynamic FRONTEND_URL instead of hardcoded localhost
     frontend_url = f"{settings.FRONTEND_URL}/accounts/password/reset/key/{key}"
     return HttpResponseRedirect(frontend_url)

@@ -63,3 +63,35 @@ INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'collectfasta']
 # Remove COLLECTFASTA_STRATEGY entirely so it doesn't interfere
 if 'COLLECTFASTA_STRATEGY' in globals():
     del COLLECTFASTA_STRATEGY
+
+# Add this to the end of backend/config/settings/cloudrun.py
+
+# Frontend URLs - Production overrides
+# ------------------------------------------------------------------------------
+FRONTEND_URL = env("FRONTEND_URL", default="https://bunklogs.net")
+SPA_URL = FRONTEND_URL
+
+# Override redirect URLs for production
+LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f"{FRONTEND_URL}/dashboard")
+ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRONTEND_URL}/signin")
+
+# Update CORS settings for production
+CORS_ALLOWED_ORIGINS = [
+    "https://bunklogs.net",
+    "https://www.bunklogs.net",
+]
+
+# Update CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = [
+    'https://bunklogs.net',
+    'https://www.bunklogs.net', 
+]
+
+# Override allowed hosts for Cloud Run (remove localhost)
+ALLOWED_HOSTS = [
+    "bunklogs.net",
+    "www.bunklogs.net",
+    "*.run.app", 
+    "bunk-logs-backend-461994890254.us-central1.run.app",
+    "bunk-logs-backend-koumwfa74a-uc.a.run.app",
+]
