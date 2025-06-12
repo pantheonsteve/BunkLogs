@@ -4,6 +4,17 @@ from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
 from .base import env
 
+# Load local environment variables
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
+
+# Load environment variables from .envs/.local/.django
+env_file = BASE_DIR / ".envs" / ".local" / ".django"
+if env_file.exists():
+    env.read_env(str(env_file))
+
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#debug
@@ -87,9 +98,12 @@ DEBUG_TOOLBAR_CONFIG = {
 INTERNAL_IPS = ["127.0.0.1", "10.0.2.2"]
 if env("USE_DOCKER") == "yes":
     import socket
-
-    hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
-    INTERNAL_IPS += [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
+    try:
+        hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+        INTERNAL_IPS += [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
+    except socket.gaierror:
+        # Fallback for containerized environments where hostname resolution fails
+        pass
 
 # django-extensions
 # ------------------------------------------------------------------------------
