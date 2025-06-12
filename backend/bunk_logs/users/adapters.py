@@ -15,6 +15,16 @@ class AccountAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request: HttpRequest) -> bool:
         return getattr(settings, "ACCOUNT_ALLOW_REGISTRATION", True)
 
+    def get_email_confirmation_url(self, request, emailconfirmation):
+        """Constructs the email confirmation (activation) url."""
+        # Use dynamic FRONTEND_URL from settings
+        return f"{settings.FRONTEND_URL}/verify-email/{emailconfirmation.key}"
+    
+    def get_password_reset_url(self, request, passwordreset):
+        """Constructs the password reset url."""
+        # Use dynamic FRONTEND_URL from settings
+        return f"{settings.FRONTEND_URL}/accounts/password/reset/key/{passwordreset.key}"
+
     def get_login_redirect_url(self, request):
         """
         Override to redirect to frontend after login
@@ -45,7 +55,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 user = User.objects.get(email=email)
                 # Connect the social account to this user and login
                 sociallogin.connect(request, user)
-                # Skip the rest of the social login flow and redirect
+                # Skip the rest of the social login flow and redirect using dynamic URL
                 return HttpResponseRedirect(settings.LOGIN_REDIRECT_URL)
             except User.DoesNotExist:
                 # No existing user, continue with normal flow
