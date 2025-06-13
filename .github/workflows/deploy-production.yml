@@ -130,7 +130,56 @@ jobs:
 
       - name: Build and submit to Cloud Build
         working-directory: ./backend
-        run: gcloud builds submit --config cloudbuild.yaml .
+        run: |
+          echo "🏗️ Starting Cloud Build..."
+          
+          # Submit build asynchronously to avoid log streaming issues
+          BUILD_ID=$(gcloud builds submit \
+            --config cloudbuild.yaml \
+            --format="value(metadata.build.id)" \
+            --async \
+            .)
+          
+          echo "✅ Build submitted successfully with ID: $BUILD_ID"
+          echo "📋 Build URL: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
+          
+          # Poll for build completion
+          echo "⏳ Waiting for build to complete..."
+          TIMEOUT=1800  # 30 minutes
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(gcloud builds describe $BUILD_ID --format="value(status)" 2>/dev/null || echo "UNKNOWN")
+            
+            case $STATUS in
+              "SUCCESS")
+                echo "✅ Build completed successfully!"
+                echo "🐳 Verifying container image..."
+                gcloud container images list-tags us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django --limit=3
+                exit 0
+                ;;
+              "FAILURE"|"TIMEOUT"|"CANCELLED")
+                echo "❌ Build failed with status: $STATUS"
+                echo "📋 Check logs at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
+                
+                # Try to get some error details
+                gcloud builds describe $BUILD_ID --format="value(failureInfo.detail)" 2>/dev/null || true
+                exit 1
+                ;;
+              "WORKING"|"QUEUED")
+                echo "🔄 Build status: $STATUS (${ELAPSED}s elapsed)"
+                ;;
+              *)
+                echo "⚠️  Unknown status: $STATUS (${ELAPSED}s elapsed)"
+                ;;
+            esac
+            
+            sleep 30
+            ELAPSED=$((ELAPSED + 30))
+          done
+          
+          echo "❌ Build timed out after ${TIMEOUT} seconds"
+          exit 1
 
       - name: Deploy to Cloud Run (no traffic)
         working-directory: ./backend
