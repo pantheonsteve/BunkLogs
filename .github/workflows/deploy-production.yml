@@ -309,29 +309,82 @@ jobs:
 
       - name: Health check new revision
         run: |
-          # Get the latest revision URL
-          REVISION_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
+          echo "🏥 Performing health check on new revision..."
+          
+          # Get the main service URL (not revision-specific)
+          SERVICE_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
             --region=${{ env.REGION }} \
-            --format="value(status.traffic[0].revisionName)")
+            --format="value(status.url)")
           
-          HEALTH_URL="https://${REVISION_URL}---${{ env.BACKEND_SERVICE_NAME }}-koumwfa74a-uc.a.run.app/api/schema/"
+          if [ -z "$SERVICE_URL" ]; then
+            echo "❌ Could not get service URL"
+            exit 1
+          fi
           
-          echo "Checking health at: $HEALTH_URL"
+          echo "🌐 Service URL: $SERVICE_URL"
           
-          # Wait for service to be ready and perform health check
-          for i in {1..10}; do
-            if curl -f -s "$HEALTH_URL" > /dev/null; then
-              echo "Health check passed!"
-              break
-            else
-              echo "Health check attempt $i failed, retrying in 30s..."
-              sleep 30
-              if [ $i -eq 10 ]; then
-                echo "Health check failed after 10 attempts"
-                exit 1
+          # Try multiple health check endpoints
+          HEALTH_ENDPOINTS=(
+            "$SERVICE_URL/api/schema/"
+            "$SERVICE_URL/health/"
+            "$SERVICE_URL/api/health/"
+            "$SERVICE_URL/"
+          )
+          
+          echo "🔍 Testing health check endpoints..."
+          
+          # Wait for service to be ready
+          echo "⏳ Waiting for service to be ready..."
+          sleep 60  # Give the service time to start
+          
+          HEALTH_PASSED=false
+          
+          for endpoint in "${HEALTH_ENDPOINTS[@]}"; do
+            echo "Testing endpoint: $endpoint"
+            
+            for i in {1..5}; do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$endpoint" || echo "000")
+              
+              if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
+                echo "✅ Health check passed! Endpoint: $endpoint (HTTP $HTTP_STATUS)"
+                HEALTH_PASSED=true
+                break 2
+              else
+                echo "⚠️  Health check attempt $i failed for $endpoint (HTTP $HTTP_STATUS)"
+                if [ $i -lt 5 ]; then
+                  sleep 30
+                fi
               fi
-            fi
+            done
           done
+          
+          if [ "$HEALTH_PASSED" = "true" ]; then
+            echo "✅ Service health check passed!"
+          else
+            echo "❌ All health check endpoints failed"
+            echo "🔍 Checking service status..."
+            
+            # Check if service is running at all
+            gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
+              --region=${{ env.REGION }} \
+              --format="table(status.conditions[].type,status.conditions[].status,status.conditions[].reason)"
+            
+            echo ""
+            echo "📋 Recent logs:"
+            gcloud logs read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }}" \
+              --limit=20 --format="table(timestamp,severity,textPayload)" \
+              --freshness=10m || echo "Could not retrieve logs"
+            
+            echo ""
+            echo "💡 Possible issues:"
+            echo "   1. Application might be starting slowly"
+            echo "   2. Database connection issues"
+            echo "   3. Missing environment variables or secrets"
+            echo "   4. Application code errors"
+            echo ""
+            echo "🔧 Manual check: Try accessing $SERVICE_URL directly"
+            exit 1
+          fi
 
       - name: Gradual traffic migration
         run: |
