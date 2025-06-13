@@ -121,12 +121,21 @@ npm test
 - ✅ GitHub Actions: Compatible with both test frameworks
 - ✅ Google Cloud: Authentication working, Cloud Build successful
 - ✅ Service Account: Fresh key with all required permissions
+- ✅ Backend Deployment: Live at https://bunk-logs-backend-koumwfa74a-uc.a.run.app
+- ✅ Frontend Deployment: Live at https://storage.googleapis.com/bunk-logs-frontend-prod/index.html
 
 ## Next Steps
-1. The GitHub Actions pipeline should now run successfully
-2. Both backend and frontend tests are working locally and in CI
-3. Proper security controls are in place for API access
-4. Future frontend tests can be added to the existing Vitest setup
+1. ✅ The GitHub Actions pipeline is now running successfully
+2. ✅ Both backend and frontend tests are working locally and in CI
+3. ✅ Proper security controls are in place for API access
+4. ✅ Backend deployed successfully to Cloud Run
+5. ✅ Frontend deployed successfully to Cloud Storage  
+6. ✅ Both applications are live and accessible
+7. Future frontend tests can be added to the existing Vitest setup
+
+## Production URLs
+- **Backend API**: https://bunk-logs-backend-koumwfa74a-uc.a.run.app
+- **Frontend**: https://storage.googleapis.com/bunk-logs-frontend-prod/index.html
 
 ## Verification Commands
 ```bash
@@ -136,8 +145,11 @@ cd backend && ./dev.sh test
 # Frontend tests  
 cd frontend && npm test
 
-# Full CI simulation
-# Both commands should complete successfully
+# Backend health check
+curl -I https://bunk-logs-backend-koumwfa74a-uc.a.run.app/api/schema/
+
+# Frontend accessibility 
+curl -I https://storage.googleapis.com/bunk-logs-frontend-prod/index.html
 ```
 
-All issues have been resolved and the CI/CD pipeline should now work correctly!
+All issues have been resolved and the CI/CD pipeline is now working correctly! Both backend and frontend applications are successfully deployed and accessible in production.
