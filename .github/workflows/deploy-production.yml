@@ -1,0 +1,409 @@
+# .github/workflows/deploy-production.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggers
+
+env:
+  PROJECT_ID: bunklogsauth
+  REGION: us-central1
+  BACKEND_SERVICE_NAME: bunk-logs-backend
+  FRONTEND_BUCKET: bunk-logs-frontend-prod
+  REGISTRY: us-central1-docker.pkg.dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_bunk_logs
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          pip install -r requirements/local.txt
+
+      - name: Run backend tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_bunk_logs
+          REDIS_URL: redis://localhost:6379/0
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: test-secret-key
+        run: |
+          python manage.py test
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: ./frontend
+        run: npm test -- --watchAll=false
+
+      - name: Build frontend
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: https://bunk-logs-backend-koumwfa74a-uc.a.run.app
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: npm run build
+
+  deploy-backend:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Create environment variables file
+        working-directory: ./backend
+        run: |
+          cat > env.yaml << EOF
+          DEBUG: "False"
+          GOOGLE_CLOUD_PROJECT: "${{ env.PROJECT_ID }}"
+          USE_CLOUD_SQL_AUTH_PROXY: "True"
+          GS_BUCKET_NAME: "bunk-logs-static"
+          DJANGO_SETTINGS_MODULE: "config.settings.production_gcs"
+          POSTGRES_USER: "stevebresnick"
+          POSTGRES_HOST: "/cloudsql/bunklogsauth:us-central1:bunk-logs"
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: "bunk-logs-clc"
+          DJANGO_ALLOWED_HOSTS: "bunklogs.net,*.run.app,bunk-logs-backend-koumwfa74a-uc.a.run.app,bunk-logs-backend-461994890254.us-central1.run.app"
+          FRONTEND_URL: "https://bunklogs.net"
+          EOF
+
+      - name: Build and submit to Cloud Build
+        working-directory: ./backend
+        run: gcloud builds submit --config cloudbuild.yaml .
+
+      - name: Deploy to Cloud Run (no traffic)
+        working-directory: ./backend
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE_NAME }} \
+            --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/bunk-logs/django:latest \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:bunk-logs \
+            --port=8080 \
+            --execution-environment=gen2 \
+            --env-vars-file=env.yaml \
+            --set-secrets="POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest" \
+            --max-instances=10 \
+            --min-instances=0 \
+            --memory=1Gi \
+            --cpu=1 \
+            --timeout=900 \
+            --no-traffic
+
+      - name: Run database migrations
+        run: |
+          gcloud run jobs execute migrate-job --region=${{ env.REGION }} --wait || \
+          (
+            echo "Migration job doesn't exist, creating and executing..."
+            gcloud run jobs create migrate-job \
+              --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/bunk-logs/django:latest \
+              --region=${{ env.REGION }} \
+              --task-timeout=900 \
+              --max-retries=3 \
+              --parallelism=1 \
+              --cpu=1 \
+              --memory=1Gi \
+              --set-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:bunk-logs \
+              --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},USE_CLOUD_SQL_AUTH_PROXY=True,DJANGO_SETTINGS_MODULE=config.settings.production_gcs,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc \
+              --set-secrets=POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest \
+              --command=python \
+              --args=manage.py,migrate \
+              --execute-now \
+              --wait
+          )
+
+      - name: Collect static files
+        run: |
+          gcloud run jobs execute collectstatic-job --region=${{ env.REGION }} --wait || \
+          (
+            echo "Collectstatic job doesn't exist, creating and executing..."
+            gcloud run jobs create collectstatic-job \
+              --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/bunk-logs/django:latest \
+              --region=${{ env.REGION }} \
+              --task-timeout=900 \
+              --max-retries=3 \
+              --parallelism=1 \
+              --cpu=1 \
+              --memory=1Gi \
+              --set-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:bunk-logs \
+              --set-env-vars=DEBUG=False,GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},USE_CLOUD_SQL_AUTH_PROXY=True,GS_BUCKET_NAME=bunk-logs-static,DJANGO_SETTINGS_MODULE=config.settings.production_gcs,POSTGRES_USER=stevebresnick,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_DB=bunk-logs-clc \
+              --set-secrets=POSTGRES_PASSWORD=DB_PASSWORD:latest,DATABASE_URL=DATABASE_URL:latest,DJANGO_SECRET_KEY=DJANGO_SECRET_KEY:latest \
+              --command=python \
+              --args=manage.py,collectstatic,--noinput \
+              --execute-now \
+              --wait
+          )
+
+      - name: Health check new revision
+        run: |
+          # Get the latest revision URL
+          REVISION_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format="value(status.traffic[0].revisionName)")
+          
+          HEALTH_URL="https://${REVISION_URL}---${{ env.BACKEND_SERVICE_NAME }}-koumwfa74a-uc.a.run.app/api/schema/"
+          
+          echo "Checking health at: $HEALTH_URL"
+          
+          # Wait for service to be ready and perform health check
+          for i in {1..10}; do
+            if curl -f -s "$HEALTH_URL" > /dev/null; then
+              echo "Health check passed!"
+              break
+            else
+              echo "Health check attempt $i failed, retrying in 30s..."
+              sleep 30
+              if [ $i -eq 10 ]; then
+                echo "Health check failed after 10 attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Gradual traffic migration
+        run: |
+          echo "Starting gradual traffic migration..."
+          
+          # Shift 10% traffic to new revision
+          gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
+            --to-latest=10 \
+            --region=${{ env.REGION }}
+          
+          echo "10% traffic shifted, waiting 2 minutes..."
+          sleep 120
+          
+          # Check for errors in logs
+          ERROR_COUNT=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${{ env.BACKEND_SERVICE_NAME }}\" AND severity>=ERROR" \
+            --limit=10 --format="value(timestamp)" --freshness=5m | wc -l)
+          
+          if [ "$ERROR_COUNT" -gt 5 ]; then
+            echo "Too many errors detected, rolling back..."
+            gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
+              --to-latest=0 \
+              --region=${{ env.REGION }}
+            exit 1
+          fi
+          
+          # Shift 50% traffic
+          gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
+            --to-latest=50 \
+            --region=${{ env.REGION }}
+          
+          echo "50% traffic shifted, waiting 2 minutes..."
+          sleep 120
+          
+          # Final health check
+          ERROR_COUNT=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${{ env.BACKEND_SERVICE_NAME }}\" AND severity>=ERROR" \
+            --limit=10 --format="value(timestamp)" --freshness=5m | wc -l)
+          
+          if [ "$ERROR_COUNT" -gt 5 ]; then
+            echo "Too many errors detected, rolling back..."
+            gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
+              --to-latest=0 \
+              --region=${{ env.REGION }}
+            exit 1
+          fi
+          
+          # Shift 100% traffic
+          gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
+            --to-latest=100 \
+            --region=${{ env.REGION }}
+          
+          echo "✅ Backend deployment completed successfully!"
+
+  deploy-frontend:
+    needs: [test, deploy-backend]
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: https://bunk-logs-backend-koumwfa74a-uc.a.run.app
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Create frontend bucket if not exists
+        run: |
+          gsutil ls gs://${{ env.FRONTEND_BUCKET }} || \
+          (
+            gsutil mb gs://${{ env.FRONTEND_BUCKET }}
+            gsutil web set -m index.html -e 404.html gs://${{ env.FRONTEND_BUCKET }}
+            gsutil iam ch allUsers:objectViewer gs://${{ env.FRONTEND_BUCKET }}
+          )
+
+      - name: Deploy frontend to Cloud Storage
+        working-directory: ./frontend
+        run: |
+          # Deploy with cache-busting and proper headers
+          gsutil -m rsync -r -d -c \
+            -x '.*\.map$' \
+            dist/ gs://${{ env.FRONTEND_BUCKET }}/
+          
+          # Set cache headers
+          gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
+            "gs://${{ env.FRONTEND_BUCKET }}/assets/**"
+          
+          gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
+            "gs://${{ env.FRONTEND_BUCKET }}/index.html"
+
+      - name: Setup Cloud CDN (if not exists)
+        run: |
+          # Check if CDN already exists
+          if ! gcloud compute backend-buckets describe bunk-logs-frontend-backend --global 2>/dev/null; then
+            echo "Setting up Cloud CDN..."
+            
+            # Create backend bucket
+            gcloud compute backend-buckets create bunk-logs-frontend-backend \
+              --gcs-bucket-name=${{ env.FRONTEND_BUCKET }} \
+              --global
+            
+            # Create URL map
+            gcloud compute url-maps create bunk-logs-frontend-map \
+              --default-backend-bucket=bunk-logs-frontend-backend \
+              --global
+            
+            # Create HTTPS certificate (you'll need to configure DNS)
+            gcloud compute ssl-certificates create bunk-logs-frontend-ssl \
+              --domains=bunklogs.net \
+              --global
+            
+            # Create HTTPS proxy
+            gcloud compute target-https-proxies create bunk-logs-frontend-proxy \
+              --url-map=bunk-logs-frontend-map \
+              --ssl-certificates=bunk-logs-frontend-ssl \
+              --global
+            
+            # Create forwarding rule
+            gcloud compute forwarding-rules create bunk-logs-frontend-forwarding-rule \
+              --global \
+              --target-https-proxy=bunk-logs-frontend-proxy \
+              --ports=443
+            
+            echo "CDN setup complete. You'll need to configure DNS to point to the load balancer IP."
+            gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)"
+          else
+            echo "CDN already exists, skipping setup."
+          fi
+
+      - name: Invalidate CDN cache
+        run: |
+          # Invalidate CDN cache for immediate updates
+          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
+            --path="/*" \
+            --global || echo "CDN cache invalidation failed, but deployment continues"
+
+      - name: Frontend health check
+        run: |
+          echo "Frontend deployed to: https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
+          
+          # Basic health check
+          if curl -f -s "https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html" > /dev/null; then
+            echo "✅ Frontend deployment successful!"
+          else
+            echo "⚠️ Frontend health check failed, but files were deployed"
+          fi
+
+  notify:
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "🚀 Deployment Summary:"
+          echo "Backend: ${{ needs.deploy-backend.result }}"
+          echo "Frontend: ${{ needs.deploy-frontend.result }}"
+          echo ""
+          echo "🌐 Application URLs:"
+          echo "Backend API: https://bunk-logs-backend-koumwfa74a-uc.a.run.app"
+          echo "Frontend: https://bunklogs.net (after DNS configuration)"
+          echo "Frontend (direct): https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
