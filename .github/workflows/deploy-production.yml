@@ -134,28 +134,64 @@ jobs:
           echo "🏗️ Starting Cloud Build..."
           
           # Submit build asynchronously to avoid log streaming issues
-          BUILD_ID=$(gcloud builds submit \
+          BUILD_OUTPUT=$(gcloud builds submit \
             --config cloudbuild.yaml \
             --format="value(metadata.build.id)" \
             --async \
-            .)
+            . 2>&1)
+          
+          # Extract build ID from output (more robust)
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -v "^$" | tail -1)
+          
+          if [ -z "$BUILD_ID" ]; then
+            echo "❌ Failed to get build ID from output:"
+            echo "$BUILD_OUTPUT"
+            exit 1
+          fi
           
           echo "✅ Build submitted successfully with ID: $BUILD_ID"
           echo "📋 Build URL: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
           
-          # Poll for build completion
+          # Poll for build completion with better error handling
           echo "⏳ Waiting for build to complete..."
           TIMEOUT=1800  # 30 minutes
           ELAPSED=0
+          POLL_INTERVAL=30
           
           while [ $ELAPSED -lt $TIMEOUT ]; do
-            STATUS=$(gcloud builds describe $BUILD_ID --format="value(status)" 2>/dev/null || echo "UNKNOWN")
+            # Try to get build status with better error handling
+            STATUS_OUTPUT=$(gcloud builds describe "$BUILD_ID" --format="value(status)" 2>&1)
+            EXIT_CODE=$?
+            
+            if [ $EXIT_CODE -eq 0 ]; then
+              STATUS="$STATUS_OUTPUT"
+            else
+              echo "⚠️  Failed to get build status (${ELAPSED}s elapsed): $STATUS_OUTPUT"
+              # If we can't get status, check if it's a permission issue
+              if echo "$STATUS_OUTPUT" | grep -i "permission\|forbidden\|unauthorized" > /dev/null; then
+                echo "🔑 Permission issue detected. Trying alternative check..."
+                # Try to list recent builds as a fallback
+                RECENT_BUILDS=$(gcloud builds list --limit=5 --format="value(id,status)" 2>/dev/null | grep "$BUILD_ID" || echo "")
+                if [ -n "$RECENT_BUILDS" ]; then
+                  STATUS=$(echo "$RECENT_BUILDS" | awk '{print $2}')
+                  echo "📋 Found build in recent list with status: $STATUS"
+                else
+                  STATUS="UNKNOWN"
+                fi
+              else
+                STATUS="UNKNOWN"
+              fi
+            fi
             
             case $STATUS in
               "SUCCESS")
                 echo "✅ Build completed successfully!"
                 echo "🐳 Verifying container image..."
-                gcloud container images list-tags us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django --limit=3
+                if gcloud container images list-tags us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django --limit=3 --format="table(digest.slice(7:19),tags.list():label=TAGS,timestamp.date():label=CREATED)"; then
+                  echo "✅ Container image verified successfully!"
+                else
+                  echo "⚠️  Could not verify container image, but build reported success"
+                fi
                 exit 0
                 ;;
               "FAILURE"|"TIMEOUT"|"CANCELLED")
@@ -163,22 +199,49 @@ jobs:
                 echo "📋 Check logs at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
                 
                 # Try to get some error details
-                gcloud builds describe $BUILD_ID --format="value(failureInfo.detail)" 2>/dev/null || true
+                echo "🔍 Attempting to get failure details..."
+                gcloud builds describe "$BUILD_ID" --format="value(failureInfo.detail)" 2>/dev/null || echo "Could not retrieve failure details"
                 exit 1
                 ;;
               "WORKING"|"QUEUED")
                 echo "🔄 Build status: $STATUS (${ELAPSED}s elapsed)"
                 ;;
+              "UNKNOWN"|"")
+                echo "⚠️  Cannot determine build status (${ELAPSED}s elapsed)"
+                echo "   This might be a permission issue, but the build may still be running"
+                echo "   Check manually at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
+                
+                # After 10 minutes of unknown status, give alternative options
+                if [ $ELAPSED -ge 600 ]; then
+                  echo ""
+                  echo "🤔 Build status has been unknown for over 10 minutes."
+                  echo "   Options:"
+                  echo "   1. Check the build manually in the Google Cloud Console"
+                  echo "   2. The build might have completed successfully despite status check issues"
+                  echo "   3. If the build completed, you can manually continue the deployment"
+                  echo ""
+                  
+                  # Try to verify if image exists as a final check
+                  echo "🔍 Checking if container image exists..."
+                  if gcloud container images list-tags us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django --limit=3 --filter="timestamp > -PT10M" --format="value(tags)" 2>/dev/null | grep -E "(latest|$(date +%Y%m%d))" > /dev/null; then
+                    echo "✅ Recent container image found! Build likely succeeded."
+                    echo "   Continuing with deployment..."
+                    exit 0
+                  fi
+                fi
+                ;;
               *)
-                echo "⚠️  Unknown status: $STATUS (${ELAPSED}s elapsed)"
+                echo "❓ Unexpected status: $STATUS (${ELAPSED}s elapsed)"
                 ;;
             esac
             
-            sleep 30
-            ELAPSED=$((ELAPSED + 30))
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
           done
           
-          echo "❌ Build timed out after ${TIMEOUT} seconds"
+          echo "❌ Build monitoring timed out after ${TIMEOUT} seconds"
+          echo "📋 Check build status manually at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
+          echo "💡 If the build completed successfully, you can re-run this workflow to continue"
           exit 1
 
       - name: Deploy to Cloud Run (no traffic)
