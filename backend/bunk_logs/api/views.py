@@ -254,8 +254,28 @@ class BunkLogsInfoByDateViewSet(APIView):
     If no bunk logs are found, the response will return an empty list.
     """
     renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request, bunk_id, date):
+        # Import Bunk at the beginning
+        from bunks.models import Bunk
+        
+        # Check permissions first
+        user = request.user
+        
+        # Admin/staff can access all bunks
+        if not (user.is_staff or user.role == 'Admin'):
+            # Unit heads can access bunks in their units
+            if user.role == 'Unit Head':
+                if not Bunk.objects.filter(id=bunk_id, unit__unit_head=user).exists():
+                    return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
+            # Counselors can only access their assigned bunks
+            elif user.role == 'Counselor':
+                if not Bunk.objects.filter(id=bunk_id, counselors__id=user.id).exists():
+                    return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
+            else:
+                return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
+        
         try:
             # Get the bunk
             bunk = Bunk.objects.get(id=bunk_id)
