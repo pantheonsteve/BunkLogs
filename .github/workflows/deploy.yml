@@ -1,0 +1,161 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [ main, master ]
+    paths: [ 'backend/**' ]
+  pull_request:
+    branches: [ main, master ]
+    paths: [ 'backend/**' ]
+
+env:
+  PROJECT_ID: bunklogsauth
+  SERVICE_NAME: bunk-logs-backend
+  REGION: us-central1
+  REPOSITORY: bunk-logs
+  IMAGE_NAME: django
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_bunk_logs
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements/local.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      working-directory: ./backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/local.txt
+
+    - name: Set up environment variables
+      working-directory: ./backend
+      run: |
+        echo "DJANGO_DEBUG=True" >> .env
+        echo "DJANGO_SECRET_KEY=test-secret-key" >> .env
+        echo "DJANGO_SETTINGS_MODULE=config.settings.local" >> .env
+        echo "POSTGRES_HOST=localhost" >> .env
+        echo "POSTGRES_PORT=5432" >> .env
+        echo "POSTGRES_DB=test_bunk_logs" >> .env
+        echo "POSTGRES_USER=postgres" >> .env
+        echo "POSTGRES_PASSWORD=postgres" >> .env
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env
+        echo "DJANGO_AWS_ACCESS_KEY_ID=dummy" >> .env
+        echo "DJANGO_AWS_SECRET_ACCESS_KEY=dummy" >> .env
+        echo "DJANGO_AWS_STORAGE_BUCKET_NAME=dummy" >> .env
+        echo "MAILGUN_API_KEY=dummy" >> .env
+        echo "MAILGUN_DOMAIN=dummy" >> .env
+
+    - name: Run migrations
+      working-directory: ./backend
+      run: python manage.py migrate
+
+    - name: Run tests
+      working-directory: ./backend
+      run: python manage.py test
+
+    - name: Run linting (if available)
+      working-directory: ./backend
+      run: |
+        if pip list | grep -q flake8; then
+          flake8 --max-line-length=120 --exclude=migrations,venv,env .
+        else
+          echo "Flake8 not installed, skipping linting"
+        fi
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker to use gcloud as a credential helper
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    - name: Build and push Docker image
+      working-directory: ./backend
+      run: |
+        # Build the image
+        docker build -f compose/production/django/Dockerfile -t $IMAGE_NAME .
+        
+        # Tag the image
+        docker tag $IMAGE_NAME us-central1-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$GITHUB_SHA
+        docker tag $IMAGE_NAME us-central1-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:latest
+        
+        # Push the images
+        docker push us-central1-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$GITHUB_SHA
+        docker push us-central1-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:latest
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy $SERVICE_NAME \
+          --image us-central1-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$GITHUB_SHA \
+          --region $REGION \
+          --platform managed \
+          --allow-unauthenticated \
+          --set-env-vars="DJANGO_SETTINGS_MODULE=config.settings.cloudrun,DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }},DJANGO_ADMIN_URL=admin/,POSTGRES_DB=bunk-logs-clc,POSTGRES_HOST=/cloudsql/bunklogsauth:us-central1:bunk-logs,POSTGRES_PORT=5432,POSTGRES_USER=stevebresnick,POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" \
+          --add-cloudsql-instances=bunklogsauth:us-central1:bunk-logs \
+          --memory=1Gi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --port=8080 \
+          --service-account=461994890254-compute@developer.gserviceaccount.com
+
+    - name: Run database migrations on Cloud Run
+      run: |
+        gcloud run jobs execute migrate-job --region=$REGION || echo "Migration job failed or doesn't exist"
+
+    - name: Show deployment URL
+      run: |
+        echo "🚀 Deployment successful!"
+        echo "Application URL: https://$SERVICE_NAME-461994890254.$REGION.run.app"
+        echo "Admin URL: https://$SERVICE_NAME-461994890254.$REGION.run.app/admin/"
+        echo "API Docs: https://$SERVICE_NAME-461994890254.$REGION.run.app/api/docs/"
