@@ -43,6 +43,22 @@
 
 **Result**: CI pipeline compatible with Vitest ✅
 
+### 4. Google Cloud Authentication Issues
+**Problem**: GitHub Actions failing with "Invalid JWT Signature" error
+
+**Root Causes**: 
+- Expired/invalid service account key in GitHub secrets
+- Missing Cloud Build service account permissions
+
+**Solutions Applied**:
+- ✅ Regenerated fresh service account key with new key ID: `082ddb25a71c64afe0de3a64b14e55bae5fdd90c`
+- ✅ Added missing IAM roles: `serviceAccountTokenCreator`, `securityAdmin`, `builds.editor`
+- ✅ Updated `cloudbuild.yaml` to use GitHub Actions service account directly
+- ✅ Added `CLOUD_LOGGING_ONLY` configuration for custom service account
+- ✅ Updated `GCP_SA_KEY` secret in GitHub repository
+
+**Result**: Authentication working, Cloud Build successful ✅
+
 ## Files Modified
 
 ### Backend
@@ -58,6 +74,8 @@
 
 ### CI/CD
 1. `.github/workflows/deploy-production.yml` - Removed incompatible `--watchAll=false` flag
+2. `backend/cloudbuild.yaml` - Added GitHub Actions service account and logging configuration
+3. `scripts/regenerate-gcp-key.sh` - Added additional IAM roles for Cloud Build support
 
 ## Test Results
 
@@ -101,6 +119,8 @@ npm test
 - ✅ Backend: All 9 tests passing
 - ✅ Frontend: All 4 tests passing  
 - ✅ GitHub Actions: Compatible with both test frameworks
+- ✅ Google Cloud: Authentication working, Cloud Build successful
+- ✅ Service Account: Fresh key with all required permissions
 
 ## Next Steps
 1. The GitHub Actions pipeline should now run successfully
