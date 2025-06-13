@@ -132,9 +132,11 @@ class BunkLogSerializer(serializers.ModelSerializer):
     For POST requests, you need to provide:
     - date
     - bunk_assignment (id)
-    - counselor (id)
     - other fields as needed
+    Note: counselor is automatically set to the current user
     """
+    counselor = serializers.PrimaryKeyRelatedField(read_only=True)  # Make counselor read-only
+    
     class Meta:
         model = BunkLog
         fields = '__all__'
