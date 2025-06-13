@@ -56,9 +56,12 @@ REQUIRED_ROLES=(
     "roles/storage.admin"
     "roles/artifactregistry.writer"
     "roles/cloudbuild.builds.builder"
+    "roles/cloudbuild.builds.editor"
     "roles/secretmanager.secretAccessor"
     "roles/logging.viewer"
     "roles/compute.loadBalancerAdmin"
+    "roles/iam.serviceAccountTokenCreator"
+    "roles/iam.securityAdmin"
 )
 
 for role in "${REQUIRED_ROLES[@]}"; do
@@ -96,6 +99,19 @@ if [ ! -z "$EXISTING_KEYS" ]; then
         fi
     done
 fi
+
+# Add service account impersonation permission for Cloud Build
+echo "🔐 Adding Cloud Build service account impersonation permission..."
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
+COMPUTE_SA="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+
+echo "Granting permission to impersonate: $COMPUTE_SA"
+gcloud iam service-accounts add-iam-policy-binding \
+    $COMPUTE_SA \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/iam.serviceAccountUser" \
+    --project=$PROJECT_ID \
+    --quiet
 
 # Generate new key
 echo "🔑 Generating new service account key..."
