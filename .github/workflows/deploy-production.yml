@@ -136,12 +136,11 @@ jobs:
           # Submit build asynchronously to avoid log streaming issues
           BUILD_OUTPUT=$(gcloud builds submit \
             --config cloudbuild.yaml \
-            --format="value(metadata.build.id)" \
             --async \
             . 2>&1)
           
-          # Extract build ID from output (more robust)
-          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -v "^$" | tail -1)
+          # Extract build ID from the output URL (more robust)
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -o 'builds/[a-f0-9-]*' | head -1 | cut -d'/' -f2)
           
           if [ -z "$BUILD_ID" ]; then
             echo "❌ Failed to get build ID from output:"
