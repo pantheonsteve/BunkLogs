@@ -10,6 +10,7 @@
 - Missing serializer field configuration
 - Inadequate permission controls
 
+
 **Solutions Applied**:
 - ✅ Fixed URL names: `'bunk-logs-info'` → `'bunklog-by-date'`, `'bunklogs-list'` → `'bunklog-list'`
 - ✅ Made `counselor` field read-only in `BunkLogSerializer` (auto-set by view)
