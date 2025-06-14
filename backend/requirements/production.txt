@@ -16,6 +16,7 @@ django-anymail[mailgun]==12.0  # https://github.com/anymail/django-anymail
 # Render.com
 # ------------------------------------------------------------------------------
 dj-database-url
+whitenoise[brotli]
 
 # Datadog
 # ------------------------------------------------------------------------------
