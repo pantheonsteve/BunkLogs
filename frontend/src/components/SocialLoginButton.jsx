@@ -4,14 +4,14 @@ import { useEffect } from "react";
 function SocialLoginButton({ provider = "GoogleOAuth" }) {
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/get-csrf-token/", {
+    fetch(`http://${backendUrl}/api/get-csrf-token/`, {
       credentials: "include"
     });
   }, []);
 
   const handleLogin = () => {
     // Get backend URL from env or default
-    const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+    const backendUrl = import.meta.env.VITE_API_URL || `http://${backendUrl}`;
     // Set callback URL to be full absolute URL
     const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
     const callbackUrl = `${backendUrl}/api/auth/google/callback/`;
