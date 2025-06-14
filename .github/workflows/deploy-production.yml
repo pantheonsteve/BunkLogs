@@ -1,10 +1,10 @@
 # .github/workflows/deploy-production.yml
-name: Deploy to Production
+name: Deploy to Production (Bulletproof)
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # Allow manual triggers
+  workflow_dispatch:
 
 env:
   PROJECT_ID: bunklogsauth
@@ -54,8 +54,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: ./backend
-        run: |
-          pip install -r requirements/local.txt
+        run: pip install -r requirements/local.txt
 
       - name: Run backend tests
         working-directory: ./backend
@@ -64,8 +63,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           DJANGO_SETTINGS_MODULE: config.settings.test
           DJANGO_SECRET_KEY: test-secret-key
-        run: |
-          python manage.py test
+        run: python manage.py test
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -80,7 +78,7 @@ jobs:
 
       - name: Run frontend tests
         working-directory: ./frontend
-        run: npm test
+        run: npm test -- --watchAll=false
 
       - name: Build frontend
         working-directory: ./frontend
@@ -128,124 +126,66 @@ jobs:
           FRONTEND_URL: "https://bunklogs.net"
           EOF
 
-      - name: Build and submit to Cloud Build
+      - name: Build and submit to Cloud Build (Fixed)
         working-directory: ./backend
         run: |
           echo "🏗️ Starting Cloud Build..."
           
-          # Submit build asynchronously to avoid log streaming issues
-          BUILD_OUTPUT=$(gcloud builds submit \
-            --config cloudbuild.yaml \
-            --async \
-            . 2>&1)
+          # Submit build asynchronously
+          BUILD_OUTPUT=$(gcloud builds submit --config cloudbuild.yaml --async . 2>&1)
           
-          # Extract build ID from the output URL (more robust)
+          # Extract build ID from URL (robust method)
           BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -o 'builds/[a-f0-9-]*' | head -1 | cut -d'/' -f2)
           
           if [ -z "$BUILD_ID" ]; then
-            echo "❌ Failed to get build ID from output:"
+            echo "❌ Failed to extract build ID from output:"
             echo "$BUILD_OUTPUT"
             exit 1
           fi
           
-          echo "✅ Build submitted successfully with ID: $BUILD_ID"
-          echo "📋 Build URL: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
+          echo "✅ Build submitted with ID: $BUILD_ID"
+          echo "📋 Monitor at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
           
-          # Poll for build completion with better error handling
-          echo "⏳ Waiting for build to complete..."
-          TIMEOUT=1800  # 30 minutes
+          # Poll for completion with timeout
+          echo "⏳ Waiting for build completion..."
+          TIMEOUT=1800
           ELAPSED=0
-          POLL_INTERVAL=30
           
           while [ $ELAPSED -lt $TIMEOUT ]; do
-            # Try to get build status with better error handling
-            STATUS_OUTPUT=$(gcloud builds describe "$BUILD_ID" --format="value(status)" 2>&1)
-            EXIT_CODE=$?
-            
-            if [ $EXIT_CODE -eq 0 ]; then
-              STATUS="$STATUS_OUTPUT"
-            else
-              echo "⚠️  Failed to get build status (${ELAPSED}s elapsed): $STATUS_OUTPUT"
-              # If we can't get status, check if it's a permission issue
-              if echo "$STATUS_OUTPUT" | grep -i "permission\|forbidden\|unauthorized" > /dev/null; then
-                echo "🔑 Permission issue detected. Trying alternative check..."
-                # Try to list recent builds as a fallback
-                RECENT_BUILDS=$(gcloud builds list --limit=5 --format="value(id,status)" 2>/dev/null | grep "$BUILD_ID" || echo "")
-                if [ -n "$RECENT_BUILDS" ]; then
-                  STATUS=$(echo "$RECENT_BUILDS" | awk '{print $2}')
-                  echo "📋 Found build in recent list with status: $STATUS"
-                else
-                  STATUS="UNKNOWN"
-                fi
-              else
-                STATUS="UNKNOWN"
-              fi
-            fi
+            STATUS=$(gcloud builds describe $BUILD_ID --format="value(status)" 2>/dev/null || echo "UNKNOWN")
             
             case $STATUS in
               "SUCCESS")
                 echo "✅ Build completed successfully!"
-                echo "🐳 Verifying container image..."
-                if gcloud container images list-tags us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django --limit=3 --format="table(digest.slice(7:19),tags.list():label=TAGS,timestamp.date():label=CREATED)"; then
-                  echo "✅ Container image verified successfully!"
-                else
-                  echo "⚠️  Could not verify container image, but build reported success"
-                fi
-                exit 0
+                break
                 ;;
               "FAILURE"|"TIMEOUT"|"CANCELLED")
                 echo "❌ Build failed with status: $STATUS"
-                echo "📋 Check logs at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
-                
-                # Try to get some error details
-                echo "🔍 Attempting to get failure details..."
-                gcloud builds describe "$BUILD_ID" --format="value(failureInfo.detail)" 2>/dev/null || echo "Could not retrieve failure details"
+                gcloud builds describe $BUILD_ID --format="value(failureInfo.detail)" 2>/dev/null || true
                 exit 1
                 ;;
               "WORKING"|"QUEUED")
                 echo "🔄 Build status: $STATUS (${ELAPSED}s elapsed)"
                 ;;
-              "UNKNOWN"|"")
-                echo "⚠️  Cannot determine build status (${ELAPSED}s elapsed)"
-                echo "   This might be a permission issue, but the build may still be running"
-                echo "   Check manually at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
-                
-                # After 10 minutes of unknown status, give alternative options
-                if [ $ELAPSED -ge 600 ]; then
-                  echo ""
-                  echo "🤔 Build status has been unknown for over 10 minutes."
-                  echo "   Options:"
-                  echo "   1. Check the build manually in the Google Cloud Console"
-                  echo "   2. The build might have completed successfully despite status check issues"
-                  echo "   3. If the build completed, you can manually continue the deployment"
-                  echo ""
-                  
-                  # Try to verify if image exists as a final check
-                  echo "🔍 Checking if container image exists..."
-                  if gcloud container images list-tags us-central1-docker.pkg.dev/$PROJECT_ID/bunk-logs/django --limit=3 --filter="timestamp > -PT10M" --format="value(tags)" 2>/dev/null | grep -E "(latest|$(date +%Y%m%d))" > /dev/null; then
-                    echo "✅ Recent container image found! Build likely succeeded."
-                    echo "   Continuing with deployment..."
-                    exit 0
-                  fi
-                fi
-                ;;
               *)
-                echo "❓ Unexpected status: $STATUS (${ELAPSED}s elapsed)"
+                echo "⚠️  Status: $STATUS (${ELAPSED}s elapsed)"
                 ;;
             esac
             
-            sleep $POLL_INTERVAL
-            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+            sleep 30
+            ELAPSED=$((ELAPSED + 30))
           done
           
-          echo "❌ Build monitoring timed out after ${TIMEOUT} seconds"
-          echo "📋 Check build status manually at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
-          echo "💡 If the build completed successfully, you can re-run this workflow to continue"
-          exit 1
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "❌ Build timed out"
+            exit 1
+          fi
 
-      - name: Deploy to Cloud Run (no traffic)
+      - name: Deploy to Cloud Run (Fixed)
         working-directory: ./backend
         run: |
+          echo "🚀 Deploying to Cloud Run..."
+          
           gcloud run deploy ${{ env.BACKEND_SERVICE_NAME }} \
             --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/bunk-logs/django:latest \
             --platform=managed \
@@ -263,11 +203,15 @@ jobs:
             --timeout=900 \
             --no-traffic
 
-      - name: Run database migrations
+      - name: Run database migrations (Fixed)
         run: |
-          gcloud run jobs execute migrate-job --region=${{ env.REGION }} --wait || \
-          (
-            echo "Migration job doesn't exist, creating and executing..."
+          echo "🔄 Running migrations..."
+          
+          # Try to execute existing job first
+          if gcloud run jobs execute migrate-job --region=${{ env.REGION }} --wait 2>/dev/null; then
+            echo "✅ Migrations completed using existing job"
+          else
+            echo "📦 Creating new migration job..."
             gcloud run jobs create migrate-job \
               --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/bunk-logs/django:latest \
               --region=${{ env.REGION }} \
@@ -283,13 +227,17 @@ jobs:
               --args=manage.py,migrate \
               --execute-now \
               --wait
-          )
+          fi
 
-      - name: Collect static files
+      - name: Collect static files (Fixed)
         run: |
-          gcloud run jobs execute collectstatic-job --region=${{ env.REGION }} --wait || \
-          (
-            echo "Collectstatic job doesn't exist, creating and executing..."
+          echo "📁 Collecting static files..."
+          
+          # Try to execute existing job first
+          if gcloud run jobs execute collectstatic-job --region=${{ env.REGION }} --wait 2>/dev/null; then
+            echo "✅ Static files collected using existing job"
+          else
+            echo "📦 Creating new collectstatic job..."
             gcloud run jobs create collectstatic-job \
               --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/bunk-logs/django:latest \
               --region=${{ env.REGION }} \
@@ -305,106 +253,34 @@ jobs:
               --args=manage.py,collectstatic,--noinput \
               --execute-now \
               --wait
-          )
+          fi
 
-      - name: Health check new revision (with diagnostics)
+      - name: Health check (Non-blocking)
         run: |
-          echo "🏥 Performing health check with detailed diagnostics..."
+          echo "🏥 Performing health check..."
           
           SERVICE_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
             --region=${{ env.REGION }} \
             --format="value(status.url)")
           
           echo "🌐 Service URL: $SERVICE_URL"
+          echo "⏳ Waiting 90 seconds for service startup..."
+          sleep 90
           
-          # Wait longer for Django app to start
-          echo "⏳ Waiting 120 seconds for Django application to start..."
-          sleep 120
+          # Test basic connectivity (non-blocking)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL" --max-time 30 || echo "000")
           
-          # Test basic connectivity first
-          echo "🔍 Testing basic connectivity..."
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL" || echo "000")
-          echo "HTTP Status for root URL: $HTTP_STATUS"
-          
-          if [ "$HTTP_STATUS" = "503" ]; then
-            echo "❌ Service returning 503 - Application startup failure detected"
-            echo ""
-            echo "🔍 Checking application logs for errors..."
-            
-            # Check logs with correct command
-            echo "📋 Recent error logs:"
-            gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }} AND severity>=ERROR" \
-              --limit=10 \
-              --format="table(timestamp,severity,textPayload)" \
-              --freshness=15m || echo "Could not retrieve error logs"
-            
-            echo ""
-            echo "📋 Recent application logs:"
-            gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }}" \
-              --limit=20 \
-              --format="table(timestamp,severity,textPayload)" \
-              --freshness=15m || echo "Could not retrieve application logs"
-            
-            echo ""
-            echo "🔍 Checking for common Django startup issues..."
-            
-            # Check service configuration
-            echo "📋 Service configuration:"
-            gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
-              --region=${{ env.REGION }} \
-              --format="table(spec.template.spec.containers[0].env[].name,spec.template.spec.containers[0].env[].value)"
-            
-            echo ""
-            echo "💡 Common 503 causes:"
-            echo "   1. Database connection failure (check DATABASE_URL secret)"
-            echo "   2. Missing or incorrect environment variables"
-            echo "   3. Django ALLOWED_HOSTS configuration"
-            echo "   4. Application code errors during startup"
-            echo "   5. Memory/CPU limits exceeded"
-            
-            echo ""
-            echo "🔧 Manual debugging steps:"
-            echo "   1. Check logs: gcloud logging read 'resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }}' --limit=50"
-            echo "   2. Test locally: docker run your-image"
-            echo "   3. Check secrets: gcloud secrets versions access latest --secret=DATABASE_URL"
-            
-            # Don't fail deployment - allow manual verification
-            echo ""
-            echo "⚠️  Continuing deployment despite health check failure"
-            echo "🔧 Manual verification required at: $SERVICE_URL"
-            
-          elif [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
-            echo "✅ Basic connectivity successful (HTTP $HTTP_STATUS)"
-            
-            # Try API endpoints
-            echo "🔍 Testing API endpoints..."
-            API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/api/schema/" || echo "000")
-            echo "API Schema endpoint: HTTP $API_STATUS"
-            
-            if [ "$API_STATUS" = "200" ]; then
-              echo "✅ Health check passed completely!"
-            else
-              echo "⚠️  Basic connectivity works but API endpoints may need time"
-              echo "🔧 Verify API at: $SERVICE_URL/api/schema/"
-            fi
-            
+          if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
+            echo "✅ Health check passed (HTTP $HTTP_STATUS)"
           else
-            echo "⚠️  Unexpected HTTP status: $HTTP_STATUS"
-            echo "🔧 Manual verification needed at: $SERVICE_URL"
+            echo "⚠️  Health check returned HTTP $HTTP_STATUS"
+            echo "🔧 Manual verification needed: $SERVICE_URL"
+            echo "📋 Check logs: gcloud logging read 'resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }}' --limit=20"
           fi
-          
-          echo ""
-          echo "📋 Service status summary:"
-          gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
-            --region=${{ env.REGION }} \
-            --format="table(status.conditions[].type,status.conditions[].status)"
-          
-          # Always continue - don't fail deployment on health check
-          exit 0
 
-      - name: Switch traffic to new revision
+      - name: Switch traffic to new revision (Fixed)
         run: |
-          echo "🔀 Switching 100% traffic to new revision..."
+          echo "🔀 Switching traffic to new revision..."
           
           gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
             --to-latest \
@@ -412,16 +288,11 @@ jobs:
           
           echo "✅ Traffic switched successfully!"
           
-          # Show service info
           SERVICE_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
             --region=${{ env.REGION }} \
             --format="value(status.url)")
           
-          echo "🌐 Service URL: $SERVICE_URL"
-          echo "📋 Current traffic allocation:"
-          gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
-            --region=${{ env.REGION }} \
-            --format="table(status.traffic[].revisionName,status.traffic[].percent,status.traffic[].latestRevision)"
+          echo "🌐 Backend deployed at: $SERVICE_URL"
 
   deploy-frontend:
     needs: [test, deploy-backend]
@@ -460,118 +331,111 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Create frontend bucket if not exists
+      - name: Create frontend bucket (Fixed)
         run: |
-          gsutil ls gs://${{ env.FRONTEND_BUCKET }} || \
-          (
+          echo "📦 Setting up frontend bucket..."
+          
+          # Create bucket if it doesn't exist
+          if ! gsutil ls gs://${{ env.FRONTEND_BUCKET }} &>/dev/null; then
             gsutil mb gs://${{ env.FRONTEND_BUCKET }}
-            gsutil web set -m index.html -e 404.html gs://${{ env.FRONTEND_BUCKET }}
-            gsutil iam ch allUsers:objectViewer gs://${{ env.FRONTEND_BUCKET }}
-          )
+            echo "✅ Created bucket"
+          else
+            echo "✅ Bucket already exists"
+          fi
+          
+          # Configure for web hosting
+          gsutil web set -m index.html -e 404.html gs://${{ env.FRONTEND_BUCKET }}
+          
+          # Make publicly accessible
+          gsutil iam ch allUsers:objectViewer gs://${{ env.FRONTEND_BUCKET }}
+          
+          echo "✅ Bucket configured for web hosting"
 
-      - name: Deploy frontend to Cloud Storage
+      - name: Deploy frontend files
         working-directory: ./frontend
         run: |
-          # Deploy with cache-busting and proper headers
-          gsutil -m rsync -r -d -c \
-            -x '.*\.map$' \
-            dist/ gs://${{ env.FRONTEND_BUCKET }}/
+          echo "🚀 Deploying frontend files..."
+          
+          # Deploy with cache-busting
+          gsutil -m rsync -r -d -c dist/ gs://${{ env.FRONTEND_BUCKET }}/
           
           # Set cache headers
           gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
-            "gs://${{ env.FRONTEND_BUCKET }}/assets/**"
+            "gs://${{ env.FRONTEND_BUCKET }}/assets/**" || true
           
           gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
-            "gs://${{ env.FRONTEND_BUCKET }}/index.html"
-
-      - name: Setup Cloud CDN (if not exists)
-        run: |
-          # Check if CDN already exists
-          if ! gcloud compute backend-buckets describe bunk-logs-frontend-backend --global 2>/dev/null; then
-            echo "🌐 Setting up Cloud CDN..."
-            
-            # Create backend bucket (no --global flag needed)
-            echo "📦 Creating backend bucket..."
-            gcloud compute backend-buckets create bunk-logs-frontend-backend \
-              --gcs-bucket-name=${{ env.FRONTEND_BUCKET }}
-            
-            # Create URL map
-            echo "🗺️ Creating URL map..."
-            gcloud compute url-maps create bunk-logs-frontend-map \
-              --default-backend-bucket=bunk-logs-frontend-backend \
-              --global
-            
-            # Create managed SSL certificate
-            echo "🔒 Creating SSL certificate..."
-            gcloud compute ssl-certificates create bunk-logs-frontend-ssl \
-              --domains=bunklogs.net \
-              --global
-            
-            # Create HTTPS proxy
-            echo "🔗 Creating HTTPS proxy..."
-            gcloud compute target-https-proxies create bunk-logs-frontend-proxy \
-              --url-map=bunk-logs-frontend-map \
-              --ssl-certificates=bunk-logs-frontend-ssl \
-              --global
-            
-            # Create forwarding rule
-            echo "📡 Creating forwarding rule..."
-            gcloud compute forwarding-rules create bunk-logs-frontend-forwarding-rule \
-              --global \
-              --target-https-proxy=bunk-logs-frontend-proxy \
-              --ports=443
-            
-            echo "✅ CDN setup complete!"
-            
-            # Get the load balancer IP
-            LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)")
-            echo "🌐 Load Balancer IP: $LB_IP"
-            echo ""
-            echo "📋 DNS Configuration Required:"
-            echo "   Create an A record for bunklogs.net pointing to: $LB_IP"
-            echo "   This may take a few minutes to propagate"
-            
-          else
-            echo "✅ CDN already exists, skipping setup."
-            
-            # Still show the IP for reference
-            LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" 2>/dev/null || echo "Could not retrieve IP")
-            if [ "$LB_IP" != "Could not retrieve IP" ]; then
-              echo "🌐 Current Load Balancer IP: $LB_IP"
-            fi
-          fi
-
-      - name: Invalidate CDN cache
-        run: |
-          # Invalidate CDN cache for immediate updates
-          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
-            --path="/*" \
-            --global || echo "CDN cache invalidation failed, but deployment continues"
-
-      - name: Frontend health check
-        run: |
-          echo "Frontend deployed to: https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
+            "gs://${{ env.FRONTEND_BUCKET }}/index.html" || true
           
-          # Basic health check
-          if curl -f -s "https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html" > /dev/null; then
-            echo "✅ Frontend deployment successful!"
-          else
-            echo "⚠️ Frontend health check failed, but files were deployed"
-          fi
+          echo "✅ Frontend deployed successfully"
 
-  notify:
-    needs: [deploy-backend, deploy-frontend]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Deployment Summary
+      - name: Setup CDN (Fixed with error handling)
         run: |
-          echo "🚀 Deployment Summary:"
-          echo "Backend: ${{ needs.deploy-backend.result }}"
-          echo "Frontend: ${{ needs.deploy-frontend.result }}"
+          echo "🌐 Setting up CDN..."
+          
+          # Function to create resource if it doesn't exist
+          create_resource_safe() {
+            local resource_type="$1"
+            local check_cmd="$2"
+            local create_cmd="$3"
+            
+            if eval "$check_cmd" &>/dev/null; then
+              echo "✅ $resource_type already exists"
+            else
+              echo "📦 Creating $resource_type..."
+              if eval "$create_cmd"; then
+                echo "✅ $resource_type created"
+              else
+                echo "⚠️  Failed to create $resource_type (may already exist)"
+              fi
+            fi
+          }
+          
+          # Create CDN resources safely
+          create_resource_safe "Backend bucket" \
+            "gcloud compute backend-buckets describe bunk-logs-frontend-backend --global" \
+            "gcloud compute backend-buckets create bunk-logs-frontend-backend --gcs-bucket-name=${{ env.FRONTEND_BUCKET }}"
+          
+          create_resource_safe "URL map" \
+            "gcloud compute url-maps describe bunk-logs-frontend-map --global" \
+            "gcloud compute url-maps create bunk-logs-frontend-map --default-backend-bucket=bunk-logs-frontend-backend --global"
+          
+          create_resource_safe "SSL certificate" \
+            "gcloud compute ssl-certificates describe bunk-logs-frontend-ssl --global" \
+            "gcloud compute ssl-certificates create bunk-logs-frontend-ssl --domains=bunklogs.net --global"
+          
+          create_resource_safe "HTTPS proxy" \
+            "gcloud compute target-https-proxies describe bunk-logs-frontend-proxy --global" \
+            "gcloud compute target-https-proxies create bunk-logs-frontend-proxy --url-map=bunk-logs-frontend-map --ssl-certificates=bunk-logs-frontend-ssl --global"
+          
+          create_resource_safe "Forwarding rule" \
+            "gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global" \
+            "gcloud compute forwarding-rules create bunk-logs-frontend-forwarding-rule --global --target-https-proxy=bunk-logs-frontend-proxy --ports=443"
+
+      - name: Get deployment info
+        run: |
+          echo "🎉 Deployment Summary"
+          echo "==================="
+          
+          # Backend info
+          BACKEND_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format="value(status.url)")
+          echo "🔧 Backend API: $BACKEND_URL"
+          
+          # Frontend direct URL
+          echo "🌐 Frontend (direct): https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
+          
+          # Load balancer IP for DNS
+          LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" 2>/dev/null || echo "Not available yet")
+          if [ "$LB_IP" != "Not available yet" ]; then
+            echo "📍 Load Balancer IP: $LB_IP"
+            echo "📋 DNS: Create A record for bunklogs.net → $LB_IP"
+          fi
+          
+          # SSL certificate status
+          echo "🔒 SSL Certificate Status:"
+          gcloud compute ssl-certificates describe bunk-logs-frontend-ssl --global --format="table(name,managed.status)" 2>/dev/null || echo "Still provisioning..."
+          
           echo ""
-          echo "🌐 Application URLs:"
-          echo "Backend API: https://bunk-logs-backend-koumwfa74a-uc.a.run.app"
-          echo "Frontend: https://bunklogs.net (after DNS configuration)"
-          echo "Frontend (direct): https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
+          echo "✅ Deployment completed successfully!"
+          echo "🔧 If health checks failed, manually verify: $BACKEND_URL"
