@@ -63,7 +63,7 @@ jobs:
         working-directory: ./frontend
         env:
           # Update this to point to your Render.com backend URL
-          VITE_API_URL: ${{ secrets.RENDER_BACKEND_URL || 'https://your-backend-app.onrender.com' }}
+          VITE_API_URL: ${{ secrets.RENDER_BACKEND_URL || 'https://admin.bunklogs.net' }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         run: npm run build
 
