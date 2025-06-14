@@ -281,4 +281,5 @@ ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[
     "*.run.app",
     "bunk-logs-backend-461994890254.us-central1.run.app",
     "bunk-logs-backend-koumwfa74a-uc.a.run.app",
+    "bunklogs.onrender.com",
 ])
