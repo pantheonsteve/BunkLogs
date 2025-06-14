@@ -1,6 +1,8 @@
-# Mosaic React
+# BunkLogs Frontend
 
-React landing page template designed by Cruip.
+React frontend application for BunkLogs camp management system.
+
+Built with React, Vite, and deployed to Google Cloud Storage with CDN.
 
 ## Project setup
 ```
