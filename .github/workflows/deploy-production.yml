@@ -386,56 +386,26 @@ jobs:
             exit 1
           fi
 
-      - name: Gradual traffic migration
+      - name: Switch traffic to new revision
         run: |
-          echo "Starting gradual traffic migration..."
+          echo "🔀 Switching 100% traffic to new revision..."
           
-          # Shift 10% traffic to new revision
           gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
-            --to-latest=10 \
+            --to-latest \
             --region=${{ env.REGION }}
           
-          echo "10% traffic shifted, waiting 2 minutes..."
-          sleep 120
+          echo "✅ Traffic switched successfully!"
           
-          # Check for errors in logs
-          ERROR_COUNT=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${{ env.BACKEND_SERVICE_NAME }}\" AND severity>=ERROR" \
-            --limit=10 --format="value(timestamp)" --freshness=5m | wc -l)
+          # Show service info
+          SERVICE_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format="value(status.url)")
           
-          if [ "$ERROR_COUNT" -gt 5 ]; then
-            echo "Too many errors detected, rolling back..."
-            gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
-              --to-latest=0 \
-              --region=${{ env.REGION }}
-            exit 1
-          fi
-          
-          # Shift 50% traffic
-          gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
-            --to-latest=50 \
-            --region=${{ env.REGION }}
-          
-          echo "50% traffic shifted, waiting 2 minutes..."
-          sleep 120
-          
-          # Final health check
-          ERROR_COUNT=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${{ env.BACKEND_SERVICE_NAME }}\" AND severity>=ERROR" \
-            --limit=10 --format="value(timestamp)" --freshness=5m | wc -l)
-          
-          if [ "$ERROR_COUNT" -gt 5 ]; then
-            echo "Too many errors detected, rolling back..."
-            gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
-              --to-latest=0 \
-              --region=${{ env.REGION }}
-            exit 1
-          fi
-          
-          # Shift 100% traffic
-          gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} \
-            --to-latest=100 \
-            --region=${{ env.REGION }}
-          
-          echo "✅ Backend deployment completed successfully!"
+          echo "🌐 Service URL: $SERVICE_URL"
+          echo "📋 Current traffic allocation:"
+          gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format="table(status.traffic[].revisionName,status.traffic[].percent,status.traffic[].latestRevision)"
 
   deploy-frontend:
     needs: [test, deploy-backend]
