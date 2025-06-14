@@ -325,10 +325,9 @@ jobs:
           
           # Try multiple health check endpoints
           HEALTH_ENDPOINTS=(
-            "$SERVICE_URL/api/schema/"
-            "$SERVICE_URL/health/"
-            "$SERVICE_URL/api/health/"
             "$SERVICE_URL/"
+            "$SERVICE_URL/api/v1/units/"
+            "$SERVICE_URL/api/v1/bunks/"
           )
           
           echo "🔍 Testing health check endpoints..."
@@ -472,39 +471,57 @@ jobs:
         run: |
           # Check if CDN already exists
           if ! gcloud compute backend-buckets describe bunk-logs-frontend-backend --global 2>/dev/null; then
-            echo "Setting up Cloud CDN..."
+            echo "🌐 Setting up Cloud CDN..."
             
-            # Create backend bucket
+            # Create backend bucket (no --global flag needed)
+            echo "📦 Creating backend bucket..."
             gcloud compute backend-buckets create bunk-logs-frontend-backend \
-              --gcs-bucket-name=${{ env.FRONTEND_BUCKET }} \
-              --global
+              --gcs-bucket-name=${{ env.FRONTEND_BUCKET }}
             
             # Create URL map
+            echo "🗺️ Creating URL map..."
             gcloud compute url-maps create bunk-logs-frontend-map \
               --default-backend-bucket=bunk-logs-frontend-backend \
               --global
             
-            # Create HTTPS certificate (you'll need to configure DNS)
+            # Create managed SSL certificate
+            echo "🔒 Creating SSL certificate..."
             gcloud compute ssl-certificates create bunk-logs-frontend-ssl \
               --domains=bunklogs.net \
               --global
             
             # Create HTTPS proxy
+            echo "🔗 Creating HTTPS proxy..."
             gcloud compute target-https-proxies create bunk-logs-frontend-proxy \
               --url-map=bunk-logs-frontend-map \
               --ssl-certificates=bunk-logs-frontend-ssl \
               --global
             
             # Create forwarding rule
+            echo "📡 Creating forwarding rule..."
             gcloud compute forwarding-rules create bunk-logs-frontend-forwarding-rule \
               --global \
               --target-https-proxy=bunk-logs-frontend-proxy \
               --ports=443
             
-            echo "CDN setup complete. You'll need to configure DNS to point to the load balancer IP."
-            gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)"
+            echo "✅ CDN setup complete!"
+            
+            # Get the load balancer IP
+            LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)")
+            echo "🌐 Load Balancer IP: $LB_IP"
+            echo ""
+            echo "📋 DNS Configuration Required:"
+            echo "   Create an A record for bunklogs.net pointing to: $LB_IP"
+            echo "   This may take a few minutes to propagate"
+            
           else
-            echo "CDN already exists, skipping setup."
+            echo "✅ CDN already exists, skipping setup."
+            
+            # Still show the IP for reference
+            LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" 2>/dev/null || echo "Could not retrieve IP")
+            if [ "$LB_IP" != "Could not retrieve IP" ]; then
+              echo "🌐 Current Load Balancer IP: $LB_IP"
+            fi
           fi
 
       - name: Invalidate CDN cache
