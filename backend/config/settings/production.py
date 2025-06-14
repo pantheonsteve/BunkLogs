@@ -293,10 +293,8 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Update allowed hosts to remove localhost in production
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[
-    "bunklogs.net", 
+    "admin.bunklogs.net",      # Your custom domain
+    "bunklogs.onrender.com",   # Original Render URL
+    "bunklogs.net",
     "www.bunklogs.net",
-    "*.run.app",
-    "bunk-logs-backend-461994890254.us-central1.run.app",
-    "bunk-logs-backend-koumwfa74a-uc.a.run.app",
-    "bunklogs.onrender.com",
 ])
