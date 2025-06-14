@@ -10,13 +10,32 @@ from .base import *  # noqa: F403, F401
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
-SECRET_KEY = env("DJANGO_SECRET_KEY")
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+
+# Essential settings - Updated for Cloud Run
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["bunklogs.net"])
+ALLOWED_HOSTS = [
+    "*.run.app",
+    "bunklogs.net", 
+    "bunk-logs-backend-koumwfa74a-uc.a.run.app",
+    "bunk-logs-backend-461994890254.us-central1.run.app",
+    "localhost",
+]
 
 # DATABASES
 # ------------------------------------------------------------------------------
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)  # noqa: F405
+# Updated for explicit Cloud SQL configuration
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB"),
+        "USER": os.environ.get("POSTGRES_USER"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"), 
+        "HOST": os.environ.get("POSTGRES_HOST"),
+        "PORT": os.environ.get("POSTGRES_PORT"),
+        "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=60),
+    }
+}
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -133,40 +152,41 @@ ANYMAIL = {
 
 # LOGGING
 # ------------------------------------------------------------------------------
+# Updated for better Cloud Run debugging
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
 # See https://docs.djangoproject.com/en/dev/topics/logging for
 # more details on how to customize your logging configuration.
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "[{levelname}] {asctime} {name} {message}",
-            "style": "{",
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {name} {message}',
+            'style': '{',
         },
     },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
     },
-    "root": {
-        "level": "INFO",
-        "handlers": ["console"],
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
     },
-    "loggers": {
-        "django.db.backends": {
-            "level": "ERROR",
-            "handlers": ["console"],
-            "propagate": False,
+    'loggers': {
+        'django.db.backends': {
+            'level': 'ERROR',
+            'handlers': ['console'],
+            'propagate': False,
         },
         # Errors logged by the SDK itself
-        "sentry_sdk": {"level": "ERROR", "handlers": ["console"], "propagate": False},
-        "django.security.DisallowedHost": {
-            "level": "ERROR",
-            "handlers": ["console"],
-            "propagate": False,
+        'sentry_sdk': {'level': 'ERROR', 'handlers': ['console'], 'propagate': False},
+        'django.security.DisallowedHost': {
+            'level': 'ERROR',
+            'handlers': ['console'],
+            'propagate': False,
         },
     },
 }
@@ -195,10 +215,10 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Update allowed hosts for production (remove localhost)
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[
-    "bunklogs.net",
-    "www.bunklogs.net", 
+ALLOWED_HOSTS = [
     "*.run.app",
-    "bunk-logs-backend-461994890254.us-central1.run.app",
+    "bunklogs.net", 
     "bunk-logs-backend-koumwfa74a-uc.a.run.app",
-])
+    "bunk-logs-backend-461994890254.us-central1.run.app",
+    "localhost",
+]
