@@ -92,25 +92,40 @@ AWS_S3_CUSTOM_DOMAIN = env("DJANGO_AWS_S3_CUSTOM_DOMAIN", default=None)
 aws_s3_domain = AWS_S3_CUSTOM_DOMAIN or f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 # STATIC & MEDIA
 # ------------------------
+# STORAGES = {
+#     "default": {
+#         "BACKEND": "storages.backends.s3.S3Storage",
+#         "OPTIONS": {
+#             "location": "media",
+#             "file_overwrite": False,
+#         },
+#     },
+#     "staticfiles": {
+#         "BACKEND": "storages.backends.s3.S3Storage",
+#         "OPTIONS": {
+#             "location": "static",
+#             "default_acl": "public-read",
+#         },
+#     },
+# }
+# MEDIA_URL = f"https://{aws_s3_domain}/media/"
+# COLLECTFASTA_STRATEGY = "collectfasta.strategies.boto3.Boto3Strategy"
+# STATIC_URL = f"https://{aws_s3_domain}/static/"
+
+# STATIC & MEDIA for Render.com
+# ------------------------------------------------------------------------------
+STATIC_URL = "/static/"
+MEDIA_URL = "/media/"
+
+# Use WhiteNoise for static files in production
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "location": "media",
-            "file_overwrite": False,
-        },
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "location": "static",
-            "default_acl": "public-read",
-        },
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-MEDIA_URL = f"https://{aws_s3_domain}/media/"
-COLLECTFASTA_STRATEGY = "collectfasta.strategies.boto3.Boto3Strategy"
-STATIC_URL = f"https://{aws_s3_domain}/static/"
 
 # EMAIL
 # ------------------------------------------------------------------------------
