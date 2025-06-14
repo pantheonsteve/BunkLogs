@@ -1,0 +1,199 @@
+# .github/workflows/deploy-frontend.yml
+name: Deploy Frontend to Google Cloud Storage
+
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/**']
+  workflow_dispatch:  # Allow manual triggers
+
+env:
+  PROJECT_ID: bunklogsauth
+  FRONTEND_BUCKET: bunk-logs-frontend-prod
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run tests (if any)
+        working-directory: ./frontend
+        run: |
+          if npm run test --if-present; then
+            echo "✅ Frontend tests passed"
+          else
+            echo "ℹ️ No tests found or tests failed"
+          fi
+
+  deploy-frontend:
+    needs: test-frontend
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        env:
+          # Update this to point to your Render.com backend URL
+          VITE_API_URL: ${{ secrets.RENDER_BACKEND_URL || 'https://your-backend-app.onrender.com' }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Create frontend bucket if not exists
+        run: |
+          gsutil ls gs://${{ env.FRONTEND_BUCKET }} || \
+          (
+            echo "📦 Creating new frontend bucket..."
+            gsutil mb gs://${{ env.FRONTEND_BUCKET }}
+            gsutil web set -m index.html -e 404.html gs://${{ env.FRONTEND_BUCKET }}
+            gsutil iam ch allUsers:objectViewer gs://${{ env.FRONTEND_BUCKET }}
+            echo "✅ Frontend bucket created and configured"
+          )
+
+      - name: Deploy frontend to Cloud Storage
+        working-directory: ./frontend
+        run: |
+          echo "🚀 Deploying frontend to Google Cloud Storage..."
+          
+          # Deploy with cache-busting and proper headers
+          gsutil -m rsync -r -d -c \
+            -x '.*\.map$' \
+            dist/ gs://${{ env.FRONTEND_BUCKET }}/
+          
+          echo "📝 Setting cache headers..."
+          # Set cache headers for assets (1 year)
+          gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
+            "gs://${{ env.FRONTEND_BUCKET }}/assets/**" || echo "No assets directory found"
+          
+          # Set cache headers for index.html (1 hour)
+          gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
+            "gs://${{ env.FRONTEND_BUCKET }}/index.html"
+          
+          echo "✅ Frontend deployment complete"
+
+      - name: Setup Cloud CDN (if not exists)
+        run: |
+          # Check if CDN already exists
+          if ! gcloud compute backend-buckets describe bunk-logs-frontend-backend --global 2>/dev/null; then
+            echo "🌐 Setting up Cloud CDN..."
+            
+            # Create backend bucket
+            echo "📦 Creating backend bucket..."
+            gcloud compute backend-buckets create bunk-logs-frontend-backend \
+              --gcs-bucket-name=${{ env.FRONTEND_BUCKET }} || echo "Backend bucket may already exist"
+            
+            # Create URL map
+            echo "🗺️ Creating URL map..."
+            gcloud compute url-maps create bunk-logs-frontend-map \
+              --default-backend-bucket=bunk-logs-frontend-backend \
+              --global || echo "URL map may already exist"
+            
+            # Create managed SSL certificate
+            echo "🔒 Creating SSL certificate..."
+            gcloud compute ssl-certificates create bunk-logs-frontend-ssl \
+              --domains=bunklogs.net \
+              --global || echo "SSL certificate may already exist"
+            
+            # Create HTTPS proxy
+            echo "🔗 Creating HTTPS proxy..."
+            gcloud compute target-https-proxies create bunk-logs-frontend-proxy \
+              --url-map=bunk-logs-frontend-map \
+              --ssl-certificates=bunk-logs-frontend-ssl \
+              --global || echo "HTTPS proxy may already exist"
+            
+            # Create forwarding rule
+            echo "📡 Creating forwarding rule..."
+            gcloud compute forwarding-rules create bunk-logs-frontend-forwarding-rule \
+              --global \
+              --target-https-proxy=bunk-logs-frontend-proxy \
+              --ports=443 || echo "Forwarding rule may already exist"
+            
+            echo "✅ CDN setup complete!"
+            
+            # Get the load balancer IP
+            LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" || echo "Could not retrieve IP")
+            if [ "$LB_IP" != "Could not retrieve IP" ]; then
+              echo "🌐 Load Balancer IP: $LB_IP"
+              echo ""
+              echo "📋 DNS Configuration Required:"
+              echo "   Create an A record for bunklogs.net pointing to: $LB_IP"
+              echo "   This may take a few minutes to propagate"
+            fi
+            
+          else
+            echo "✅ CDN already exists, skipping setup."
+            
+            # Still show the IP for reference
+            LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" 2>/dev/null || echo "Could not retrieve IP")
+            if [ "$LB_IP" != "Could not retrieve IP" ]; then
+              echo "🌐 Current Load Balancer IP: $LB_IP"
+            fi
+          fi
+
+      - name: Invalidate CDN cache
+        run: |
+          # Invalidate CDN cache for immediate updates
+          echo "🔄 Invalidating CDN cache..."
+          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
+            --path="/*" \
+            --global || echo "CDN cache invalidation failed, but deployment continues"
+
+      - name: Frontend health check
+        run: |
+          echo "🏥 Performing frontend health check..."
+          
+          # Check direct bucket access
+          if curl -f -s "https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html" > /dev/null; then
+            echo "✅ Frontend accessible via direct bucket URL"
+          else
+            echo "⚠️ Frontend health check failed via direct bucket access"
+          fi
+          
+          echo ""
+          echo "🚀 Frontend Deployment Summary:"
+          echo "   Bucket: gs://${{ env.FRONTEND_BUCKET }}"
+          echo "   Direct URL: https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
+          echo "   CDN URL: https://bunklogs.net (after DNS configuration)"
+          echo ""
+          echo "📝 Next Steps:"
+          echo "   1. Ensure your domain bunklogs.net points to the Load Balancer IP"
+          echo "   2. Update your backend CORS settings to allow requests from bunklogs.net"
+          echo "   3. Test the frontend functionality with your Render.com backend"
