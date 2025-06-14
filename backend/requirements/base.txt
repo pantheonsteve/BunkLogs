@@ -29,5 +29,5 @@ dj-rest-auth[with_social]
 django-ninja >= 1.3.0
 # MFA Authentication dependencies
 fido2>=1.1.2,<1.2.0  # Specific version for django-allauth MFA compatibility
-# ------------------------------------------------------------------------------
-pandas==2.1.4  # Required for CSV/Excel imports in orders app
+# # ------------------------------------------------------------------------------
+# pandas==2.1.4  # Required for CSV/Excel imports in orders app
