@@ -325,9 +325,10 @@ jobs:
           
           # Try multiple health check endpoints
           HEALTH_ENDPOINTS=(
+            "$SERVICE_URL/api/schema/"
+            "$SERVICE_URL/health/"
+            "$SERVICE_URL/api/health/"
             "$SERVICE_URL/"
-            "$SERVICE_URL/api/v1/units/"
-            "$SERVICE_URL/api/v1/bunks/"
           )
           
           echo "🔍 Testing health check endpoints..."
