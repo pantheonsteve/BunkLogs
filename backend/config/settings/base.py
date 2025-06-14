@@ -411,16 +411,21 @@ if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
         "https://bunklogs.net",
         "https://www.bunklogs.net",
+        "https://storage.googleapis.com",  # For direct bucket access
+        "https://storage.cloud.google.com",  # Alternative bucket URL
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://bunklogs.net',
         'https://www.bunklogs.net',
+        'https://storage.googleapis.com',
+        'https://storage.cloud.google.com',
     ]
-    # Remove localhost from allowed hosts in production
+    # Updated for Render.com deployment
     ALLOWED_HOSTS = [
         "bunklogs.net",
         "www.bunklogs.net", 
-        "*.run.app",
+        "*.onrender.com",  # For Render.com deployments
+        "*.run.app",  # Keep for any remaining GCP services
         "bunk-logs-backend-461994890254.us-central1.run.app",
         "bunk-logs-backend-koumwfa74a-uc.a.run.app",
     ]
