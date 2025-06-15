@@ -3,8 +3,10 @@ import { useEffect } from "react";
 
 function SocialLoginButton({ provider = "GoogleOAuth" }) {
 
+  const backendUrl = "admin.bunklogs.net" || "localhost:8000";
+
   useEffect(() => {
-    fetch(`http://${backendUrl}/api/get-csrf-token/`, {
+    fetch(`https://${backendUrl}/api/get-csrf-token/`, {
       credentials: "include"
     });
   }, []);
