@@ -398,7 +398,7 @@ ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
 
 HEADLESS_ONLY = True
 HEADLESS_FRONTEND_URLS = {
-    "account_confirm_email": f"{FRONTEND_URL}/accounts/verify-email/{key}",
+    "account_confirm_email": f"{FRONTEND_URL}/accounts/verify-email/{{key}}",
     "account_reset_password": f"{FRONTEND_URL}/accounts/password/reset",
     "account_reset_password_from_key": f"{FRONTEND_URL}/accounts/password/reset/key/{key}",
     "account_signup": f"{FRONTEND_URL}/accounts/signup",
