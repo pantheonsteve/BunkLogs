@@ -11,9 +11,7 @@ const api = axios.create({
 // Function to get CSRF token from the server
 const getServerCSRFToken = async () => {
   try {
-    const response = await axios.get(`${apiUrl}/api/get-csrf-token/`, {
-      withCredentials: true
-    });
+    const response = await api.get('/api/get-csrf-token/');
     return response.data.csrfToken;
   } catch (error) {
     console.warn('Failed to get CSRF token from server:', error);

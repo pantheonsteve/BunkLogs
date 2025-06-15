@@ -413,8 +413,8 @@ if IS_PRODUCTION:
         "https://www.bunklogs.net",
         "https://storage.googleapis.com",  # For direct bucket access
         "https://storage.cloud.google.com",
-          "https://admin.bunklogs.net",
-            "https://clc.bunklogs.net"  # Alternative bucket URL
+        "https://admin.bunklogs.net",
+        "https://clc.bunklogs.net"  # Alternative bucket URL
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://bunklogs.net',
