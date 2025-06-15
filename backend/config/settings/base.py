@@ -412,13 +412,17 @@ if IS_PRODUCTION:
         "https://bunklogs.net",
         "https://www.bunklogs.net",
         "https://storage.googleapis.com",  # For direct bucket access
-        "https://storage.cloud.google.com",  # Alternative bucket URL
+        "https://storage.cloud.google.com",
+          "https://admin.bunklogs.net",
+            "https://clc.bunklogs.net"  # Alternative bucket URL
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://bunklogs.net',
         'https://www.bunklogs.net',
         'https://storage.googleapis.com',
         'https://storage.cloud.google.com',
+        "https://admin.bunklogs.net",
+        "https://clc.bunklogs.net"
     ]
     # Updated for Render.com deployment
     ALLOWED_HOSTS = [
