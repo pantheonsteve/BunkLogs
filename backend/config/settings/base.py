@@ -387,7 +387,7 @@ REST_FRAMEWORK = {
 IS_PRODUCTION = not env.bool("DJANGO_DEBUG", False) or env.str("DJANGO_SETTINGS_MODULE", "").endswith("production")
 
 if IS_PRODUCTION:
-    DEFAULT_FRONTEND_URL = "https://clc.bunklogs.net"
+    DEFAULT_FRONTEND_URL = "https://storage.googleapis.com/bunk-logs-frontend-prod"
 else:
     DEFAULT_FRONTEND_URL = "http://localhost:5173"
 
@@ -409,18 +409,18 @@ HEADLESS_SERVE_SPECIFICATION = True
 # Environment-aware CORS settings
 if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
+        "https://storage.googleapis.com",  # For your actual frontend
+        "https://storage.cloud.google.com",
         "https://bunklogs.net",
         "https://www.bunklogs.net",
-        "https://storage.googleapis.com",  # For direct bucket access
-        "https://storage.cloud.google.com",
         "https://admin.bunklogs.net",
-        "https://clc.bunklogs.net",  # Frontend domain
+        "https://clc.bunklogs.net",  # Keep for potential future use
     ]
     CSRF_TRUSTED_ORIGINS = [
+        'https://storage.googleapis.com',
+        'https://storage.cloud.google.com', 
         'https://bunklogs.net',
         'https://www.bunklogs.net',
-        'https://storage.googleapis.com',
-        'https://storage.cloud.google.com',
         "https://admin.bunklogs.net",
         "https://clc.bunklogs.net",  # Frontend domain
     ]
