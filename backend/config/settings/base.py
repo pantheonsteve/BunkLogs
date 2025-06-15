@@ -446,20 +446,15 @@ else:
     ]
     ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1"]
 
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = (
+    *default_headers,
     "x-session-token",
     "x-email-verification-key",
     "x-password-reset-key",
-]
+)
+
 CORS_ALLOW_CREDENTIALS = True
 CSRF_COOKIE_SAMESITE = None
 CSRF_COOKIE_SECURE = True
