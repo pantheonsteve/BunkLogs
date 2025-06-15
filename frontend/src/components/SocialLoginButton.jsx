@@ -3,7 +3,7 @@ import { useEffect } from "react";
 
 function SocialLoginButton({ provider = "GoogleOAuth" }) {
 
-  const backendUrl = "admin.bunklogs.net" || "localhost:8000";
+  const backendUrl = import.meta.env.VITE_API_URL || "localhost:8000"; // Default to localhost if not set
 
   useEffect(() => {
     fetch(`https://${backendUrl}/api/get-csrf-token/`, {
