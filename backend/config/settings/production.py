@@ -283,7 +283,6 @@ ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRON
 CORS_ALLOWED_ORIGINS = [
     "https://bunklogs.net",
     "https://www.bunklogs.net",
-    "https://clc.bunklogs.net",
     "https://admin.bunklogs.net",  # Custom domain for Cloudflare
 ]
 
@@ -291,7 +290,6 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     'https://bunklogs.net',
     'https://www.bunklogs.net',
-    'https://clc.bunklogs.net',
     "https://admin.bunklogs.net", # Custom domain for Cloudflare
 ]
 

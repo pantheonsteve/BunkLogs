@@ -360,7 +360,7 @@ HEADLESS_FRONTEND_URLS = {
     "account_reset_password": "/accounts/password/reset",
     "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
     "account_signup": "/accounts/signup",
-    "socialaccount_login_error": "/api/auth/google/callback/",
+    "socialaccount_login_error": "/signin?auth_error=unknown",
 }
 HEADLESS_SERVE_SPECIFICATION = True
 
@@ -414,7 +414,6 @@ if IS_PRODUCTION:
         "https://storage.googleapis.com",  # For direct bucket access
         "https://storage.cloud.google.com",
         "https://admin.bunklogs.net",
-        "https://clc.bunklogs.net"  # Alternative bucket URL
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://bunklogs.net',
@@ -422,7 +421,6 @@ if IS_PRODUCTION:
         'https://storage.googleapis.com',
         'https://storage.cloud.google.com',
         "https://admin.bunklogs.net",
-        "https://clc.bunklogs.net"
     ]
     # Updated for Render.com deployment
     ALLOWED_HOSTS = [
