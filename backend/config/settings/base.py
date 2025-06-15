@@ -354,16 +354,6 @@ ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
 ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
-HEADLESS_ONLY = True
-HEADLESS_FRONTEND_URLS = {
-    "account_confirm_email": "/accounts/verify-email/{key}",
-    "account_reset_password": "/accounts/password/reset",
-    "account_reset_password_from_key": "/accounts/password/reset/key/{key}",
-    "account_signup": "/accounts/signup",
-    "socialaccount_login_error": "/signin?auth_error=unknown",
-}
-HEADLESS_SERVE_SPECIFICATION = True
-
 SOCIALACCOUNT_QUERY_EMAIL = True
 
 SOCIALACCOUNT_PROVIDERS = {
@@ -372,8 +362,6 @@ SOCIALACCOUNT_PROVIDERS = {
         'AUTH_PARAMS': {'access_type': 'online'},
     }
 }
-
-ACCOUNT_LOGOUT_REDIRECT_URL = 'http://localhost:5173/signin'
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -399,30 +387,42 @@ REST_FRAMEWORK = {
 IS_PRODUCTION = not env.bool("DJANGO_DEBUG", False) or env.str("DJANGO_SETTINGS_MODULE", "").endswith("production")
 
 if IS_PRODUCTION:
-    DEFAULT_FRONTEND_URL = "https://bunklogs.net"
+    DEFAULT_FRONTEND_URL = "https://clc.bunklogs.net"
 else:
     DEFAULT_FRONTEND_URL = "http://localhost:5173"
 
 FRONTEND_URL = env("FRONTEND_URL", default=DEFAULT_FRONTEND_URL)
 SPA_URL = FRONTEND_URL
 
+ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
+
+HEADLESS_ONLY = True
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": f"{FRONTEND_URL}/accounts/verify-email/{key}",
+    "account_reset_password": f"{FRONTEND_URL}/accounts/password/reset",
+    "account_reset_password_from_key": f"{FRONTEND_URL}/accounts/password/reset/key/{key}",
+    "account_signup": f"{FRONTEND_URL}/accounts/signup",
+    "socialaccount_login_error": f"{FRONTEND_URL}/signin?auth_error=unknown",
+}
+HEADLESS_SERVE_SPECIFICATION = True
+
 # Environment-aware CORS settings
 if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
+        "https://clc.bunklogs.net",  # Your actual frontend - moved to top
         "https://bunklogs.net",
         "https://www.bunklogs.net",
-        "https://storage.googleapis.com",  # For direct bucket access
+        "https://storage.googleapis.com",
         "https://storage.cloud.google.com",
         "https://admin.bunklogs.net",
-        "https://clc.bunklogs.net",  # Frontend domain
     ]
     CSRF_TRUSTED_ORIGINS = [
+        'https://clc.bunklogs.net',  # Your actual frontend - moved to top
         'https://bunklogs.net',
         'https://www.bunklogs.net',
         'https://storage.googleapis.com',
         'https://storage.cloud.google.com',
         "https://admin.bunklogs.net",
-        "https://clc.bunklogs.net",  # Frontend domain
     ]
     # Updated for Render.com deployment
     ALLOWED_HOSTS = [
