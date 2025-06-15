@@ -414,6 +414,7 @@ if IS_PRODUCTION:
         "https://storage.googleapis.com",  # For direct bucket access
         "https://storage.cloud.google.com",
         "https://admin.bunklogs.net",
+        "https://clc.bunklogs.net",  # Frontend domain
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://bunklogs.net',
@@ -421,6 +422,7 @@ if IS_PRODUCTION:
         'https://storage.googleapis.com',
         'https://storage.cloud.google.com',
         "https://admin.bunklogs.net",
+        "https://clc.bunklogs.net",  # Frontend domain
     ]
     # Updated for Render.com deployment
     ALLOWED_HOSTS = [
@@ -444,13 +446,7 @@ else:
     ]
     ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1"]
 
-from corsheaders.defaults import default_headers
-
-CORS_ALLOW_HEADERS = (
-    *default_headers,
-    "x-session-token",
-    "x-email-verification-key",
-    "x-password-reset-key",
+CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
     "authorization",
@@ -460,7 +456,10 @@ CORS_ALLOW_HEADERS = (
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
-)
+    "x-session-token",
+    "x-email-verification-key",
+    "x-password-reset-key",
+]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_COOKIE_SAMESITE = None
 CSRF_COOKIE_SECURE = True

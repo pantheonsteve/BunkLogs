@@ -337,9 +337,10 @@ def google_callback(request):
     if error:
         # Log the error for debugging
         print(f"Google OAuth error: {error}")
-        # Redirect to frontend with error message - use dynamic FRONTEND_URL
+        # Redirect to frontend with error message - use environment FRONTEND_URL
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://bunklogs.net')
         return HttpResponseRedirect(
-            f"{settings.FRONTEND_URL}/signin?auth_error={error}"
+            f"{frontend_url}/signin?auth_error={error}"
         )
     
     if not code:
@@ -398,17 +399,17 @@ def google_callback(request):
         # Generate JWT token
         refresh = RefreshToken.for_user(user)
         
-        # Redirect to frontend with token - use dynamic FRONTEND_URL
-        frontend_url = settings.FRONTEND_URL
-        # Ensure we're using the correct URL format and encoding tokens properly
+        # Redirect to frontend with token - use environment FRONTEND_URL
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://bunklogs.net')
         redirect_url = f"{frontend_url}/auth/callback#{urlencode({'access_token': str(refresh.access_token), 'refresh_token': str(refresh)})}"
         print(f"Redirecting to: {redirect_url}")
         
         return HttpResponseRedirect(redirect_url)
     except Exception as e:
         print(f"Google callback error: {str(e)}")
-        # Redirect to frontend with error - use dynamic FRONTEND_URL  
-        return HttpResponseRedirect(f"{settings.FRONTEND_URL}/signin?auth_error=callback_failed")
+        # Redirect to frontend with error - use environment FRONTEND_URL
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://bunklogs.net')
+        return HttpResponseRedirect(f"{frontend_url}/signin?auth_error=callback_failed")
 
 
 @api_view(['POST'])
