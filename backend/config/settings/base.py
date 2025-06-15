@@ -398,9 +398,9 @@ ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
 
 HEADLESS_ONLY = True
 HEADLESS_FRONTEND_URLS = {
-    "account_confirm_email": f"{FRONTEND_URL}/accounts/verify-email/{key}",
+    "account_confirm_email": f"{FRONTEND_URL}/accounts/verify-email/{{key}}",
     "account_reset_password": f"{FRONTEND_URL}/accounts/password/reset",
-    "account_reset_password_from_key": f"{FRONTEND_URL}/accounts/password/reset/key/{key}",
+    "account_reset_password_from_key": f"{FRONTEND_URL}/accounts/password/reset/key/{{key}}",
     "account_signup": f"{FRONTEND_URL}/accounts/signup",
     "socialaccount_login_error": f"{FRONTEND_URL}/signin?auth_error=unknown",
 }
@@ -409,20 +409,20 @@ HEADLESS_SERVE_SPECIFICATION = True
 # Environment-aware CORS settings
 if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
-        "https://clc.bunklogs.net",  # Your actual frontend - moved to top
         "https://bunklogs.net",
         "https://www.bunklogs.net",
-        "https://storage.googleapis.com",
+        "https://storage.googleapis.com",  # For direct bucket access
         "https://storage.cloud.google.com",
         "https://admin.bunklogs.net",
+        "https://clc.bunklogs.net",  # Frontend domain
     ]
     CSRF_TRUSTED_ORIGINS = [
-        'https://clc.bunklogs.net',  # Your actual frontend - moved to top
         'https://bunklogs.net',
         'https://www.bunklogs.net',
         'https://storage.googleapis.com',
         'https://storage.cloud.google.com',
         "https://admin.bunklogs.net",
+        "https://clc.bunklogs.net",  # Frontend domain
     ]
     # Updated for Render.com deployment
     ALLOWED_HOSTS = [
