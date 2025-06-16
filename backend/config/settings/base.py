@@ -394,6 +394,7 @@ HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": f"{FRONTEND_URL}/accounts/password/reset/key/{{key}}",
     "account_signup": f"{FRONTEND_URL}/accounts/signup",
     "socialaccount_login_error": f"{FRONTEND_URL}/signin?auth_error=unknown",
+    "socialaccount_login_cancelled": f"{FRONTEND_URL}/signin?auth_cancelled=true",
 }
 HEADLESS_SERVE_SPECIFICATION = True
 
