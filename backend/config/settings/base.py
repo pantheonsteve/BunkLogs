@@ -341,9 +341,8 @@ SOCIALACCOUNT_STORE_TOKENS = True
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = False
-#SOCIALACCOUNT_ADAPTER = 'bunk_logs.users.adapters.SocialAccountAdapter'
-# https://docs.allauth.org/en/dev/socialaccount/configuration.html
-SOCIALACCOUNT_ADAPTER = "allauth.socialaccount.adapter.DefaultSocialAccountAdapter"
+# Use our custom adapter for proper frontend URL handling
+SOCIALACCOUNT_ADAPTER = 'bunk_logs.users.adapters.SocialAccountAdapter'
 SOCIALACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSocialSignupForm"}
 
 
