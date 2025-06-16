@@ -172,7 +172,7 @@ function Signin() {
                   </button>
                 </div>
               </form>
-              <h2>Or use a social account</h2>
+              <h2>Or use a social account if you want</h2>
               <SocialLoginButton />
               Footer
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
