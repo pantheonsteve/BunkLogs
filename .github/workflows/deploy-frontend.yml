@@ -110,20 +110,32 @@ jobs:
           
           # Verify upload completed successfully
           echo "🔍 Verifying upload completion..."
+          
+          # List what we're trying to upload locally
+          echo "📋 Local dist contents:"
+          find dist -type f | head -10
+          
           STAGING_COUNT=$(gsutil ls -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/" | wc -l)
           LOCAL_COUNT=$(find dist -type f | wc -l)
           
           echo "Local files: $LOCAL_COUNT, Uploaded files: $STAGING_COUNT"
           
+          # Show what was actually uploaded
+          echo "📋 Staging directory contents:"
+          gsutil ls -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/" | head -10
+          
           if [ "$STAGING_COUNT" -ge "$LOCAL_COUNT" ]; then
             echo "✅ Upload verification passed"
             
-            # Now move files from staging to root (this is much faster)
+            # Now move files from staging to root (this handles subdirectories properly)
             echo "🔄 Moving files from staging to production..."
-            gsutil -m mv "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/*" "gs://${{ env.FRONTEND_BUCKET }}/"
+            gsutil -m cp -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/*" "gs://${{ env.FRONTEND_BUCKET }}/"
+            gsutil -m rm -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/"
             
-            # Clean up staging directory
-            gsutil rm -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/" || echo "Staging cleanup not needed"
+            # Verify final deployment
+            echo "🔍 Verifying final deployment..."
+            gsutil ls "gs://${{ env.FRONTEND_BUCKET }}/index.html" && echo "✅ index.html found"
+            gsutil ls "gs://${{ env.FRONTEND_BUCKET }}/assets/" && echo "✅ assets/ directory found" || echo "⚠️ assets/ directory missing"
             
             echo "✅ Atomic deployment complete"
           else
@@ -177,7 +189,7 @@ jobs:
               --global || echo "Path matcher already exists"
             
             gcloud compute ssl-certificates create bunk-logs-frontend-ssl \
-              --domains=bunklogs.net \
+              --domains=clc.bunklogs.net \
               --global || echo "SSL certificate may already exist"
             
             gcloud compute target-https-proxies create bunk-logs-frontend-proxy \
@@ -196,7 +208,7 @@ jobs:
             if [ "$LB_IP" != "Could not retrieve IP" ]; then
               echo "🌐 Load Balancer IP: $LB_IP"
               echo "📋 DNS Configuration Required:"
-              echo "   Create an A record for bunklogs.net pointing to: $LB_IP"
+              echo "   Create an A record for clc.bunklogs.net pointing to: $LB_IP"
             fi
             
           else
@@ -243,7 +255,7 @@ jobs:
           
           # Check direct bucket access first
           BUCKET_URL="https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
-          CDN_URL="https://bunklogs.net"
+          CDN_URL="https://clc.bunklogs.net"
           
           echo "🔍 Testing direct bucket access..."
           if curl -f -s "$BUCKET_URL" > /dev/null; then
