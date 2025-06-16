@@ -50,14 +50,8 @@ function SocialLoginButton({ provider = "google" }) {
       }
     }
 
-    // Set callback URL to frontend auth callback page
-    const frontendUrl = window.location.origin; // Use current origin
-    const callbackUrl = `${frontendUrl}/auth/callback/`;
-    
     console.log("Initiating social login with:", {
       provider,
-      callbackUrl,
-      frontendUrl,
       backendUrl,
       csrfToken
     });
@@ -68,9 +62,9 @@ function SocialLoginButton({ provider = "google" }) {
     form.action = `${backendUrl}/_allauth/browser/v1/auth/provider/redirect`;
     
     // Add form data - use correct provider name
+    // Note: callback_url might not be needed for allauth headless mode
     const formData = {
       provider: provider, // Should be "google" now
-      callback_url: callbackUrl,
       csrfmiddlewaretoken: csrfToken || "",
       process: "login"
     };
