@@ -1,7 +1,20 @@
 import axios from 'axios';
 import { getCSRFToken } from './django';
 
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Get and clean the API URL
+const getApiUrl = () => {
+  let url = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  // Remove any quotes and trim whitespace
+  url = url.replace(/['"]/g, '').trim();
+  // Ensure it has a protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = url.includes('localhost') ? `http://${url}` : `https://${url}`;
+  }
+  return url;
+};
+
+const apiUrl = getApiUrl();
+console.log('API URL configured as:', apiUrl);
 
 const api = axios.create({
   baseURL: apiUrl,
