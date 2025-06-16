@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider } from './auth/AuthContext';
+import { AllAuthProvider } from './context/AllAuthContext';
 import { BunkProvider } from './contexts/BunkContext';
 import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
@@ -32,11 +33,13 @@ function App() {
   }
 
   return (
-    <AuthProvider>
-      <BunkProvider>
-        <Router />
-      </BunkProvider>
-    </AuthProvider>
+    <AllAuthProvider>
+      <AuthProvider>
+        <BunkProvider>
+          <Router />
+        </BunkProvider>
+      </AuthProvider>
+    </AllAuthProvider>
   );
 }
 
