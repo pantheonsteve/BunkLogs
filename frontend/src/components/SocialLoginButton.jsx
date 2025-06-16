@@ -1,12 +1,25 @@
+import { redirectToProvider, AuthProcess } from "../lib/allauth";
 import { useConfig } from "../context/AllAuthContext";
 
 function SocialLoginButton({ provider = "google" }) {
   const { config, loading } = useConfig();
 
-  const handleGoogleLogin = () => {
-    // Redirect directly to Django's Google OAuth URL
-    const nextUrl = encodeURIComponent('https://clc.bunklogs.net/auth/success');
-    window.location.href = `https://admin.bunklogs.net/accounts/google/login/?next=${nextUrl}`;
+  const handleLogin = () => {
+    console.log("Initiating social login with provider:", provider);
+    
+    // Check if provider is available
+    const providers = config?.socialaccount?.providers || [];
+    const availableProvider = providers.find(p => p.id === provider);
+    
+    if (!availableProvider) {
+      console.error(`Provider ${provider} is not available. Available providers:`, providers);
+      alert(`${provider} login is not configured. Please contact support.`);
+      return;
+    }
+
+    // Use allauth's redirectToProvider function
+    // This handles the CSRF token and form submission automatically
+    redirectToProvider(provider, '/callback/', AuthProcess.LOGIN);
   };
 
   // Don't render if config is still loading
@@ -24,7 +37,7 @@ function SocialLoginButton({ provider = "google" }) {
 
   return (
     <button 
-      onClick={handleGoogleLogin}
+      onClick={handleLogin}
       className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
     >
       <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
