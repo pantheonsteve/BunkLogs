@@ -1,49 +1,12 @@
-import { redirectToProvider, AuthProcess } from "../lib/allauth";
 import { useConfig } from "../context/AllAuthContext";
 
 function SocialLoginButton({ provider = "google" }) {
   const { config, loading } = useConfig();
 
-  const handleLogin = async () => {
-    console.log("=== SOCIAL LOGIN DEBUG START ===");
-    console.log("Initiating social login with provider:", provider);
-    console.log("Current URL:", window.location.href);
-    console.log("Config loading state:", loading);
-    console.log("Full config object:", config);
-    
-    // Check if provider is available
-    const providers = config?.socialaccount?.providers || [];
-    console.log("Available providers:", providers);
-    
-    const availableProvider = providers.find(p => p.id === provider);
-    console.log("Found provider:", availableProvider);
-    
-    if (!availableProvider) {
-      console.error(`Provider ${provider} is not available. Available providers:`, providers);
-      alert(`${provider} login is not configured. Please contact support.`);
-      return;
-    }
-
-    try {
-      console.log("Using allauth redirectToProvider function...");
-      console.log("Callback URL will be:", window.location.protocol + '//' + window.location.host + '/callback');
-      
-      // Log current page state
-      console.log("Document ready state:", document.readyState);
-      console.log("User agent:", navigator.userAgent);
-      
-      // Use allauth's built-in redirectToProvider function
-      // This will handle CSRF tokens automatically
-      await redirectToProvider(provider, '/callback', AuthProcess.LOGIN);
-      
-      console.log("redirectToProvider call completed");
-      
-    } catch (error) {
-      console.error('Error initiating social login:', error);
-      console.error('Error stack:', error.stack);
-      alert('Failed to initiate social login. Please try again.');
-    }
-    console.log("=== SOCIAL LOGIN DEBUG END ===");
+  const handleGoogleLogin = () => {
+    // Redirect directly to Django's Google OAuth URL
+    const nextUrl = encodeURIComponent('https://clc.bunklogs.net/auth/success');
+    window.location.href = `https://admin.bunklogs.net/accounts/google/login/?next=${nextUrl}`;
   };
 
   // Don't render if config is still loading
@@ -61,7 +24,7 @@ function SocialLoginButton({ provider = "google" }) {
 
   return (
     <button 
-      onClick={handleLogin}
+      onClick={handleGoogleLogin}
       className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
     >
       <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">

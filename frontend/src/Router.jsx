@@ -13,6 +13,7 @@ import ResetPasswordConfirm from './pages/ResetPasswordConfirm';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import OrderEdit from './pages/OrderEdit';
+import AuthSuccess from './pages/AuthSuccess';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -56,6 +57,8 @@ function Router() {
         <Route path="/accounts/password/reset/key/:key" element={<ResetPasswordConfirm />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/callback" element={<CallbackPage />} />
+        <Route path="/account/provider/callback" element={<CallbackPage />} />
+        <Route path="/auth/success" element={<AuthSuccess />} />
         
         {/* Protected routes */}
         <Route 
