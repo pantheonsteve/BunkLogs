@@ -30,7 +30,7 @@ export const Client = Object.freeze({
 
 export const settings = {
   client: Client.BROWSER,
-  baseUrl: `/_allauth/${Client.BROWSER}/v1`,
+  baseUrl: `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/_allauth/${Client.BROWSER}/v1`,
   withCredentials: false
 }
 
@@ -328,12 +328,37 @@ export async function redirectToProvider (providerId, callbackURL, process = Aut
   // Get CSRF token asynchronously
   const csrfToken = await getCSRFTokenAsync();
   
-  postForm(URLs.REDIRECT_TO_PROVIDER, {
+  if (!csrfToken) {
+    console.error('No CSRF token available for provider redirect');
+    throw new Error('CSRF token is required for social login');
+  }
+  
+  // Create form manually since we need to wait for the async CSRF token
+  const f = document.createElement('form')
+  f.method = 'POST'
+  f.action = settings.baseUrl + URLs.REDIRECT_TO_PROVIDER
+
+  const data = {
     provider: providerId,
     process,
     callback_url: window.location.protocol + '//' + window.location.host + callbackURL,
     csrfmiddlewaretoken: csrfToken
-  })
+  }
+
+  for (const key in data) {
+    const d = document.createElement('input')
+    d.type = 'hidden'
+    d.name = key
+    d.value = data[key]
+    f.appendChild(d)
+  }
+  
+  console.log('Submitting provider redirect form to:', f.action)
+  console.log('Form data:', data)
+  console.log('CSRF token:', csrfToken?.substring(0, 8) + '...')
+  
+  document.body.appendChild(f)
+  f.submit()
 }
 
 export async function getWebAuthnCreateOptions (passwordless) {
