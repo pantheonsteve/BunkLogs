@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
+import { useEffect } from 'react';
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -29,9 +30,24 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Component to handle redirected paths from 404 page
+function RedirectHandler() {
+  useEffect(() => {
+    const redirectPath = sessionStorage.getItem('redirectPath');
+    if (redirectPath) {
+      sessionStorage.removeItem('redirectPath');
+      // Use replace to avoid adding to history
+      window.location.replace(redirectPath);
+    }
+  }, []);
+  
+  return null;
+}
+
 function Router() {
   return (
     <BrowserRouter>
+      <RedirectHandler />
       <Routes>
         {/* Public routes */}
         <Route path="/signin" element={<Signin />} />

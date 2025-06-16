@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BunkLogs</title>
+    <script>
+        // For SPA routing - redirect 404s to the root with the original path preserved
+        // This allows React Router to handle the routing client-side
+        const currentPath = window.location.pathname + window.location.search + window.location.hash;
+        if (currentPath !== '/') {
+            // Preserve the path by storing it and redirecting to root
+            sessionStorage.setItem('redirectPath', currentPath);
+            window.location.replace('/');
+        }
+    </script>
+</head>
+<body>
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif;">
+            <div>Loading...</div>
+        </div>
+    </div>
+</body>
+</html>
