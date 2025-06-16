@@ -53,8 +53,8 @@ export const Client = Object.freeze({
 
 export const settings = {
   client: Client.BROWSER,
-  baseUrl: `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/_allauth/${Client.BROWSER}/v1`,
-  withCredentials: false
+  baseUrl: `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/_allauth/browser/v1`,
+  withCredentials: true
 }
 
 const ACCEPT_JSON = {
