@@ -2,23 +2,46 @@ import { getCSRFToken } from './django'
 
 // Enhanced CSRF token fetcher that can work synchronously
 async function getCSRFTokenAsync() {
+  console.log('=== getCSRFTokenAsync START ===');
+  
   // First try the standard method
   const cookieToken = getCSRFToken();
+  console.log('Cookie token from getCSRFToken():', cookieToken ? 'YES (' + cookieToken.substring(0, 8) + '...)' : 'NO');
+  
   if (cookieToken) {
+    console.log('Using cookie token');
     return cookieToken;
   }
 
   // If no cookie token, fetch from server
   try {
     const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
-    const response = await fetch(`${apiUrl}/api/get-csrf-token/`, {
+    const fetchUrl = `${apiUrl}/api/get-csrf-token/`;
+    console.log('Fetching CSRF token from:', fetchUrl);
+    
+    const response = await fetch(fetchUrl, {
       credentials: 'include'
     });
+    
+    console.log('CSRF fetch response status:', response.status);
+    console.log('CSRF fetch response headers:', [...response.headers.entries()]);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
     const data = await response.json();
-    console.log('CSRF token fetched for allauth:', data.csrfToken.substring(0, 6) + '...');
-    return data.csrfToken;
+    console.log('CSRF fetch response data:', data);
+    
+    if (data.csrfToken) {
+      console.log('CSRF token fetched for allauth:', data.csrfToken.substring(0, 6) + '...');
+      return data.csrfToken;
+    } else {
+      throw new Error('No csrfToken in response');
+    }
   } catch (error) {
     console.error('Failed to fetch CSRF token for allauth:', error);
+    console.log('Falling back to getCSRFToken()');
     return getCSRFToken(); // Fallback to original method
   }
 }
@@ -163,10 +186,22 @@ async function request (method, path, data, headers) {
     options.body = JSON.stringify(data)
     options.headers['Content-Type'] = 'application/json'
   }
-  const resp = await fetch(settings.baseUrl + path, options)
-  console.log(resp)
+  
+  const requestUrl = settings.baseUrl + path;
+  
+  console.log('=== ALLAUTH REQUEST ===');
+  console.log('Method:', method);
+  console.log('URL:', requestUrl);
+  console.log('Options:', options);
+  console.log('Data:', data);
+  
+  const resp = await fetch(requestUrl, options)
+  console.log('Response status:', resp.status);
+  console.log('Response headers:', [...resp.headers.entries()]);
+  
   const msg = await resp.json()
-  console.log(msg)
+  console.log('Response data:', msg);
+  
   if (msg.status === 410) {
     tokenStorage.removeItem('sessionToken')
   }
@@ -325,8 +360,16 @@ export async function authenticateByToken (providerId, token, process = AuthProc
 }
 
 export async function redirectToProvider (providerId, callbackURL, process = AuthProcess.LOGIN) {
+  console.log('=== redirectToProvider START ===');
+  console.log('Provider ID:', providerId);
+  console.log('Callback URL:', callbackURL);
+  console.log('Process:', process);
+  console.log('Settings baseUrl:', settings.baseUrl);
+  console.log('Full form action will be:', settings.baseUrl + URLs.REDIRECT_TO_PROVIDER);
+  
   // Get CSRF token asynchronously
   const csrfToken = await getCSRFTokenAsync();
+  console.log('Got CSRF token:', csrfToken ? 'YES (' + csrfToken.substring(0, 8) + '...)' : 'NO');
   
   if (!csrfToken) {
     console.error('No CSRF token available for provider redirect');
@@ -338,13 +381,23 @@ export async function redirectToProvider (providerId, callbackURL, process = Aut
   f.method = 'POST'
   f.action = settings.baseUrl + URLs.REDIRECT_TO_PROVIDER
 
+  const fullCallbackUrl = window.location.protocol + '//' + window.location.host + callbackURL;
   const data = {
     provider: providerId,
     process,
-    callback_url: window.location.protocol + '//' + window.location.host + callbackURL,
+    callback_url: fullCallbackUrl,
     csrfmiddlewaretoken: csrfToken
   }
 
+  console.log('=== FORM SUBMISSION DATA ===');
+  console.log('Form action:', f.action);
+  console.log('Form method:', f.method);
+  console.log('Form data:');
+  for (const [key, value] of Object.entries(data)) {
+    console.log(`  ${key}: ${value}`);
+  }
+  
+  // Add form inputs
   for (const key in data) {
     const d = document.createElement('input')
     d.type = 'hidden'
@@ -353,12 +406,21 @@ export async function redirectToProvider (providerId, callbackURL, process = Aut
     f.appendChild(d)
   }
   
-  console.log('Submitting provider redirect form to:', f.action)
-  console.log('Form data:', data)
-  console.log('CSRF token:', csrfToken?.substring(0, 8) + '...')
+  // Log form HTML for debugging
+  console.log('Generated form HTML:', f.outerHTML);
   
+  // Add form to document and submit
   document.body.appendChild(f)
-  f.submit()
+  console.log('Form appended to body, submitting...');
+  
+  // Add a delay to see if we can catch any immediate redirects
+  setTimeout(() => {
+    console.log('About to submit form...');
+    f.submit();
+    console.log('Form submitted!');
+  }, 100);
+  
+  console.log('=== redirectToProvider END ===');
 }
 
 export async function getWebAuthnCreateOptions (passwordless) {

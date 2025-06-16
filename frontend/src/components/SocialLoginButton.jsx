@@ -5,11 +5,18 @@ function SocialLoginButton({ provider = "google" }) {
   const { config, loading } = useConfig();
 
   const handleLogin = async () => {
+    console.log("=== SOCIAL LOGIN DEBUG START ===");
     console.log("Initiating social login with provider:", provider);
+    console.log("Current URL:", window.location.href);
+    console.log("Config loading state:", loading);
+    console.log("Full config object:", config);
     
     // Check if provider is available
     const providers = config?.socialaccount?.providers || [];
+    console.log("Available providers:", providers);
+    
     const availableProvider = providers.find(p => p.id === provider);
+    console.log("Found provider:", availableProvider);
     
     if (!availableProvider) {
       console.error(`Provider ${provider} is not available. Available providers:`, providers);
@@ -19,15 +26,24 @@ function SocialLoginButton({ provider = "google" }) {
 
     try {
       console.log("Using allauth redirectToProvider function...");
+      console.log("Callback URL will be:", window.location.protocol + '//' + window.location.host + '/callback');
+      
+      // Log current page state
+      console.log("Document ready state:", document.readyState);
+      console.log("User agent:", navigator.userAgent);
       
       // Use allauth's built-in redirectToProvider function
       // This will handle CSRF tokens automatically
       await redirectToProvider(provider, '/callback', AuthProcess.LOGIN);
       
+      console.log("redirectToProvider call completed");
+      
     } catch (error) {
       console.error('Error initiating social login:', error);
+      console.error('Error stack:', error.stack);
       alert('Failed to initiate social login. Please try again.');
     }
+    console.log("=== SOCIAL LOGIN DEBUG END ===");
   };
 
   // Don't render if config is still loading
