@@ -18,42 +18,11 @@ function SocialLoginButton({ provider = "google" }) {
     }
 
     try {
-      console.log("Getting CSRF token for social login...");
+      console.log("Using allauth redirectToProvider function...");
       
-      // Get CSRF token from server first
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
-      const csrfResponse = await fetch(`${apiUrl}/api/get-csrf-token/`, {
-        credentials: 'include'
-      });
-      const csrfData = await csrfResponse.json();
-      const csrfToken = csrfData.csrfToken;
-      
-      console.log('CSRF token obtained:', csrfToken.substring(0, 8) + '...');
-      
-      // Create and submit form manually with proper CSRF token
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = 'https://admin.bunklogs.net/_allauth/browser/v1/auth/provider/redirect';
-      
-      // Add form fields
-      const addField = (name, value) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        input.value = value;
-        form.appendChild(input);
-      };
-      
-      addField('provider', provider);
-      addField('process', 'login');
-      addField('callback_url', window.location.protocol + '//' + window.location.host + '/callback');
-      addField('csrfmiddlewaretoken', csrfToken);
-      
-      console.log('Submitting social login form with CSRF token...');
-      
-      // Submit form
-      document.body.appendChild(form);
-      form.submit();
+      // Use allauth's built-in redirectToProvider function
+      // This will handle CSRF tokens automatically
+      await redirectToProvider(provider, '/callback', AuthProcess.LOGIN);
       
     } catch (error) {
       console.error('Error initiating social login:', error);
