@@ -113,18 +113,26 @@ jobs:
         run: |
           # Check if CDN already exists
           if ! gcloud compute backend-buckets describe bunk-logs-frontend-backend --global 2>/dev/null; then
-            echo "🌐 Setting up Cloud CDN..."
+            echo "🌐 Setting up Cloud CDN with SPA routing..."
             
             # Create backend bucket
             echo "📦 Creating backend bucket..."
             gcloud compute backend-buckets create bunk-logs-frontend-backend \
               --gcs-bucket-name=${{ env.FRONTEND_BUCKET }} || echo "Backend bucket may already exist"
             
-            # Create URL map
-            echo "🗺️ Creating URL map..."
+            # Create URL map with SPA routing support
+            echo "🗺️ Creating URL map with SPA routing..."
             gcloud compute url-maps create bunk-logs-frontend-map \
               --default-backend-bucket=bunk-logs-frontend-backend \
               --global || echo "URL map may already exist"
+            
+            # Add path matcher for SPA routing - route all unknown paths to index.html
+            echo "📍 Configuring SPA routing path matcher..."
+            gcloud compute url-maps add-path-matcher bunk-logs-frontend-map \
+              --path-matcher-name=spa-matcher \
+              --default-backend-bucket=bunk-logs-frontend-backend \
+              --path-rules="/,/assets/*,/favicon.ico,/robots.txt,/manifest.json:bunk-logs-frontend-backend" \
+              --global || echo "Path matcher already exists"
             
             # Create managed SSL certificate
             echo "🔒 Creating SSL certificate..."
