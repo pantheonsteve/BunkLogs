@@ -85,7 +85,7 @@ function Signin() {
             </div>
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
-              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">Crane Lake Camp Bunk Logs</h1>
+              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">CLC Bunk Logs</h1>
               <p className="text-gray-600 dark:text-gray-400 mb-6">Welcome back! Sign in to your account to continue</p>
               
               {successMessage && (
