@@ -1,92 +1,39 @@
-import { getCSRFToken } from "../lib/django";
-import { useEffect } from "react";
+import { redirectToProvider, AuthProcess } from "../lib/allauth";
+import { useConfig } from "../context/AllAuthContext";
 
 function SocialLoginButton({ provider = "google" }) {
+  const { config, loading } = useConfig();
 
-  // Get the backend URL and ensure it has a protocol
-  const getBackendUrl = () => {
-    const envUrl = import.meta.env.VITE_API_URL;
-    if (envUrl) {
-      // If env URL already has protocol, use it as-is
-      if (envUrl.startsWith('http://') || envUrl.startsWith('https://')) {
-        return envUrl;
-      }
-      // If no protocol, assume https for production domains, http for localhost
-      return envUrl.includes('localhost') ? `http://${envUrl}` : `https://${envUrl}`;
-    }
-    // Default fallback
-    return "http://localhost:8000";
-  };
-
-  const backendUrl = getBackendUrl();
-  
-
-  useEffect(() => {
-    // Fetch CSRF token on component mount
-    fetch(`${backendUrl}/api/get-csrf-token/`, {
-      credentials: "include"
-    }).then(response => response.json())
-      .then(data => {
-        console.log('CSRF token fetched:', data.csrfToken);
-      })
-      .catch(err => {
-        console.warn('Failed to fetch CSRF token:', err);
-      });
-  }, [backendUrl]);
-
-  const handleLogin = async () => {
-    // Get fresh CSRF token before making the request
-    let csrfToken = getCSRFToken();
-    if (!csrfToken) {
-      try {
-        const response = await fetch(`${backendUrl}/api/get-csrf-token/`, {
-          credentials: "include"
-        });
-        const data = await response.json();
-        csrfToken = data.csrfToken;
-        console.log('Fetched fresh CSRF token:', csrfToken);
-      } catch (err) {
-        console.error('Failed to fetch CSRF token:', err);
-      }
+  const handleLogin = () => {
+    console.log("Initiating social login with provider:", provider);
+    
+    // Check if provider is available
+    const providers = config?.socialaccount?.providers || [];
+    const availableProvider = providers.find(p => p.id === provider);
+    
+    if (!availableProvider) {
+      console.error(`Provider ${provider} is not available. Available providers:`, providers);
+      alert(`${provider} login is not configured. Please contact support.`);
+      return;
     }
 
-    console.log("Initiating social login with:", {
-      provider,
-      backendUrl,
-      csrfToken
-    });
-    
-    // Create and submit a form
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = `${backendUrl}/_allauth/browser/v1/auth/provider/redirect`;
-    
-    // Add form data - use correct provider name
-    // Note: callback_url might not be needed for allauth headless mode
-    const formData = {
-      provider: provider, // Should be "google" now
-      csrfmiddlewaretoken: csrfToken || "",
-      process: "login"
-    };
-    
-    // Create and append input fields
-    Object.entries(formData).forEach(([key, value]) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = key;
-      input.value = value;
-      form.appendChild(input);
-    });
-    
-    // Append and submit form
-    document.body.appendChild(form);
-    console.log("Form action:", form.action);
-    console.log("Form data:", formData);
-
-    //debugger;
-    
-    form.submit();
+    // Use allauth's redirectToProvider function
+    // This handles the CSRF token and form submission automatically
+    redirectToProvider(provider, '/callback/', AuthProcess.LOGIN);
   };
+
+  // Don't render if config is still loading
+  if (loading) {
+    return (
+      <button 
+        disabled
+        className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-gray-100 text-sm font-medium text-gray-400"
+      >
+        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-gray-400 mr-2"></div>
+        Loading...
+      </button>
+    );
+  }
 
   return (
     <button 

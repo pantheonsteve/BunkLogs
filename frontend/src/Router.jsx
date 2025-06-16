@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
 import AuthCallback from './pages/AuthCallback';
+import CallbackPage from './pages/CallbackPage';
 import ResetPassword from './pages/ResetPassword';
 import ResetPasswordConfirm from './pages/ResetPasswordConfirm';
 import Orders from './pages/Orders';
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accounts/password/reset/key/:key" element={<ResetPasswordConfirm />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/callback" element={<CallbackPage />} />
         
         {/* Protected routes */}
         <Route 
