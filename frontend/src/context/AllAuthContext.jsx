@@ -21,6 +21,7 @@ export function AllAuthProvider({ children }) {
     const initializeAllAuth = async () => {
       try {
         console.log('AllAuth: Initializing authentication state...');
+        console.log('AllAuth: Base URL:', `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/_allauth/browser/v1`);
         
         // Fetch initial auth state and config
         const [authResponse, configResponse] = await Promise.all([
@@ -36,6 +37,7 @@ export function AllAuthProvider({ children }) {
 
         console.log('AllAuth: Auth response:', authResponse);
         console.log('AllAuth: Config response:', configResponse);
+        console.log('AllAuth: Providers found:', configResponse?.data?.socialaccount?.providers || []);
 
         setAuth(authResponse);
         setConfig(configResponse);
