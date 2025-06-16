@@ -19,6 +19,7 @@ function SocialLoginButton({ provider = "GoogleOAuth" }) {
   };
 
   const backendUrl = getBackendUrl();
+  
 
   useEffect(() => {
     fetch(`${backendUrl}/api/get-csrf-token/`, {
@@ -37,6 +38,7 @@ function SocialLoginButton({ provider = "GoogleOAuth" }) {
       provider,
       callbackUrl,
       frontendUrl,
+      backendUrl,
       csrfToken: getCSRFToken()
     });
     
