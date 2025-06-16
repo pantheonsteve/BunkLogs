@@ -89,3 +89,27 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             user.role = 'Counselor'  # Default role
             
         return user
+    
+    def get_login_redirect_url(self, request, user):
+        """
+        Return the URL to redirect to after a successful social login.
+        """
+        return settings.LOGIN_REDIRECT_URL
+        
+    def save_user(self, request, sociallogin, form=None):
+        """
+        Saves a newly created user instance using information provided by the social provider.
+        """
+        user = super().save_user(request, sociallogin, form)
+        
+        # Generate JWT tokens for headless mode
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        
+        # Store tokens in session for callback handling
+        request.session['auth_tokens'] = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+        
+        return user
