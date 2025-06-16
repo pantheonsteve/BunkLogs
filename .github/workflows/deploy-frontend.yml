@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
     paths: ['frontend/**']
-  workflow_dispatch:  # Allow manual triggers
+  workflow_dispatch:
 
 env:
   PROJECT_ID: bunklogsauth
@@ -62,7 +62,6 @@ jobs:
       - name: Build frontend
         working-directory: ./frontend
         env:
-          # Update this to point to your Render.com backend URL
           VITE_API_URL: ${{ secrets.RENDER_BACKEND_URL || 'https://admin.bunklogs.net' }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         run: npm run build
@@ -77,6 +76,14 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
+      # CRITICAL: Invalidate cache BEFORE deployment
+      - name: Pre-deployment cache invalidation
+        run: |
+          echo "🔄 Pre-invalidating CDN cache to prevent stale content..."
+          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
+            --path="/*" \
+            --global || echo "⚠️ Pre-invalidation failed, continuing..."
+
       - name: Create frontend bucket if not exists
         run: |
           gsutil ls gs://${{ env.FRONTEND_BUCKET }} || \
@@ -88,67 +95,96 @@ jobs:
             echo "✅ Frontend bucket created and configured"
           )
 
-      - name: Deploy frontend to Cloud Storage
+      # IMPROVED: Deploy with atomic-like behavior
+      - name: Deploy frontend to Cloud Storage (Atomic)
         working-directory: ./frontend
         run: |
-          echo "🚀 Deploying frontend to Google Cloud Storage..."
+          echo "🚀 Deploying frontend with atomic-like behavior..."
           
-          # Deploy with cache-busting and proper headers
-          gsutil -m rsync -r -d -c \
-            -x '.*\.map$' \
-            dist/ gs://${{ env.FRONTEND_BUCKET }}/
+          # Create a temporary "staging" directory in the bucket
+          TEMP_DIR="_staging_$(date +%s)"
           
-          echo "📝 Setting cache headers..."
-          # Set cache headers for assets (1 year)
-          gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
-            "gs://${{ env.FRONTEND_BUCKET }}/assets/**" || echo "No assets directory found"
+          # Upload to staging directory first
+          echo "📤 Uploading to staging directory: $TEMP_DIR"
+          gsutil -m cp -r dist/* "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/"
           
-          # Set cache headers for index.html (1 hour)
-          gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
+          # Verify upload completed successfully
+          echo "🔍 Verifying upload completion..."
+          STAGING_COUNT=$(gsutil ls -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/" | wc -l)
+          LOCAL_COUNT=$(find dist -type f | wc -l)
+          
+          echo "Local files: $LOCAL_COUNT, Uploaded files: $STAGING_COUNT"
+          
+          if [ "$STAGING_COUNT" -ge "$LOCAL_COUNT" ]; then
+            echo "✅ Upload verification passed"
+            
+            # Now move files from staging to root (this is much faster)
+            echo "🔄 Moving files from staging to production..."
+            gsutil -m mv "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/*" "gs://${{ env.FRONTEND_BUCKET }}/"
+            
+            # Clean up staging directory
+            gsutil rm -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/" || echo "Staging cleanup not needed"
+            
+            echo "✅ Atomic deployment complete"
+          else
+            echo "❌ Upload verification failed"
+            gsutil rm -r "gs://${{ env.FRONTEND_BUCKET }}/$TEMP_DIR/" || echo "Cleanup failed"
+            exit 1
+          fi
+
+      # IMPROVED: More aggressive cache headers management
+      - name: Set optimized cache headers
+        run: |
+          echo "📝 Setting optimized cache headers..."
+          
+          # Set long cache for hashed assets (Vite automatically adds hashes)
+          echo "🔧 Setting 1-year cache for hashed assets..."
+          gsutil -m setmeta -h "Cache-Control:public, max-age=31536000, immutable" \
+            "gs://${{ env.FRONTEND_BUCKET }}/assets/**" 2>/dev/null || echo "No assets directory found"
+          
+          # Set short cache for HTML files to ensure fresh content
+          echo "🔧 Setting 5-minute cache for HTML files..."
+          gsutil -m setmeta -h "Cache-Control:public, max-age=300, must-revalidate" \
             "gs://${{ env.FRONTEND_BUCKET }}/index.html"
           
-          echo "✅ Frontend deployment complete"
+          # Set medium cache for other static files
+          echo "🔧 Setting 1-hour cache for other static files..."
+          gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
+            "gs://${{ env.FRONTEND_BUCKET }}/*.js" \
+            "gs://${{ env.FRONTEND_BUCKET }}/*.css" \
+            "gs://${{ env.FRONTEND_BUCKET }}/*.ico" \
+            "gs://${{ env.FRONTEND_BUCKET }}/*.png" \
+            "gs://${{ env.FRONTEND_BUCKET }}/*.jpg" \
+            "gs://${{ env.FRONTEND_BUCKET }}/*.svg" 2>/dev/null || echo "Some static files not found"
 
       - name: Setup Cloud CDN (if not exists)
         run: |
-          # Check if CDN already exists
           if ! gcloud compute backend-buckets describe bunk-logs-frontend-backend --global 2>/dev/null; then
             echo "🌐 Setting up Cloud CDN with SPA routing..."
             
-            # Create backend bucket
-            echo "📦 Creating backend bucket..."
             gcloud compute backend-buckets create bunk-logs-frontend-backend \
               --gcs-bucket-name=${{ env.FRONTEND_BUCKET }} || echo "Backend bucket may already exist"
             
-            # Create URL map with SPA routing support
-            echo "🗺️ Creating URL map with SPA routing..."
             gcloud compute url-maps create bunk-logs-frontend-map \
               --default-backend-bucket=bunk-logs-frontend-backend \
               --global || echo "URL map may already exist"
             
-            # Add path matcher for SPA routing - route all unknown paths to index.html
-            echo "📍 Configuring SPA routing path matcher..."
+            # Add path matcher for SPA routing
             gcloud compute url-maps add-path-matcher bunk-logs-frontend-map \
               --path-matcher-name=spa-matcher \
               --default-backend-bucket=bunk-logs-frontend-backend \
               --path-rules="/,/assets/*,/favicon.ico,/robots.txt,/manifest.json:bunk-logs-frontend-backend" \
               --global || echo "Path matcher already exists"
             
-            # Create managed SSL certificate
-            echo "🔒 Creating SSL certificate..."
             gcloud compute ssl-certificates create bunk-logs-frontend-ssl \
               --domains=bunklogs.net \
               --global || echo "SSL certificate may already exist"
             
-            # Create HTTPS proxy
-            echo "🔗 Creating HTTPS proxy..."
             gcloud compute target-https-proxies create bunk-logs-frontend-proxy \
               --url-map=bunk-logs-frontend-map \
               --ssl-certificates=bunk-logs-frontend-ssl \
               --global || echo "HTTPS proxy may already exist"
             
-            # Create forwarding rule
-            echo "📡 Creating forwarding rule..."
             gcloud compute forwarding-rules create bunk-logs-frontend-forwarding-rule \
               --global \
               --target-https-proxy=bunk-logs-frontend-proxy \
@@ -156,52 +192,91 @@ jobs:
             
             echo "✅ CDN setup complete!"
             
-            # Get the load balancer IP
             LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" || echo "Could not retrieve IP")
             if [ "$LB_IP" != "Could not retrieve IP" ]; then
               echo "🌐 Load Balancer IP: $LB_IP"
-              echo ""
               echo "📋 DNS Configuration Required:"
               echo "   Create an A record for bunklogs.net pointing to: $LB_IP"
-              echo "   This may take a few minutes to propagate"
             fi
             
           else
             echo "✅ CDN already exists, skipping setup."
-            
-            # Still show the IP for reference
             LB_IP=$(gcloud compute forwarding-rules describe bunk-logs-frontend-forwarding-rule --global --format="get(IPAddress)" 2>/dev/null || echo "Could not retrieve IP")
             if [ "$LB_IP" != "Could not retrieve IP" ]; then
               echo "🌐 Current Load Balancer IP: $LB_IP"
             fi
           fi
 
-      - name: Invalidate CDN cache
+      # CRITICAL: Multiple cache invalidation attempts
+      - name: Aggressive cache invalidation
         run: |
-          # Invalidate CDN cache for immediate updates
-          echo "🔄 Invalidating CDN cache..."
-          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
-            --path="/*" \
-            --global || echo "CDN cache invalidation failed, but deployment continues"
-
-      - name: Frontend health check
-        run: |
-          echo "🏥 Performing frontend health check..."
+          echo "🔄 Performing aggressive cache invalidation..."
           
-          # Check direct bucket access
-          if curl -f -s "https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html" > /dev/null; then
-            echo "✅ Frontend accessible via direct bucket URL"
+          # Primary invalidation
+          if gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
+            --path="/*" \
+            --global; then
+            echo "✅ Primary cache invalidation successful"
           else
-            echo "⚠️ Frontend health check failed via direct bucket access"
+            echo "❌ Primary cache invalidation failed"
           fi
+          
+          # Wait and retry specific paths
+          sleep 10
+          
+          echo "🔄 Invalidating specific critical paths..."
+          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
+            --path="/index.html" \
+            --global || echo "Index invalidation failed"
+          
+          gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map \
+            --path="/assets/*" \
+            --global || echo "Assets invalidation failed"
+          
+          # Final verification wait
+          echo "⏳ Waiting 30 seconds for cache propagation..."
+          sleep 30
+
+      - name: Enhanced health check with retry
+        run: |
+          echo "🏥 Performing enhanced health check with retry logic..."
+          
+          # Check direct bucket access first
+          BUCKET_URL="https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
+          CDN_URL="https://bunklogs.net"
+          
+          echo "🔍 Testing direct bucket access..."
+          if curl -f -s "$BUCKET_URL" > /dev/null; then
+            echo "✅ Direct bucket access successful"
+          else
+            echo "❌ Direct bucket access failed - deployment issue!"
+            exit 1
+          fi
+          
+          echo "🔍 Testing CDN access with retry..."
+          for i in {1..5}; do
+            echo "Attempt $i/5..."
+            if curl -f -s "$CDN_URL" > /dev/null; then
+              echo "✅ CDN access successful on attempt $i"
+              break
+            elif [ $i -eq 5 ]; then
+              echo "⚠️ CDN access failed after 5 attempts"
+              echo "📋 Manual verification may be needed"
+              echo "🌐 Direct URL (backup): $BUCKET_URL"
+            else
+              echo "⏳ Waiting 15 seconds before retry..."
+              sleep 15
+            fi
+          done
           
           echo ""
           echo "🚀 Frontend Deployment Summary:"
           echo "   Bucket: gs://${{ env.FRONTEND_BUCKET }}"
-          echo "   Direct URL: https://storage.googleapis.com/${{ env.FRONTEND_BUCKET }}/index.html"
-          echo "   CDN URL: https://bunklogs.net (after DNS configuration)"
+          echo "   Direct URL: $BUCKET_URL"
+          echo "   CDN URL: $CDN_URL"
           echo ""
-          echo "📝 Next Steps:"
-          echo "   1. Ensure your domain bunklogs.net points to the Load Balancer IP"
-          echo "   2. Update your backend CORS settings to allow requests from bunklogs.net"
-          echo "   3. Test the frontend functionality with your Render.com backend"
+          echo "📝 If you still see a black screen:"
+          echo "   1. Wait 2-3 minutes for global CDN propagation"
+          echo "   2. Try hard refresh (Ctrl+Shift+R or Cmd+Shift+R)"
+          echo "   3. Use direct bucket URL as fallback"
+          echo "   4. Check browser dev tools for 404 errors on assets"
