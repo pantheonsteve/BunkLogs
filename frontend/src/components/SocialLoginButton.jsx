@@ -4,7 +4,7 @@ import { useConfig } from "../context/AllAuthContext";
 function SocialLoginButton({ provider = "google" }) {
   const { config, loading } = useConfig();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     console.log("Initiating social login with provider:", provider);
     
     // Check if provider is available
@@ -17,9 +17,14 @@ function SocialLoginButton({ provider = "google" }) {
       return;
     }
 
-    // Use allauth's redirectToProvider function
-    // This handles the CSRF token and form submission automatically
-    redirectToProvider(provider, '/callback', AuthProcess.LOGIN);
+    try {
+      // Use allauth's redirectToProvider function (now async)
+      // This handles the CSRF token and form submission automatically
+      await redirectToProvider(provider, '/callback', AuthProcess.LOGIN);
+    } catch (error) {
+      console.error('Error initiating social login:', error);
+      alert('Failed to initiate social login. Please try again.');
+    }
   };
 
   // Don't render if config is still loading
