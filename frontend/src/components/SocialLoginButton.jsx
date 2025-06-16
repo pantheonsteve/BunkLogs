@@ -1,7 +1,7 @@
-import { getCSRFToken } from "../utils/cookies";
+import { getCSRFToken } from "../lib/django";
 import { useEffect } from "react";
 
-function SocialLoginButton({ provider = "GoogleOAuth" }) {
+function SocialLoginButton({ provider = "google" }) {
 
   // Get the backend URL and ensure it has a protocol
   const getBackendUrl = () => {
@@ -22,24 +22,44 @@ function SocialLoginButton({ provider = "GoogleOAuth" }) {
   
 
   useEffect(() => {
+    // Fetch CSRF token on component mount
     fetch(`${backendUrl}/api/get-csrf-token/`, {
       credentials: "include"
-    }).catch(err => {
-      console.warn('Failed to fetch CSRF token:', err);
-    });
+    }).then(response => response.json())
+      .then(data => {
+        console.log('CSRF token fetched:', data.csrfToken);
+      })
+      .catch(err => {
+        console.warn('Failed to fetch CSRF token:', err);
+      });
   }, [backendUrl]);
 
-  const handleLogin = () => {
-    // Set callback URL to be full absolute URL
-    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
-    const callbackUrl = `${backendUrl}/api/auth/google/callback/`;
+  const handleLogin = async () => {
+    // Get fresh CSRF token before making the request
+    let csrfToken = getCSRFToken();
+    if (!csrfToken) {
+      try {
+        const response = await fetch(`${backendUrl}/api/get-csrf-token/`, {
+          credentials: "include"
+        });
+        const data = await response.json();
+        csrfToken = data.csrfToken;
+        console.log('Fetched fresh CSRF token:', csrfToken);
+      } catch (err) {
+        console.error('Failed to fetch CSRF token:', err);
+      }
+    }
+
+    // Set callback URL to frontend auth callback page
+    const frontendUrl = window.location.origin; // Use current origin
+    const callbackUrl = `${frontendUrl}/auth/callback/`;
     
     console.log("Initiating social login with:", {
       provider,
       callbackUrl,
       frontendUrl,
       backendUrl,
-      csrfToken: getCSRFToken()
+      csrfToken
     });
     
     // Create and submit a form
@@ -47,11 +67,11 @@ function SocialLoginButton({ provider = "GoogleOAuth" }) {
     form.method = "POST";
     form.action = `${backendUrl}/_allauth/browser/v1/auth/provider/redirect`;
     
-    // Add form data
+    // Add form data - use correct provider name
     const formData = {
-      provider: provider, // Now it will use "GoogleOAuth"
+      provider: provider, // Should be "google" now
       callback_url: callbackUrl,
-      csrfmiddlewaretoken: getCSRFToken() || "",
+      csrfmiddlewaretoken: csrfToken || "",
       process: "login"
     };
     
