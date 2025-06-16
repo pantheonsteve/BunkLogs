@@ -20,23 +20,32 @@ export function AllAuthProvider({ children }) {
     // Initialize auth and config
     const initializeAllAuth = async () => {
       try {
+        console.log('AllAuth: Initializing authentication state...');
+        
         // Fetch initial auth state and config
         const [authResponse, configResponse] = await Promise.all([
           getAuth().catch(err => {
-            console.log('No existing auth session:', err);
+            console.log('AllAuth: No existing auth session:', err);
             return { status: 401, meta: { is_authenticated: false } };
           }),
           getConfig().catch(err => {
-            console.log('Could not fetch config:', err);
+            console.log('AllAuth: Could not fetch config:', err);
             return { data: { socialaccount: { providers: [] } } };
           })
         ]);
 
+        console.log('AllAuth: Auth response:', authResponse);
+        console.log('AllAuth: Config response:', configResponse);
+
         setAuth(authResponse);
         setConfig(configResponse);
       } catch (error) {
-        console.error('Error initializing AllAuth:', error);
+        console.error('AllAuth: Error initializing:', error);
+        // Set default states on error
+        setAuth({ status: 401, meta: { is_authenticated: false } });
+        setConfig({ data: { socialaccount: { providers: [] } } });
       } finally {
+        console.log('AllAuth: Initialization complete');
         setLoading(false);
       }
     };
