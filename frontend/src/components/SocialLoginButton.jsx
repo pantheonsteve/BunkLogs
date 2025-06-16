@@ -19,7 +19,7 @@ function SocialLoginButton({ provider = "google" }) {
 
     // Use allauth's redirectToProvider function
     // This handles the CSRF token and form submission automatically
-    redirectToProvider(provider, '/callback/', AuthProcess.LOGIN);
+    redirectToProvider(provider, '/callback', AuthProcess.LOGIN);
   };
 
   // Don't render if config is still loading

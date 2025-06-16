@@ -25,6 +25,31 @@ function Signin() {
       // Clear the state to prevent showing the message on refresh
       navigate(location.pathname, { replace: true });
     }
+    
+    // Check for authentication errors from social login
+    const urlParams = new URLSearchParams(location.search);
+    const authError = urlParams.get('auth_error');
+    const error = urlParams.get('error');
+    const authCancelled = urlParams.get('auth_cancelled');
+    const errorProcess = urlParams.get('error_process');
+    
+    if (authError || error) {
+      let errorMessage = "Social login failed. Please try again.";
+      
+      if (authError === 'unknown' || error === 'unknown') {
+        errorMessage = "An unknown error occurred during social login. Please try signing in manually or try again.";
+      } else if (authCancelled === 'true') {
+        errorMessage = "Social login was cancelled. Please try again if you want to sign in with your social account.";
+      } else if (error) {
+        errorMessage = `Social login error: ${error}`;
+      }
+      
+      setError(errorMessage);
+      
+      // Clean up the URL to remove error parameters
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
   }, [location, navigate]);
   
   const handleSubmit = async (e) => {
