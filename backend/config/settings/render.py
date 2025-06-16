@@ -151,10 +151,11 @@ LOGGING = {
 # CORS and Frontend Settings
 # ------------------------------------------------------------------------------
 # Frontend URL for CORS and redirects
-FRONTEND_URL = env("FRONTEND_URL", default="https://bunklogs.net")
+FRONTEND_URL = env("FRONTEND_URL", default="https://clc.bunklogs.net")
 
 # CORS settings for Render.com deployment with GCS frontend
 CORS_ALLOWED_ORIGINS = [
+    "https://clc.bunklogs.net",  # Your actual frontend URL
     "https://bunklogs.net",
     "https://www.bunklogs.net",
     "https://storage.googleapis.com/bunk-logs-frontend-prod",  # Direct bucket access
@@ -162,6 +163,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "https://clc.bunklogs.net",  # Your actual frontend URL
     "https://bunklogs.net",
     "https://www.bunklogs.net",
     "https://storage.googleapis.com/bunk-logs-frontend-prod",
