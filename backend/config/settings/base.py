@@ -314,17 +314,15 @@ REDIS_SSL = REDIS_URL.startswith("rediss://")
 # django-allauth
 # ------------------------------------------------------------------------------
 # Social authentication settings - very important!
-ACCOUNT_LOGIN_METHODS = {'email'}  # Updated from ACCOUNT_AUTHENTICATION_METHOD
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
-# https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_LOGIN_METHODS = {"email"}
 
 # Social account settings
+ACCOUNT_LOGIN_METHODS = {"email"}
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': [
@@ -333,7 +331,8 @@ SOCIALACCOUNT_PROVIDERS = {
         ],
         'AUTH_PARAMS': {
             'access_type': 'online',
-        }
+        },
+        'OAUTH_PKCE_ENABLED': True,
     }
 }
 
@@ -355,13 +354,6 @@ ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
 ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
 SOCIALACCOUNT_QUERY_EMAIL = True
-
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
-    }
-}
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -405,6 +397,8 @@ HEADLESS_FRONTEND_URLS = {
     "socialaccount_login_error": f"{FRONTEND_URL}/signin?auth_error=unknown",
 }
 HEADLESS_SERVE_SPECIFICATION = True
+
+SOCIALACCOUNT_LOGIN_ON_GET = True
 
 # Environment-aware CORS settings
 if IS_PRODUCTION:
@@ -486,7 +480,6 @@ SPECTACULAR_SETTINGS = {
 
 # Django AllAuth settings
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' in production
-ACCOUNT_LOGIN_METHODS = {'email'}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
