@@ -279,6 +279,8 @@ SPA_URL = FRONTEND_URL
 LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f"{FRONTEND_URL}/dashboard")
 ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRONTEND_URL}/signin")
 
+CORS_ALLOW_CREDENTIALS = True
+
 # Update CORS settings for production
 CORS_ALLOWED_ORIGINS = [
     "https://bunklogs.net",
