@@ -3,17 +3,32 @@ import { useEffect } from "react";
 
 function SocialLoginButton({ provider = "GoogleOAuth" }) {
 
-  const backendUrl = import.meta.env.VITE_API_URL || "localhost:8000"; // Default to localhost if not set
+  // Get the backend URL and ensure it has a protocol
+  const getBackendUrl = () => {
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl) {
+      // If env URL already has protocol, use it as-is
+      if (envUrl.startsWith('http://') || envUrl.startsWith('https://')) {
+        return envUrl;
+      }
+      // If no protocol, assume https for production domains, http for localhost
+      return envUrl.includes('localhost') ? `http://${envUrl}` : `https://${envUrl}`;
+    }
+    // Default fallback
+    return "http://localhost:8000";
+  };
+
+  const backendUrl = getBackendUrl();
 
   useEffect(() => {
-    fetch(`https://${backendUrl}/api/get-csrf-token/`, {
+    fetch(`${backendUrl}/api/get-csrf-token/`, {
       credentials: "include"
+    }).catch(err => {
+      console.warn('Failed to fetch CSRF token:', err);
     });
-  }, []);
+  }, [backendUrl]);
 
   const handleLogin = () => {
-    // Get backend URL from env or default
-    const backendUrl = import.meta.env.VITE_API_URL || `http://${backendUrl}`;
     // Set callback URL to be full absolute URL
     const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
     const callbackUrl = `${backendUrl}/api/auth/google/callback/`;
