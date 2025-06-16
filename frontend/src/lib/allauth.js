@@ -1,5 +1,28 @@
 import { getCSRFToken } from './django'
 
+// Enhanced CSRF token fetcher that can work synchronously
+async function getCSRFTokenAsync() {
+  // First try the standard method
+  const cookieToken = getCSRFToken();
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  // If no cookie token, fetch from server
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
+    const response = await fetch(`${apiUrl}/api/get-csrf-token/`, {
+      credentials: 'include'
+    });
+    const data = await response.json();
+    console.log('CSRF token fetched for allauth:', data.csrfToken.substring(0, 6) + '...');
+    return data.csrfToken;
+  } catch (error) {
+    console.error('Failed to fetch CSRF token for allauth:', error);
+    return getCSRFToken(); // Fallback to original method
+  }
+}
+
 export const Client = Object.freeze({
   APP: 'app',
   BROWSER: 'browser'
@@ -301,12 +324,15 @@ export async function authenticateByToken (providerId, token, process = AuthProc
   )
 }
 
-export function redirectToProvider (providerId, callbackURL, process = AuthProcess.LOGIN) {
+export async function redirectToProvider (providerId, callbackURL, process = AuthProcess.LOGIN) {
+  // Get CSRF token asynchronously
+  const csrfToken = await getCSRFTokenAsync();
+  
   postForm(URLs.REDIRECT_TO_PROVIDER, {
     provider: providerId,
     process,
     callback_url: window.location.protocol + '//' + window.location.host + callbackURL,
-    csrfmiddlewaretoken: getCSRFToken()
+    csrfmiddlewaretoken: csrfToken
   })
 }
 
