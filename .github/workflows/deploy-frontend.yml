@@ -111,7 +111,7 @@ jobs:
           # Verify upload completed successfully
           echo "🔍 Verifying upload completion..."
           
-          # List what we're trying to upload locally
+          # List what we're trying to upload locally plz
           echo "📋 Local dist contents:"
           find dist -type f | head -10
           
