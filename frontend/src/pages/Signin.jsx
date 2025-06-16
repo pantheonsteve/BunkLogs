@@ -177,7 +177,7 @@ function Signin() {
               Footer
               <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
                 <div className="text-sm">
-                  Don’t you have an account?{" "}
+                  Don’t have an account?{" "}
                   <Link className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" to="/signup">
                     Sign Up
                   </Link>
