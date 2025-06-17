@@ -23,12 +23,6 @@ class SessionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class UnitSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Unit
-        fields = "__all__"
-
-
 # Simple User serializer for nested relationships to avoid recursion
 class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,9 +30,60 @@ class SimpleUserSerializer(serializers.ModelSerializer):
         fields = ["first_name", "last_name", "role", "id", "email"]
 
 
+class UnitSerializer(serializers.ModelSerializer):
+    unit_head_details = serializers.SerializerMethodField()
+    camper_care_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Unit
+        fields = ["id", "name", "created_at", "updated_at", "unit_head_details", "camper_care_details"]
+
+    def get_unit_head_details(self, obj):
+        if obj.unit_head:
+            return {
+                "id": obj.unit_head.id,
+                "first_name": obj.unit_head.first_name,
+                "last_name": obj.unit_head.last_name,
+                "email": obj.unit_head.email,
+                "role": obj.unit_head.role,
+            }
+        return None
+
+    def get_camper_care_details(self, obj):
+        if obj.camper_care:
+            return {
+                "id": obj.camper_care.id,
+                "first_name": obj.camper_care.first_name,
+                "last_name": obj.camper_care.last_name,
+                "email": obj.camper_care.email,
+                "role": obj.camper_care.role,
+            }
+        return None
+
+
+# Simple Unit serializer for nested relationships to avoid recursion
+class SimpleUnitSerializer(serializers.ModelSerializer):
+    unit_head = serializers.SerializerMethodField()
+    camper_care = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Unit
+        fields = ["id", "name", "unit_head", "camper_care"]
+
+    def get_unit_head(self, obj):
+        if obj.unit_head:
+            return SimpleUserSerializer(obj.unit_head).data
+        return None
+
+    def get_camper_care(self, obj):
+        if obj.camper_care:
+            return SimpleUserSerializer(obj.camper_care).data
+        return None
+
+
 # Simple Bunk serializer for nested relationships to avoid recursion
 class SimpleBunkSerializer(serializers.ModelSerializer):
-    unit = UnitSerializer()
+    unit = SimpleUnitSerializer()
     cabin = CabinSerializer()
     session = SessionSerializer()
     counselors = SimpleUserSerializer(many=True, read_only=True)  # Use SimpleUserSerializer here

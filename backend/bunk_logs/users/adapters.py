@@ -38,7 +38,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     
     def get_login_error_url(self, request, provider, error=None, exception=None, extra_context=None):
         """Override to redirect to the configured frontend URL for errors"""
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://bunklogs.net')
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://clc.bunklogs.net')
         return f"{frontend_url}/signin?auth_error={error or 'unknown'}"
     
     def pre_social_login(self, request, sociallogin):

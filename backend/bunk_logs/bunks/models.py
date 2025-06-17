@@ -47,6 +47,14 @@ class Unit(models.Model):
         null=True,
         related_name="managed_units",
     )
+    camper_care = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        limit_choices_to={"role": "Camper Care"},
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="camper_care_units",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

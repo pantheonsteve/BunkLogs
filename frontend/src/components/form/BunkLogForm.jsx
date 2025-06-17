@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../../api';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
 import { useAuth, AuthContext } from '../../auth/AuthContext';
@@ -179,9 +179,8 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
           };
           console.log('Headers:', headers); // Debug headers
           
-          const response = await axios.get(
-            `http://localhost:8000/api/v1/bunklogs/${bunkIdToUse}/logs/${date}/`,
-            { headers }
+          const response = await api.get(
+            `/api/v1/bunklogs/${bunkIdToUse}/logs/${date}/`
           );
           setCamperData(response.data);
         } catch (err) {
@@ -273,7 +272,7 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
       }
       
       // Get API base URL from environment variable or use default
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
       
       // Make sure we have a token - redundant check but keeping for safety
       if (!currentToken) {
@@ -298,18 +297,16 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
       if (isUpdate) {
         // Update existing bunk log using PUT
         console.log('Updating existing bunk log with ID:', existingBunkLog.id);
-        response = await axios.put(
-          `${API_BASE_URL}/bunklogs/${existingBunkLog.id}/`,
-          submissionData,
-          { headers, withCredentials: true }
+        response = await api.put(
+          `/api/v1/bunklogs/${existingBunkLog.id}/`,
+          submissionData
         );
       } else {
         // Create new bunk log using POST
         console.log('Creating new bunk log');
-        response = await axios.post(
-          `${API_BASE_URL}/bunklogs/`,
-          submissionData,
-          { headers, withCredentials: true }
+        response = await api.post(
+          `/api/v1/bunklogs/`,
+          submissionData
         );
       }
 

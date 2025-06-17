@@ -55,7 +55,7 @@ Add your frontend domain to the allowed origins in your Django settings:
 
 ```python
 CORS_ALLOWED_ORIGINS = [
-    "https://bunklogs.net",
+    "https://clc.bunklogs.net",
     "https://storage.googleapis.com/bunk-logs-frontend-prod",
     # ... other origins
 ]
@@ -64,7 +64,7 @@ CORS_ALLOWED_ORIGINS = [
 ### 2. Update CSRF Trusted Origins
 ```python
 CSRF_TRUSTED_ORIGINS = [
-    'https://bunklogs.net',
+    'https://clc.bunklogs.net',
     'https://storage.googleapis.com/bunk-logs-frontend-prod',
     # ... other origins
 ]
@@ -72,18 +72,18 @@ CSRF_TRUSTED_ORIGINS = [
 
 ### 3. Set Environment Variables on Render.com
 Make sure these environment variables are set in your Render.com service:
-- `FRONTEND_URL=https://bunklogs.net`
-- `DJANGO_ALLOWED_HOSTS=your-render-app.onrender.com,bunklogs.net`
+- `FRONTEND_URL=https://clc.bunklogs.net`
+- `DJANGO_ALLOWED_HOSTS=your-render-app.onrender.com,clc.bunklogs.net`
 
 ## Domain Configuration
 
 Your frontend will be available at:
 - **Direct Storage URL**: `https://storage.googleapis.com/bunk-logs-frontend-prod/index.html`
-- **CDN URL**: `https://bunklogs.net` (requires DNS configuration)
+- **CDN URL**: `https://clc.bunklogs.net` (requires DNS configuration)
 
 ### DNS Setup
 1. Get the Load Balancer IP from the GitHub Actions deployment logs
-2. Create an A record for `bunklogs.net` pointing to that IP
+2. Create an A record for `clc.bunklogs.net` pointing to that IP
 3. Wait for DNS propagation (usually 5-15 minutes)
 
 ## Monitoring and Troubleshooting
@@ -125,7 +125,7 @@ gcloud compute url-maps invalidate-cdn-cache bunk-logs-frontend-map --path="/*" 
 
 1. **Set up the required GitHub secrets** (listed above)
 2. **Update your Render.com backend** with the correct CORS and domain settings
-3. **Configure DNS** to point bunklogs.net to the Load Balancer IP
+3. **Configure DNS** to point clc.bunklogs.net to the Load Balancer IP
 4. **Test the deployment** by making a change to the frontend and pushing to main
 5. **Verify functionality** by testing the frontend with your Render.com backend
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { Link } from 'react-router-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../api';
 import { Home, Users, Calendar, ArrowRight, Loader2 } from 'lucide-react';
 
 // Import utilities
@@ -29,7 +29,7 @@ function BunkCard({ cabin, session, bunk_id, counselors }) {
       if (bunk_id) {
         setIsFetchingData(true);
         try {
-          const response = await axios.get(`http://localhost:8000/api/v1/bunk/${bunk_id}`);
+          const response = await api.get(`/api/v1/bunk/${bunk_id}`);
           console.log(response.data);
           setBunkData(response.data);
         } catch (err) {

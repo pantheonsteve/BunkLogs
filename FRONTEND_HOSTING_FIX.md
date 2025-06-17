@@ -36,16 +36,16 @@ This URL serves your React app directly and works immediately.
 
 ### 🔄 Custom Domain (Requires DNS Setup)
 ```
-https://bunklogs.net
+https://clc.bunklogs.net
 ```
 This will work once you configure DNS (see next section).
 
 ## 🔧 DNS Configuration Required
 
-To make `https://bunklogs.net` work:
+To make `https://clc.bunklogs.net` work:
 
 1. **Update your DNS provider** with an A record:
-   - **Name**: `@` (or `bunklogs.net`)
+   - **Name**: `@` (or `clc.bunklogs.net`)
    - **Type**: `A`
    - **Value**: `34.49.199.187`
 

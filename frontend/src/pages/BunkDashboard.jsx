@@ -161,7 +161,7 @@ function BunkDashboard() {
         console.log(`Formatted Date: ${formattedDate}`);
         
         
-        const url = `http://127.0.0.1:8000/api/v1/bunklogs/${bunk_id}/logs/${formattedDate}/`;
+        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/bunklogs/${bunk_id}/logs/${formattedDate}/`;
         console.log(`[BunkDashboard] Fetching data from URL: ${url}`);
         
         // Get token from context or localStorage

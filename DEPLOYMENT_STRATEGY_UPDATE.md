@@ -37,7 +37,7 @@ Your deployment strategy has been successfully updated to separate frontend and 
 
 2. **Configure Render.com Backend**:
    - Set `DJANGO_SETTINGS_MODULE=config.settings.render`
-   - Set `FRONTEND_URL=https://bunklogs.net`
+   - Set `FRONTEND_URL=https://clc.bunklogs.net`
    - Add other required environment variables
 
 3. **DNS Configuration**:
@@ -49,7 +49,7 @@ Your deployment strategy has been successfully updated to separate frontend and 
 - Push changes to `frontend/` directory in main branch
 - GitHub Actions automatically builds and deploys to Google Cloud Storage
 - CDN cache is invalidated for immediate updates
-- Frontend is available at `https://bunklogs.net`
+- Frontend is available at `https://clc.bunklogs.net`
 
 **Backend Deployment (Manual)**:
 - Deploy directly to Render.com when needed

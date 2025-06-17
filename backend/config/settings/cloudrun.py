@@ -68,7 +68,7 @@ if 'COLLECTFASTA_STRATEGY' in globals():
 
 # Frontend URLs - Production overrides
 # ------------------------------------------------------------------------------
-FRONTEND_URL = env("FRONTEND_URL", default="https://bunklogs.net")
+FRONTEND_URL = env("FRONTEND_URL", default="https://clc.bunklogs.net")
 SPA_URL = FRONTEND_URL
 
 # Override redirect URLs for production
@@ -77,13 +77,13 @@ ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRON
 
 # Update CORS settings for production
 CORS_ALLOWED_ORIGINS = [
-    "https://bunklogs.net",
+    "https://clc.bunklogs.net",
     "https://www.bunklogs.net",
 ]
 
 # Update CSRF trusted origins
 CSRF_TRUSTED_ORIGINS = [
-    'https://bunklogs.net',
+    'https://clc.bunklogs.net',
     'https://www.bunklogs.net', 
 ]
 

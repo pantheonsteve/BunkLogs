@@ -26,13 +26,14 @@ class UnitAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "unit_head",
+        "camper_care",
         "created_at",
         "updated_at",
-    )  # Adjust fields as needed
-    search_fields = ("name", "unit_head")
-    list_filter = ("unit_head", "created_at", "updated_at")
+    )  # Include camper_care field
+    search_fields = ("name", "unit_head", "camper_care")
+    list_filter = ("unit_head", "camper_care", "created_at", "updated_at")
     date_hierarchy = "created_at"
-    autocomplete_fields = ["unit_head"]
+    autocomplete_fields = ["unit_head", "camper_care"]
 
     form = UnitForm
 
