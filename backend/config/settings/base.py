@@ -102,6 +102,7 @@ LOCAL_APPS = [
     "bunk_logs.bunklogs",
     "bunk_logs.api",
     "bunk_logs.orders",  # Orders app
+    "bunk_logs.utils",   # Utils app for test data management
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

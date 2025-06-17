@@ -14,10 +14,11 @@ from .forms import BunkSelectionForm
 from .forms import BunkLogCsvImportForm
 from .models import BunkLog
 from .services.imports import import_bunk_logs_from_csv, generate_sample_csv
+from bunk_logs.utils.admin import TestDataAdminMixin
 
 
 @admin.register(BunkLog)
-class BunkLogAdmin(admin.ModelAdmin):
+class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
     form = BunkLogAdminForm
 
     def get_form(self, request, obj=None, **kwargs):

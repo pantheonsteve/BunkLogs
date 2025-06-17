@@ -39,6 +39,16 @@ CACHES = {
 # CORS HEADERS
 # ------------------------------------------------------------------------------
 
+# CSRF Configuration for Local Development
+# Override base settings that require HTTPS for local HTTP development
+CSRF_COOKIE_SECURE = False  # Allow CSRF cookies over HTTP for local development
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
 # CORS_ALLOW_CREDENTIALS = True
 # CORS_ALLOWED_ORIGINS = [
 #     "http://localhost:5173",

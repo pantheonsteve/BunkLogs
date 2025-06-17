@@ -19,10 +19,16 @@ from .models import Unit
 from .services.imports import import_bunks_from_csv
 from .services.imports import import_cabins_from_csv
 from .services.imports import import_units_from_csv
+from bunk_logs.utils.admin import TestDataAdminMixin
+from .models import Session
+from .models import Unit
+from .services.imports import import_bunks_from_csv
+from .services.imports import import_cabins_from_csv
+from .services.imports import import_units_from_csv
 
 
 @admin.register(Unit)
-class UnitAdmin(admin.ModelAdmin):
+class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = (
         "name",
         "unit_head",
@@ -104,7 +110,7 @@ class UnitAdmin(admin.ModelAdmin):
 
 
 @admin.register(Cabin)
-class CabinAdmin(admin.ModelAdmin):
+class CabinAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("name", "capacity", "location", "notes")  # Adjust fields as needed
     search_fields = ("name", "location")
 
@@ -175,14 +181,14 @@ class CabinAdmin(admin.ModelAdmin):
 
 
 @admin.register(Session)
-class SessionAdmin(admin.ModelAdmin):
+class SessionAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("name", "start_date", "end_date")  # Adjust fields as needed
     search_fields = ("name", "start_date", "end_date")
 
 
 @admin.register(Bunk)
-class BunkAdmin(admin.ModelAdmin):
-    list_display = ("name", "cabin", "session", "unit", "is_active")
+class BunkAdmin(TestDataAdminMixin, admin.ModelAdmin):
+    list_display = ("name", "cabin", "session", "unit", "is_active", "is_test_data_colored")
     list_filter = ("is_active", "session", "cabin", "unit")
     search_fields = ("cabin__name", "session__name")
     actions = ["activate_bunks", "deactivate_bunks"]

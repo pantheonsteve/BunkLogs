@@ -5,6 +5,7 @@ from django.utils.html import format_html
 from django import forms
 
 from .models import Order, OrderItem, Item, OrderType, ItemCategory, BunkLogsOrderTypeItemCategory
+from bunk_logs.utils.admin import TestDataAdminMixin
 
 # Custom admin for import feature
 class ImportAdminMixin:
@@ -77,7 +78,7 @@ class CategoryInline(admin.TabularInline):
     verbose_name_plural = "Item Categories"
 
 @admin.register(Order)
-class OrderAdmin(ImportAdminMixin, admin.ModelAdmin):
+class OrderAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
     list_display = ('id', 'user', 'order_date', 'order_bunk', 'order_status')
     search_fields = ('user__email', 'order_status')
     list_filter = ('order_status', 'order_date', 'order_type', 'order_bunk')
@@ -139,7 +140,7 @@ class OrderAdmin(ImportAdminMixin, admin.ModelAdmin):
         return import_orders(request)
 
 @admin.register(Item)
-class ItemAdmin(ImportAdminMixin, admin.ModelAdmin):
+class ItemAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
     list_display = ('id', 'item_name', 'available', 'item_category')
     search_fields = ('item_name', 'item_category__category_name')
     list_filter = ('available', 'item_category')
@@ -156,7 +157,7 @@ class ItemAdmin(ImportAdminMixin, admin.ModelAdmin):
         return import_items(request)
 
 @admin.register(OrderType)
-class OrderTypeAdmin(admin.ModelAdmin):
+class OrderTypeAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ('id', 'type_name', 'get_categories')
     search_fields = ('type_name',)
     ordering = ('type_name',)
@@ -173,7 +174,7 @@ class OrderTypeAdmin(admin.ModelAdmin):
     get_categories.short_description = "Categories"
 
 @admin.register(ItemCategory)
-class ItemCategoryAdmin(ImportAdminMixin, admin.ModelAdmin):
+class ItemCategoryAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
     list_display = ('id', 'category_name')
     search_fields = ('category_name',)
     ordering = ('category_name',)
