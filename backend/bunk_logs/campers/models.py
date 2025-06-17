@@ -6,9 +6,10 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from bunks.models import Bunk
+from bunk_logs.utils.models import TestDataMixin
 
 
-class Camper(models.Model):
+class Camper(TestDataMixin):
     """Camper information."""
 
     first_name = models.CharField(max_length=100)
@@ -52,7 +53,7 @@ class Camper(models.Model):
         )
 
 
-class CamperBunkAssignment(models.Model):
+class CamperBunkAssignment(TestDataMixin):
     """Assignment of campers to bunks for a specific session."""
 
     # Add error message constant

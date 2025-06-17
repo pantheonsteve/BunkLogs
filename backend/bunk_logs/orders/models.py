@@ -2,7 +2,9 @@ from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-class BunkLogsOrderTypeItemCategory(models.Model):
+from bunk_logs.utils.models import TestDataMixin, TimestampedTestDataMixin
+
+class BunkLogsOrderTypeItemCategory(TestDataMixin):
     """
     Explicit through model for the many-to-many relationship between OrderType and ItemCategory.
     Using a unique name to avoid conflicts with any potential 'orders' app outside of bunk_logs.
@@ -17,7 +19,7 @@ class BunkLogsOrderTypeItemCategory(models.Model):
         verbose_name_plural = _("Order Type Item Categories")
         db_table = 'bunk_logs_orders_ordertype_itemcategory'
 
-class OrderType(models.Model):
+class OrderType(TestDataMixin):
     """OrderType model for categorizing orders."""
     type_name = models.CharField(max_length=100)
     type_description = models.TextField()
@@ -38,7 +40,7 @@ class OrderType(models.Model):
     def __str__(self):
         return self.type_name
 
-class Order(models.Model):
+class Order(TestDataMixin):
     """Order model for tracking orders made by users. For example, camper care items and maintenance requests."""
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -88,7 +90,7 @@ class Order(models.Model):
     def get_order_bunk(self):
         return self.order_bunk
     
-class OrderItem(models.Model):
+class OrderItem(TestDataMixin):
     """OrderItem model for tracking individual items within an order."""
     item = models.ForeignKey(
         "orders.Item",
@@ -113,7 +115,7 @@ class OrderItem(models.Model):
     def __str__(self):
         return f"{self.item.item_name if self.item else 'Unknown Item'} (x{self.item_quantity})"
     
-class Item(models.Model):
+class Item(TestDataMixin):
     """Item model for tracking individual items available for order."""
     item_name = models.CharField(max_length=100)
     item_description = models.TextField()
@@ -133,7 +135,7 @@ class Item(models.Model):
     def __str__(self):
         return self.item_name
     
-class ItemCategory(models.Model):
+class ItemCategory(TestDataMixin):
     """ItemCategory model for categorizing items available for order."""
     category_name = models.CharField(max_length=100)
     category_description = models.TextField()

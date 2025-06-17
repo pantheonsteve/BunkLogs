@@ -1,0 +1,65 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}{% trans 'Cleanup Test Data' %} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; {% trans 'Test Data Management' %}
+&rsaquo; {% trans 'Cleanup Test Data' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module aligned">
+        <h1>{% trans 'Cleanup Test Data' %}</h1>
+        
+        {% if total_test_records > 0 %}
+            <div class="help">
+                <p>{% trans 'This will permanently delete all records marked as test data from the database.' %}</p>
+                <p><strong>{% trans 'Warning: This action cannot be undone!' %}</strong></p>
+            </div>
+            
+            <h2>{% trans 'Test Data Summary' %}</h2>
+            <p>{% blocktrans %}Found {{ total_test_records }} test data records across {{ model_counts|length }} models:{% endblocktrans %}</p>
+            
+            <ul>
+                {% for model_name, count in model_counts.items %}
+                    <li><strong>{{ model_name }}</strong>: {{ count }} records</li>
+                {% endfor %}
+            </ul>
+            
+            <form method="post" action="">
+                {% csrf_token %}
+                <div class="submit-row">
+                    <input type="submit" value="{% trans 'Delete All Test Data' %}" class="default" onclick="return confirm('Are you sure you want to delete {{ total_test_records }} test data records? This action cannot be undone!');">
+                    <a href="{% url 'admin:index' %}" class="button cancel-link">{% trans 'Cancel' %}</a>
+                </div>
+            </form>
+            
+        {% else %}
+            <div class="help">
+                <p style="color: green; font-weight: bold;">{% trans 'No test data found in the database!' %}</p>
+                <p>{% trans 'All data appears to be production data.' %}</p>
+            </div>
+            
+            <div class="submit-row">
+                <a href="{% url 'admin:index' %}" class="button">{% trans 'Back to Admin' %}</a>
+            </div>
+        {% endif %}
+        
+        <div class="help" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+            <h3>{% trans 'Alternative Methods' %}</h3>
+            <p>{% trans 'You can also use the command line to manage test data:' %}</p>
+            <ul>
+                <li><code>python manage.py cleanup_test_data</code> - {% trans 'Preview what would be deleted' %}</li>
+                <li><code>python manage.py cleanup_test_data --confirm</code> - {% trans 'Actually delete test data' %}</li>
+                <li><code>python manage.py cleanup_test_data --app campers</code> - {% trans 'Delete test data from specific app' %}</li>
+                <li><code>python manage.py cleanup_test_data --model User</code> - {% trans 'Delete test data from specific model' %}</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

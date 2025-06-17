@@ -2,8 +2,10 @@ from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.models import TestDataMixin, TimestampedTestDataMixin
 
-class Cabin(models.Model):
+
+class Cabin(TestDataMixin):
     """Physical location for a bunk."""
 
     name = models.CharField(max_length=100)
@@ -20,7 +22,7 @@ class Cabin(models.Model):
         return self.name
 
 
-class Session(models.Model):
+class Session(TestDataMixin):
     """Camp session period."""
 
     name = models.CharField(max_length=100)
@@ -36,7 +38,7 @@ class Session(models.Model):
         return f"{self.name}"
 
 
-class Unit(models.Model):
+class Unit(TestDataMixin):
     """Group of bunks managed by a unit head."""
 
     name = models.CharField(max_length=100)
@@ -66,7 +68,7 @@ class Unit(models.Model):
         return f"{self.name}"
 
 
-class Bunk(models.Model):
+class Bunk(TestDataMixin):
     """Group of campers assigned to counselors for a session."""
 
     cabin = models.ForeignKey(

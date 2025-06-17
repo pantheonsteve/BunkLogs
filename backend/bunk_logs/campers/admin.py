@@ -18,6 +18,7 @@ from .models import Camper
 from .models import CamperBunkAssignment
 from .services.imports import import_bunk_assignments_from_csv
 from .services.imports import import_campers_from_csv
+from bunk_logs.utils.admin import TestDataAdminMixin
 
 # Define constants
 MAX_DISPLAY_ITEMS = 5
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @admin.register(Camper)
-class CamperAdmin(admin.ModelAdmin):
+class CamperAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("first_name", "last_name", "age")  # Adjust fields as needed
     list_filter = ("last_name", "first_name")
     search_fields = ("first_name", "last_name", "age")
@@ -108,7 +109,7 @@ class CamperAdmin(admin.ModelAdmin):
 
 
 @admin.register(CamperBunkAssignment)
-class CamperBunkAssignmentAdmin(admin.ModelAdmin):
+class CamperBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("camper", "bunk", "start_date", "end_date", "is_active")
     list_filter = ("is_active", "bunk__session", "bunk__cabin")
     search_fields = ("camper__first_name", "camper__last_name", "bunk__cabin__name")

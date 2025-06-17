@@ -4,8 +4,10 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.models import TestDataMixin
 
-class BunkLog(models.Model):
+
+class BunkLog(TestDataMixin):
     """Daily report for each camper."""
 
     bunk_assignment = models.ForeignKey(

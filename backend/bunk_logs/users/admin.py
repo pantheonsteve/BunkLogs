@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from .forms import UserAdminChangeForm
 from .forms import UserAdminCreationForm
 from .models import User
+from bunk_logs.utils.admin import TestDataAdminMixin
 
 if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
     # Force the `admin` sign in process to go through the `django-allauth` workflow:
@@ -16,7 +17,7 @@ if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
 
 
 @admin.register(User)
-class UserAdmin(auth_admin.UserAdmin):
+class UserAdmin(TestDataAdminMixin, auth_admin.UserAdmin):
     form = UserAdminChangeForm
     add_form = UserAdminCreationForm
     fieldsets = (
