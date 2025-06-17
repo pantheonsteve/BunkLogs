@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, Edit3, Loader2 } from 'lucide-react';
 import api from '../../api';
 
-function OrdersList({ bunk_id, date }) {
+function OrdersList({ bunk_id, date, refreshTrigger }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +40,7 @@ function OrdersList({ bunk_id, date }) {
     };
 
     fetchOrders();
-  }, [bunk_id]);
+  }, [bunk_id, refreshTrigger]);
 
   // Filter orders based on status
   const filteredOrders = orders.filter(order => {

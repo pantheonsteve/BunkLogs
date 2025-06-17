@@ -15,6 +15,7 @@ function BunkPageSidebar({
   date, // Default to today's date
   bunk,
   openBunkModal,
+  refreshTrigger,
 }) {
   const location = useLocation();
   const { pathname } = location;
@@ -214,6 +215,7 @@ function BunkPageSidebar({
                             <OrdersList 
                               bunk_id={bunk} 
                               date={date}
+                              refreshTrigger={refreshTrigger}
                             />
                           </li>
                         </ul>
