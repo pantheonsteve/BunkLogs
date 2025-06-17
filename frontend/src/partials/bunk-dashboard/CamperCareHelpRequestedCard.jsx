@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import GenericAvatar from '../../images/avatar-generic.png'; // Adjust the path as necessary
 
 function CamperCareHelpRequestedCard({ bunkData }) {
 
@@ -49,9 +50,10 @@ function CamperCareHelpRequestedCard({ bunkData }) {
                   <tr key={uniqueKey}>
                       <td className="p-2">
                       <div className="flex items-center">
-                          <img className="shrink-0 mr-2 sm:mr-3" width="36" height="36" viewBox="0 0 36 36" src="../../src/images/user-36-06.jpg">
-                          </img>
-                          <div className="text-gray-800 dark:text-gray-100">{item.camper_first_name} {item.camper_last_name}</div>
+                        <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
+                          <img className="rounded-full ml-1" width="36" height="36" viewBox="0 0 36 36" src={GenericAvatar} />
+                        </div>
+                        <div className="text-gray-800 dark:text-gray-100">{item.camper_first_name} {item.camper_last_name}</div>
                       </div>
                       </td>
                       <td className="p-2">

@@ -5,6 +5,8 @@ import SidebarLinkGroup from "../SidebarLinkGroup";
 
 import CamperPageCamperList from "./CamperPageCamperList";
 
+import CampLogo from "../../images/clc-logo.jpeg";
+
 function CamperPageSidebar({
   sidebarOpen,
   setSidebarOpen,
@@ -89,7 +91,7 @@ function CamperPageSidebar({
           </button>
           {/* Logo */}
           <NavLink end to="/" className="block">
-            <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src="../../src/images/clc-logo.jpeg" />
+            <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src={CampLogo} />
           </NavLink>
         </div>
 

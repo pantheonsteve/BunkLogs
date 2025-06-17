@@ -1,29 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useBunk } from '../../contexts/BunkContext';
 
+import GenericAvatar from '../../images/avatar-generic.png';
+
 function NotOnCampCard({ bunkData }) {
 
-    const { bunkBunkData } = useBunk();
+  const { bunkBunkData } = useBunk();
 
 
-    const date = bunkData.date;
-    const campers = bunkData.campers;
+  const date = bunkData.date;
+  const campers = bunkData.campers;
 
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);  // Changed to false since data is passed as prop
-    const [data, setData] = useState(bunkData);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);  // Changed to false since data is passed as prop
+  const [data, setData] = useState(bunkData);
 
-    const filterNotOnCamp = (campers) => {
-        return campers.filter((camper) => camper.bunk_log?.not_on_camp == true);
+  const filterNotOnCamp = (campers) => {
+    return campers.filter((camper) => camper.bunk_log?.not_on_camp == true);
+  }
+
+  useEffect(() => {
+    if (bunkData && bunkData.campers) {
+      setData(filterNotOnCamp(bunkData.campers));
     }
-    
-    useEffect(() => {
-        if (bunkData && bunkData.campers) {
-            setData(filterNotOnCamp(bunkData.campers));
-        }
-    }, [bunkData]);
+  }, [bunkData]);
 
-    return (
+  return (
     <div className="col-span-full xl:col-span-4 bg-white dark:bg-gray-800 shadow-xs rounded-xl">
       <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">Not On Camp</h2>
@@ -48,20 +50,22 @@ function NotOnCampCard({ bunkData }) {
               {/* Row */}
               {Array.isArray(data) ? (
                 data.map((item, index) => {
-// Create a reliable key using camper info or fallback to index
+                  // Create a reliable key using camper info or fallback to index
                   const uniqueKey = item.id || `${item.camper_first_name}-${item.camper_last_name}-${index}`;
                   return (
-                  <tr key={uniqueKey}>
+                    <tr key={uniqueKey}>
                       <td className="p-2">
-                      <div className="flex items-center">
-                          <img className="shrink-0 mr-2 sm:mr-3" width="36" height="36" viewBox="0 0 36 36" src="../../src/images/user-36-06.jpg" />
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
+                            <img className="rounded-full ml-1" width="36" height="36" viewBox="0 0 36 36" src={GenericAvatar} />
+                          </div>
                           <div className="text-gray-800 dark:text-gray-100">{item.camper_first_name} {item.camper_last_name}</div>
-                      </div>
+                        </div>
                       </td>
                       <td className="p-2">
-                      <div className="text-center">{item.bunk_label}</div>
+                        <div className="text-center">{item.bunk_label}</div>
                       </td>
-                  </tr>
+                    </tr>
                   )
                 })
               ) : (
@@ -75,7 +79,7 @@ function NotOnCampCard({ bunkData }) {
       </div>
     </div>
 
-      );
+  );
 }
 
 export default NotOnCampCard;
