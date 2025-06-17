@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBunk } from '../../contexts/BunkContext';
+import GenericAvatar from '../../images/avatar-generic.png';
 
 function CamperLogsBunkViewItem(props) {
 
@@ -41,7 +42,7 @@ function CamperLogsBunkViewItem(props) {
         <Link className="font-medium text-gray-800 dark:text-gray-100" to={`/camper/${props.camper_id}/${props.date}`}>
           <div className="flex items-center text-gray-800">
             <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
-              <img className="rounded-full ml-1" src={props.image} width="40" height="40" alt={props.customer} />
+              <img className="rounded-full ml-1" src={props.image ? props.image : GenericAvatar} width="40" height="40" alt={props.customer} />
             </div>
             <div className="font-medium text-gray-800 dark:text-gray-100">{props.camper_first_name} {props.camper_last_name}</div>
           </div>
