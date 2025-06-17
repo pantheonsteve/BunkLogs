@@ -406,7 +406,7 @@ if IS_PRODUCTION:
         "https://storage.googleapis.com",  # For your actual frontend
         "https://storage.cloud.google.com",
         "https://clc.bunklogs.net",  # Your actual frontend URL
-        "https://bunklogs.net",
+        "https://clc.bunklogs.net",
         "https://www.bunklogs.net",
         "https://admin.bunklogs.net",
     ]
@@ -414,7 +414,7 @@ if IS_PRODUCTION:
         'https://storage.googleapis.com',
         'https://storage.cloud.google.com', 
         'https://clc.bunklogs.net',  # Your actual frontend URL
-        'https://bunklogs.net',
+        'https://clc.bunklogs.net',
         'https://www.bunklogs.net',
         "https://admin.bunklogs.net",
     ]
@@ -432,11 +432,11 @@ else:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost",
         "http://localhost:5173",
-        "https://bunklogs.net",  # Keep this for testing
+        "https://clc.bunklogs.net",  # Keep this for testing
     ]
     CSRF_TRUSTED_ORIGINS = [
         'http://localhost:5173', 
-        'https://bunklogs.net'
+        'https://clc.bunklogs.net'
     ]
     ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1"]
 
@@ -451,7 +451,6 @@ CORS_ALLOW_HEADERS = (
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_CREDENTIALS = True
 CSRF_COOKIE_SAMESITE = None
 CSRF_COOKIE_SECURE = True
 

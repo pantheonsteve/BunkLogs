@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../api';
 import { useAuth } from '../../auth/AuthContext';
 import ErrorMessage from '../ErrorMessage';
 import BunkTile from './BunkTile';
@@ -19,7 +19,7 @@ const UserInfo = () => {
         if (email) {
           setFetchingUserData(true);
           try {
-            const response = await axios.get(`http://localhost:8000/api/v1/users/email/${email}`);
+            const response = await api.get(`/api/v1/users/email/${email}`);
             setUserData(response.data);
           } catch (err) {
             setError(err.response?.data?.message || 'Failed to fetch user data');
@@ -44,7 +44,7 @@ const UserInfo = () => {
       const fetchSpecificUserData = async () => {
         if (isAuthenticated) {
           try {
-            const response = await axios.get(`http://localhost:8000/api/v1/users/email/${email}`);
+            const response = await api.get(`/api/v1/users/email/${email}`);
           } catch (err) {
             console.error('Error fetching specific user data:', err);
           }

@@ -15,7 +15,7 @@ async function getCSRFTokenAsync() {
 
   // If no cookie token, fetch from server
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const fetchUrl = `${apiUrl}/api/get-csrf-token/`;
     console.log('Fetching CSRF token from:', fetchUrl);
     
@@ -53,7 +53,7 @@ export const Client = Object.freeze({
 
 export const settings = {
   client: Client.BROWSER,
-  baseUrl: `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/_allauth/browser/v1`,
+  baseUrl: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/_allauth/browser/v1`,
   withCredentials: true
 }
 

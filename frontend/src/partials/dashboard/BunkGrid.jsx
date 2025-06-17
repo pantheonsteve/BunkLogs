@@ -18,7 +18,7 @@ function BunkGrid() {
         if (email) {
           setFetchingUserData(true);
           try {
-            const response = await axios.get(`http://localhost:8000/api/v1/users/email/${email}`);
+            const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/users/email/${email}`);
             setUserData(response.data);
           } catch (err) {
             setError(err.response?.data?.message || 'Failed to fetch user data');

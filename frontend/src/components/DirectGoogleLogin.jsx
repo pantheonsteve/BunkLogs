@@ -6,7 +6,7 @@ const DirectGoogleLogin = () => {
     console.log('Initiating direct Google login');
     
     // Directly redirect to Django's social login URL
-    const backendUrl = 'http://localhost:8000';
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const callbackUrl = `${window.location.origin}/account/provider/callback`;
     
     console.log('Redirecting to:', `${backendUrl}/accounts/google/login/`);

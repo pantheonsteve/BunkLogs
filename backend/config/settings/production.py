@@ -217,7 +217,7 @@ LOGGING = {
 # -------------------------------------------------------------------------------
 # Tools that generate code samples can use SERVERS to point to the correct domain
 SPECTACULAR_SETTINGS["SERVERS"] = [
-    {"url": "https://bunklogs.net", "description": "Production server"},
+    {"url": "https://clc.bunklogs.net", "description": "Production server"},
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------
@@ -272,7 +272,7 @@ if os.getenv('DD_LOGS_INJECTION') == 'true':
 
 # Frontend URLs - Production overrides
 # ------------------------------------------------------------------------------
-FRONTEND_URL = env("FRONTEND_URL", default="https://bunklogs.net")
+FRONTEND_URL = env("FRONTEND_URL", default="https://clc.bunklogs.net")
 SPA_URL = FRONTEND_URL
 
 # Override redirect URLs for production

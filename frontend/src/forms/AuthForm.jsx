@@ -58,7 +58,7 @@ const AuthForm = ({ route, method }) => {
     };
 
     const handleGoogleLogin = async () => {
-        window.location.href = "http://localhost:8000/accounts/login" //Google Callback URL
+        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/accounts/login` //Google Callback URL
     };
 
     useEffect(() => {

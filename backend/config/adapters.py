@@ -16,4 +16,4 @@ class DefaultAccountAdapter(DefaultAccountAdapter):
             return f"http://localhost:5173/verify-email/{emailconfirmation.key}"
         
         # For production
-        return f"https://bunklogs.net/verify-email/{emailconfirmation.key}"
+        return f"https://clc.bunklogs.net/verify-email/{emailconfirmation.key}"

@@ -3,7 +3,7 @@ import React from 'react';
 const SimpleGoogleLogin = () => {
   const handleClick = () => {
     // Get the backend URL
-    const backendUrl = 'http://localhost:8000';
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     
     // Log to console for debugging
     console.log('Starting Google authentication flow');

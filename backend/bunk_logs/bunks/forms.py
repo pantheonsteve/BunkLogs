@@ -12,7 +12,8 @@ class UnitForm(forms.ModelForm):
         fields = [
             "name",
             "unit_head",
-        ]  # Only include fields that exist in the Unit model
+            "camper_care",
+        ]  # Include the new camper_care field
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,6 +40,24 @@ class UnitForm(forms.ModelForm):
                         unit_head_users = all_users
 
         self.fields["unit_head"].queryset = unit_head_users
+
+        # Set up camper_care field queryset
+        camper_care_users = User.objects.filter(role=User.CAMPER_CARE)
+
+        # If no results, try variations of the role name
+        if not camper_care_users.exists():
+            # Try with space
+            camper_care_users = User.objects.filter(role="Camper Care")
+
+            # Try case insensitive search as a fallback
+            if not camper_care_users.exists():
+                camper_care_users = User.objects.filter(role__icontains="camper care")
+
+                # Last resort: show all users
+                if not camper_care_users.exists():
+                    camper_care_users = all_users
+
+        self.fields["camper_care"].queryset = camper_care_users
 
 
 class CabinCsvImportForm(forms.Form):

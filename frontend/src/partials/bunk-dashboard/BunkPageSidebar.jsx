@@ -17,6 +17,8 @@ function BunkPageSidebar({
   const location = useLocation();
   const { pathname } = location;
 
+  console.log("bunk", bunk);
+
   const trigger = useRef(null);
   const sidebar = useRef(null);
 

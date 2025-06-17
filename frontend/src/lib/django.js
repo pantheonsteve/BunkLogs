@@ -35,7 +35,7 @@ function getCookie (name) {
     console.log('No CSRF token available - fetching from server asynchronously');
     
     // Fetch from server asynchronously and cache it
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net';
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     fetch(`${apiUrl}/api/get-csrf-token/`, {
       credentials: 'include'
     })

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../api';
 import { CheckCircle, Clock, Filter, Loader2, AlertTriangle } from 'lucide-react';
 
 function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
@@ -13,11 +13,12 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const response = await axios.get(
-                    `http://localhost:8000/api/v1/bunklogs/${bunk_id}/logs/${date}/`
+                const response = await api.get(
+                    `/api/v1/bunklogs/${bunk_id}/logs/${date}/`
                 );
                 setData(response.data.campers);
             } catch (error) {
+                console.error('Error fetching campers:', error);
                 setError('Error fetching campers.');
             } finally {
                 setLoading(false);
