@@ -28,6 +28,8 @@ function BunkDashboard() {
   const [createOrderModalOpen, setCreateOrderModalOpen] = useState(false);
   const [selectedCamperId, setSelectedCamperId] = useState(null);
   const [camperBunkAssignmentId, setCamperBunkAssignmentId] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add refresh trigger for data updates
+  const [previousOrderId, setPreviousOrderId] = useState(null); // Track order navigation for refresh
   const { bunk_id, date, orderId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,6 +66,17 @@ function BunkDashboard() {
       setError(null);
     }
   }, [orderId, location.pathname, data]);
+  
+  // Additional effect to refresh data when returning from order views
+  // This ensures that if orders were edited, we see the latest changes
+  useEffect(() => {
+    if (previousOrderId && !orderId) {
+      // We've navigated back from an order view to the main dashboard
+      console.log('[BunkDashboard] Returned from order view, triggering refresh');
+      setRefreshTrigger(prev => prev + 1);
+    }
+    setPreviousOrderId(orderId);
+  }, [orderId, previousOrderId]);
   
   // Ensure proper date handling with timezone consistency
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -134,6 +147,8 @@ function BunkDashboard() {
     if(wasSubmitted) {
       saveSelectedDate(selectedDate);
       setFormSubmitted(true);
+      // Trigger data refresh to show updated bunk logs
+      setRefreshTrigger(prev => prev + 1);
     }
     setBunkLogFormModalOpen(false);
   };
@@ -141,8 +156,8 @@ function BunkDashboard() {
   const handleOrderCreated = () => {
     console.log('[BunkDashboard] Order created successfully');
     setCreateOrderModalOpen(false);
-    // Optionally refresh data here if needed
-    // You might want to refetch the data to show updated orders
+    // Trigger data refresh to show the new order
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // Check if user is a counselor
@@ -191,7 +206,7 @@ function BunkDashboard() {
     }
     
     fetchData();
-  }, [bunk_id, selectedDate, token]);
+  }, [bunk_id, selectedDate, token, refreshTrigger]);
 
   const cabin_name = data?.bunk?.cabin?.name || "Bunk X"; // Default if cabin_name is not available
   const session_name = data?.bunk?.session?.name || "Session X"; // Default if session_name is not available
@@ -345,6 +360,7 @@ function BunkDashboard() {
         date={selected_date} 
         bunk={bunk_id} 
         openBunkModal={handleOpenBunkLogModal}
+        refreshTrigger={refreshTrigger}
       />
 
       {/* Content area */}
