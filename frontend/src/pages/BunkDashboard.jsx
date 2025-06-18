@@ -185,7 +185,7 @@ function BunkDashboard() {
         
         // Set headers with token if available
         const headers = currentToken ? {
-          'Authorization': `Token ${currentToken}`
+          'Authorization': `Bearer ${currentToken}`
         } : {};
         
         const response = await axios.get(url, {
