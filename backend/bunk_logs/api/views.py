@@ -790,10 +790,10 @@ def auth_debug_view(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_unit_head_bunks(request, unithead_id):
+def get_unit_head_bunks(request, unithead_id, date):
     """
     Get all bunks managed by a specific unit head with counselors and campers.
-    Endpoint: /api/unithead/<unithead_id>/
+    Endpoint: /api/unithead/<unithead_id>/<date>/
     """
     try:
         from bunks.models import Unit
@@ -816,8 +816,9 @@ def get_unit_head_bunks(request, unithead_id):
                 status=404
             )
         
-        # Serialize and return the data
-        serializer = UnitHeadBunksSerializer(unit)
+        # Serialize and return the data with date context
+        context = {'date': date}
+        serializer = UnitHeadBunksSerializer(unit, context=context)
         return Response(serializer.data)
         
     except Exception as e:
@@ -826,10 +827,10 @@ def get_unit_head_bunks(request, unithead_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_camper_care_bunks(request, camper_care_id):
+def get_camper_care_bunks(request, camper_care_id, date):
     """
     Get all bunks managed by a specific camper care team member with counselors and campers.
-    Endpoint: /api/campercare/<camper_care_id>/
+    Endpoint: /api/campercare/<camper_care_id>/<date>/
     """
     try:
         from bunks.models import Unit
@@ -852,8 +853,8 @@ def get_camper_care_bunks(request, camper_care_id):
                 status=404
             )
         
-        # Serialize and return the data
-        serializer = CamperCareBunksSerializer(unit)
+        # Serialize and return the data with date context
+        serializer = CamperCareBunksSerializer(unit, context={'date': date})
         return Response(serializer.data)
         
     except Exception as e:
