@@ -45,6 +45,16 @@ class IsCounselorForBunk(permissions.BasePermission):
             logger.debug(f"Unit Head access to bunk {bunk_id}: {has_access}")
             return has_access
         
+        # Camper care can access bunks in their assigned units
+        if request.user.role == 'Camper Care':
+            from bunks.models import Bunk
+            has_access = Bunk.objects.filter(
+                id=bunk_id, 
+                unit__camper_care=request.user
+            ).exists()
+            logger.debug(f"Camper Care access to bunk {bunk_id}: {has_access}")
+            return has_access
+        
         # Counselors can access their assigned bunks
         if request.user.role == 'Counselor':
             from bunks.models import Bunk

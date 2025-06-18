@@ -269,6 +269,10 @@ class BunkLogsInfoByDateViewSet(APIView):
             if user.role == 'Unit Head':
                 if not Bunk.objects.filter(id=bunk_id, unit__unit_head=user).exists():
                     return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
+            # Camper care can access bunks in their assigned units
+            elif user.role == 'Camper Care':
+                if not Bunk.objects.filter(id=bunk_id, unit__camper_care=user).exists():
+                    return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
             # Counselors can only access their assigned bunks
             elif user.role == 'Counselor':
                 if not Bunk.objects.filter(id=bunk_id, counselors__id=user.id).exists():
@@ -368,6 +372,11 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             return BunkLog.objects.filter(
                 bunk_assignment__bunk__unit__in=user.managed_units.all()
             )
+        # Camper care can see logs for bunks in their assigned units
+        if user.role == 'Camper Care':
+            return BunkLog.objects.filter(
+                bunk_assignment__bunk__unit__camper_care=user
+            )
         # Counselors can only see logs for their bunks
         if user.role == 'Counselor':
             return BunkLog.objects.filter(
@@ -399,6 +408,15 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         # Unit heads can update logs for bunks in their units
         if user.role == 'Unit Head':
             if user.managed_units.filter(bunks=instance.bunk_assignment.bunk).exists():
+                serializer.save()
+                return
+            else:
+                raise PermissionDenied("You are not authorized to update logs for this bunk.")
+        
+        # Camper care can update logs for bunks in their assigned units
+        if user.role == 'Camper Care':
+            from bunks.models import Bunk
+            if Bunk.objects.filter(id=instance.bunk_assignment.bunk.id, unit__camper_care=user).exists():
                 serializer.save()
                 return
             else:

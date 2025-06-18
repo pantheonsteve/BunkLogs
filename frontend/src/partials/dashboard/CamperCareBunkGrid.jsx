@@ -4,7 +4,7 @@ import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
 import { Loader2, AlertTriangle, Users, Home, Heart } from 'lucide-react';
 
-function CamperCareBunkGrid() {
+function CamperCareBunkGrid({ selectedDate }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unitData, setUnitData] = useState(null);
@@ -20,9 +20,20 @@ function CamperCareBunkGrid() {
 
       try {
         setLoading(true);
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date().toISOString().split('T')[0];
-        const response = await api.get(`/api/v1/campercare/${user.id}/${today}/`);
+        
+        // Use selectedDate if provided, otherwise use today's date
+        let dateToUse;
+        if (selectedDate) {
+          const year = selectedDate.getFullYear();
+          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(selectedDate.getDate()).padStart(2, '0');
+          dateToUse = `${year}-${month}-${day}`;
+        } else {
+          dateToUse = new Date().toISOString().split('T')[0];
+        }
+        
+        console.log(`[CamperCareBunkGrid] Fetching data for date: ${dateToUse}`);
+        const response = await api.get(`/api/v1/campercare/${user.id}/${dateToUse}/`);
         setUnitData(response.data);
         setError(null);
       } catch (err) {
@@ -34,7 +45,7 @@ function CamperCareBunkGrid() {
     };
 
     fetchUnitData();
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, selectedDate]);
 
   // Loading state
   if (loading) {
@@ -162,6 +173,7 @@ function CamperCareBunkGrid() {
           <UnitHeadBunkCard
             key={bunk.id}
             bunk={bunk}
+            selectedDate={selectedDate}
           />
         ))}
       </div>

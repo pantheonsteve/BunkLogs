@@ -23,10 +23,22 @@ function Dashboard() {
     if (user && user.role) {
       switch (user.role) {
         case 'Unit Head':
-          navigate('/dashboard/unithead', { replace: true });
+          // Get today's date for the redirect
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          const formattedDate = `${year}-${month}-${day}`;
+          navigate(`/unithead/${user.id}/${formattedDate}`, { replace: true });
           return;
         case 'Camper Care':
-          navigate('/dashboard/campercare', { replace: true });
+          // Get today's date for the redirect
+          const todayCare = new Date();
+          const yearCare = todayCare.getFullYear();
+          const monthCare = String(todayCare.getMonth() + 1).padStart(2, '0');
+          const dayCare = String(todayCare.getDate()).padStart(2, '0');
+          const formattedDateCare = `${yearCare}-${monthCare}-${dayCare}`;
+          navigate(`/campercare/${user.id}/${formattedDateCare}`, { replace: true });
           return;
         default:
           // Stay on general dashboard for other roles (Admin, Counselor, etc.)
