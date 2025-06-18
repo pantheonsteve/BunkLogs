@@ -1,0 +1,5 @@
+email,first_name,last_name,role,is_active,is_staff
+john.doe@example.com,John,Doe,Counselor,true,false
+jane.smith@example.com,Jane,Smith,Unit Head,true,false
+mike.johnson@example.com,Mike,Johnson,Camper Care,true,false
+admin@example.com,Admin,User,Admin,true,true

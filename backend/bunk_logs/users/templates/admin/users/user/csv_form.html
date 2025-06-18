@@ -1,0 +1,58 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    › <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+    › <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    › {% trans 'Import CSV' %}
+  </div>
+{% endblock breadcrumbs %}
+{% block content %}
+  <div id="content-main">
+    <form action="." method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div>
+        <fieldset class="module aligned">
+          <h2>{% trans 'Import Users from CSV' %}</h2>
+          <div class="form-row">
+            <div class="help">
+              <p>
+                Upload a CSV file to import users. The CSV should have the following headers:
+              </p>
+              <ul>
+                <li><strong>email</strong> (required) - User's email address</li>
+                <li><strong>first_name</strong> (required) - User's first name</li>
+                <li><strong>last_name</strong> (required) - User's last name</li>
+                <li><strong>role</strong> (optional) - One of: Admin, Camper Care, Unit Head, Counselor (defaults to Counselor)</li>
+                <li><strong>password</strong> (optional) - User's password (if not provided, a random password will be generated)</li>
+                <li><strong>is_active</strong> (optional) - true/false (defaults to true)</li>
+                <li><strong>is_staff</strong> (optional) - true/false (defaults to false)</li>
+              </ul>
+              <p><strong>Example CSV:</strong></p>
+              <pre>email,first_name,last_name,role,is_active,is_staff
+john.doe@example.com,John,Doe,Counselor,true,false
+jane.smith@example.com,Jane,Smith,Unit Head,true,false
+admin@example.com,Admin,User,Admin,true,true</pre>
+            </div>
+          </div>
+          {% for field in form %}
+            <div class="form-row">
+              <div>
+                <label class="required" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                <div class="help">{{ field.help_text }}</div>
+                {% if field.errors %}{{ field.errors }}{% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </fieldset>
+        <div class="submit-row">
+          <input type="submit" value="{% trans 'Import' %}" class="default" />
+        </div>
+      </div>
+    </form>
+  </div>
+{% endblock content %}
