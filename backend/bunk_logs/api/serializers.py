@@ -416,7 +416,7 @@ class SimpleOrderTypeSerializer(serializers.ModelSerializer):
 class SimpleItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
-        fields = ['id', 'item_name', 'item_description', 'price']
+        fields = ['id', 'item_name', 'item_description', 'available']
 
 
 # Unit Head and Camper Care specific serializers
