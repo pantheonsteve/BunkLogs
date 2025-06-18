@@ -156,7 +156,7 @@ function BunkCard({ cabin, session, bunk_id, counselors }) {
           ) : (
             <p className="text-sm text-gray-500 dark:text-gray-400">No counselors assigned</p>
           )}
-        </div>}
+        </div>
         {counselors && counselors.length > 0 && (
           <div className="text-center mb-4">
             <div className="text-sm text-gray-500 dark:text-gray-400">

@@ -410,10 +410,61 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 class SimpleOrderTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderType
-        fields = ['id', 'type_name']
+        fields = ['id', 'type_name', 'type_description']
 
 
 class SimpleItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
-        fields = ['id', 'item_name', 'available']
+        fields = ['id', 'item_name', 'item_description', 'price']
+
+
+# Unit Head and Camper Care specific serializers
+class UnitCounselorSerializer(serializers.ModelSerializer):
+    """Serializer for counselors in unit-specific endpoints."""
+    class Meta:
+        model = User
+        fields = ['id', 'first_name', 'last_name', 'email']
+
+
+class UnitCamperSerializer(serializers.ModelSerializer):
+    """Serializer for campers in unit-specific endpoints."""
+    class Meta:
+        model = Camper
+        fields = ['id', 'first_name', 'last_name']
+
+
+class UnitBunkDetailSerializer(serializers.ModelSerializer):
+    """Detailed bunk serializer for unit endpoints including counselors and campers."""
+    counselors = UnitCounselorSerializer(many=True, read_only=True)
+    campers = serializers.SerializerMethodField()
+    cabin_name = serializers.CharField(source='cabin.name', read_only=True)
+    session_name = serializers.CharField(source='session.name', read_only=True)
+    
+    class Meta:
+        model = Bunk
+        fields = ['id', 'cabin_name', 'session_name', 'counselors', 'campers']
+    
+    def get_campers(self, obj):
+        """Get active campers assigned to this bunk."""
+        active_assignments = obj.camper_assignments.filter(is_active=True)
+        campers = [assignment.camper for assignment in active_assignments]
+        return UnitCamperSerializer(campers, many=True).data
+
+
+class UnitHeadBunksSerializer(serializers.ModelSerializer):
+    """Serializer for Unit Head endpoint response."""
+    bunks = UnitBunkDetailSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Unit
+        fields = ['id', 'name', 'bunks']
+
+
+class CamperCareBunksSerializer(serializers.ModelSerializer):
+    """Serializer for Camper Care endpoint response."""
+    bunks = UnitBunkDetailSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Unit
+        fields = ['id', 'name', 'bunks']

@@ -685,30 +685,23 @@ def get_items_for_order_type(request, order_type_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_order_statistics(request):
-    """
-    Get order statistics for the current user or all users (if staff).
-    """
-    user = request.user
-    
-    if user.is_staff:
-        # Staff can see all order statistics
-        total_orders = Order.objects.count()
-        pending_orders = Order.objects.filter(order_status='pending').count()
-        completed_orders = Order.objects.filter(order_status='completed').count()
-        cancelled_orders = Order.objects.filter(order_status='cancelled').count()
-    else:
-        # Regular users see their own statistics
-        total_orders = Order.objects.filter(user=user).count()
-        pending_orders = Order.objects.filter(user=user, order_status='pending').count()
-        completed_orders = Order.objects.filter(user=user, order_status='completed').count()
-        cancelled_orders = Order.objects.filter(user=user, order_status='cancelled').count()
-    
-    return Response({
-        'total_orders': total_orders,
-        'pending_orders': pending_orders,
-        'completed_orders': completed_orders,
-        'cancelled_orders': cancelled_orders,
-    })
+    """Get statistics about orders."""
+    try:
+        from bunk_logs.orders.models import Order
+        
+        total_orders = Order.objects.filter(user=request.user).count()
+        pending_orders = Order.objects.filter(user=request.user, order_status='pending').count()
+        completed_orders = Order.objects.filter(user=request.user, order_status='completed').count()
+        
+        return Response({
+            'total_orders': total_orders,
+            'pending_orders': pending_orders,
+            'completed_orders': completed_orders
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def debug_user_bunks(request):
@@ -794,3 +787,74 @@ def auth_debug_view(request):
         'social_accounts': social_accounts,
         'session_keys': list(request.session.keys()),
     })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_unit_head_bunks(request, unithead_id):
+    """
+    Get all bunks managed by a specific unit head with counselors and campers.
+    Endpoint: /api/unithead/<unithead_id>/
+    """
+    try:
+        from bunks.models import Unit
+        from .serializers import UnitHeadBunksSerializer
+        
+        # Check if the user is authorized to access this data
+        user = request.user
+        if not (user.is_staff or user.role == 'Admin' or 
+                (user.role == 'Unit Head' and str(user.id) == str(unithead_id))):
+            return Response(
+                {'error': 'You do not have permission to access this data.'}, 
+                status=403
+            )
+        
+        # Get the unit managed by this unit head
+        unit = Unit.objects.filter(unit_head_id=unithead_id).first()
+        if not unit:
+            return Response(
+                {'error': 'No unit found for this unit head.'}, 
+                status=404
+            )
+        
+        # Serialize and return the data
+        serializer = UnitHeadBunksSerializer(unit)
+        return Response(serializer.data)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_camper_care_bunks(request, camper_care_id):
+    """
+    Get all bunks managed by a specific camper care team member with counselors and campers.
+    Endpoint: /api/campercare/<camper_care_id>/
+    """
+    try:
+        from bunks.models import Unit
+        from .serializers import CamperCareBunksSerializer
+        
+        # Check if the user is authorized to access this data
+        user = request.user
+        if not (user.is_staff or user.role == 'Admin' or 
+                (user.role == 'Camper Care' and str(user.id) == str(camper_care_id))):
+            return Response(
+                {'error': 'You do not have permission to access this data.'}, 
+                status=403
+            )
+        
+        # Get the unit managed by this camper care team member
+        unit = Unit.objects.filter(camper_care_id=camper_care_id).first()
+        if not unit:
+            return Response(
+                {'error': 'No unit found for this camper care team member.'}, 
+                status=404
+            )
+        
+        # Serialize and return the data
+        serializer = CamperCareBunksSerializer(unit)
+        return Response(serializer.data)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

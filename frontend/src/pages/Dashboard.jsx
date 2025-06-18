@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 import Sidebar from '../partials/Sidebar';
 import Header from '../partials/Header';
@@ -10,12 +11,29 @@ import UserProfile from '../partials/dashboard/UserProfile';
 
 function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { userProfile, isAuthenticated } = useAuth();
+  const { userProfile, isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Log user profile data when dashboard mounts
     console.log('User profile in dashboard:', userProfile);
-  }, [userProfile]);
+    console.log('User object in dashboard:', user);
+    
+    // Redirect to role-specific dashboard if user has a specific role
+    if (user && user.role) {
+      switch (user.role) {
+        case 'Unit Head':
+          navigate('/dashboard/unithead', { replace: true });
+          return;
+        case 'Camper Care':
+          navigate('/dashboard/campercare', { replace: true });
+          return;
+        default:
+          // Stay on general dashboard for other roles (Admin, Counselor, etc.)
+          break;
+      }
+    }
+  }, [userProfile, user, navigate]);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
