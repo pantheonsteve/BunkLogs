@@ -80,7 +80,23 @@ function Router() {
           } 
         />
         <Route 
+          path="/unithead/:id/:date" 
+          element={
+            <ProtectedRoute>
+              <UnitHeadDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
           path="/dashboard/campercare" 
+          element={
+            <ProtectedRoute>
+              <CamperCareDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/campercare/:id/:date" 
           element={
             <ProtectedRoute>
               <CamperCareDashboard />

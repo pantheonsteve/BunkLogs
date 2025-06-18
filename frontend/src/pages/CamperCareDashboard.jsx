@@ -1,15 +1,76 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useParams, useNavigate } from 'react-router-dom';
 
 import Sidebar from '../partials/Sidebar';
 import Header from '../partials/Header';
 import CamperCareBunkGrid from '../partials/dashboard/CamperCareBunkGrid';
 import UserProfile from '../partials/dashboard/UserProfile';
+import SingleDatePicker from '../components/ui/SingleDatePicker';
 
 function CamperCareDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, userProfile, isAuthenticated, loading } = useAuth();
+  const { id, date } = useParams();
+  const navigate = useNavigate();
+
+  // Add redirect if no date parameter for date-aware routes
+  useEffect(() => {
+    if (id && (!date || date === 'undefined')) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      console.log(`[CamperCareDashboard] No date in URL, redirecting to today: ${formattedDate}`);
+      navigate(`/campercare/${id}/${formattedDate}`, { replace: true });
+      return;
+    }
+  }, [id, date, navigate]);
+
+  // Initialize selectedDate state
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (!date) {
+      return new Date(); // Default to today if no date is provided
+    } else if (date && date !== 'undefined') {
+      const [year, month, day] = date.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    } else {
+      return new Date();
+    }
+  });
+
+  // Keep selectedDate in sync with URL parameter
+  useEffect(() => {
+    if (date) {
+      const [year, month, day] = date.split('-').map(Number);
+      const dateFromUrl = new Date(year, month - 1, day);
+      setSelectedDate(dateFromUrl);
+    }
+  }, [date]);
+
+  const handleDateChange = React.useCallback((newDate) => {
+    if (!newDate || !new Date(newDate).getTime()) {
+      console.log('[CamperCareDashboard] Invalid date provided to handleDateChange');
+      return;
+    }
+
+    const year = newDate.getFullYear();
+    const month = newDate.getMonth();
+    const day = newDate.getDate();
+    const standardizedDate = new Date(year, month, day);
+    
+    // Format date for URL: YYYY-MM-DD
+    const formattedDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    // Navigate to new URL with selected date
+    if (id) {
+      navigate(`/campercare/${id}/${formattedDate}`);
+    }
+    
+    setSelectedDate(standardizedDate);
+  }, [id, navigate]);
 
   // Redirect if not a Camper Care team member
   if (!loading && (!user || user.role !== 'Camper Care')) {
@@ -65,13 +126,26 @@ function CamperCareDashboard() {
                   </p>
                 </div>
               </div>
+
+              {/* Date picker - only show for date-aware routes */}
+              {id && date && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <SingleDatePicker 
+                      date={selectedDate} 
+                      setDate={handleDateChange}
+                      className="w-auto"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* User profile */}
             <UserProfile user={userProfile} />
             
             {/* Unit bunks grid */}
-            <CamperCareBunkGrid />
+            <CamperCareBunkGrid selectedDate={selectedDate} />
           </div>
         </main>
 

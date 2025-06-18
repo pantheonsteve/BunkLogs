@@ -4,7 +4,7 @@ import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
 import { Loader2, AlertTriangle, Users, Home } from 'lucide-react';
 
-function UnitHeadBunkGrid() {
+function UnitHeadBunkGrid({ selectedDate }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unitData, setUnitData] = useState(null);
@@ -20,7 +20,20 @@ function UnitHeadBunkGrid() {
 
       try {
         setLoading(true);
-        const response = await api.get(`/api/v1/unithead/${user.id}/`);
+        
+        // Use selectedDate if provided, otherwise use today's date
+        let dateToUse;
+        if (selectedDate) {
+          const year = selectedDate.getFullYear();
+          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(selectedDate.getDate()).padStart(2, '0');
+          dateToUse = `${year}-${month}-${day}`;
+        } else {
+          dateToUse = new Date().toISOString().split('T')[0];
+        }
+        
+        console.log(`[UnitHeadBunkGrid] Fetching data for date: ${dateToUse}`);
+        const response = await api.get(`/api/v1/unithead/${user.id}/${dateToUse}/`);
         setUnitData(response.data);
         setError(null);
       } catch (err) {
@@ -32,7 +45,7 @@ function UnitHeadBunkGrid() {
     };
 
     fetchUnitData();
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, selectedDate]);
 
   // Loading state
   if (loading) {
@@ -160,6 +173,7 @@ function UnitHeadBunkGrid() {
           <UnitHeadBunkCard
             key={bunk.id}
             bunk={bunk}
+            selectedDate={selectedDate}
           />
         ))}
       </div>

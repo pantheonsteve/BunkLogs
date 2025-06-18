@@ -137,6 +137,13 @@ function BunkDashboard() {
 
   const handleOpenBunkLogModal = (camperId, camper_bunk_assignment_id) => {
     console.log(`[BunkDashboard] Opening bunk log modal for camper: ${camperId}, assignment: ${camper_bunk_assignment_id}`);
+    
+    // Only allow Counselors to open the modal
+    if (!isCounselor) {
+      console.log('[BunkDashboard] Access denied: Only Counselors can edit bunk logs');
+      return;
+    }
+    
     setSelectedCamperId(camperId);
     setCamperBunkAssignmentId(camper_bunk_assignment_id);
     setBunkLogFormModalOpen(true);
@@ -160,14 +167,21 @@ function BunkDashboard() {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  // Check if user is a counselor
+  // Check user roles
   const isCounselor = user?.role === 'Counselor';
+  const isCamperCare = user?.role === 'Camper Care';
+  const isUnitHead = user?.role === 'Unit Head';
+  
+  // Define view-only roles that can see cards but cannot edit
+  const isViewOnlyRole = isCamperCare || isUnitHead;
 
   useEffect(() => {
     async function fetchData() {
       console.log(`[BunkDashboard] Starting data fetch for bunk_id: ${bunk_id}`);
       try {
         setLoading(true);
+        setError(null); // Clear any previous errors
+        
         // Format date consistently for API request
         const year = selectedDate.getFullYear();
         const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -198,7 +212,33 @@ function BunkDashboard() {
         setBunkData(response.data);
       } catch (error) {
         console.error(`[BunkDashboard] API Error:`, error);
-        setError(error);
+        
+        // Handle specific error cases
+        if (error.response?.status === 403) {
+          setError({
+            message: 'Access Denied',
+            details: 'You do not have permission to view this bunk. Please contact an administrator if you believe this is an error.',
+            code: 403
+          });
+        } else if (error.response?.status === 401) {
+          setError({
+            message: 'Authentication Required',
+            details: 'Your session has expired. Please log in again.',
+            code: 401
+          });
+        } else if (error.response?.status === 404) {
+          setError({
+            message: 'Bunk Not Found',
+            details: 'The requested bunk could not be found. It may have been deleted or moved.',
+            code: 404
+          });
+        } else {
+          setError({
+            message: 'Loading Error',
+            details: error.response?.data?.message || error.message || 'Failed to load bunk dashboard data',
+            code: error.response?.status || 500
+          });
+        }
       } finally {
         console.log('[BunkDashboard] Data fetch completed');
         setLoading(false);
@@ -299,52 +339,101 @@ function BunkDashboard() {
               
               {/* Column C: Action Buttons that become full width on small screens */}
               <div className="p-4">
-                {isCounselor && (
-                  <button
-                    onClick={() => setCreateOrderModalOpen(true)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
-                  >
-                    Create Order
-                  </button>
-                )}
+                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                  {/* Role indicator - always show */}
+                  <div className={`inline-flex items-center px-3 py-2 rounded-lg border ${
+                    isCounselor 
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                      : isViewOnlyRole 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                        : 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800'
+                  }`}>
+                    {isCounselor ? (
+                      <>
+                        <svg className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        <span className="text-sm font-medium text-green-700 dark:text-green-300">Full Access</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">View Only</span>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Create Order button - only for Counselors */}
+                  {isCounselor && (
+                    <button
+                      onClick={() => setCreateOrderModalOpen(true)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+                    >
+                      Create Order
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Cards */}
+          {/* Cards - Conditionally render based on user role */}
           <div className="grid grid-cols-12 gap-6">
-            <BunkLogFormModal 
-              id="bunk-log-form"
-              title="Add Bunk Log"
-              modalOpen={bunkLogModalOpen}
-              setModalOpen={setBunkLogFormModalOpen}
-              formSubmitted={formSubmitted}
-            >
-              <BunkLogForm 
-                bunk_id={bunk_id}
-                camper_id={selectedCamperId}
-                date={selected_date}
-                data={data}
-                onClose={handleModalClose}
-                // Pass token explicitly through props as a backup
-                token={token || localStorage.getItem('access_token')}
-              />
-            </BunkLogFormModal>
-            
-            {/* Create Order Modal */}
-            <CreateOrderModal
-              isOpen={createOrderModalOpen}
-              onClose={() => setCreateOrderModalOpen(false)}
-              onOrderCreated={handleOrderCreated}
-              bunkId={bunk_id}
-              date={selected_date}
-            />
-            
-            <NotOnCampCard bunkData={data} />
-            <UnitHeadHelpRequestedCard bunkData={data} />
-            <CamperCareHelpRequestedCard bunkData={data} />
-            <BunkLogsTableViewCard bunkData={data} />
-          </div>
+            {/* Bunk Log Form Modal - Only for Counselors */}
+            {isCounselor && (
+              <BunkLogFormModal 
+                id="bunk-log-form"
+                title="Add Bunk Log"
+                modalOpen={bunkLogModalOpen}
+                setModalOpen={setBunkLogFormModalOpen}
+                formSubmitted={formSubmitted}
+              >
+                <BunkLogForm 
+                  bunk_id={bunk_id}
+                  camper_id={selectedCamperId}
+                  date={selected_date}
+                  data={data}
+                  onClose={handleModalClose}
+                  // Pass token explicitly through props as a backup
+                  token={token || localStorage.getItem('access_token')}
+                />
+              </BunkLogFormModal>
+            )}
+              
+              {/* Create Order Modal - Only for Counselors */}
+              {isCounselor && (
+                <CreateOrderModal
+                  isOpen={createOrderModalOpen}
+                  onClose={() => setCreateOrderModalOpen(false)}
+                  onOrderCreated={handleOrderCreated}
+                  bunkId={bunk_id}
+                  date={selected_date}
+                />
+              )}
+              
+              {/* Cards visible to Camper Care and Unit Head roles */}
+              {isViewOnlyRole && (
+                <>
+                  <NotOnCampCard bunkData={data} />
+                  <UnitHeadHelpRequestedCard bunkData={data} />
+                  <CamperCareHelpRequestedCard bunkData={data} />
+                  <BunkLogsTableViewCard bunkData={data} />
+                </>
+              )}
+              
+              {/* Cards visible to Counselors (all cards) */}
+              {isCounselor && (
+                <>
+                  <NotOnCampCard bunkData={data} />
+                  <UnitHeadHelpRequestedCard bunkData={data} />
+                  <CamperCareHelpRequestedCard bunkData={data} />
+                  <BunkLogsTableViewCard bunkData={data} />
+                </>
+              )}
+            </div>
         </>
       );
     }
@@ -361,6 +450,7 @@ function BunkDashboard() {
         bunk={bunk_id} 
         openBunkModal={handleOpenBunkLogModal}
         refreshTrigger={refreshTrigger}
+        userRole={user?.role}
       />
 
       {/* Content area */}

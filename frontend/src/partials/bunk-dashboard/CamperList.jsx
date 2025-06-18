@@ -3,11 +3,14 @@ import { Link, NavLink } from 'react-router-dom';
 import api from '../../api';
 import { CheckCircle, Clock, Filter, Loader2, AlertTriangle } from 'lucide-react';
 
-function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
+function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) {
     const [data, setData] = useState([]);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'completed', 'pending'
+
+    // Check if user can edit (only Counselors can open the modal)
+    const canEdit = userRole === 'Counselor';
 
     useEffect(() => {
         const fetchData = async () => {
@@ -73,6 +76,15 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
                     </div>
                 </div>
                 
+                {/* Role-based access indicator */}
+                {!canEdit && (
+                    <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
+                            👁️ View-only access
+                        </p>
+                    </div>
+                )}
+                
                 {/* Simple filter tabs */}
                 <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                     <button
@@ -114,12 +126,19 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger }) {
                     {filteredData.map((camper) => (
                         <button
                             key={camper.camper_id}
-                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-between group bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-between group border border-gray-200 dark:border-gray-600 ${
+                                canEdit 
+                                    ? 'bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 cursor-pointer' 
+                                    : 'bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300 cursor-default'
+                            }`}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                openBunkModal(camper.camper_id, camper.bunk_assignment_id);
+                                if (canEdit) {
+                                    openBunkModal(camper.camper_id, camper.bunk_assignment_id);
+                                }
                             }}
-                            title={camper.bunk_log ? "Edit bunk log" : "Create bunk log"}
+                            title={canEdit ? (camper.bunk_log ? "Edit bunk log" : "Create bunk log") : "View only"}
+                            disabled={!canEdit}
                         >
                             <span className="truncate">
                                 {camper.camper_first_name} {camper.camper_last_name}

@@ -5,11 +5,19 @@ import { Home, Users, Calendar, ArrowRight, Loader2, UserCheck, Baby } from 'luc
 // Today's date constant - uses current date
 const TODAY = new Date();
 
-function UnitHeadBunkCard({ bunk }) {
+function UnitHeadBunkCard({ bunk, selectedDate }) {
   const [error, setError] = useState(null);
 
-  // Format today's date as YYYY-MM-DD for the URL
-  const formattedDate = TODAY.toISOString().split('T')[0];
+  // Format the date for URL - use selectedDate if provided, otherwise use today
+  let formattedDate;
+  if (selectedDate) {
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    formattedDate = `${year}-${month}-${day}`;
+  } else {
+    formattedDate = new Date().toISOString().split('T')[0];
+  }
 
   return (
     <Link 

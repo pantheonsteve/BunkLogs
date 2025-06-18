@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
 
 import SidebarLinkGroup from "../SidebarLinkGroup";
 
@@ -16,9 +17,11 @@ function BunkPageSidebar({
   bunk,
   openBunkModal,
   refreshTrigger,
+  userRole,
 }) {
   const location = useLocation();
   const { pathname } = location;
+  const { user } = useAuth(); // Get user for role checking
 
   console.log("bunk", bunk);
 
@@ -167,6 +170,7 @@ function BunkPageSidebar({
                             bunk_id={bunk} 
                             date={date}
                             openBunkModal={openBunkModal} 
+                            userRole={userRole || user?.role}
                           />
                           </li>
                         </ul>
