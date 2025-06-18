@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 
@@ -12,6 +13,7 @@ function Sidebar({
 }) {
   const location = useLocation();
   const { pathname } = location;
+  const { user } = useAuth();
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -116,6 +118,51 @@ function Sidebar({
                   </div>
                 </NavLink>
               </li>
+              
+              {/* Role-specific dashboard links */}
+              {user && user.role === 'Unit Head' && (
+                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  <NavLink 
+                    to="/dashboard/unithead" 
+                    className={({ isActive }) => 
+                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                        isActive ? "text-emerald-600 dark:text-emerald-400" : "hover:text-gray-900 dark:hover:text-white"
+                      }`
+                    }
+                  >
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V9.75a.75.75 0 0 0-.75-.75h-4.5m0 11.25h-4.5V9.75a.75.75 0 0 0-.75-.75h-4.5m0 11.25V9.75a.75.75 0 0 0-.75-.75H2.25" />
+                      </svg>
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        Unit Dashboard
+                      </span>
+                    </div>
+                  </NavLink>
+                </li>
+              )}
+              
+              {user && user.role === 'Camper Care' && (
+                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  <NavLink 
+                    to="/dashboard/campercare" 
+                    className={({ isActive }) => 
+                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                        isActive ? "text-rose-600 dark:text-rose-400" : "hover:text-gray-900 dark:hover:text-white"
+                      }`
+                    }
+                  >
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                      </svg>
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        Care Dashboard
+                      </span>
+                    </div>
+                  </NavLink>
+                </li>
+              )}
               <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                 <NavLink 
                   end 

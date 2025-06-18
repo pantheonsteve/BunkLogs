@@ -27,11 +27,16 @@ urlpatterns = [
     path('users/<str:user_id>', views.get_user_by_id, name='user-by-id'),
     path('bunklogs/<str:bunk_id>/logs/<str:date>/', views.BunkLogsInfoByDateViewSet.as_view(), name='bunklog-by-date'),
     # URL for camper bunk logs
-    path('campers/<str:camper_id>/logs/', views.CamperBunkLogViewSet.as_view(), name='camper-bunklogs'),    
+    path('campers/<str:camper_id>/logs/', views.CamperBunkLogViewSet.as_view(), name='camper-bunklogs'),
+    
+    # Unit Head and Camper Care endpoints
+    path('unithead/<str:unithead_id>/', views.get_unit_head_bunks, name='unit-head-bunks'),
+    path('campercare/<str:camper_care_id>/', views.get_camper_care_bunks, name='camper-care-bunks'),
+    
     # Debug endpoints
     path('debug/user-bunks/', views.debug_user_bunks, name='debug-user-bunks'),
     path('debug/fix-social-apps/', views.fix_social_apps, name='fix-social-apps'),
     path('debug/auth/', views.auth_debug_view, name='auth-debug'),
 ]
-    
-   
+
+
