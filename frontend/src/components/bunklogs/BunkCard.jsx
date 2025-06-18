@@ -136,7 +136,27 @@ function BunkCard({ cabin, session, bunk_id, counselors }) {
           )}
         </div>
 
-        {/* Counselors count */}
+        {/* Counselor List */}
+        <div className="text-center mb-6">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 tracking-wide uppercase">
+            Counselors
+          </h3>
+          {bunkData?.counselors && bunkData.counselors.length > 0 ? (
+            <ul className="flex flex-wrap justify-center gap-2">
+              {bunkData.counselors.map((counselor, index) => (
+                <li
+                  key={index}
+                  className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs font-medium shadow-sm border border-blue-100 dark:border-blue-800"
+                >
+                  <Users className="w-3 h-3 mr-1" />
+                  {(counselor.first_name || '') + ' ' + (counselor.last_name || '')}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No counselors assigned</p>
+          )}
+        </div>}
         {counselors && counselors.length > 0 && (
           <div className="text-center mb-4">
             <div className="text-sm text-gray-500 dark:text-gray-400">

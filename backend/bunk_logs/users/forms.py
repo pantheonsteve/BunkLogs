@@ -2,6 +2,7 @@ from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from django.contrib.auth import forms as admin_forms
 from django.forms import EmailField
+from django import forms
 from django.utils.translation import gettext_lazy as _
 
 from .models import User
@@ -54,3 +55,22 @@ class UserSocialSignupForm(SocialSignupForm):
         user.save()
         
         return user
+
+
+class UserCsvImportForm(forms.Form):
+    csv_file = forms.FileField(
+        label="CSV File",
+        help_text="Upload a CSV with user data. Required columns: email, first_name, last_name. Optional: role, password, is_active, is_staff",
+    )
+    dry_run = forms.BooleanField(
+        required=False,
+        label="Dry run",
+        help_text="Validate the import without saving to database",
+    )
+
+    def clean_csv_file(self):
+        csv_file = self.cleaned_data.get('csv_file')
+        if csv_file:
+            if not csv_file.name.endswith('.csv'):
+                raise forms.ValidationError("File must be a CSV file (.csv)")
+        return csv_file

@@ -118,7 +118,7 @@ class UserAdmin(TestDataAdminMixin, auth_admin.UserAdmin):
             "app_label": self.model._meta.app_label,
             "model_name": self.model._meta.model_name,
         }
-        return render(request, "admin/users_csv_form.html", context)
+        return render(request, "admin/users/user/csv_form.html", context)
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
