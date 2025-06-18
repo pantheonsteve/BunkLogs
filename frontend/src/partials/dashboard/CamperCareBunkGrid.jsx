@@ -20,7 +20,9 @@ function CamperCareBunkGrid() {
 
       try {
         setLoading(true);
-        const response = await api.get(`/api/v1/campercare/${user.id}/`);
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date().toISOString().split('T')[0];
+        const response = await api.get(`/api/v1/campercare/${user.id}/${today}/`);
         setUnitData(response.data);
         setError(null);
       } catch (err) {

@@ -30,8 +30,8 @@ urlpatterns = [
     path('campers/<str:camper_id>/logs/', views.CamperBunkLogViewSet.as_view(), name='camper-bunklogs'),
     
     # Unit Head and Camper Care endpoints
-    path('unithead/<str:unithead_id>/', views.get_unit_head_bunks, name='unit-head-bunks'),
-    path('campercare/<str:camper_care_id>/', views.get_camper_care_bunks, name='camper-care-bunks'),
+    path('unithead/<str:unithead_id>/<str:date>/', views.get_unit_head_bunks, name='unit-head-bunks'),
+    path('campercare/<str:camper_care_id>/<str:date>/', views.get_camper_care_bunks, name='camper-care-bunks'),
     
     # Debug endpoints
     path('debug/user-bunks/', views.debug_user_bunks, name='debug-user-bunks'),

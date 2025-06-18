@@ -429,9 +429,48 @@ class UnitCounselorSerializer(serializers.ModelSerializer):
 
 class UnitCamperSerializer(serializers.ModelSerializer):
     """Serializer for campers in unit-specific endpoints."""
+    bunk_log = serializers.SerializerMethodField()
+    
     class Meta:
         model = Camper
-        fields = ['id', 'first_name', 'last_name']
+        fields = ['id', 'first_name', 'last_name', 'bunk_log']
+    
+    def get_bunk_log(self, obj):
+        """Get bunk log for this camper on the specified date."""
+        # Get the date from the context (passed from the view)
+        date = self.context.get('date')
+        if not date:
+            return None
+        
+        # Get the camper's active bunk assignment
+        from campers.models import CamperBunkAssignment
+        assignment = CamperBunkAssignment.objects.filter(
+            camper=obj, 
+            is_active=True
+        ).first()
+        
+        if not assignment:
+            return None
+        
+        # Get the bunk log for this assignment and date
+        from bunklogs.models import BunkLog
+        try:
+            bunk_log = BunkLog.objects.get(
+                bunk_assignment=assignment,
+                date=date
+            )
+            # Get the serialized bunk log data
+            bunk_log_data = BunkLogSerializer(bunk_log).data
+            
+            # Add counselor first and last names
+            if bunk_log.counselor:
+                bunk_log_data['counselor_first_name'] = bunk_log.counselor.first_name
+                bunk_log_data['counselor_last_name'] = bunk_log.counselor.last_name
+                bunk_log_data['counselor_email'] = bunk_log.counselor.email
+            
+            return bunk_log_data
+        except BunkLog.DoesNotExist:
+            return None
 
 
 class UnitBunkDetailSerializer(serializers.ModelSerializer):
@@ -449,22 +488,38 @@ class UnitBunkDetailSerializer(serializers.ModelSerializer):
         """Get active campers assigned to this bunk."""
         active_assignments = obj.camper_assignments.filter(is_active=True)
         campers = [assignment.camper for assignment in active_assignments]
-        return UnitCamperSerializer(campers, many=True).data
+        # Pass the date context from the parent serializer
+        context = self.context.copy() if self.context else {}
+        return UnitCamperSerializer(campers, many=True, context=context).data
 
 
 class UnitHeadBunksSerializer(serializers.ModelSerializer):
     """Serializer for Unit Head endpoint response."""
-    bunks = UnitBunkDetailSerializer(many=True, read_only=True)
+    bunks = serializers.SerializerMethodField()
     
     class Meta:
         model = Unit
         fields = ['id', 'name', 'bunks']
+    
+    def get_bunks(self, obj):
+        """Get bunks with date context for bunk logs."""
+        bunks = obj.bunks.all()
+        # Pass the context from the view to the bunk serializer
+        context = self.context.copy() if self.context else {}
+        return UnitBunkDetailSerializer(bunks, many=True, context=context).data
 
 
 class CamperCareBunksSerializer(serializers.ModelSerializer):
     """Serializer for Camper Care endpoint response."""
-    bunks = UnitBunkDetailSerializer(many=True, read_only=True)
+    bunks = serializers.SerializerMethodField()
     
     class Meta:
         model = Unit
         fields = ['id', 'name', 'bunks']
+    
+    def get_bunks(self, obj):
+        """Get bunks with date context for bunk logs."""
+        bunks = obj.bunks.all()
+        # Pass the context from the view to the bunk serializer
+        context = self.context.copy() if self.context else {}
+        return UnitBunkDetailSerializer(bunks, many=True, context=context).data
