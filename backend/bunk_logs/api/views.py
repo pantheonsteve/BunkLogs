@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 
 from rest_framework import generics
 from rest_framework import viewsets
@@ -120,12 +121,18 @@ def validate_google_token(request):
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
     return JsonResponse({'error': 'Invalid request method - not allowed'}, status=405)
 
-class UserDetailsView(viewsets.ViewSet):
+class UserDetailsView(viewsets.ReadOnlyModelViewSet):
     """
     Custom User Details View to ensure JSON response
     """
     renderer_classes = [JSONRenderer]
     permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+    
+    def get_queryset(self):
+        # Return queryset with just the current user
+        User = get_user_model()
+        return User.objects.filter(id=self.request.user.id)
     
     def list(self, request):
         user = request.user
