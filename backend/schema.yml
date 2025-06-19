@@ -1,0 +1,3364 @@
+openapi: 3.0.3
+info:
+  title: Bunk Logs API
+  version: 1.0.0
+  description: Documentation of API endpoints of Bunk Logs
+paths:
+  /api/auth-token/:
+    post:
+      operationId: auth_token_create
+      tags:
+      - auth-token
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+          description: ''
+  /api/auth/google/:
+    get:
+      operationId: auth_google_retrieve
+      description: Initiate Google OAuth flow
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/google/callback/:
+    get:
+      operationId: auth_google_callback_retrieve
+      description: Handle Google OAuth callback
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/google/callback/token/:
+    post:
+      operationId: auth_google_callback_token_create
+      description: Handle callback during redirect auth flow
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/token/:
+    post:
+      operationId: auth_token_create_2
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomTokenObtainPair'
+          description: ''
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/token/verify/:
+    post:
+      operationId: auth_token_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerify'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerify'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerify'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenVerify'
+          description: ''
+  /api/item-categories/:
+    get:
+      operationId: item_categories_list
+      description: |-
+        ViewSet for ItemCategory model.
+        - GET /api/item-categories/ - List all categories
+        - GET /api/item-categories/{id}/ - Retrieve specific category
+        - POST /api/item-categories/ - Create new category (staff only)
+        - PUT /api/item-categories/{id}/ - Update category (staff only)
+        - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+      tags:
+      - item-categories
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ItemCategory'
+          description: ''
+    post:
+      operationId: item_categories_create
+      description: |-
+        ViewSet for ItemCategory model.
+        - GET /api/item-categories/ - List all categories
+        - GET /api/item-categories/{id}/ - Retrieve specific category
+        - POST /api/item-categories/ - Create new category (staff only)
+        - PUT /api/item-categories/{id}/ - Update category (staff only)
+        - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+      tags:
+      - item-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ItemCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ItemCategory'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemCategory'
+          description: ''
+  /api/item-categories/{id}/:
+    get:
+      operationId: item_categories_retrieve
+      description: |-
+        ViewSet for ItemCategory model.
+        - GET /api/item-categories/ - List all categories
+        - GET /api/item-categories/{id}/ - Retrieve specific category
+        - POST /api/item-categories/ - Create new category (staff only)
+        - PUT /api/item-categories/{id}/ - Update category (staff only)
+        - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item Category.
+        required: true
+      tags:
+      - item-categories
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemCategory'
+          description: ''
+    put:
+      operationId: item_categories_update
+      description: |-
+        ViewSet for ItemCategory model.
+        - GET /api/item-categories/ - List all categories
+        - GET /api/item-categories/{id}/ - Retrieve specific category
+        - POST /api/item-categories/ - Create new category (staff only)
+        - PUT /api/item-categories/{id}/ - Update category (staff only)
+        - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item Category.
+        required: true
+      tags:
+      - item-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ItemCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ItemCategory'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemCategory'
+          description: ''
+    patch:
+      operationId: item_categories_partial_update
+      description: |-
+        ViewSet for ItemCategory model.
+        - GET /api/item-categories/ - List all categories
+        - GET /api/item-categories/{id}/ - Retrieve specific category
+        - POST /api/item-categories/ - Create new category (staff only)
+        - PUT /api/item-categories/{id}/ - Update category (staff only)
+        - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item Category.
+        required: true
+      tags:
+      - item-categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedItemCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedItemCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedItemCategory'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemCategory'
+          description: ''
+    delete:
+      operationId: item_categories_destroy
+      description: |-
+        ViewSet for ItemCategory model.
+        - GET /api/item-categories/ - List all categories
+        - GET /api/item-categories/{id}/ - Retrieve specific category
+        - POST /api/item-categories/ - Create new category (staff only)
+        - PUT /api/item-categories/{id}/ - Update category (staff only)
+        - DELETE /api/item-categories/{id}/ - Delete category (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item Category.
+        required: true
+      tags:
+      - item-categories
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/items/:
+    get:
+      operationId: items_list
+      description: |-
+        ViewSet for Item model.
+        - GET /api/items/ - List all available items
+        - GET /api/items/{id}/ - Retrieve specific item
+        - POST /api/items/ - Create new item (staff only)
+        - PUT /api/items/{id}/ - Update item (staff only)
+        - DELETE /api/items/{id}/ - Delete item (staff only)
+      tags:
+      - items
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+          description: ''
+    post:
+      operationId: items_create
+      description: |-
+        ViewSet for Item model.
+        - GET /api/items/ - List all available items
+        - GET /api/items/{id}/ - Retrieve specific item
+        - POST /api/items/ - Create new item (staff only)
+        - PUT /api/items/{id}/ - Update item (staff only)
+        - DELETE /api/items/{id}/ - Delete item (staff only)
+      tags:
+      - items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Item'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Item'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Item'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+          description: ''
+  /api/items/{id}/:
+    get:
+      operationId: items_retrieve
+      description: |-
+        ViewSet for Item model.
+        - GET /api/items/ - List all available items
+        - GET /api/items/{id}/ - Retrieve specific item
+        - POST /api/items/ - Create new item (staff only)
+        - PUT /api/items/{id}/ - Update item (staff only)
+        - DELETE /api/items/{id}/ - Delete item (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item.
+        required: true
+      tags:
+      - items
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+          description: ''
+    put:
+      operationId: items_update
+      description: |-
+        ViewSet for Item model.
+        - GET /api/items/ - List all available items
+        - GET /api/items/{id}/ - Retrieve specific item
+        - POST /api/items/ - Create new item (staff only)
+        - PUT /api/items/{id}/ - Update item (staff only)
+        - DELETE /api/items/{id}/ - Delete item (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item.
+        required: true
+      tags:
+      - items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Item'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Item'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Item'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+          description: ''
+    patch:
+      operationId: items_partial_update
+      description: |-
+        ViewSet for Item model.
+        - GET /api/items/ - List all available items
+        - GET /api/items/{id}/ - Retrieve specific item
+        - POST /api/items/ - Create new item (staff only)
+        - PUT /api/items/{id}/ - Update item (staff only)
+        - DELETE /api/items/{id}/ - Delete item (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item.
+        required: true
+      tags:
+      - items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedItem'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+          description: ''
+    delete:
+      operationId: items_destroy
+      description: |-
+        ViewSet for Item model.
+        - GET /api/items/ - List all available items
+        - GET /api/items/{id}/ - Retrieve specific item
+        - POST /api/items/ - Create new item (staff only)
+        - PUT /api/items/{id}/ - Update item (staff only)
+        - DELETE /api/items/{id}/ - Delete item (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item.
+        required: true
+      tags:
+      - items
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/order-types/:
+    get:
+      operationId: order_types_list
+      description: |-
+        ViewSet for OrderType model.
+        - GET /api/order-types/ - List all order types
+        - GET /api/order-types/{id}/ - Retrieve specific order type
+        - POST /api/order-types/ - Create new order type (staff only)
+        - PUT /api/order-types/{id}/ - Update order type (staff only)
+        - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+      tags:
+      - order-types
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderType'
+          description: ''
+    post:
+      operationId: order_types_create
+      description: |-
+        ViewSet for OrderType model.
+        - GET /api/order-types/ - List all order types
+        - GET /api/order-types/{id}/ - Retrieve specific order type
+        - POST /api/order-types/ - Create new order type (staff only)
+        - PUT /api/order-types/{id}/ - Update order type (staff only)
+        - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+      tags:
+      - order-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderType'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderType'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderType'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderType'
+          description: ''
+  /api/order-types/{order_type_id}/items/:
+    get:
+      operationId: order_types_items_retrieve
+      description: |-
+        Get available items for a specific order type.
+        Returns items from categories associated with the order type.
+      parameters:
+      - in: path
+        name: order_type_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - order-types
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/order-types/{id}/:
+    get:
+      operationId: order_types_retrieve
+      description: |-
+        ViewSet for OrderType model.
+        - GET /api/order-types/ - List all order types
+        - GET /api/order-types/{id}/ - Retrieve specific order type
+        - POST /api/order-types/ - Create new order type (staff only)
+        - PUT /api/order-types/{id}/ - Update order type (staff only)
+        - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Order Type.
+        required: true
+      tags:
+      - order-types
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderType'
+          description: ''
+    put:
+      operationId: order_types_update
+      description: |-
+        ViewSet for OrderType model.
+        - GET /api/order-types/ - List all order types
+        - GET /api/order-types/{id}/ - Retrieve specific order type
+        - POST /api/order-types/ - Create new order type (staff only)
+        - PUT /api/order-types/{id}/ - Update order type (staff only)
+        - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Order Type.
+        required: true
+      tags:
+      - order-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderType'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderType'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderType'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderType'
+          description: ''
+    patch:
+      operationId: order_types_partial_update
+      description: |-
+        ViewSet for OrderType model.
+        - GET /api/order-types/ - List all order types
+        - GET /api/order-types/{id}/ - Retrieve specific order type
+        - POST /api/order-types/ - Create new order type (staff only)
+        - PUT /api/order-types/{id}/ - Update order type (staff only)
+        - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Order Type.
+        required: true
+      tags:
+      - order-types
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrderType'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrderType'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrderType'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderType'
+          description: ''
+    delete:
+      operationId: order_types_destroy
+      description: |-
+        ViewSet for OrderType model.
+        - GET /api/order-types/ - List all order types
+        - GET /api/order-types/{id}/ - Retrieve specific order type
+        - POST /api/order-types/ - Create new order type (staff only)
+        - PUT /api/order-types/{id}/ - Update order type (staff only)
+        - DELETE /api/order-types/{id}/ - Delete order type (staff only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Order Type.
+        required: true
+      tags:
+      - order-types
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/orders/:
+    get:
+      operationId: orders_list
+      description: |-
+        ViewSet for Order model with CRUD operations.
+        - GET /api/orders/ - List all orders
+        - GET /api/orders/{id}/ - Retrieve specific order
+        - POST /api/orders/ - Create new order
+        - PUT /api/orders/{id}/ - Update order
+        - DELETE /api/orders/{id}/ - Delete order
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+          description: ''
+    post:
+      operationId: orders_create
+      description: |-
+        ViewSet for Order model with CRUD operations.
+        - GET /api/orders/ - List all orders
+        - GET /api/orders/{id}/ - Retrieve specific order
+        - POST /api/orders/ - Create new order
+        - PUT /api/orders/{id}/ - Update order
+        - DELETE /api/orders/{id}/ - Delete order
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCreate'
+          description: ''
+  /api/orders/{id}/:
+    get:
+      operationId: orders_retrieve
+      description: |-
+        ViewSet for Order model with CRUD operations.
+        - GET /api/orders/ - List all orders
+        - GET /api/orders/{id}/ - Retrieve specific order
+        - POST /api/orders/ - Create new order
+        - PUT /api/orders/{id}/ - Update order
+        - DELETE /api/orders/{id}/ - Delete order
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+    put:
+      operationId: orders_update
+      description: |-
+        ViewSet for Order model with CRUD operations.
+        - GET /api/orders/ - List all orders
+        - GET /api/orders/{id}/ - Retrieve specific order
+        - POST /api/orders/ - Create new order
+        - PUT /api/orders/{id}/ - Update order
+        - DELETE /api/orders/{id}/ - Delete order
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Order'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Order'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+    patch:
+      operationId: orders_partial_update
+      description: |-
+        ViewSet for Order model with CRUD operations.
+        - GET /api/orders/ - List all orders
+        - GET /api/orders/{id}/ - Retrieve specific order
+        - POST /api/orders/ - Create new order
+        - PUT /api/orders/{id}/ - Update order
+        - DELETE /api/orders/{id}/ - Delete order
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrder'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrder'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrder'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+    delete:
+      operationId: orders_destroy
+      description: |-
+        ViewSet for Order model with CRUD operations.
+        - GET /api/orders/ - List all orders
+        - GET /api/orders/{id}/ - Retrieve specific order
+        - POST /api/orders/ - Create new order
+        - PUT /api/orders/{id}/ - Update order
+        - DELETE /api/orders/{id}/ - Delete order
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/orders/statistics/:
+    get:
+      operationId: orders_statistics_retrieve
+      description: Get statistics about orders.
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/schema/:
+    get:
+      operationId: schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - schema
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/users/:
+    get:
+      operationId: users_list
+      description: |-
+        ViewSet for User model.
+        - GET /api/users/ - List all users (staff only)
+        - GET /api/users/{id}/ - Retrieve specific user
+        - GET /api/users/me/ - Get current user details
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/{id}/:
+    get:
+      operationId: users_retrieve
+      description: |-
+        ViewSet for User model.
+        - GET /api/users/ - List all users (staff only)
+        - GET /api/users/{id}/ - Retrieve specific user
+        - GET /api/users/me/ - Get current user details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/me/:
+    get:
+      operationId: users_me_retrieve
+      description: Return current user details.
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/bunk/{id}/:
+    get:
+      operationId: v1_bunk_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bunk'
+          description: ''
+  /api/v1/bunklogs/:
+    get:
+      operationId: v1_bunklogs_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BunkLog'
+          description: ''
+    post:
+      operationId: v1_bunklogs_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BunkLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BunkLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BunkLog'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BunkLog'
+          description: ''
+  /api/v1/bunklogs/{bunk_id}/logs/{date}/:
+    get:
+      operationId: v1_bunklogs_logs_retrieve
+      description: |-
+        API view to get bunk logs info by date.
+        The endpoint will be '/api/v1/bunklogs/<str:bunk_id>/logs/<str:date>/'
+        where 'bunk_id' is the ID of the bunk and 'date' is the date in YYYY-MM-DD format.
+        The response will first search for all of the bunk_assignemnts for the bunk on that date.
+        Then, it will search for all of the bunk logs for those assignments.
+        The response will include the bunk assignment ID and the bunk log ID.
+        If no bunk logs are found, the response will return an empty list.
+      parameters:
+      - in: path
+        name: bunk_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: date
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/bunklogs/{id}/:
+    get:
+      operationId: v1_bunklogs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk log.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BunkLog'
+          description: ''
+    put:
+      operationId: v1_bunklogs_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk log.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BunkLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BunkLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BunkLog'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BunkLog'
+          description: ''
+    patch:
+      operationId: v1_bunklogs_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk log.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBunkLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBunkLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBunkLog'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BunkLog'
+          description: ''
+    delete:
+      operationId: v1_bunklogs_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk log.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/bunks/:
+    get:
+      operationId: v1_bunks_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bunk'
+          description: ''
+    post:
+      operationId: v1_bunks_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bunk'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Bunk'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Bunk'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bunk'
+          description: ''
+  /api/v1/bunks/{id}/:
+    get:
+      operationId: v1_bunks_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bunk'
+          description: ''
+    put:
+      operationId: v1_bunks_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bunk'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Bunk'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Bunk'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bunk'
+          description: ''
+    patch:
+      operationId: v1_bunks_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBunk'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBunk'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBunk'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bunk'
+          description: ''
+    delete:
+      operationId: v1_bunks_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bunk.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/camper-bunk-assignments/:
+    get:
+      operationId: v1_camper_bunk_assignments_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CamperBunkAssignment'
+          description: ''
+    post:
+      operationId: v1_camper_bunk_assignments_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CamperBunkAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CamperBunkAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CamperBunkAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CamperBunkAssignment'
+          description: ''
+  /api/v1/camper-bunk-assignments/{id}/:
+    get:
+      operationId: v1_camper_bunk_assignments_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper bunk assignment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CamperBunkAssignment'
+          description: ''
+    put:
+      operationId: v1_camper_bunk_assignments_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper bunk assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CamperBunkAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CamperBunkAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CamperBunkAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CamperBunkAssignment'
+          description: ''
+    patch:
+      operationId: v1_camper_bunk_assignments_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper bunk assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCamperBunkAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCamperBunkAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCamperBunkAssignment'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CamperBunkAssignment'
+          description: ''
+    delete:
+      operationId: v1_camper_bunk_assignments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper bunk assignment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/campercare/{camper_care_id}/{date}/:
+    get:
+      operationId: v1_campercare_retrieve
+      description: |-
+        Get all bunks managed by a specific camper care team member with counselors and campers.
+        Endpoint: /api/campercare/<camper_care_id>/<date>/
+      parameters:
+      - in: path
+        name: camper_care_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: date
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campers/:
+    get:
+      operationId: v1_campers_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Camper'
+          description: ''
+    post:
+      operationId: v1_campers_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Camper'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Camper'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Camper'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camper'
+          description: ''
+  /api/v1/campers/{camper_id}/logs/:
+    get:
+      operationId: v1_campers_logs_retrieve
+      parameters:
+      - in: path
+        name: camper_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BunkLog'
+          description: ''
+  /api/v1/campers/{id}/:
+    get:
+      operationId: v1_campers_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camper'
+          description: ''
+    put:
+      operationId: v1_campers_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Camper'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Camper'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Camper'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camper'
+          description: ''
+    patch:
+      operationId: v1_campers_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCamper'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCamper'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCamper'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camper'
+          description: ''
+    delete:
+      operationId: v1_campers_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this camper.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/debug/fix-social-apps/:
+    get:
+      operationId: v1_debug_fix_social_apps_retrieve
+      description: |-
+        Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth.
+        GET: List all SocialApp entries for Google
+        POST: Keep only the most recent app and delete duplicates
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_debug_fix_social_apps_create
+      description: |-
+        Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth.
+        GET: List all SocialApp entries for Google
+        POST: Keep only the most recent app and delete duplicates
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/debug/user-bunks/:
+    get:
+      operationId: v1_debug_user_bunks_retrieve
+      description: Temporary debug endpoint to check user-bunk relationships
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/unit-staff-assignments/:
+    get:
+      operationId: v1_unit_staff_assignments_list
+      description: |-
+        ViewSet for UnitStaffAssignment model.
+        - GET /api/unit-staff-assignments/ - List all assignments
+        - POST /api/unit-staff-assignments/ - Create new assignment
+        - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+        - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+        - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UnitStaffAssignment'
+          description: ''
+    post:
+      operationId: v1_unit_staff_assignments_create
+      description: |-
+        ViewSet for UnitStaffAssignment model.
+        - GET /api/unit-staff-assignments/ - List all assignments
+        - POST /api/unit-staff-assignments/ - Create new assignment
+        - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+        - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+        - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnitStaffAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UnitStaffAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UnitStaffAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitStaffAssignment'
+          description: ''
+  /api/v1/unit-staff-assignments/{id}/:
+    get:
+      operationId: v1_unit_staff_assignments_retrieve
+      description: |-
+        ViewSet for UnitStaffAssignment model.
+        - GET /api/unit-staff-assignments/ - List all assignments
+        - POST /api/unit-staff-assignments/ - Create new assignment
+        - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+        - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+        - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit staff assignment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitStaffAssignment'
+          description: ''
+    put:
+      operationId: v1_unit_staff_assignments_update
+      description: |-
+        ViewSet for UnitStaffAssignment model.
+        - GET /api/unit-staff-assignments/ - List all assignments
+        - POST /api/unit-staff-assignments/ - Create new assignment
+        - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+        - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+        - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit staff assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnitStaffAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UnitStaffAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UnitStaffAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitStaffAssignment'
+          description: ''
+    patch:
+      operationId: v1_unit_staff_assignments_partial_update
+      description: |-
+        ViewSet for UnitStaffAssignment model.
+        - GET /api/unit-staff-assignments/ - List all assignments
+        - POST /api/unit-staff-assignments/ - Create new assignment
+        - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+        - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+        - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit staff assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUnitStaffAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUnitStaffAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUnitStaffAssignment'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitStaffAssignment'
+          description: ''
+    delete:
+      operationId: v1_unit_staff_assignments_destroy
+      description: |-
+        ViewSet for UnitStaffAssignment model.
+        - GET /api/unit-staff-assignments/ - List all assignments
+        - POST /api/unit-staff-assignments/ - Create new assignment
+        - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+        - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+        - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit staff assignment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/unithead/{unithead_id}/{date}/:
+    get:
+      operationId: v1_unithead_retrieve
+      description: |-
+        Get all bunks managed by a specific unit head with counselors and campers.
+        Endpoint: /api/unithead/<unithead_id>/<date>/
+      parameters:
+      - in: path
+        name: date
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: unithead_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/units/:
+    get:
+      operationId: v1_units_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Unit'
+          description: ''
+    post:
+      operationId: v1_units_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Unit'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Unit'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Unit'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+          description: ''
+  /api/v1/units/{id}/:
+    get:
+      operationId: v1_units_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+          description: ''
+    put:
+      operationId: v1_units_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Unit'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Unit'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Unit'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+          description: ''
+    patch:
+      operationId: v1_units_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUnit'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUnit'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUnit'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+          description: ''
+    delete:
+      operationId: v1_units_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/units/{id}/assign_staff/:
+    post:
+      operationId: v1_units_assign_staff_create
+      description: Assign staff member to unit with specific role.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Unit'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Unit'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Unit'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+          description: ''
+  /api/v1/units/{id}/remove_staff/:
+    delete:
+      operationId: v1_units_remove_staff_destroy
+      description: Remove staff assignment from unit.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this unit.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/users/:
+    get:
+      operationId: v1_users_list
+      description: Custom User Details View to ensure JSON response
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/{id}/:
+    get:
+      operationId: v1_users_retrieve
+      description: Custom User Details View to ensure JSON response
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/create/:
+    post:
+      operationId: v1_users_create_create
+      description: User registration view.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/email/{email}/:
+    get:
+      operationId: v1_users_email_retrieve
+      description: Endpoint to get user details by email.
+      parameters:
+      - in: path
+        name: email
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    AuthToken:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        token:
+          type: string
+          readOnly: true
+      required:
+      - password
+      - token
+      - username
+    BlankEnum:
+      enum:
+      - ''
+    Bunk:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        unit:
+          $ref: '#/components/schemas/Unit'
+        cabin:
+          $ref: '#/components/schemas/Cabin'
+        session:
+          $ref: '#/components/schemas/Session'
+        counselors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimpleUser'
+          readOnly: true
+        is_test_data:
+          type: boolean
+          description: Mark this record as test/dummy data. Test data can be easily
+            identified and deleted in bulk.
+        is_active:
+          type: boolean
+          title: Active
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - cabin
+      - counselors
+      - created_at
+      - id
+      - session
+      - unit
+      - updated_at
+    BunkLog:
+      type: object
+      description: |-
+        Serializer for BunkLog model.
+        For POST requests, you need to provide:
+        - date
+        - bunk_assignment (id)
+        - other fields as needed
+        Note: counselor is automatically set to the current user
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        counselor:
+          type: integer
+          readOnly: true
+        is_test_data:
+          type: boolean
+          description: Mark this record as test/dummy data. Test data can be easily
+            identified and deleted in bulk.
+        date:
+          type: string
+          format: date
+        not_on_camp:
+          type: boolean
+        social_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+        behavior_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+        participation_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+        request_camper_care_help:
+          type: boolean
+        request_unit_head_help:
+          type: boolean
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        bunk_assignment:
+          type: integer
+      required:
+      - bunk_assignment
+      - counselor
+      - created_at
+      - date
+      - id
+      - updated_at
+    Cabin:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        is_test_data:
+          type: boolean
+          description: Mark this record as test/dummy data. Test data can be easily
+            identified and deleted in bulk.
+        name:
+          type: string
+          maxLength: 100
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        location:
+          type: string
+          maxLength: 255
+        notes:
+          type: string
+      required:
+      - capacity
+      - id
+      - name
+    Camper:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        emergency_contact_name:
+          type: string
+          maxLength: 255
+        emergency_contact_phone:
+          type: string
+          maxLength: 20
+        camper_notes:
+          type: string
+      required:
+      - first_name
+      - id
+      - last_name
+    CamperBunkAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        bunk:
+          $ref: '#/components/schemas/SimpleBunk'
+        camper:
+          $ref: '#/components/schemas/Camper'
+      required:
+      - bunk
+      - camper
+      - id
+    CustomTokenObtainPair:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    Item:
+      type: object
+      description: Serializer for Item model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        item_name:
+          type: string
+          maxLength: 100
+        item_description:
+          type: string
+        available:
+          type: boolean
+        item_category:
+          type: integer
+        item_category_name:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - item_category
+      - item_category_name
+      - item_description
+      - item_name
+    ItemCategory:
+      type: object
+      description: Serializer for ItemCategory model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category_name:
+          type: string
+          maxLength: 100
+        category_description:
+          type: string
+      required:
+      - category_description
+      - category_name
+      - id
+    Order:
+      type: object
+      description: Serializer for Order model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        user_email:
+          type: string
+          readOnly: true
+        user_name:
+          type: string
+          readOnly: true
+        order_date:
+          type: string
+          format: date-time
+          readOnly: true
+        order_status:
+          $ref: '#/components/schemas/OrderStatusEnum'
+        order_status_display:
+          type: string
+          readOnly: true
+        order_bunk:
+          type: integer
+        order_bunk_name:
+          type: string
+          readOnly: true
+        order_bunk_cabin:
+          type: string
+          readOnly: true
+        order_bunk_session:
+          type: string
+          readOnly: true
+        order_type:
+          type: integer
+        order_type_name:
+          type: string
+          readOnly: true
+        order_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+      required:
+      - id
+      - order_bunk
+      - order_bunk_cabin
+      - order_bunk_name
+      - order_bunk_session
+      - order_date
+      - order_items
+      - order_status_display
+      - order_type
+      - order_type_name
+      - user
+      - user_email
+      - user_name
+    OrderCreate:
+      type: object
+      description: Serializer for creating orders with order items.
+      properties:
+        order_status:
+          $ref: '#/components/schemas/OrderStatusEnum'
+        order_bunk:
+          type: integer
+        order_type:
+          type: integer
+        order_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+      required:
+      - order_bunk
+      - order_items
+      - order_type
+    OrderItem:
+      type: object
+      description: Serializer for OrderItem model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        item:
+          type: integer
+          nullable: true
+        item_name:
+          type: string
+          readOnly: true
+        item_description:
+          type: string
+          readOnly: true
+        item_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+      required:
+      - id
+      - item_description
+      - item_name
+      - item_quantity
+    OrderStatusEnum:
+      enum:
+      - submitted
+      - pending
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `submitted` - Submitted
+        * `pending` - Pending
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    OrderType:
+      type: object
+      description: Serializer for OrderType model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type_name:
+          type: string
+          maxLength: 100
+        type_description:
+          type: string
+        item_categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemCategory'
+          readOnly: true
+        item_category_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+      required:
+      - id
+      - item_categories
+      - item_category_ids
+      - type_description
+      - type_name
+    PatchedBunk:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        unit:
+          $ref: '#/components/schemas/Unit'
+        cabin:
+          $ref: '#/components/schemas/Cabin'
+        session:
+          $ref: '#/components/schemas/Session'
+        counselors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimpleUser'
+          readOnly: true
+        is_test_data:
+          type: boolean
+          description: Mark this record as test/dummy data. Test data can be easily
+            identified and deleted in bulk.
+        is_active:
+          type: boolean
+          title: Active
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedBunkLog:
+      type: object
+      description: |-
+        Serializer for BunkLog model.
+        For POST requests, you need to provide:
+        - date
+        - bunk_assignment (id)
+        - other fields as needed
+        Note: counselor is automatically set to the current user
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        counselor:
+          type: integer
+          readOnly: true
+        is_test_data:
+          type: boolean
+          description: Mark this record as test/dummy data. Test data can be easily
+            identified and deleted in bulk.
+        date:
+          type: string
+          format: date
+        not_on_camp:
+          type: boolean
+        social_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+        behavior_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+        participation_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+        request_camper_care_help:
+          type: boolean
+        request_unit_head_help:
+          type: boolean
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        bunk_assignment:
+          type: integer
+    PatchedCamper:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        emergency_contact_name:
+          type: string
+          maxLength: 255
+        emergency_contact_phone:
+          type: string
+          maxLength: 20
+        camper_notes:
+          type: string
+    PatchedCamperBunkAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        bunk:
+          $ref: '#/components/schemas/SimpleBunk'
+        camper:
+          $ref: '#/components/schemas/Camper'
+    PatchedItem:
+      type: object
+      description: Serializer for Item model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        item_name:
+          type: string
+          maxLength: 100
+        item_description:
+          type: string
+        available:
+          type: boolean
+        item_category:
+          type: integer
+        item_category_name:
+          type: string
+          readOnly: true
+    PatchedItemCategory:
+      type: object
+      description: Serializer for ItemCategory model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category_name:
+          type: string
+          maxLength: 100
+        category_description:
+          type: string
+    PatchedOrder:
+      type: object
+      description: Serializer for Order model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        user_email:
+          type: string
+          readOnly: true
+        user_name:
+          type: string
+          readOnly: true
+        order_date:
+          type: string
+          format: date-time
+          readOnly: true
+        order_status:
+          $ref: '#/components/schemas/OrderStatusEnum'
+        order_status_display:
+          type: string
+          readOnly: true
+        order_bunk:
+          type: integer
+        order_bunk_name:
+          type: string
+          readOnly: true
+        order_bunk_cabin:
+          type: string
+          readOnly: true
+        order_bunk_session:
+          type: string
+          readOnly: true
+        order_type:
+          type: integer
+        order_type_name:
+          type: string
+          readOnly: true
+        order_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+    PatchedOrderType:
+      type: object
+      description: Serializer for OrderType model.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type_name:
+          type: string
+          maxLength: 100
+        type_description:
+          type: string
+        item_categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemCategory'
+          readOnly: true
+        item_category_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+    PatchedUnit:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        unit_head_details:
+          type: string
+          readOnly: true
+        camper_care_details:
+          type: string
+          readOnly: true
+        staff_assignments:
+          type: string
+          readOnly: true
+        unit_heads:
+          type: string
+          readOnly: true
+        camper_care_staff:
+          type: string
+          readOnly: true
+    PatchedUnitStaffAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        unit:
+          type: integer
+        staff_member:
+          type: integer
+        staff_member_name:
+          type: string
+          readOnly: true
+        staff_member_details:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/UnitStaffAssignmentRoleEnum'
+        role_display:
+          type: string
+          readOnly: true
+        is_primary:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    Role79fEnum:
+      enum:
+      - Admin
+      - Camper Care
+      - Unit Head
+      - Counselor
+      type: string
+      description: |-
+        * `Admin` - Admin
+        * `Camper Care` - Camper Care
+        * `Unit Head` - Unit Head
+        * `Counselor` - Counselor
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        is_test_data:
+          type: boolean
+          description: Mark this record as test/dummy data. Test data can be easily
+            identified and deleted in bulk.
+        name:
+          type: string
+          maxLength: 100
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        is_active:
+          type: boolean
+      required:
+      - end_date
+      - id
+      - name
+      - start_date
+    SimpleBunk:
+      type: object
+      properties:
+        counselors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimpleUser'
+          readOnly: true
+        session:
+          $ref: '#/components/schemas/Session'
+        unit:
+          $ref: '#/components/schemas/SimpleUnit'
+        cabin:
+          $ref: '#/components/schemas/Cabin'
+        id:
+          type: integer
+          readOnly: true
+      required:
+      - cabin
+      - counselors
+      - id
+      - session
+      - unit
+    SimpleUnit:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        unit_head:
+          type: string
+          readOnly: true
+        camper_care:
+          type: string
+          readOnly: true
+      required:
+      - camper_care
+      - id
+      - name
+      - unit_head
+    SimpleUser:
+      type: object
+      properties:
+        first_name:
+          type: string
+          title: First Name of User
+          maxLength: 255
+        last_name:
+          type: string
+          title: Last Name of User
+          maxLength: 255
+        role:
+          oneOf:
+          - $ref: '#/components/schemas/Role79fEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+      required:
+      - email
+      - id
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenVerify:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+      required:
+      - token
+    Unit:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        unit_head_details:
+          type: string
+          readOnly: true
+        camper_care_details:
+          type: string
+          readOnly: true
+        staff_assignments:
+          type: string
+          readOnly: true
+        unit_heads:
+          type: string
+          readOnly: true
+        camper_care_staff:
+          type: string
+          readOnly: true
+      required:
+      - camper_care_details
+      - camper_care_staff
+      - created_at
+      - id
+      - name
+      - staff_assignments
+      - unit_head_details
+      - unit_heads
+      - updated_at
+    UnitStaffAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        unit:
+          type: integer
+        staff_member:
+          type: integer
+        staff_member_name:
+          type: string
+          readOnly: true
+        staff_member_details:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/UnitStaffAssignmentRoleEnum'
+        role_display:
+          type: string
+          readOnly: true
+        is_primary:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - role
+      - role_display
+      - staff_member
+      - staff_member_details
+      - staff_member_name
+      - unit
+      - updated_at
+    UnitStaffAssignmentRoleEnum:
+      enum:
+      - unit_head
+      - camper_care
+      type: string
+      description: |-
+        * `unit_head` - Unit Head
+        * `camper_care` - Camper Care
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          title: First Name of User
+          maxLength: 255
+        last_name:
+          type: string
+          title: Last Name of User
+          maxLength: 255
+        role:
+          oneOf:
+          - $ref: '#/components/schemas/Role79fEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          readOnly: true
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        profile_complete:
+          type: boolean
+        bunks:
+          type: string
+          readOnly: true
+        units:
+          type: string
+          readOnly: true
+      required:
+      - bunks
+      - email
+      - id
+      - is_active
+      - is_staff
+      - units
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
