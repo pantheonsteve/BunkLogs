@@ -476,6 +476,16 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SCHEMA_PATH_PREFIX": "/api/",
+    # Fix operationId collisions by providing custom operation naming
+    "OPERATION_ID_GENERATOR": "config.utils.custom_operation_id_generator",
+    "CAMELIZE_NAMES": True,
+    # Fix enum naming collisions by providing specific names for different role enums
+    "ENUM_NAME_OVERRIDES": {
+        "UserRoleEnum": "bunk_logs.users.models.User.ROLE_CHOICES",
+        "UnitStaffRoleEnum": "bunk_logs.bunks.models.UnitStaffAssignment.ROLE_CHOICES",
+    },
+    # Resolve operationId collisions
+    "POSTPROCESSING_HOOKS": ["drf_spectacular.hooks.postprocess_schema_enums"],
 }
 # Your stuff...
 # ------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ info:
 paths:
   /api/auth-token/:
     post:
-      operationId: auth_token_create
+      operationId: authTokenCreate
       tags:
       - auth-token
       requestBody:
@@ -33,8 +33,9 @@ paths:
           description: ''
   /api/auth/google/:
     get:
-      operationId: auth_google_retrieve
+      operationId: authGoogleRetrieve
       description: Initiate Google OAuth flow
+      summary: Google Login (OAuth Flow)
       tags:
       - auth
       security:
@@ -43,11 +44,25 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          description: Authorization URL returned
+        '500':
+          description: Server error
   /api/auth/google/callback/:
     get:
-      operationId: auth_google_callback_retrieve
-      description: Handle Google OAuth callback
+      operationId: authGoogleCallbackRetrieve
+      description: Handle Google OAuth callback with authorization code
+      summary: Google OAuth Callback Handler
+      parameters:
+      - in: query
+        name: code
+        schema:
+          type: string
+        description: Authorization code from Google
+      - in: query
+        name: error
+        schema:
+          type: string
+        description: Error message from Google (if any)
       tags:
       - auth
       security:
@@ -55,24 +70,44 @@ paths:
       - cookieAuth: []
       - {}
       responses:
-        '200':
-          description: No response body
+        '302':
+          description: Redirect to frontend with tokens
+        '400':
+          description: Bad request or missing authorization code
+        '500':
+          description: Server error or Google authentication not configured
   /api/auth/google/callback/token/:
     post:
-      operationId: auth_google_callback_token_create
+      operationId: authGoogleCallbackTokenCreate
       description: Handle callback during redirect auth flow
+      summary: Google Login Callback (POST)
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Authorization code from Google
+              required:
+              - code
       security:
       - jwtAuth: []
       - cookieAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          description: Login successful
+        '400':
+          description: Bad request or login failed
+        '500':
+          description: Google authentication not configured
   /api/auth/token/:
     post:
-      operationId: auth_token_create_2
+      operationId: authTokenCreate2
       description: |-
         Takes a set of user credentials and returns an access and refresh JSON web
         token pair to prove the authentication of those credentials.
@@ -99,7 +134,7 @@ paths:
           description: ''
   /api/auth/token/refresh/:
     post:
-      operationId: auth_token_refresh_create
+      operationId: authTokenRefreshCreate
       description: |-
         Takes a refresh type JSON web token and returns an access type JSON web
         token if the refresh token is valid.
@@ -126,7 +161,7 @@ paths:
           description: ''
   /api/auth/token/verify/:
     post:
-      operationId: auth_token_verify_create
+      operationId: authTokenVerifyCreate
       description: |-
         Takes a token and indicates if it is valid.  This view provides no
         information about a token's fitness for a particular use.
@@ -153,7 +188,7 @@ paths:
           description: ''
   /api/item-categories/:
     get:
-      operationId: item_categories_list
+      operationId: itemCategoriesList
       description: |-
         ViewSet for ItemCategory model.
         - GET /api/item-categories/ - List all categories
@@ -176,7 +211,7 @@ paths:
                   $ref: '#/components/schemas/ItemCategory'
           description: ''
     post:
-      operationId: item_categories_create
+      operationId: itemCategoriesCreate
       description: |-
         ViewSet for ItemCategory model.
         - GET /api/item-categories/ - List all categories
@@ -210,7 +245,7 @@ paths:
           description: ''
   /api/item-categories/{id}/:
     get:
-      operationId: item_categories_retrieve
+      operationId: itemCategoriesRetrieve
       description: |-
         ViewSet for ItemCategory model.
         - GET /api/item-categories/ - List all categories
@@ -238,7 +273,7 @@ paths:
                 $ref: '#/components/schemas/ItemCategory'
           description: ''
     put:
-      operationId: item_categories_update
+      operationId: itemCategoriesUpdate
       description: |-
         ViewSet for ItemCategory model.
         - GET /api/item-categories/ - List all categories
@@ -278,7 +313,7 @@ paths:
                 $ref: '#/components/schemas/ItemCategory'
           description: ''
     patch:
-      operationId: item_categories_partial_update
+      operationId: itemCategoriesPartialUpdate
       description: |-
         ViewSet for ItemCategory model.
         - GET /api/item-categories/ - List all categories
@@ -317,7 +352,7 @@ paths:
                 $ref: '#/components/schemas/ItemCategory'
           description: ''
     delete:
-      operationId: item_categories_destroy
+      operationId: itemCategoriesDestroy
       description: |-
         ViewSet for ItemCategory model.
         - GET /api/item-categories/ - List all categories
@@ -342,7 +377,7 @@ paths:
           description: No response body
   /api/items/:
     get:
-      operationId: items_list
+      operationId: itemsList
       description: |-
         ViewSet for Item model.
         - GET /api/items/ - List all available items
@@ -365,7 +400,7 @@ paths:
                   $ref: '#/components/schemas/Item'
           description: ''
     post:
-      operationId: items_create
+      operationId: itemsCreate
       description: |-
         ViewSet for Item model.
         - GET /api/items/ - List all available items
@@ -399,7 +434,7 @@ paths:
           description: ''
   /api/items/{id}/:
     get:
-      operationId: items_retrieve
+      operationId: itemsRetrieve
       description: |-
         ViewSet for Item model.
         - GET /api/items/ - List all available items
@@ -427,7 +462,7 @@ paths:
                 $ref: '#/components/schemas/Item'
           description: ''
     put:
-      operationId: items_update
+      operationId: itemsUpdate
       description: |-
         ViewSet for Item model.
         - GET /api/items/ - List all available items
@@ -467,7 +502,7 @@ paths:
                 $ref: '#/components/schemas/Item'
           description: ''
     patch:
-      operationId: items_partial_update
+      operationId: itemsPartialUpdate
       description: |-
         ViewSet for Item model.
         - GET /api/items/ - List all available items
@@ -506,7 +541,7 @@ paths:
                 $ref: '#/components/schemas/Item'
           description: ''
     delete:
-      operationId: items_destroy
+      operationId: itemsDestroy
       description: |-
         ViewSet for Item model.
         - GET /api/items/ - List all available items
@@ -531,7 +566,7 @@ paths:
           description: No response body
   /api/order-types/:
     get:
-      operationId: order_types_list
+      operationId: orderTypesList
       description: |-
         ViewSet for OrderType model.
         - GET /api/order-types/ - List all order types
@@ -554,7 +589,7 @@ paths:
                   $ref: '#/components/schemas/OrderType'
           description: ''
     post:
-      operationId: order_types_create
+      operationId: orderTypesCreate
       description: |-
         ViewSet for OrderType model.
         - GET /api/order-types/ - List all order types
@@ -586,17 +621,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderType'
           description: ''
-  /api/order-types/{order_type_id}/items/:
+  /api/order-types/{orderTypeId}/items/:
     get:
-      operationId: order_types_items_retrieve
-      description: |-
-        Get available items for a specific order type.
-        Returns items from categories associated with the order type.
+      operationId: orderTypesItemsRetrieve
+      description: Get available items for a specific order type. Returns items from
+        categories associated with the order type.
+      summary: Get items for order type
       parameters:
       - in: path
+        name: orderTypeId
+        schema:
+          type: integer
+        required: true
+      - in: query
         name: order_type_id
         schema:
           type: integer
+        description: Order type ID
         required: true
       tags:
       - order-types
@@ -605,10 +646,12 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          description: Items retrieved successfully
+        '404':
+          description: Order type not found
   /api/order-types/{id}/:
     get:
-      operationId: order_types_retrieve
+      operationId: orderTypesRetrieve
       description: |-
         ViewSet for OrderType model.
         - GET /api/order-types/ - List all order types
@@ -636,7 +679,7 @@ paths:
                 $ref: '#/components/schemas/OrderType'
           description: ''
     put:
-      operationId: order_types_update
+      operationId: orderTypesUpdate
       description: |-
         ViewSet for OrderType model.
         - GET /api/order-types/ - List all order types
@@ -676,7 +719,7 @@ paths:
                 $ref: '#/components/schemas/OrderType'
           description: ''
     patch:
-      operationId: order_types_partial_update
+      operationId: orderTypesPartialUpdate
       description: |-
         ViewSet for OrderType model.
         - GET /api/order-types/ - List all order types
@@ -715,7 +758,7 @@ paths:
                 $ref: '#/components/schemas/OrderType'
           description: ''
     delete:
-      operationId: order_types_destroy
+      operationId: orderTypesDestroy
       description: |-
         ViewSet for OrderType model.
         - GET /api/order-types/ - List all order types
@@ -740,7 +783,7 @@ paths:
           description: No response body
   /api/orders/:
     get:
-      operationId: orders_list
+      operationId: ordersList
       description: |-
         ViewSet for Order model with CRUD operations.
         - GET /api/orders/ - List all orders
@@ -748,6 +791,13 @@ paths:
         - POST /api/orders/ - Create new order
         - PUT /api/orders/{id}/ - Update order
         - DELETE /api/orders/{id}/ - Delete order
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Order ID
+        required: true
       tags:
       - orders
       security:
@@ -763,7 +813,7 @@ paths:
                   $ref: '#/components/schemas/Order'
           description: ''
     post:
-      operationId: orders_create
+      operationId: ordersCreate
       description: |-
         ViewSet for Order model with CRUD operations.
         - GET /api/orders/ - List all orders
@@ -771,6 +821,13 @@ paths:
         - POST /api/orders/ - Create new order
         - PUT /api/orders/{id}/ - Update order
         - DELETE /api/orders/{id}/ - Delete order
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Order ID
+        required: true
       tags:
       - orders
       requestBody:
@@ -797,7 +854,7 @@ paths:
           description: ''
   /api/orders/{id}/:
     get:
-      operationId: orders_retrieve
+      operationId: ordersRetrieve
       description: |-
         ViewSet for Order model with CRUD operations.
         - GET /api/orders/ - List all orders
@@ -809,7 +866,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: Order ID
         required: true
       tags:
       - orders
@@ -824,7 +882,7 @@ paths:
                 $ref: '#/components/schemas/Order'
           description: ''
     put:
-      operationId: orders_update
+      operationId: ordersUpdate
       description: |-
         ViewSet for Order model with CRUD operations.
         - GET /api/orders/ - List all orders
@@ -836,7 +894,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: Order ID
         required: true
       tags:
       - orders
@@ -863,7 +922,7 @@ paths:
                 $ref: '#/components/schemas/Order'
           description: ''
     patch:
-      operationId: orders_partial_update
+      operationId: ordersPartialUpdate
       description: |-
         ViewSet for Order model with CRUD operations.
         - GET /api/orders/ - List all orders
@@ -875,7 +934,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: Order ID
         required: true
       tags:
       - orders
@@ -901,7 +961,7 @@ paths:
                 $ref: '#/components/schemas/Order'
           description: ''
     delete:
-      operationId: orders_destroy
+      operationId: ordersDestroy
       description: |-
         ViewSet for Order model with CRUD operations.
         - GET /api/orders/ - List all orders
@@ -913,7 +973,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: Order ID
         required: true
       tags:
       - orders
@@ -925,8 +986,9 @@ paths:
           description: No response body
   /api/orders/statistics/:
     get:
-      operationId: orders_statistics_retrieve
+      operationId: ordersStatisticsRetrieve
       description: Get statistics about orders.
+      summary: Get order statistics
       tags:
       - orders
       security:
@@ -934,10 +996,10 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          description: Order statistics retrieved successfully
   /api/schema/:
     get:
-      operationId: schema_retrieve
+      operationId: schemaRetrieve
       description: |-
         OpenApi3 schema for this API. Format can be selected via content negotiation.
 
@@ -1082,7 +1144,7 @@ paths:
           description: ''
   /api/users/:
     get:
-      operationId: users_list
+      operationId: usersList
       description: |-
         ViewSet for User model.
         - GET /api/users/ - List all users (staff only)
@@ -1104,7 +1166,7 @@ paths:
           description: ''
   /api/users/{id}/:
     get:
-      operationId: users_retrieve
+      operationId: usersRetrieve
       description: |-
         ViewSet for User model.
         - GET /api/users/ - List all users (staff only)
@@ -1131,7 +1193,7 @@ paths:
           description: ''
   /api/users/me/:
     get:
-      operationId: users_me_retrieve
+      operationId: usersMeRetrieve
       description: Return current user details.
       tags:
       - users
@@ -1147,7 +1209,7 @@ paths:
           description: ''
   /api/v1/bunk/{id}/:
     get:
-      operationId: v1_bunk_retrieve
+      operationId: v1BunkRetrieve
       parameters:
       - in: path
         name: id
@@ -1169,7 +1231,7 @@ paths:
           description: ''
   /api/v1/bunklogs/:
     get:
-      operationId: v1_bunklogs_list
+      operationId: v1BunklogsList
       tags:
       - v1
       security:
@@ -1185,7 +1247,7 @@ paths:
                   $ref: '#/components/schemas/BunkLog'
           description: ''
     post:
-      operationId: v1_bunklogs_create
+      operationId: v1BunklogsCreate
       tags:
       - v1
       requestBody:
@@ -1210,27 +1272,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/BunkLog'
           description: ''
-  /api/v1/bunklogs/{bunk_id}/logs/{date}/:
+  /api/v1/bunklogs/{bunkId}/logs/{date}/:
     get:
-      operationId: v1_bunklogs_logs_retrieve
-      description: |-
-        API view to get bunk logs info by date.
-        The endpoint will be '/api/v1/bunklogs/<str:bunk_id>/logs/<str:date>/'
-        where 'bunk_id' is the ID of the bunk and 'date' is the date in YYYY-MM-DD format.
-        The response will first search for all of the bunk_assignemnts for the bunk on that date.
-        Then, it will search for all of the bunk logs for those assignments.
-        The response will include the bunk assignment ID and the bunk log ID.
-        If no bunk logs are found, the response will return an empty list.
+      operationId: v1BunklogsLogsRetrieve
+      description: API view to get bunk logs info by date. The endpoint searches for
+        all of the bunk assignments for the bunk on that date, then searches for all
+        of the bunk logs for those assignments.
+      summary: Get bunk logs by date
       parameters:
       - in: path
+        name: bunkId
+        schema:
+          type: string
+        required: true
+      - in: query
         name: bunk_id
         schema:
           type: string
+        description: Bunk ID
         required: true
       - in: path
         name: date
         schema:
           type: string
+        required: true
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Date in YYYY-MM-DD format
         required: true
       tags:
       - v1
@@ -1239,10 +1310,14 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          description: Bunk logs data retrieved successfully
+        '403':
+          description: Permission denied
+        '404':
+          description: Bunk not found
   /api/v1/bunklogs/{id}/:
     get:
-      operationId: v1_bunklogs_retrieve
+      operationId: v1BunklogsRetrieve
       parameters:
       - in: path
         name: id
@@ -1263,7 +1338,7 @@ paths:
                 $ref: '#/components/schemas/BunkLog'
           description: ''
     put:
-      operationId: v1_bunklogs_update
+      operationId: v1BunklogsUpdate
       parameters:
       - in: path
         name: id
@@ -1296,7 +1371,7 @@ paths:
                 $ref: '#/components/schemas/BunkLog'
           description: ''
     patch:
-      operationId: v1_bunklogs_partial_update
+      operationId: v1BunklogsPartialUpdate
       parameters:
       - in: path
         name: id
@@ -1328,7 +1403,7 @@ paths:
                 $ref: '#/components/schemas/BunkLog'
           description: ''
     delete:
-      operationId: v1_bunklogs_destroy
+      operationId: v1BunklogsDestroy
       parameters:
       - in: path
         name: id
@@ -1346,7 +1421,7 @@ paths:
           description: No response body
   /api/v1/bunks/:
     get:
-      operationId: v1_bunks_list
+      operationId: v1BunksList
       tags:
       - v1
       security:
@@ -1363,7 +1438,7 @@ paths:
                   $ref: '#/components/schemas/Bunk'
           description: ''
     post:
-      operationId: v1_bunks_create
+      operationId: v1BunksCreate
       tags:
       - v1
       requestBody:
@@ -1391,7 +1466,7 @@ paths:
           description: ''
   /api/v1/bunks/{id}/:
     get:
-      operationId: v1_bunks_retrieve
+      operationId: v1BunksRetrieve
       parameters:
       - in: path
         name: id
@@ -1413,7 +1488,7 @@ paths:
                 $ref: '#/components/schemas/Bunk'
           description: ''
     put:
-      operationId: v1_bunks_update
+      operationId: v1BunksUpdate
       parameters:
       - in: path
         name: id
@@ -1447,7 +1522,7 @@ paths:
                 $ref: '#/components/schemas/Bunk'
           description: ''
     patch:
-      operationId: v1_bunks_partial_update
+      operationId: v1BunksPartialUpdate
       parameters:
       - in: path
         name: id
@@ -1480,7 +1555,7 @@ paths:
                 $ref: '#/components/schemas/Bunk'
           description: ''
     delete:
-      operationId: v1_bunks_destroy
+      operationId: v1BunksDestroy
       parameters:
       - in: path
         name: id
@@ -1499,7 +1574,7 @@ paths:
           description: No response body
   /api/v1/camper-bunk-assignments/:
     get:
-      operationId: v1_camper_bunk_assignments_list
+      operationId: v1CamperBunkAssignmentsList
       tags:
       - v1
       security:
@@ -1516,7 +1591,7 @@ paths:
                   $ref: '#/components/schemas/CamperBunkAssignment'
           description: ''
     post:
-      operationId: v1_camper_bunk_assignments_create
+      operationId: v1CamperBunkAssignmentsCreate
       tags:
       - v1
       requestBody:
@@ -1544,7 +1619,7 @@ paths:
           description: ''
   /api/v1/camper-bunk-assignments/{id}/:
     get:
-      operationId: v1_camper_bunk_assignments_retrieve
+      operationId: v1CamperBunkAssignmentsRetrieve
       parameters:
       - in: path
         name: id
@@ -1566,7 +1641,7 @@ paths:
                 $ref: '#/components/schemas/CamperBunkAssignment'
           description: ''
     put:
-      operationId: v1_camper_bunk_assignments_update
+      operationId: v1CamperBunkAssignmentsUpdate
       parameters:
       - in: path
         name: id
@@ -1600,7 +1675,7 @@ paths:
                 $ref: '#/components/schemas/CamperBunkAssignment'
           description: ''
     patch:
-      operationId: v1_camper_bunk_assignments_partial_update
+      operationId: v1CamperBunkAssignmentsPartialUpdate
       parameters:
       - in: path
         name: id
@@ -1633,7 +1708,7 @@ paths:
                 $ref: '#/components/schemas/CamperBunkAssignment'
           description: ''
     delete:
-      operationId: v1_camper_bunk_assignments_destroy
+      operationId: v1CamperBunkAssignmentsDestroy
       parameters:
       - in: path
         name: id
@@ -1650,22 +1725,35 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/v1/campercare/{camper_care_id}/{date}/:
+  /api/v1/campercare/{camperCareId}/{date}/:
     get:
-      operationId: v1_campercare_retrieve
-      description: |-
-        Get all bunks managed by a specific camper care team member with counselors and campers.
-        Endpoint: /api/campercare/<camper_care_id>/<date>/
+      operationId: v1CampercareRetrieve
+      description: Get all bunks managed by a specific camper care team member with
+        counselors and campers.
+      summary: Get camper care bunks
       parameters:
       - in: path
+        name: camperCareId
+        schema:
+          type: string
+        required: true
+      - in: query
         name: camper_care_id
         schema:
           type: string
+        description: Camper care user ID
         required: true
       - in: path
         name: date
         schema:
           type: string
+        required: true
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Date in YYYY-MM-DD format
         required: true
       tags:
       - v1
@@ -1674,10 +1762,14 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          description: Camper care bunks data retrieved successfully
+        '403':
+          description: Permission denied
+        '404':
+          description: No unit found for this camper care team member
   /api/v1/campers/:
     get:
-      operationId: v1_campers_list
+      operationId: v1CampersList
       tags:
       - v1
       security:
@@ -1694,7 +1786,7 @@ paths:
                   $ref: '#/components/schemas/Camper'
           description: ''
     post:
-      operationId: v1_campers_create
+      operationId: v1CampersCreate
       tags:
       - v1
       requestBody:
@@ -1720,12 +1812,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Camper'
           description: ''
-  /api/v1/campers/{camper_id}/logs/:
+  /api/v1/campers/{camperId}/logs/:
     get:
-      operationId: v1_campers_logs_retrieve
+      operationId: v1CampersLogsRetrieve
       parameters:
       - in: path
-        name: camper_id
+        name: camperId
         schema:
           type: string
         required: true
@@ -1744,7 +1836,7 @@ paths:
           description: ''
   /api/v1/campers/{id}/:
     get:
-      operationId: v1_campers_retrieve
+      operationId: v1CampersRetrieve
       parameters:
       - in: path
         name: id
@@ -1766,7 +1858,7 @@ paths:
                 $ref: '#/components/schemas/Camper'
           description: ''
     put:
-      operationId: v1_campers_update
+      operationId: v1CampersUpdate
       parameters:
       - in: path
         name: id
@@ -1800,7 +1892,7 @@ paths:
                 $ref: '#/components/schemas/Camper'
           description: ''
     patch:
-      operationId: v1_campers_partial_update
+      operationId: v1CampersPartialUpdate
       parameters:
       - in: path
         name: id
@@ -1833,7 +1925,7 @@ paths:
                 $ref: '#/components/schemas/Camper'
           description: ''
     delete:
-      operationId: v1_campers_destroy
+      operationId: v1CampersDestroy
       parameters:
       - in: path
         name: id
@@ -1852,11 +1944,11 @@ paths:
           description: No response body
   /api/v1/debug/fix-social-apps/:
     get:
-      operationId: v1_debug_fix_social_apps_retrieve
-      description: |-
-        Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth.
-        GET: List all SocialApp entries for Google
-        POST: Keep only the most recent app and delete duplicates
+      operationId: v1DebugFixSocialAppsRetrieve
+      description: 'Diagnostic endpoint to fix MultipleObjectsReturned error with
+        Google OAuth. GET: List all SocialApp entries for Google. POST: Keep only
+        the most recent app and delete duplicates'
+      summary: Fix social authentication apps
       tags:
       - v1
       security:
@@ -1864,25 +1956,49 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialAppDiagnosticResponse'
+          description: Social apps diagnostic information or fix completed
+        '403':
+          description: Forbidden - Staff access required
     post:
-      operationId: v1_debug_fix_social_apps_create
-      description: |-
-        Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth.
-        GET: List all SocialApp entries for Google
-        POST: Keep only the most recent app and delete duplicates
+      operationId: v1DebugFixSocialAppsCreate
+      description: 'Diagnostic endpoint to fix MultipleObjectsReturned error with
+        Google OAuth. POST: Keep only the most recent app and delete duplicates'
+      summary: Fix social authentication apps
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocialAppDiagnosticResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SocialAppDiagnosticResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SocialAppDiagnosticResponse'
+        required: true
       security:
       - jwtAuth: []
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocialAppDiagnosticResponse'
+          description: Social apps diagnostic information or fix completed
+        '403':
+          description: Forbidden - Staff access required
   /api/v1/debug/user-bunks/:
     get:
-      operationId: v1_debug_user_bunks_retrieve
+      operationId: v1DebugUserBunksRetrieve
       description: Temporary debug endpoint to check user-bunk relationships
+      summary: Debug user bunks
       tags:
       - v1
       security:
@@ -1890,10 +2006,10 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          description: User-bunk relationship data retrieved successfully
   /api/v1/unit-staff-assignments/:
     get:
-      operationId: v1_unit_staff_assignments_list
+      operationId: v1UnitStaffAssignmentsList
       description: |-
         ViewSet for UnitStaffAssignment model.
         - GET /api/unit-staff-assignments/ - List all assignments
@@ -1916,7 +2032,7 @@ paths:
                   $ref: '#/components/schemas/UnitStaffAssignment'
           description: ''
     post:
-      operationId: v1_unit_staff_assignments_create
+      operationId: v1UnitStaffAssignmentsCreate
       description: |-
         ViewSet for UnitStaffAssignment model.
         - GET /api/unit-staff-assignments/ - List all assignments
@@ -1950,7 +2066,7 @@ paths:
           description: ''
   /api/v1/unit-staff-assignments/{id}/:
     get:
-      operationId: v1_unit_staff_assignments_retrieve
+      operationId: v1UnitStaffAssignmentsRetrieve
       description: |-
         ViewSet for UnitStaffAssignment model.
         - GET /api/unit-staff-assignments/ - List all assignments
@@ -1978,7 +2094,7 @@ paths:
                 $ref: '#/components/schemas/UnitStaffAssignment'
           description: ''
     put:
-      operationId: v1_unit_staff_assignments_update
+      operationId: v1UnitStaffAssignmentsUpdate
       description: |-
         ViewSet for UnitStaffAssignment model.
         - GET /api/unit-staff-assignments/ - List all assignments
@@ -2018,7 +2134,7 @@ paths:
                 $ref: '#/components/schemas/UnitStaffAssignment'
           description: ''
     patch:
-      operationId: v1_unit_staff_assignments_partial_update
+      operationId: v1UnitStaffAssignmentsPartialUpdate
       description: |-
         ViewSet for UnitStaffAssignment model.
         - GET /api/unit-staff-assignments/ - List all assignments
@@ -2057,7 +2173,7 @@ paths:
                 $ref: '#/components/schemas/UnitStaffAssignment'
           description: ''
     delete:
-      operationId: v1_unit_staff_assignments_destroy
+      operationId: v1UnitStaffAssignmentsDestroy
       description: |-
         ViewSet for UnitStaffAssignment model.
         - GET /api/unit-staff-assignments/ - List all assignments
@@ -2080,22 +2196,35 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/v1/unithead/{unithead_id}/{date}/:
+  /api/v1/unithead/{unitheadId}/{date}/:
     get:
-      operationId: v1_unithead_retrieve
-      description: |-
-        Get all bunks managed by a specific unit head with counselors and campers.
-        Endpoint: /api/unithead/<unithead_id>/<date>/
+      operationId: v1UnitheadRetrieve
+      description: Get all bunks managed by a specific unit head with counselors and
+        campers.
+      summary: Get unit head bunks
       parameters:
       - in: path
         name: date
         schema:
           type: string
         required: true
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Date in YYYY-MM-DD format
+        required: true
       - in: path
+        name: unitheadId
+        schema:
+          type: string
+        required: true
+      - in: query
         name: unithead_id
         schema:
           type: string
+        description: Unit head user ID
         required: true
       tags:
       - v1
@@ -2104,10 +2233,14 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          description: Unit head bunks data retrieved successfully
+        '403':
+          description: Permission denied
+        '404':
+          description: No unit found for this unit head
   /api/v1/units/:
     get:
-      operationId: v1_units_list
+      operationId: v1UnitsList
       tags:
       - v1
       security:
@@ -2124,7 +2257,7 @@ paths:
                   $ref: '#/components/schemas/Unit'
           description: ''
     post:
-      operationId: v1_units_create
+      operationId: v1UnitsCreate
       tags:
       - v1
       requestBody:
@@ -2152,7 +2285,7 @@ paths:
           description: ''
   /api/v1/units/{id}/:
     get:
-      operationId: v1_units_retrieve
+      operationId: v1UnitsRetrieve
       parameters:
       - in: path
         name: id
@@ -2174,7 +2307,7 @@ paths:
                 $ref: '#/components/schemas/Unit'
           description: ''
     put:
-      operationId: v1_units_update
+      operationId: v1UnitsUpdate
       parameters:
       - in: path
         name: id
@@ -2208,7 +2341,7 @@ paths:
                 $ref: '#/components/schemas/Unit'
           description: ''
     patch:
-      operationId: v1_units_partial_update
+      operationId: v1UnitsPartialUpdate
       parameters:
       - in: path
         name: id
@@ -2241,7 +2374,7 @@ paths:
                 $ref: '#/components/schemas/Unit'
           description: ''
     delete:
-      operationId: v1_units_destroy
+      operationId: v1UnitsDestroy
       parameters:
       - in: path
         name: id
@@ -2260,7 +2393,7 @@ paths:
           description: No response body
   /api/v1/units/{id}/assign_staff/:
     post:
-      operationId: v1_units_assign_staff_create
+      operationId: v1UnitsAssignStaffCreate
       description: Assign staff member to unit with specific role.
       parameters:
       - in: path
@@ -2296,7 +2429,7 @@ paths:
           description: ''
   /api/v1/units/{id}/remove_staff/:
     delete:
-      operationId: v1_units_remove_staff_destroy
+      operationId: v1UnitsRemoveStaffDestroy
       description: Remove staff assignment from unit.
       parameters:
       - in: path
@@ -2316,7 +2449,7 @@ paths:
           description: No response body
   /api/v1/users/:
     get:
-      operationId: v1_users_list
+      operationId: v1UsersList
       description: Custom User Details View to ensure JSON response
       tags:
       - v1
@@ -2330,11 +2463,11 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/User'
+                  $ref: '#/components/schemas/ApiUser'
           description: ''
   /api/v1/users/{id}/:
     get:
-      operationId: v1_users_retrieve
+      operationId: v1UsersRetrieve
       description: Custom User Details View to ensure JSON response
       parameters:
       - in: path
@@ -2353,11 +2486,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/ApiUser'
           description: ''
   /api/v1/users/create/:
     post:
-      operationId: v1_users_create_create
+      operationId: v1UsersCreateCreate
       description: User registration view.
       tags:
       - v1
@@ -2365,13 +2498,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/ApiUser'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/ApiUser'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/ApiUser'
         required: true
       security:
       - {}
@@ -2380,17 +2513,24 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/ApiUser'
           description: ''
   /api/v1/users/email/{email}/:
     get:
-      operationId: v1_users_email_retrieve
+      operationId: v1UsersEmailRetrieve
       description: Endpoint to get user details by email.
+      summary: Get user by email
       parameters:
       - in: path
         name: email
         schema:
           type: string
+        required: true
+      - in: query
+        name: email
+        schema:
+          type: string
+        description: User email address
         required: true
       tags:
       - v1
@@ -2400,9 +2540,84 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiUser'
+          description: User details retrieved successfully
+        '404':
+          description: User not found
 components:
   schemas:
+    ApiUser:
+      type: object
+      properties:
+        first_name:
+          type: string
+          title: First Name of User
+          maxLength: 255
+        last_name:
+          type: string
+          title: Last Name of User
+          maxLength: 255
+        role:
+          oneOf:
+          - $ref: '#/components/schemas/UserRoleEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        profile_complete:
+          type: boolean
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          readOnly: true
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        is_superuser:
+          type: boolean
+          readOnly: true
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        date_joined:
+          type: string
+          format: date-time
+        bunks:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        unit:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        unit_bunks:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 128
+      required:
+      - bunks
+      - email
+      - id
+      - is_staff
+      - is_superuser
+      - password
+      - unit
+      - unit_bunks
     AuthToken:
       type: object
       properties:
@@ -3028,19 +3243,24 @@ components:
           format: date-time
           readOnly: true
         unit_head_details:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         camper_care_details:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         staff_assignments:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         unit_heads:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         camper_care_staff:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
     PatchedUnitStaffAssignment:
       type: object
@@ -3056,10 +3276,11 @@ components:
           type: string
           readOnly: true
         staff_member_details:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         role:
-          $ref: '#/components/schemas/UnitStaffAssignmentRoleEnum'
+          $ref: '#/components/schemas/UnitStaffRoleEnum'
         role_display:
           type: string
           readOnly: true
@@ -3080,18 +3301,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-    Role79fEnum:
-      enum:
-      - Admin
-      - Camper Care
-      - Unit Head
-      - Counselor
-      type: string
-      description: |-
-        * `Admin` - Admin
-        * `Camper Care` - Camper Care
-        * `Unit Head` - Unit Head
-        * `Counselor` - Counselor
     Session:
       type: object
       properties:
@@ -3151,10 +3360,12 @@ components:
           type: string
           maxLength: 100
         unit_head:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         camper_care:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
       required:
       - camper_care
@@ -3174,7 +3385,7 @@ components:
           maxLength: 255
         role:
           oneOf:
-          - $ref: '#/components/schemas/Role79fEnum'
+          - $ref: '#/components/schemas/UserRoleEnum'
           - $ref: '#/components/schemas/BlankEnum'
         id:
           type: integer
@@ -3187,6 +3398,37 @@ components:
       required:
       - email
       - id
+    SocialAppDiagnostic:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        client_id:
+          type: string
+        created:
+          type: string
+      required:
+      - client_id
+      - created
+      - id
+      - name
+    SocialAppDiagnosticResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        message:
+          type: string
+        google_apps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialAppDiagnostic'
+      required:
+      - count
+      - google_apps
+      - message
     TokenRefresh:
       type: object
       properties:
@@ -3224,19 +3466,24 @@ components:
           format: date-time
           readOnly: true
         unit_head_details:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         camper_care_details:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         staff_assignments:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         unit_heads:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         camper_care_staff:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
       required:
       - camper_care_details
@@ -3262,10 +3509,11 @@ components:
           type: string
           readOnly: true
         staff_member_details:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         role:
-          $ref: '#/components/schemas/UnitStaffAssignmentRoleEnum'
+          $ref: '#/components/schemas/UnitStaffRoleEnum'
         role_display:
           type: string
           readOnly: true
@@ -3296,7 +3544,7 @@ components:
       - staff_member_name
       - unit
       - updated_at
-    UnitStaffAssignmentRoleEnum:
+    UnitStaffRoleEnum:
       enum:
       - unit_head
       - camper_care
@@ -3325,7 +3573,7 @@ components:
           maxLength: 255
         role:
           oneOf:
-          - $ref: '#/components/schemas/Role79fEnum'
+          - $ref: '#/components/schemas/UserRoleEnum'
           - $ref: '#/components/schemas/BlankEnum'
         is_active:
           type: boolean
@@ -3341,10 +3589,12 @@ components:
         profile_complete:
           type: boolean
         bunks:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
         units:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
       required:
       - bunks
@@ -3353,6 +3603,18 @@ components:
       - is_active
       - is_staff
       - units
+    UserRoleEnum:
+      enum:
+      - Admin
+      - Camper Care
+      - Unit Head
+      - Counselor
+      type: string
+      description: |-
+        * `Admin` - Admin
+        * `Camper Care` - Camper Care
+        * `Unit Head` - Unit Head
+        * `Counselor` - Counselor
   securitySchemes:
     cookieAuth:
       type: apiKey

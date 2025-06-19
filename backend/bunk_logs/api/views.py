@@ -32,7 +32,7 @@ from .serializers import CamperBunkAssignmentSerializer
 from .serializers import CamperSerializer
 from .serializers import UnitSerializer, UnitStaffAssignmentSerializer, SimpleBunkSerializer
 from .serializers import CamperBunkLogSerializer
-from .serializers import UserSerializer
+from .serializers import ApiUserSerializer
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, ItemSerializer, 
     ItemCategorySerializer, OrderTypeSerializer, SimpleOrderTypeSerializer,
@@ -41,6 +41,8 @@ from .serializers import (
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiResponse, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
@@ -58,13 +60,13 @@ class UserCreate(generics.CreateAPIView):
     """
     User registration view.
     """
-    serializer_class = UserSerializer
+    serializer_class = ApiUserSerializer
     permission_classes = [AllowAny]
     authentication_classes = []  # Disable authentication for user creation
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = ApiUserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
@@ -76,7 +78,7 @@ def get_user_by_id(request, user_id):
     """
     try:
         user = User.objects.get(id=user_id)
-        serializer = UserSerializer(user)
+        serializer = ApiUserSerializer(user)
         return JsonResponse(serializer.data)
     except User.DoesNotExist:
         return JsonResponse({"error": "User not found"}, status=404)
@@ -127,7 +129,7 @@ class UserDetailsView(viewsets.ReadOnlyModelViewSet):
     """
     renderer_classes = [JSONRenderer]
     permission_classes = [IsAuthenticated]
-    serializer_class = UserSerializer
+    serializer_class = ApiUserSerializer
     
     def get_queryset(self):
         # Return queryset with just the current user
@@ -136,7 +138,7 @@ class UserDetailsView(viewsets.ReadOnlyModelViewSet):
     
     def list(self, request):
         user = request.user
-        serializer = UserSerializer(user)
+        serializer = ApiUserSerializer(user)
         data = serializer.data
         
         # If you want to add groups as a special case (since it's a many-to-many field)
@@ -159,6 +161,27 @@ class UserDetailsView(viewsets.ReadOnlyModelViewSet):
 
 # Remove the existing retrieve method as we'll use a dedicated function-based view instead
 
+@extend_schema(
+    summary="Get user by email",
+    description="Endpoint to get user details by email.",
+    parameters=[
+        OpenApiParameter(
+            name='email',
+            description='User email address',
+            required=True,
+            type=OpenApiTypes.STR,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            response=ApiUserSerializer,
+            description="User details retrieved successfully",
+        ),
+        404: OpenApiResponse(
+            description="User not found",
+        ),
+    },
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])  # Changed from IsAuthenticated to AllowAny
 def get_user_by_email(request, email):
@@ -184,7 +207,7 @@ def get_user_by_email(request, email):
                     raise PermissionDenied("You do not have permission to view this user's details")
         
         # Continue with existing code for serialization and response
-        serializer = UserSerializer(user)
+        serializer = ApiUserSerializer(user)
         data = serializer.data
 
         assigned_bunks = []
@@ -252,10 +275,39 @@ class BunkViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(id=bunk_id)
         return queryset
 
+@extend_schema(
+    summary="Get bunk logs by date",
+    description="API view to get bunk logs info by date. The endpoint searches for all of the bunk assignments for the bunk on that date, then searches for all of the bunk logs for those assignments.",
+    parameters=[
+        OpenApiParameter(
+            name='bunk_id',
+            description='Bunk ID',
+            required=True,
+            type=OpenApiTypes.STR,
+        ),
+        OpenApiParameter(
+            name='date',
+            description='Date in YYYY-MM-DD format',
+            required=True,
+            type=OpenApiTypes.DATE,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Bunk logs data retrieved successfully",
+        ),
+        403: OpenApiResponse(
+            description="Permission denied",
+        ),
+        404: OpenApiResponse(
+            description="Bunk not found",
+        ),
+    },
+)
 class BunkLogsInfoByDateViewSet(APIView):
     """         
     API view to get bunk logs info by date.
-    The endpoint will be '/api/v1/bunklogs/<str:bunk_id>/logs/<str:date>/'
+    The endpoint will be '/api/v1/bunklogs/<str:bunk_id>/logs/<str:date>/''
     where 'bunk_id' is the ID of the bunk and 'date' is the date in YYYY-MM-DD format.
     The response will first search for all of the bunk_assignemnts for the bunk on that date.
     Then, it will search for all of the bunk logs for those assignments.
@@ -679,6 +731,16 @@ class CamperBunkLogViewSet(APIView):
 
 # Order-related API Views
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name='id',
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            description='Order ID'
+        ),
+    ]
+)
 class OrderViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Order model with CRUD operations.
@@ -870,6 +932,26 @@ class OrderTypeViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+@extend_schema(
+    summary="Get items for order type",
+    description="Get available items for a specific order type. Returns items from categories associated with the order type.",
+    parameters=[
+        OpenApiParameter(
+            name='order_type_id',
+            description='Order type ID',
+            required=True,
+            type=OpenApiTypes.INT,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Items retrieved successfully",
+        ),
+        404: OpenApiResponse(
+            description="Order type not found",
+        ),
+    },
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_items_for_order_type(request, order_type_id):
@@ -889,6 +971,24 @@ def get_items_for_order_type(request, order_type_id):
         return Response({"error": "Order type not found"}, status=404)
 
 
+@extend_schema(
+    summary="Get order statistics",
+    description="Get statistics about orders.",
+    responses={
+        200: OpenApiResponse(
+            description="Order statistics retrieved successfully",
+        ),
+    },
+)
+@extend_schema(
+    summary="Get order statistics",
+    description="Get statistics about orders.",
+    responses={
+        200: OpenApiResponse(
+            description="Order statistics retrieved successfully",
+        ),
+    },
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_order_statistics(request):
@@ -909,6 +1009,15 @@ def get_order_statistics(request):
         return Response({'error': str(e)}, status=500)
 
 
+@extend_schema(
+    summary="Debug user bunks",
+    description="Temporary debug endpoint to check user-bunk relationships",
+    responses={
+        200: OpenApiResponse(
+            description="User-bunk relationship data retrieved successfully",
+        ),
+    },
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def debug_user_bunks(request):
@@ -933,45 +1042,104 @@ def debug_user_bunks(request):
     user_data["assigned_bunks"] = assigned_bunks
     return JsonResponse(user_data)
 
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def fix_social_apps(request):
-    """Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth.
-    GET: List all SocialApp entries for Google
-    POST: Keep only the most recent app and delete duplicates
-    """
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'Staff access required'}, status=403)
-    # Get all Google social apps:
-    google_apps = SocialApp.objects.filter(provider='google')
-    if request.method == 'GET':
-        apps_data = [{
-            'id': app.id,
-            'name': app.name,
-            'client_id': app.client_id[:10] + '...',  # Partial ID for security
-            'created': app.date_added.isoformat() if hasattr(app, 'date_added') else 'unknown',
-        } for app in google_apps]
-        return JsonResponse({
+from .serializers import SocialAppDiagnosticResponseSerializer
+
+class FixSocialAppsView(APIView):
+    """Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = SocialAppDiagnosticResponseSerializer
+
+    @extend_schema(
+        summary="Fix social authentication apps",
+        description="Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth. GET: List all SocialApp entries for Google. POST: Keep only the most recent app and delete duplicates",
+        methods=['GET', 'POST'],
+        responses={
+            200: OpenApiResponse(
+                response=SocialAppDiagnosticResponseSerializer,
+                description="Social apps diagnostic information or fix completed",
+            ),
+            403: OpenApiResponse(description="Forbidden - Staff access required"),
+        }
+    )
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Staff access required'}, status=403)
+        google_apps = SocialApp.objects.filter(provider='google')
+        apps_data = [
+            {
+                'id': app.id,
+                'name': app.name,
+                'client_id': app.client_id[:10] + '...',
+                'created': app.date_added.isoformat() if hasattr(app, 'date_added') else 'unknown',
+            }
+            for app in google_apps
+        ]
+        response_data = {
             'count': google_apps.count(),
             'google_apps': apps_data,
             'message': 'To fix, make a POST request to this endpoint to keep only the latest app',
-        })
-    elif request.method == 'POST':
+        }
+        serializer = self.serializer_class(response_data)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Fix social authentication apps",
+        description="Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth. POST: Keep only the most recent app and delete duplicates",
+        responses={
+            200: OpenApiResponse(
+                response=SocialAppDiagnosticResponseSerializer,
+                description="Social apps diagnostic information or fix completed",
+            ),
+            403: OpenApiResponse(description="Forbidden - Staff access required"),
+        }
+    )
+    def post(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Staff access required'}, status=403)
+        google_apps = SocialApp.objects.filter(provider='google')
         count = google_apps.count()
         if count <= 1:
-            return JsonResponse({'message': 'No duplicates to fix'})
-        # Keep the most recently created app - usually has the highest ID
-        latest_app = google_apps.order_by('-id').first()
-        # Delete all other apps
-        google_apps.exclude(id=latest_app.id).delete()
-        return JsonResponse({
-            'message': f'Fixed! Kept app ID {latest_app.id} and deleted {count-1} duplicate(s)',
-            'remaining_app': {
-                'id': latest_app.id, 
-                'name': latest_app.name,
+            response_data = {
+                'count': count,
+                'google_apps': [
+                    {
+                        'id': app.id,
+                        'name': app.name,
+                        'client_id': app.client_id[:10] + '...',
+                        'created': app.date_added.isoformat() if hasattr(app, 'date_added') else 'unknown',
+                    }
+                    for app in google_apps
+                ],
+                'message': 'No duplicates to fix',
             }
-        })
+            serializer = self.serializer_class(response_data)
+            return Response(serializer.data)
+        latest_app = google_apps.order_by('-id').first()
+        google_apps.exclude(id=latest_app.id).delete()
+        response_data = {
+            'count': 1,
+            'google_apps': [
+                {
+                    'id': latest_app.id,
+                    'name': latest_app.name,
+                    'client_id': latest_app.client_id[:10] + '...',
+                    'created': latest_app.date_added.isoformat() if hasattr(latest_app, 'date_added') else 'unknown',
+                }
+            ],
+            'message': f'Fixed! Kept app ID {latest_app.id} and deleted {count-1} duplicate(s)',
+        }
+        serializer = self.serializer_class(response_data)
+        return Response(serializer.data)
 
+@extend_schema(
+    summary="Authentication debug view",
+    description="View for debugging authentication status",
+    responses={
+        200: OpenApiResponse(
+            description="Authentication debug information",
+        ),
+    },
+)
 @login_required
 def auth_debug_view(request):
     """View for debugging authentication status"""
@@ -995,6 +1163,35 @@ def auth_debug_view(request):
         'session_keys': list(request.session.keys()),
     })
 
+@extend_schema(
+    summary="Get unit head bunks",
+    description="Get all bunks managed by a specific unit head with counselors and campers.",
+    parameters=[
+        OpenApiParameter(
+            name='unithead_id',
+            description='Unit head user ID',
+            required=True,
+            type=OpenApiTypes.STR,
+        ),
+        OpenApiParameter(
+            name='date',
+            description='Date in YYYY-MM-DD format',
+            required=True,
+            type=OpenApiTypes.DATE,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Unit head bunks data retrieved successfully",
+        ),
+        403: OpenApiResponse(
+            description="Permission denied",
+        ),
+        404: OpenApiResponse(
+            description="No unit found for this unit head",
+        ),
+    },
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_unit_head_bunks(request, unithead_id, date):
@@ -1032,6 +1229,35 @@ def get_unit_head_bunks(request, unithead_id, date):
         return Response({'error': str(e)}, status=500)
 
 
+@extend_schema(
+    summary="Get camper care bunks",
+    description="Get all bunks managed by a specific camper care team member with counselors and campers.",
+    parameters=[
+        OpenApiParameter(
+            name='camper_care_id',
+            description='Camper care user ID',
+            required=True,
+            type=OpenApiTypes.STR,
+        ),
+        OpenApiParameter(
+            name='date',
+            description='Date in YYYY-MM-DD format',
+            required=True,
+            type=OpenApiTypes.DATE,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Camper care bunks data retrieved successfully",
+        ),
+        403: OpenApiResponse(
+            description="Permission denied",
+        ),
+        404: OpenApiResponse(
+            description="No unit found for this camper care team member",
+        ),
+    },
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_camper_care_bunks(request, camper_care_id, date):
