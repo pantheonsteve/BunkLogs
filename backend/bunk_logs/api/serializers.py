@@ -1,6 +1,9 @@
 from bunk_logs.campers.models import Camper
 from bunk_logs.campers.models import CamperBunkAssignment
+from typing import Optional, Dict, Any, List
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 
 from bunk_logs.users.models import User
 from bunk_logs.bunks.models import Bunk
@@ -44,7 +47,8 @@ class UnitSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "created_at", "updated_at", "unit_head_details", "camper_care_details", 
                  "staff_assignments", "unit_heads", "camper_care_staff"]
 
-    def get_unit_head_details(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_unit_head_details(self, obj) -> Optional[Dict[str, Any]]:
         # Backward compatibility - return primary unit head
         primary = obj.primary_unit_head
         if primary:
@@ -57,7 +61,8 @@ class UnitSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_camper_care_details(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_camper_care_details(self, obj) -> Optional[Dict[str, Any]]:
         # Backward compatibility - return primary camper care
         primary = obj.primary_camper_care
         if primary:
@@ -70,7 +75,8 @@ class UnitSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_staff_assignments(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_staff_assignments(self, obj) -> List[Dict[str, Any]]:
         from django.utils import timezone
         assignments = obj.staff_assignments.filter(
             start_date__lte=timezone.now().date(),
@@ -91,7 +97,8 @@ class UnitSerializer(serializers.ModelSerializer):
             'end_date': assignment.end_date,
         } for assignment in assignments]
 
-    def get_unit_heads(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_unit_heads(self, obj) -> List[Dict[str, Any]]:
         return [{
             'id': staff.id,
             'first_name': staff.first_name,
@@ -100,7 +107,8 @@ class UnitSerializer(serializers.ModelSerializer):
             'is_primary': staff in [obj.primary_unit_head] if obj.primary_unit_head else False
         } for staff in obj.all_unit_heads]
 
-    def get_camper_care_staff(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_camper_care_staff(self, obj) -> List[Dict[str, Any]]:
         return [{
             'id': staff.id,
             'first_name': staff.first_name,
@@ -121,7 +129,8 @@ class UnitStaffAssignmentSerializer(serializers.ModelSerializer):
                  'role', 'role_display', 'is_primary', 'start_date', 'end_date', 
                  'created_at', 'updated_at']
 
-    def get_staff_member_details(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_staff_member_details(self, obj) -> Dict[str, Any]:
         return {
             'id': obj.staff_member.id,
             'first_name': obj.staff_member.first_name,
@@ -140,12 +149,14 @@ class SimpleUnitSerializer(serializers.ModelSerializer):
         model = Unit
         fields = ["id", "name", "unit_head", "camper_care"]
 
-    def get_unit_head(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_unit_head(self, obj) -> Optional[Dict[str, Any]]:
         if obj.unit_head:
             return SimpleUserSerializer(obj.unit_head).data
         return None
 
-    def get_camper_care(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_camper_care(self, obj) -> Optional[Dict[str, Any]]:
         if obj.camper_care:
             return SimpleUserSerializer(obj.camper_care).data
         return None
@@ -163,7 +174,7 @@ class SimpleBunkSerializer(serializers.ModelSerializer):
         fields = ['counselors', 'session', 'unit', 'cabin', 'id']  # Exclude the field causing recursion
 
 
-class UserSerializer(serializers.ModelSerializer):
+class ApiUserSerializer(serializers.ModelSerializer):
     bunks = serializers.SerializerMethodField()
     unit = serializers.SerializerMethodField()
     unit_bunks = serializers.SerializerMethodField()
@@ -172,7 +183,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ("first_name", "last_name", "role", "id", "email", "profile_complete", 
                   "is_active", "is_staff", "is_superuser", "date_joined", 
-                  "bunks", "unit", "unit_bunks", "username", "password")
+                  "bunks", "unit", "unit_bunks", "password")
         extra_kwargs = {
             'password': {'write_only': True},
             'is_staff': {'read_only': True},
@@ -196,18 +207,21 @@ class UserSerializer(serializers.ModelSerializer):
         user.save()
         return user
     
-    def get_bunks(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_bunks(self, obj) -> List[Dict[str, Any]]:
         if obj.role == 'Counselor':
             # Use SimpleBunkSerializer instead of BunkSerializer to avoid recursion
             return SimpleBunkSerializer(Bunk.objects.filter(counselors=obj), many=True).data
         return []
     
-    def get_unit(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_unit(self, obj) -> Optional[Dict[str, Any]]:
         if obj.role == 'Unit Head' and hasattr(obj, 'unit'):
             return UnitSerializer(obj.unit).data
         return None
     
-    def get_unit_bunks(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_unit_bunks(self, obj) -> List[Dict[str, Any]]:
         if obj.role == 'Unit Head' and hasattr(obj, 'unit'):
             bunks = Bunk.objects.filter(unit=obj.unit)
             return SimpleBunkSerializer(bunks, many=True).data
@@ -406,7 +420,8 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['order_date', 'user']
     
-    def get_user_name(self, obj):
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_user_name(self, obj) -> str:
         if obj.user:
             return f"{obj.user.first_name} {obj.user.last_name}".strip()
         return ""
@@ -593,3 +608,15 @@ class CamperCareBunksSerializer(serializers.ModelSerializer):
         # Pass the context from the view to the bunk serializer
         context = self.context.copy() if self.context else {}
         return UnitBunkDetailSerializer(bunks, many=True, context=context).data
+
+
+class SocialAppDiagnosticSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    client_id = serializers.CharField()
+    created = serializers.CharField()
+
+class SocialAppDiagnosticResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    message = serializers.CharField()
+    google_apps = SocialAppDiagnosticSerializer(many=True)

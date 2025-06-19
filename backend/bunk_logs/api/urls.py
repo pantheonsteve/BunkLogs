@@ -36,7 +36,7 @@ urlpatterns = [
     
     # Debug endpoints
     path('debug/user-bunks/', views.debug_user_bunks, name='debug-user-bunks'),
-    path('debug/fix-social-apps/', views.fix_social_apps, name='fix-social-apps'),
+    path('debug/fix-social-apps/', views.FixSocialAppsView.as_view(), name='fix-social-apps'),
     path('debug/auth/', views.auth_debug_view, name='auth-debug'),
 ]
 

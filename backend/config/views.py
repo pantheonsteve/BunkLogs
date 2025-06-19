@@ -23,6 +23,9 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+
 from urllib.parse import urlencode
 
 User = get_user_model()
@@ -90,6 +93,21 @@ def token_authenticate(request):
     # Useful when transitioning from token to session auth
     return Response({"message": "Authentication successful"})
 
+@extend_schema(
+    summary="Google OAuth Login",
+    description="Initiate Google OAuth flow",
+    responses={
+        200: OpenApiResponse(
+            description="Authorization URL generated",
+            examples={
+                "application/json": {
+                    "authorization_url": "https://accounts.google.com/o/oauth2/auth?..."
+                }
+            }
+        ),
+        500: OpenApiResponse(description="Server error or Google authentication not configured"),
+    },
+)
 @csrf_exempt
 class GoogleLoginView(APIView):
     """
@@ -141,6 +159,28 @@ class GoogleLoginView(APIView):
                 'error': str(e),
                 'detail': error_traceback if settings.DEBUG else None
             }, status=500)
+@extend_schema(
+    summary="Google OAuth Callback",
+    description="Handle callback from Google OAuth",
+    parameters=[
+        OpenApiParameter(
+            name='code',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Authorization code from Google',
+        ),
+        OpenApiParameter(
+            name='error',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Error message from Google (if any)',
+        ),
+    ],
+    responses={
+        302: OpenApiResponse(description="Redirect to frontend with tokens"),
+        400: OpenApiResponse(description="Bad request or authentication error"),
+    },
+)
 class GoogleCallbackView(APIView):
     """
     Handles the callback from Google OAuth
@@ -209,6 +249,35 @@ class GoogleCallbackView(APIView):
             )
 
 
+@extend_schema(
+    summary="Validate Google ID Token",
+    description="Validate Google ID token from frontend",
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'credential': {
+                    'type': 'string',
+                    'description': 'Google ID token'
+                }
+            },
+            'required': ['credential']
+        }
+    },
+    responses={
+        200: OpenApiResponse(
+            description="Token validated and user authenticated",
+            examples={
+                "application/json": {
+                    "user": {"id": 1, "email": "user@example.com", "name": "User Name"},
+                    "tokens": {"refresh": "...", "access": "..."}
+                }
+            }
+        ),
+        400: OpenApiResponse(description="Invalid token or validation error"),
+        500: OpenApiResponse(description="Google authentication not configured"),
+    },
+)
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -309,6 +378,21 @@ def validate_google_token(request):
     except Exception as e:
         return Response({'error': str(e)}, status=400)
     
+@extend_schema(
+    summary="Google Login (OAuth Flow)",
+    description="Initiate Google OAuth flow",
+    responses={
+        200: OpenApiResponse(
+            description="Authorization URL returned",
+            examples={
+                "application/json": {
+                    "auth_url": "https://accounts.google.com/o/oauth2/auth?..."
+                }
+            }
+        ),
+        500: OpenApiResponse(description="Server error"),
+    },
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def google_login(request):
@@ -327,6 +411,29 @@ def google_login(request):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
+@extend_schema(
+    summary="Google OAuth Callback Handler",
+    description="Handle Google OAuth callback with authorization code",
+    parameters=[
+        OpenApiParameter(
+            name='code',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Authorization code from Google',
+        ),
+        OpenApiParameter(
+            name='error',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Error message from Google (if any)',
+        ),
+    ],
+    responses={
+        302: OpenApiResponse(description="Redirect to frontend with tokens"),
+        400: OpenApiResponse(description="Bad request or missing authorization code"),
+        500: OpenApiResponse(description="Server error or Google authentication not configured"),
+    },
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def google_callback(request):
@@ -412,6 +519,35 @@ def google_callback(request):
         return HttpResponseRedirect(f"{frontend_url}/signin?auth_error=callback_failed")
 
 
+@extend_schema(
+    summary="Google Login Callback (POST)",
+    description="Handle callback during redirect auth flow",
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'code': {
+                    'type': 'string',
+                    'description': 'Authorization code from Google'
+                }
+            },
+            'required': ['code']
+        }
+    },
+    responses={
+        200: OpenApiResponse(
+            description="Login successful",
+            examples={
+                "application/json": {
+                    "user": {"id": 1, "email": "user@example.com", "name": "User Name"},
+                    "tokens": {"refresh": "...", "access": "..."}
+                }
+            }
+        ),
+        400: OpenApiResponse(description="Bad request or login failed"),
+        500: OpenApiResponse(description="Google authentication not configured"),
+    },
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def google_login_callback(request):
@@ -493,6 +629,21 @@ def google_login_callback(request):
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
+@extend_schema(
+    summary="Password Reset Redirect",
+    description="Redirect password reset confirmation links to the frontend",
+    parameters=[
+        OpenApiParameter(
+            name='key',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.PATH,
+            description='Password reset key',
+        ),
+    ],
+    responses={
+        302: OpenApiResponse(description="Redirect to frontend with reset key"),
+    },
+)
 def password_reset_redirect(request, key):
     """
     Redirect password reset confirmation links to the frontend.
