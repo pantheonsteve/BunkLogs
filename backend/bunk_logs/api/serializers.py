@@ -122,12 +122,13 @@ class UnitStaffAssignmentSerializer(serializers.ModelSerializer):
     staff_member_name = serializers.CharField(source='staff_member.get_full_name', read_only=True)
     staff_member_details = serializers.SerializerMethodField()
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    unit_name = serializers.CharField(source='unit.name', read_only=True)
     
     class Meta:
         model = UnitStaffAssignment
         fields = ['id', 'unit', 'staff_member', 'staff_member_name', 'staff_member_details', 
                  'role', 'role_display', 'is_primary', 'start_date', 'end_date', 
-                 'created_at', 'updated_at']
+                 'created_at', 'updated_at', 'unit_name']
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_staff_member_details(self, obj) -> Dict[str, Any]:
