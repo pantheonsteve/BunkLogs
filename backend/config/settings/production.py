@@ -228,7 +228,7 @@ LOGGING = {
 # -------------------------------------------------------------------------------
 # Tools that generate code samples can use SERVERS to point to the correct domain
 SPECTACULAR_SETTINGS["SERVERS"] = [
-    {"url": "https://clc.bunklogs.net", "description": "Production server"},
+    {"url": "https://admin.bunklogs.net", "description": "Production API server"},
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------
