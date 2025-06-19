@@ -7,6 +7,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
+from datetime import datetime
+from django.db.models import Q
 
 from rest_framework import generics
 from rest_framework import viewsets
@@ -1165,19 +1167,21 @@ def auth_debug_view(request):
 
 @extend_schema(
     summary="Get unit head bunks",
-    description="Get all bunks managed by a specific unit head with counselors and campers.",
+    description="Get all bunks managed by a specific unit head (via UnitStaffAssignment) with counselors and campers.",
     parameters=[
         OpenApiParameter(
             name='unithead_id',
             description='Unit head user ID',
             required=True,
             type=OpenApiTypes.STR,
+            location=OpenApiParameter.PATH,
         ),
         OpenApiParameter(
             name='date',
             description='Date in YYYY-MM-DD format',
             required=True,
             type=OpenApiTypes.DATE,
+            location=OpenApiParameter.PATH,
         ),
     ],
     responses={
@@ -1196,54 +1200,61 @@ def auth_debug_view(request):
 @permission_classes([IsAuthenticated])
 def get_unit_head_bunks(request, unithead_id, date):
     """
-    Get all bunks managed by a specific unit head with counselors and campers.
+    Get all bunks managed by a specific unit head (via UnitStaffAssignment) with counselors and campers.
     Endpoint: /api/unithead/<unithead_id>/<date>/
     """
     try:
-        from bunk_logs.bunks.models import Unit
+        from bunk_logs.bunks.models import Unit, UnitStaffAssignment
         from .serializers import UnitHeadBunksSerializer
-        
-        # Check if the user is authorized to access this data
+
         user = request.user
-        if not (user.is_staff or user.role == 'Admin' or 
-                (user.role == 'Unit Head' and str(user.id) == str(unithead_id))):
-            return Response(
-                {'error': 'You do not have permission to access this data.'}, 
-                status=403
-            )
-        
-        # Get the unit managed by this unit head
-        unit = Unit.objects.filter(unit_head_id=unithead_id).first()
-        if not unit:
-            return Response(
-                {'error': 'No unit found for this unit head.'}, 
-                status=404
-            )
-        
-        # Serialize and return the data with date context
+        if not (user.is_staff or user.role == 'Admin' or (user.role == 'Unit Head' and str(user.id) == str(unithead_id))):
+            return Response({'error': 'You do not have permission to access this data.'}, status=403)
+
+        # Parse the date
+        try:
+            query_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except Exception:
+            return Response({'error': 'Invalid date format.'}, status=400)
+
+        assignments = UnitStaffAssignment.objects.filter(
+            staff_member_id=unithead_id,
+            role='unit_head',
+            start_date__lte=query_date,
+        ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+
+        units = Unit.objects.filter(staff_assignments__in=assignments).distinct()
+        if not units.exists():
+            legacy_unit = Unit.objects.filter(unit_head_id=unithead_id).first()
+            if legacy_unit:
+                units = [legacy_unit]
+            else:
+                return Response({'error': 'No unit found for this unit head.'}, status=404)
+
         context = {'date': date}
-        serializer = UnitHeadBunksSerializer(unit, context=context)
-        return Response(serializer.data)
-        
+        data = [UnitHeadBunksSerializer(unit, context=context).data for unit in units]
+        return Response(data)
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
 
 @extend_schema(
     summary="Get camper care bunks",
-    description="Get all bunks managed by a specific camper care team member with counselors and campers.",
+    description="Get all bunks managed by a specific camper care team member (via UnitStaffAssignment) with counselors and campers.",
     parameters=[
         OpenApiParameter(
             name='camper_care_id',
             description='Camper care user ID',
             required=True,
             type=OpenApiTypes.STR,
+            location=OpenApiParameter.PATH,
         ),
         OpenApiParameter(
             name='date',
             description='Date in YYYY-MM-DD format',
             required=True,
             type=OpenApiTypes.DATE,
+            location=OpenApiParameter.PATH,
         ),
     ],
     responses={
@@ -1262,33 +1273,39 @@ def get_unit_head_bunks(request, unithead_id, date):
 @permission_classes([IsAuthenticated])
 def get_camper_care_bunks(request, camper_care_id, date):
     """
-    Get all bunks managed by a specific camper care team member with counselors and campers.
+    Get all bunks managed by a specific camper care team member (via UnitStaffAssignment) with counselors and campers.
     Endpoint: /api/campercare/<camper_care_id>/<date>/
     """
     try:
-        from bunk_logs.bunks.models import Unit
+        from bunk_logs.bunks.models import Unit, UnitStaffAssignment
         from .serializers import CamperCareBunksSerializer
-        
-        # Check if the user is authorized to access this data
+
         user = request.user
-        if not (user.is_staff or user.role == 'Admin' or 
-                (user.role == 'Camper Care' and str(user.id) == str(camper_care_id))):
-            return Response(
-                {'error': 'You do not have permission to access this data.'}, 
-                status=403
-            )
-        
-        # Get the unit managed by this camper care team member
-        unit = Unit.objects.filter(camper_care_id=camper_care_id).first()
-        if not unit:
-            return Response(
-                {'error': 'No unit found for this camper care team member.'}, 
-                status=404
-            )
-        
-        # Serialize and return the data with date context
-        serializer = CamperCareBunksSerializer(unit, context={'date': date})
-        return Response(serializer.data)
-        
+        if not (user.is_staff or user.role == 'Admin' or (user.role == 'Camper Care' and str(user.id) == str(camper_care_id))):
+            return Response({'error': 'You do not have permission to access this data.'}, status=403)
+
+        # Parse the date
+        try:
+            query_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except Exception:
+            return Response({'error': 'Invalid date format.'}, status=400)
+
+        assignments = UnitStaffAssignment.objects.filter(
+            staff_member_id=camper_care_id,
+            role='camper_care',
+            start_date__lte=query_date,
+        ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+
+        units = Unit.objects.filter(staff_assignments__in=assignments).distinct()
+        if not units.exists():
+            legacy_unit = Unit.objects.filter(camper_care_id=camper_care_id).first()
+            if legacy_unit:
+                units = [legacy_unit]
+            else:
+                return Response({'error': 'No unit found for this camper care team member.'}, status=404)
+
+        context = {'date': date}
+        data = [CamperCareBunksSerializer(unit, context=context).data for unit in units]
+        return Response(data)
     except Exception as e:
         return Response({'error': str(e)}, status=500)
