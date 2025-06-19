@@ -4,9 +4,9 @@ from rest_framework.test import APIClient
 from rest_framework import status
 
 from bunk_logs.users.models import User
-from bunks.models import Bunk, Unit, Cabin, Session
-from bunklogs.models import BunkLog
-from campers.models import Camper, CamperBunkAssignment
+from bunk_logs.bunks.models import Bunk, Unit, Cabin, Session
+from bunk_logs.bunklogs.models import BunkLog
+from bunk_logs.campers.models import Camper, CamperBunkAssignment
 
 class CounselorPermissionsTest(TestCase):
     def setUp(self):

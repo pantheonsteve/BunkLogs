@@ -57,6 +57,7 @@ class BunkLog(TestDataMixin):
         verbose_name_plural = _("bunk logs")
         unique_together = ("bunk_assignment", "date")
         ordering = ["-date"]
+        app_label = "bunklogs"
 
     def __str__(self):
         return f"Log for {self.bunk_assignment.camper} on {self.date}"

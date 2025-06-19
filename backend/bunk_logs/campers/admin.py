@@ -2,7 +2,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from bunklogs.models import BunkLog
+from bunk_logs.bunklogs.models import BunkLog
 from django.contrib import admin
 from django.contrib import messages
 from django.db.models.deletion import ProtectedError

@@ -16,15 +16,11 @@ from .models import Bunk
 from .models import Cabin
 from .models import Session
 from .models import Unit
+from .models import UnitStaffAssignment
 from .services.imports import import_bunks_from_csv
 from .services.imports import import_cabins_from_csv
 from .services.imports import import_units_from_csv
 from bunk_logs.utils.admin import TestDataAdminMixin
-from .models import Session
-from .models import Unit
-from .services.imports import import_bunks_from_csv
-from .services.imports import import_cabins_from_csv
-from .services.imports import import_units_from_csv
 
 
 @admin.register(Unit)
@@ -107,6 +103,27 @@ class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context["import_units"] = reverse("admin:unit_import_csv")
         return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(UnitStaffAssignment)
+class UnitStaffAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('unit', 'staff_member', 'role', 'is_primary', 'start_date', 'end_date', 'created_at')
+    list_filter = ('role', 'is_primary', 'start_date', 'end_date', 'created_at')
+    search_fields = ('unit__name', 'staff_member__first_name', 'staff_member__last_name', 'staff_member__email')
+    autocomplete_fields = ['unit', 'staff_member']
+    date_hierarchy = 'start_date'
+    
+    fieldsets = (
+        ('Assignment Details', {
+            'fields': ('unit', 'staff_member', 'role', 'is_primary')
+        }),
+        ('Timeline', {
+            'fields': ('start_date', 'end_date')
+        }),
+    )
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('unit', 'staff_member')
 
 
 @admin.register(Cabin)

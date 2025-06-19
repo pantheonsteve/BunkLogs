@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from bunks.models import Bunk
+from bunk_logs.bunks.models import Bunk
 
 User = get_user_model()
 

@@ -7,6 +7,7 @@ router.register(r'users', views.UserDetailsView, basename='user')
 # Add other viewsets to the router
 router.register(r'bunks', views.BunkViewSet, basename='bunk')
 router.register(r'units', views.UnitViewSet, basename='unit')
+router.register(r'unit-staff-assignments', views.UnitStaffAssignmentViewSet, basename='unit-staff-assignment')
 router.register(r'campers', views.CamperViewSet, basename='camper')
 router.register(r'camper-bunk-assignments', views.CamperBunkAssignmentViewSet, basename='camper-bunk-assignment')
 router.register(r'bunklogs', views.BunkLogViewSet, basename='bunklog')

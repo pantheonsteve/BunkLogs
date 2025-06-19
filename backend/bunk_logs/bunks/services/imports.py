@@ -3,10 +3,10 @@ from pathlib import Path
 from typing import Any
 
 from bunk_logs.users.models import User  # Adjust based on your actual model
-from bunks.models import Bunk  # Adjust based on your actual model
-from bunks.models import Cabin  # Adjust based on your actual model
-from bunks.models import Session  # Adjust based on your actual model
-from bunks.models import Unit  # Adjust based on your actual model
+from bunk_logs.bunks.models import Bunk  # Adjust based on your actual model
+from bunk_logs.bunks.models import Cabin  # Adjust based on your actual model
+from bunk_logs.bunks.models import Session  # Adjust based on your actual model
+from bunk_logs.bunks.models import Unit  # Adjust based on your actual model
 
 
 class UnitImportError(ValueError):
