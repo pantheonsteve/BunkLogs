@@ -20,9 +20,9 @@ from django.test import RequestFactory
 from django.contrib.auth import get_user_model
 from rest_framework.test import force_authenticate
 from bunk_logs.api.views import get_unit_head_bunks
-from bunks.models import Unit, Bunk
-from campers.models import Camper, CamperBunkAssignment
-from bunklogs.models import BunkLog
+from bunk_logs.bunks.models import Unit, Bunk
+from bunk_logs.campers.models import Camper, CamperBunkAssignment
+from bunk_logs.bunklogs.models import BunkLog
 
 User = get_user_model()
 

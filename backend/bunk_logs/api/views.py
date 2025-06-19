@@ -9,25 +9,27 @@ from django.utils.decorators import method_decorator
 
 from rest_framework import generics
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 
-from campers.models import Camper
-from campers.models import CamperBunkAssignment
+from bunk_logs.campers.models import Camper
+from bunk_logs.campers.models import CamperBunkAssignment
 
-from bunks.models import Bunk
-from bunks.models import Unit
-from bunklogs.models import BunkLog
+from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import Unit
+from bunk_logs.bunks.models import UnitStaffAssignment
+from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.orders.models import Order, OrderItem, Item, ItemCategory, OrderType
 
 from .serializers import BunkLogSerializer
 from .serializers import BunkSerializer
 from .serializers import CamperBunkAssignmentSerializer
 from .serializers import CamperSerializer
-from .serializers import UnitSerializer, SimpleBunkSerializer
+from .serializers import UnitSerializer, UnitStaffAssignmentSerializer, SimpleBunkSerializer
 from .serializers import CamperBunkLogSerializer
 from .serializers import UserSerializer
 from .serializers import (
@@ -134,7 +136,7 @@ class UserDetailsView(viewsets.ViewSet):
         data['groups'] = [group.name for group in user.groups.all()]
         
         # Manually add bunk data to avoid circular references
-        from bunks.models import Bunk
+        from bunk_logs.bunks.models import Bunk
         assigned_bunks = []
         for bunk in Bunk.objects.filter(counselors=user):
             assigned_bunks.append({
@@ -258,7 +260,7 @@ class BunkLogsInfoByDateViewSet(APIView):
     
     def get(self, request, bunk_id, date):
         # Import Bunk at the beginning
-        from bunks.models import Bunk
+        from bunk_logs.bunks.models import Bunk
         
         # Check permissions first
         user = request.user
@@ -346,6 +348,126 @@ class UnitViewSet(viewsets.ModelViewSet):
     queryset = Unit.objects.all()
     serializer_class = UnitSerializer
 
+    @action(detail=True, methods=['post'])
+    def assign_staff(self, request, pk=None):
+        """Assign staff member to unit with specific role."""
+        unit = self.get_object()
+        staff_member_id = request.data.get('staff_member_id')
+        role = request.data.get('role')
+        is_primary = request.data.get('is_primary', False)
+
+        if role not in ['unit_head', 'camper_care']:
+            return Response({'error': 'Invalid role'}, status=400)
+
+        try:
+            from bunk_logs.users.models import User
+            staff_member = User.objects.get(id=staff_member_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Staff member not found'}, status=404)
+
+        # If setting as primary, unset other primary assignments for this role
+        if is_primary:
+            UnitStaffAssignment.objects.filter(
+                unit=unit, 
+                role=role, 
+                is_primary=True
+            ).update(is_primary=False)
+
+        assignment, created = UnitStaffAssignment.objects.get_or_create(
+            unit=unit,
+            staff_member=staff_member,
+            role=role,
+            defaults={'is_primary': is_primary}
+        )
+
+        if not created:
+            assignment.is_primary = is_primary
+            assignment.save()
+
+        return Response(UnitStaffAssignmentSerializer(assignment).data)
+
+    @action(detail=True, methods=['delete'])
+    def remove_staff(self, request, pk=None):
+        """Remove staff assignment from unit."""
+        unit = self.get_object()
+        assignment_id = request.data.get('assignment_id')
+        
+        try:
+            assignment = UnitStaffAssignment.objects.get(
+                id=assignment_id, 
+                unit=unit
+            )
+            assignment.delete()
+            return Response(status=204)
+        except UnitStaffAssignment.DoesNotExist:
+            return Response({'error': 'Assignment not found'}, status=404)
+
+
+class UnitStaffAssignmentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for UnitStaffAssignment model.
+    - GET /api/unit-staff-assignments/ - List all assignments
+    - POST /api/unit-staff-assignments/ - Create new assignment
+    - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+    - PUT /api/unit-staff-assignments/{id}/ - Update assignment
+    - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
+    """
+    queryset = UnitStaffAssignment.objects.all().select_related('unit', 'staff_member')
+    serializer_class = UnitStaffAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """Filter assignments based on query parameters."""
+        queryset = super().get_queryset()
+        
+        # Filter by unit
+        unit_id = self.request.query_params.get('unit', None)
+        if unit_id:
+            queryset = queryset.filter(unit_id=unit_id)
+        
+        # Filter by role
+        role = self.request.query_params.get('role', None)
+        if role:
+            queryset = queryset.filter(role=role)
+        
+        # Filter by active assignments (no end date)
+        active_only = self.request.query_params.get('active_only', None)
+        if active_only == 'true':
+            queryset = queryset.filter(end_date__isnull=True)
+        
+        return queryset
+
+    def perform_create(self, serializer):
+        """Handle assignment creation with business logic."""
+        is_primary = serializer.validated_data.get('is_primary', False)
+        unit = serializer.validated_data.get('unit')
+        role = serializer.validated_data.get('role')
+        
+        # If setting as primary, unset other primary assignments for this role
+        if is_primary:
+            UnitStaffAssignment.objects.filter(
+                unit=unit, 
+                role=role, 
+                is_primary=True
+            ).update(is_primary=False)
+        
+        serializer.save()
+
+    def perform_update(self, serializer):
+        """Handle assignment updates with business logic."""
+        is_primary = serializer.validated_data.get('is_primary', False)
+        instance = self.get_object()
+        
+        # If setting as primary, unset other primary assignments for this role
+        if is_primary:
+            UnitStaffAssignment.objects.filter(
+                unit=instance.unit, 
+                role=instance.role, 
+                is_primary=True
+            ).exclude(id=instance.id).update(is_primary=False)
+        
+        serializer.save()
+
 class CamperViewSet(viewsets.ModelViewSet):
     renderer_classes = [JSONRenderer]
     permission_classes = [AllowAny]
@@ -369,13 +491,41 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             return BunkLog.objects.all()
         # Unit heads can see logs for bunks in their units
         if user.role == 'Unit Head':
+            # Check both legacy unit_head field and new staff assignments
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.managed_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as unit_head
+            from django.utils import timezone
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
             return BunkLog.objects.filter(
-                bunk_assignment__bunk__unit__in=user.managed_units.all()
+                bunk_assignment__bunk__unit_id__in=set(unit_ids)
             )
         # Camper care can see logs for bunks in their assigned units
         if user.role == 'Camper Care':
+            # Check both legacy camper_care field and new staff assignments
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as camper_care
+            from django.utils import timezone
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
             return BunkLog.objects.filter(
-                bunk_assignment__bunk__unit__camper_care=user
+                bunk_assignment__bunk__unit_id__in=set(unit_ids)
             )
         # Counselors can only see logs for their bunks
         if user.role == 'Counselor':
@@ -407,7 +557,23 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             
         # Unit heads can update logs for bunks in their units
         if user.role == 'Unit Head':
+            # Check both legacy unit_head field and new staff assignments
+            has_access = False
+            # Legacy approach
             if user.managed_units.filter(bunks=instance.bunk_assignment.bunk).exists():
+                has_access = True
+            # New approach - check staff assignments
+            from django.utils import timezone
+            if UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                unit__bunks=instance.bunk_assignment.bunk,
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).exists():
+                has_access = True
+            
+            if has_access:
                 serializer.save()
                 return
             else:
@@ -415,8 +581,24 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         
         # Camper care can update logs for bunks in their assigned units
         if user.role == 'Camper Care':
-            from bunks.models import Bunk
+            # Check both legacy camper_care field and new staff assignments
+            has_access = False
+            # Legacy approach
+            from bunk_logs.bunks.models import Bunk
             if Bunk.objects.filter(id=instance.bunk_assignment.bunk.id, unit__camper_care=user).exists():
+                has_access = True
+            # New approach - check staff assignments
+            from django.utils import timezone
+            if UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                unit__bunks=instance.bunk_assignment.bunk,
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).exists():
+                has_access = True
+            
+            if has_access:
                 serializer.save()
                 return
             else:
@@ -724,7 +906,7 @@ def get_order_statistics(request):
 @permission_classes([IsAuthenticated])
 def debug_user_bunks(request):
     """Temporary debug endpoint to check user-bunk relationships"""
-    from bunks.models import Bunk
+    from bunk_logs.bunks.models import Bunk
     user_data = {
         "email": request.user.email,
         "id": request.user.id,
@@ -814,7 +996,7 @@ def get_unit_head_bunks(request, unithead_id, date):
     Endpoint: /api/unithead/<unithead_id>/<date>/
     """
     try:
-        from bunks.models import Unit
+        from bunk_logs.bunks.models import Unit
         from .serializers import UnitHeadBunksSerializer
         
         # Check if the user is authorized to access this data
@@ -851,7 +1033,7 @@ def get_camper_care_bunks(request, camper_care_id, date):
     Endpoint: /api/campercare/<camper_care_id>/<date>/
     """
     try:
-        from bunks.models import Unit
+        from bunk_logs.bunks.models import Unit
         from .serializers import CamperCareBunksSerializer
         
         # Check if the user is authorized to access this data

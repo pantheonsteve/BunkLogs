@@ -2,13 +2,13 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from campers.models import Camper
-from campers.models import CamperBunkAssignment
+from bunk_logs.campers.models import Camper
+from bunk_logs.campers.models import CamperBunkAssignment
 from django.db import transaction
 
-from bunks.models import Bunk
-from bunks.models import Cabin
-from bunks.models import Session
+from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import Cabin
+from bunk_logs.bunks.models import Session
 
 
 class CamperImportError(ValueError):

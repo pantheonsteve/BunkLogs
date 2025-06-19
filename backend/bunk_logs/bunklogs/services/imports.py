@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional, Union
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
-from bunks.models import Bunk
-from campers.models import CamperBunkAssignment
-from bunklogs.models import BunkLog
+from bunk_logs.bunks.models import Bunk
+from bunk_logs.campers.models import CamperBunkAssignment
+from bunk_logs.bunklogs.models import BunkLog
 
 User = get_user_model()
 

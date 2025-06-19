@@ -1,4 +1,4 @@
-from campers.models import CamperBunkAssignment
+from bunk_logs.campers.models import CamperBunkAssignment
 import tempfile
 from pathlib import Path
 

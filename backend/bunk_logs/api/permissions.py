@@ -37,7 +37,7 @@ class IsCounselorForBunk(permissions.BasePermission):
         
         # Unit heads can access bunks in their units
         if request.user.role == 'Unit Head':
-            from bunks.models import Bunk
+            from bunk_logs.bunks.models import Bunk
             has_access = Bunk.objects.filter(
                 id=bunk_id, 
                 unit__unit_head=request.user
@@ -47,7 +47,7 @@ class IsCounselorForBunk(permissions.BasePermission):
         
         # Camper care can access bunks in their assigned units
         if request.user.role == 'Camper Care':
-            from bunks.models import Bunk
+            from bunk_logs.bunks.models import Bunk
             has_access = Bunk.objects.filter(
                 id=bunk_id, 
                 unit__camper_care=request.user
@@ -57,7 +57,7 @@ class IsCounselorForBunk(permissions.BasePermission):
         
         # Counselors can access their assigned bunks
         if request.user.role == 'Counselor':
-            from bunks.models import Bunk
+            from bunk_logs.bunks.models import Bunk
             has_access = Bunk.objects.filter(
                 id=bunk_id, 
                 counselors__id=request.user.id
@@ -128,7 +128,7 @@ class UnitHeadPermission(permissions.BasePermission):
             return False
         
         # Check if the bunk belongs to a unit managed by this unit head
-        from bunks.models import Bunk
+        from bunk_logs.bunks.models import Bunk
         return Bunk.objects.filter(
             id=bunk_id, 
             unit__unit_head=request.user

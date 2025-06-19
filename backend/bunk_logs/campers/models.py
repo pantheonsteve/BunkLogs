@@ -5,7 +5,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from bunks.models import Bunk
+from bunk_logs.bunks.models import Bunk
 from bunk_logs.utils.models import TestDataMixin
 
 
@@ -30,6 +30,7 @@ class Camper(TestDataMixin):
         verbose_name = _("camper")
         verbose_name_plural = _("campers")
         ordering = ["last_name", "first_name"]
+        app_label = "campers"
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -78,6 +79,7 @@ class CamperBunkAssignment(TestDataMixin):
         verbose_name = _("camper bunk assignment")
         verbose_name_plural = _("camper bunk assignments")
         # Removed unique_together constraint to allow multiple assignments with different dates
+        app_label = "campers"
 
     def __str__(self):
         return f"{self.camper} in {self.bunk.name}"
@@ -130,7 +132,7 @@ class CamperBunkAssignment(TestDataMixin):
 
     def delete(self, *args, **kwargs):
         # Check for associated bunk logs before deletion
-        from bunklogs.models import BunkLog  # Changed to match the import used in admin.py
+        from bunk_logs.bunklogs.models import BunkLog  # Changed to match the import used in admin.py
         if BunkLog.objects.filter(bunk_assignment=self).exists():
             raise ValidationError(self.BUNK_LOGS_DELETE_ERROR)
         super().delete(*args, **kwargs)

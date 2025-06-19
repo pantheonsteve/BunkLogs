@@ -1,13 +1,14 @@
-from campers.models import Camper
-from campers.models import CamperBunkAssignment
+from bunk_logs.campers.models import Camper
+from bunk_logs.campers.models import CamperBunkAssignment
 from rest_framework import serializers
 
 from bunk_logs.users.models import User
-from bunks.models import Bunk
-from bunks.models import Cabin
-from bunks.models import Session
-from bunks.models import Unit
-from bunklogs.models import BunkLog
+from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import Cabin
+from bunk_logs.bunks.models import Session
+from bunk_logs.bunks.models import Unit
+from bunk_logs.bunks.models import UnitStaffAssignment
+from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.orders.models import Order, OrderItem, Item, ItemCategory, OrderType
 
 
@@ -33,32 +34,101 @@ class SimpleUserSerializer(serializers.ModelSerializer):
 class UnitSerializer(serializers.ModelSerializer):
     unit_head_details = serializers.SerializerMethodField()
     camper_care_details = serializers.SerializerMethodField()
+    # New fields for multiple staff
+    staff_assignments = serializers.SerializerMethodField()
+    unit_heads = serializers.SerializerMethodField()
+    camper_care_staff = serializers.SerializerMethodField()
 
     class Meta:
         model = Unit
-        fields = ["id", "name", "created_at", "updated_at", "unit_head_details", "camper_care_details"]
+        fields = ["id", "name", "created_at", "updated_at", "unit_head_details", "camper_care_details", 
+                 "staff_assignments", "unit_heads", "camper_care_staff"]
 
     def get_unit_head_details(self, obj):
-        if obj.unit_head:
+        # Backward compatibility - return primary unit head
+        primary = obj.primary_unit_head
+        if primary:
             return {
-                "id": obj.unit_head.id,
-                "first_name": obj.unit_head.first_name,
-                "last_name": obj.unit_head.last_name,
-                "email": obj.unit_head.email,
-                "role": obj.unit_head.role,
+                "id": primary.id,
+                "first_name": primary.first_name,
+                "last_name": primary.last_name,
+                "email": primary.email,
+                "role": primary.role,
             }
         return None
 
     def get_camper_care_details(self, obj):
-        if obj.camper_care:
+        # Backward compatibility - return primary camper care
+        primary = obj.primary_camper_care
+        if primary:
             return {
-                "id": obj.camper_care.id,
-                "first_name": obj.camper_care.first_name,
-                "last_name": obj.camper_care.last_name,
-                "email": obj.camper_care.email,
-                "role": obj.camper_care.role,
+                "id": primary.id,
+                "first_name": primary.first_name,
+                "last_name": primary.last_name,
+                "email": primary.email,
+                "role": primary.role,
             }
         return None
+
+    def get_staff_assignments(self, obj):
+        from django.utils import timezone
+        assignments = obj.staff_assignments.filter(
+            start_date__lte=timezone.now().date(),
+            end_date__isnull=True
+        ).select_related('staff_member')
+        return [{
+            'id': assignment.id,
+            'staff_member': {
+                'id': assignment.staff_member.id,
+                'first_name': assignment.staff_member.first_name,
+                'last_name': assignment.staff_member.last_name,
+                'email': assignment.staff_member.email,
+            },
+            'role': assignment.role,
+            'role_display': assignment.get_role_display(),
+            'is_primary': assignment.is_primary,
+            'start_date': assignment.start_date,
+            'end_date': assignment.end_date,
+        } for assignment in assignments]
+
+    def get_unit_heads(self, obj):
+        return [{
+            'id': staff.id,
+            'first_name': staff.first_name,
+            'last_name': staff.last_name,
+            'email': staff.email,
+            'is_primary': staff in [obj.primary_unit_head] if obj.primary_unit_head else False
+        } for staff in obj.all_unit_heads]
+
+    def get_camper_care_staff(self, obj):
+        return [{
+            'id': staff.id,
+            'first_name': staff.first_name,
+            'last_name': staff.last_name,
+            'email': staff.email,
+            'is_primary': staff in [obj.primary_camper_care] if obj.primary_camper_care else False
+        } for staff in obj.all_camper_care]
+
+
+class UnitStaffAssignmentSerializer(serializers.ModelSerializer):
+    staff_member_name = serializers.CharField(source='staff_member.get_full_name', read_only=True)
+    staff_member_details = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    
+    class Meta:
+        model = UnitStaffAssignment
+        fields = ['id', 'unit', 'staff_member', 'staff_member_name', 'staff_member_details', 
+                 'role', 'role_display', 'is_primary', 'start_date', 'end_date', 
+                 'created_at', 'updated_at']
+
+    def get_staff_member_details(self, obj):
+        return {
+            'id': obj.staff_member.id,
+            'first_name': obj.staff_member.first_name,
+            'last_name': obj.staff_member.last_name,
+            'email': obj.staff_member.email,
+            'role': obj.staff_member.role,
+        }
 
 
 # Simple Unit serializer for nested relationships to avoid recursion
@@ -443,7 +513,7 @@ class UnitCamperSerializer(serializers.ModelSerializer):
             return None
         
         # Get the camper's active bunk assignment
-        from campers.models import CamperBunkAssignment
+        from bunk_logs.campers.models import CamperBunkAssignment
         assignment = CamperBunkAssignment.objects.filter(
             camper=obj, 
             is_active=True
@@ -453,7 +523,7 @@ class UnitCamperSerializer(serializers.ModelSerializer):
             return None
         
         # Get the bunk log for this assignment and date
-        from bunklogs.models import BunkLog
+        from bunk_logs.bunklogs.models import BunkLog
         try:
             bunk_log = BunkLog.objects.get(
                 bunk_assignment=assignment,

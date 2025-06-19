@@ -1,9 +1,9 @@
-from campers.models import CamperBunkAssignment
+from bunk_logs.campers.models import CamperBunkAssignment
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from bunklogs.models import BunkLog
-from bunks.models import Bunk
+from bunk_logs.bunklogs.models import BunkLog
+from bunk_logs.bunks.models import Bunk
 
 
 class BunkLogForm(forms.ModelForm):
