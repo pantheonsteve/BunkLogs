@@ -223,3 +223,10 @@ ALLOWED_HOSTS = [
     "bunk-logs-backend-461994890254.us-central1.run.app",
     "localhost",
 ]
+
+# django-rest-framework
+# -------------------------------------------------------------------------------
+# Tools that generate code samples can use SERVERS to point to the correct domain
+SPECTACULAR_SETTINGS["SERVERS"] = [
+    {"url": "https://bunk-logs-backend-koumwfa74a-uc.a.run.app", "description": "Production GCS API server"},
+]
