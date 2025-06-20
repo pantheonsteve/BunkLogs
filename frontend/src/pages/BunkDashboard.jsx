@@ -137,13 +137,21 @@ function BunkDashboard() {
 
   const handleOpenBunkLogModal = (camperId, camper_bunk_assignment_id) => {
     console.log(`[BunkDashboard] Opening bunk log modal for camper: ${camperId}, assignment: ${camper_bunk_assignment_id}`);
-    
     // Only allow Counselors to open the modal
     if (!isCounselor) {
       console.log('[BunkDashboard] Access denied: Only Counselors can edit bunk logs');
       return;
     }
-    
+    // Check if a log exists for this camper/date
+    const camperData = data?.campers?.find(item => item.camper_id === camperId);
+    const existingLog = camperData?.bunk_log;
+    if (existingLog) {
+      // Only allow if the logged-in user is the author - convert both to strings to handle type mismatch
+      if (String(existingLog.counselor) !== String(user.id)) {
+        console.log('[BunkDashboard] Access denied: Only the author can edit this bunk log');
+        return;
+      }
+    }
     setSelectedCamperId(camperId);
     setCamperBunkAssignmentId(camper_bunk_assignment_id);
     setBunkLogFormModalOpen(true);
@@ -399,6 +407,7 @@ function BunkDashboard() {
                   onClose={handleModalClose}
                   // Pass token explicitly through props as a backup
                   token={token || localStorage.getItem('access_token')}
+                  currentCounselorId={user.id}
                 />
               </BunkLogFormModal>
             )}
