@@ -170,6 +170,7 @@ function BunkPageSidebar({
                             bunk_id={bunk} 
                             date={date}
                             openBunkModal={openBunkModal} 
+                            refreshTrigger={refreshTrigger}
                             userRole={userRole || user?.role}
                           />
                           </li>
