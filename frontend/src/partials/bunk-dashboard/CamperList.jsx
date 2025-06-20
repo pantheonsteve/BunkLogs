@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import api from '../../api';
 import { CheckCircle, Clock, Filter, Loader2, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 
 function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) {
+    const { user } = useAuth();
     const [data, setData] = useState([]);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -16,9 +18,11 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
         const fetchData = async () => {
             try {
                 setLoading(true);
+                console.log(`[CamperList] Fetching data for bunk ${bunk_id}, date ${date}, refreshTrigger ${refreshTrigger}`);
                 const response = await api.get(
                     `/api/v1/bunklogs/${bunk_id}/logs/${date}/`
                 );
+                console.log(`[CamperList] Data fetched:`, response.data.campers);
                 setData(response.data.campers);
             } catch (error) {
                 console.error('Error fetching campers:', error);
@@ -64,6 +68,24 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
             </div>
         );
     }
+
+    // Helper: can the logged-in counselor open the modal for this camper?
+    const canOpenBunkLog = (camper) => {
+        if (userRole !== 'Counselor') return false;
+        if (!camper.bunk_log) return true; // No log yet
+        // Convert both values to strings to handle type mismatch (number vs string)
+        const canOpen = String(camper.bunk_log.counselor) === String(user.id);
+        return canOpen; // Only author can open
+    };
+
+    // Helper: should the row be grayed out?
+    const isGrayedOut = (camper) => {
+        if (!camper.bunk_log) return false;
+        if (userRole !== 'Counselor') return false;
+        // Convert both values to strings to handle type mismatch (number vs string)
+        const shouldGray = String(camper.bunk_log.counselor) !== String(user.id);
+        return shouldGray;
+    };
 
     return (
         <div className="h-full flex flex-col">
@@ -123,22 +145,28 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
             {/* Camper list */}
             <div className="flex-1 overflow-y-auto p-2">
                 <div className="space-y-1">
-                    {filteredData.map((camper) => (
+                    {filteredData.map((camper) => {
+                        const canOpen = canOpenBunkLog(camper);
+                        const shouldGrayOut = isGrayedOut(camper);
+                        
+                        return (
                         <button
                             key={camper.camper_id}
-                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-between group border border-gray-200 dark:border-gray-600 ${
-                                canEdit 
-                                    ? 'bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 cursor-pointer' 
-                                    : 'bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300 cursor-default'
-                            }`}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-between group border border-gray-200 dark:border-gray-600
+                                ${canOpen
+                                    ? 'bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 cursor-pointer'
+                                    : shouldGrayOut
+                                        ? 'bg-gray-100 text-gray-400 dark:bg-gray-900 dark:text-gray-500 cursor-not-allowed opacity-60'
+                                        : 'bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300 cursor-default'}
+                            `}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                if (canEdit) {
+                                if (canOpen) {
                                     openBunkModal(camper.camper_id, camper.bunk_assignment_id);
                                 }
                             }}
-                            title={canEdit ? (camper.bunk_log ? "Edit bunk log" : "Create bunk log") : "View only"}
-                            disabled={!canEdit}
+                            title={canOpen ? (camper.bunk_log ? "Edit bunk log" : "Create bunk log") : shouldGrayOut ? "Another counselor's log (view only)" : "View only"}
+                            disabled={!canOpen}
                         >
                             <span className="truncate">
                                 {camper.camper_first_name} {camper.camper_last_name}
@@ -151,7 +179,7 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
                                 )}
                             </div>
                         </button>
-                    ))}
+                    )})}
                 </div>
                 
                 {filteredData.length === 0 && (

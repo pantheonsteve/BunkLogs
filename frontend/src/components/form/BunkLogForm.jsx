@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
 import { useAuth, AuthContext } from '../../auth/AuthContext';
 
-function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToken }) {
+function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToken, currentCounselorId }) {
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
@@ -53,7 +53,8 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
         dateToUse; // Fallback to log date if created_at is not available
       
       // Must be the original counselor AND editing on the day it was created
-      return logCounselorId === currentUser.id && today === logCreatedDate;
+      // Convert both to strings to handle type mismatch (number vs string)
+      return String(logCounselorId) === String(currentUser.id) && today === logCreatedDate;
     }
     
     return false;
@@ -87,6 +88,16 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     social_score: 3,
     description: '',
   });
+
+  // Pre-select the logged-in counselor if creating a new log
+  useEffect(() => {
+    if (!hasExistingBunkLog && currentCounselorId) {
+      setFormData(prev => ({
+        ...prev,
+        counselor: currentCounselorId
+      }));
+    }
+  }, [hasExistingBunkLog, currentCounselorId]);
 
   
   // Add debug log for token
@@ -403,7 +414,8 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
                             new Date(existingLog.created_at).toISOString().split('T')[0] : 
                             dateToUse;
                           
-                          if (logCounselorId !== auth.user.id) {
+                          // Convert both to strings to handle type mismatch (number vs string)
+                          if (String(logCounselorId) !== String(auth.user.id)) {
                             return 'Not your log - View only';
                           } else if (today !== logCreatedDate) {
                             return 'Can only edit on creation day - View only';
