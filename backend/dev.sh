@@ -95,6 +95,7 @@ show_help() {
     echo "  logs            - Show application logs"
     echo "  backup-db       - Backup local database"
     echo "  restore-db      - Restore local database"
+    echo "  sync-prod-db    - Sync production database to local (DESTRUCTIVE)"
     echo "  help            - Show this help message"
 }
 
@@ -264,6 +265,92 @@ case "$1" in
         COMPOSE_CMD=$(get_compose_command)
         $COMPOSE_CMD -f docker-compose.local.yml exec -T postgres psql -U postgres bunk_logs_local < "$2"
         print_success "Database restored!"
+        ;;
+    
+    sync-prod-db)
+        print_warning "⚠️  This will COMPLETELY REPLACE your local database with production data!"
+        print_warning "⚠️  All local data will be lost!"
+        echo ""
+        read -p "Are you sure you want to continue? (type 'yes' to confirm): " confirm
+        
+        if [ "$confirm" != "yes" ]; then
+            print_status "Operation cancelled."
+            exit 0
+        fi
+        
+        print_status "Syncing production database to local..."
+        
+        # Check if pg_dump is available
+        if ! command -v pg_dump &> /dev/null; then
+            print_error "pg_dump is not installed. Please install PostgreSQL client tools:"
+            print_error "  macOS: brew install postgresql"
+            print_error "  Ubuntu: sudo apt-get install postgresql-client"
+            exit 1
+        fi
+        
+        # Check if production DATABASE_URL is set
+        check_venv
+        export DJANGO_READ_DOT_ENV_FILE=True
+        
+        # Try to get DATABASE_URL from environment or .env
+        if [ -f .env ]; then
+            source .env
+        fi
+        
+        if [ -z "${PROD_DATABASE_URL:-}" ]; then
+            print_error "PROD_DATABASE_URL environment variable not set."
+            print_error "Please add your production database URL to .env file:"
+            print_error "  PROD_DATABASE_URL=postgresql://user:pass@host:port/database"
+            print_error ""
+            print_error "You can find this in your Render.com dashboard under:"
+            print_error "  Your Service > Environment > DATABASE_URL"
+            exit 1
+        fi
+        
+        # Ensure local containers are running
+        setup_podman_env
+        COMPOSE_CMD=$(get_compose_command)
+        print_status "Starting local database services..."
+        $COMPOSE_CMD -f docker-compose.local.yml up -d postgres
+        sleep 5
+        
+        # Create timestamp for backup file
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        BACKUP_FILE="/tmp/prod_sync_${TIMESTAMP}.sql"
+        
+        print_status "Creating backup of production database..."
+        if ! pg_dump "$PROD_DATABASE_URL" > "$BACKUP_FILE"; then
+            print_error "Failed to create production backup"
+            print_error "Please check your PROD_DATABASE_URL and network connectivity"
+            rm -f "$BACKUP_FILE"
+            exit 1
+        fi
+        
+        print_status "Dropping local database..."
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres dropdb -U postgres bunk_logs_local --if-exists || true
+        
+        print_status "Creating fresh local database..."
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres createdb -U postgres bunk_logs_local
+        
+        print_status "Restoring production data to local database..."
+        if ! $COMPOSE_CMD -f docker-compose.local.yml exec -T postgres psql -U postgres bunk_logs_local < "$BACKUP_FILE"; then
+            print_error "Failed to restore database"
+            rm -f "$BACKUP_FILE"
+            exit 1
+        fi
+        
+        # Clean up
+        rm -f "$BACKUP_FILE"
+        
+        print_success "Production database successfully synced to local!"
+        print_success "Your local database now contains production data."
+        
+        # Run migrations in case there are local schema differences
+        print_status "Running any pending migrations..."
+        export DJANGO_READ_DOT_ENV_FILE=True
+        python manage.py migrate
+        
+        print_success "Database sync complete!"
         ;;
     
     help|"")
