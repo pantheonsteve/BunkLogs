@@ -1,11 +1,10 @@
-// Updated SocialLoginButton.jsx - Use backend domain for entire OAuth flow
 import { redirectToProvider, AuthProcess } from "../lib/allauth";
 import { useConfig } from "../context/AllAuthContext";
 
 function SocialLoginButton({ provider = "google" }) {
   const { config, loading } = useConfig();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     console.log("Initiating social login with provider:", provider);
     
     // Check if provider is available
@@ -18,9 +17,30 @@ function SocialLoginButton({ provider = "google" }) {
       return;
     }
 
-    // WORKAROUND: Use backend domain for entire OAuth flow
-    // This avoids cross-domain session issues
-    window.location.href = `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/accounts/google/login/`;
+    try {
+      // Call your custom Google OAuth endpoint to get the auth URL
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/api/auth/google/`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log("Got auth URL:", data.auth_url);
+
+      // Redirect to Google OAuth
+      window.location.href = data.auth_url;
+      
+    } catch (error) {
+      console.error("Error getting Google auth URL:", error);
+      alert("Failed to initiate Google login. Please try again.");
+    }
   };
 
   // Don't render if config is still loading
