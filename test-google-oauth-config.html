@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google OAuth Configuration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 3px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .debug { background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+        textarea { width: 100%; height: 200px; font-family: monospace; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Google OAuth Configuration Diagnostic</h1>
+    
+    <div class="test-section">
+        <h2>1. AllAuth Configuration Check</h2>
+        <button onclick="checkAllAuthConfig()">Check AllAuth Config</button>
+        <div id="allauthConfigResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. CSRF Token Test</h2>
+        <button onclick="getCSRFToken()">Get CSRF Token</button>
+        <div id="csrfResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Google OAuth Provider Test</h2>
+        <button onclick="testGoogleProvider()">Test Google Provider</button>
+        <div id="googleProviderResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Direct AllAuth Provider Redirect Test</h2>
+        <button onclick="testProviderRedirect()">Test Provider Redirect</button>
+        <div id="providerRedirectResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Debug Information</h2>
+        <textarea id="debugInfo" readonly>Debug information will appear here...</textarea>
+        <button onclick="clearDebug()">Clear Debug</button>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'https://admin.bunklogs.net';
+        const ALLAUTH_BASE_URL = `${BACKEND_URL}/_allauth/browser/v1`;
+        let csrfToken = null;
+        
+        function log(message) {
+            console.log(message);
+            const debugTextarea = document.getElementById('debugInfo');
+            debugTextarea.value += new Date().toISOString() + ': ' + message + '\n';
+            debugTextarea.scrollTop = debugTextarea.scrollHeight;
+        }
+        
+        function clearDebug() {
+            document.getElementById('debugInfo').value = '';
+        }
+
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+
+        // Test 1: Check AllAuth Configuration
+        async function checkAllAuthConfig() {
+            log('Checking AllAuth configuration...');
+            try {
+                const response = await fetch(`${ALLAUTH_BASE_URL}/config`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Origin': 'https://clc.bunklogs.net'
+                    }
+                });
+                
+                const config = await response.json();
+                log(`AllAuth config response: ${JSON.stringify(config, null, 2)}`);
+                
+                // Check if Google is configured
+                const googleProvider = config.data?.socialaccount?.providers?.find(p => p.id === 'google');
+                
+                if (googleProvider) {
+                    showResult('allauthConfigResult', 
+                        `✅ Google OAuth Provider Found<br>
+                        Client ID: ${googleProvider.client_id || 'Not visible'}<br>
+                        Flows: ${JSON.stringify(googleProvider.flows || [])}<br>
+                        <pre>${JSON.stringify(config.data.socialaccount, null, 2)}</pre>`, 
+                        'success');
+                } else {
+                    showResult('allauthConfigResult', 
+                        `❌ Google OAuth Provider NOT Found<br>
+                        Available providers: ${config.data?.socialaccount?.providers?.map(p => p.id).join(', ') || 'None'}<br>
+                        <pre>${JSON.stringify(config.data, null, 2)}</pre>`, 
+                        'error');
+                }
+            } catch (error) {
+                log(`AllAuth config error: ${error.message}`);
+                showResult('allauthConfigResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 2: Get CSRF Token
+        async function getCSRFToken() {
+            log('Getting CSRF token...');
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/get-csrf-token/`, {
+                    credentials: 'include',
+                    headers: {
+                        'Origin': 'https://clc.bunklogs.net'
+                    }
+                });
+                const data = await response.json();
+                csrfToken = data.csrfToken;
+                log(`CSRF token received: ${csrfToken}`);
+                
+                showResult('csrfResult', `✅ CSRF Token: ${csrfToken}`, 'success');
+            } catch (error) {
+                log(`CSRF token error: ${error.message}`);
+                showResult('csrfResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 3: Test Google Provider
+        async function testGoogleProvider() {
+            log('Testing Google provider setup...');
+            
+            if (!csrfToken) {
+                await getCSRFToken();
+            }
+            
+            if (!csrfToken) {
+                showResult('googleProviderResult', '❌ No CSRF token available', 'error');
+                return;
+            }
+
+            try {
+                // First check if Google provider is available
+                const configResponse = await fetch(`${ALLAUTH_BASE_URL}/config`, {
+                    credentials: 'include',
+                    headers: {
+                        'Origin': 'https://clc.bunklogs.net'
+                    }
+                });
+                const config = await configResponse.json();
+                const googleProvider = config.data?.socialaccount?.providers?.find(p => p.id === 'google');
+                
+                if (!googleProvider) {
+                    showResult('googleProviderResult', '❌ Google provider not configured in AllAuth', 'error');
+                    return;
+                }
+
+                // Try to initiate Google OAuth flow
+                const redirectData = {
+                    provider: 'google',
+                    process: 'login',
+                    callback_url: '/callback/'
+                };
+
+                log(`Testing provider redirect with data: ${JSON.stringify(redirectData)}`);
+
+                const redirectResponse = await fetch(`${ALLAUTH_BASE_URL}/auth/provider/redirect`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                        'Origin': 'https://clc.bunklogs.net'
+                    },
+                    body: JSON.stringify(redirectData)
+                });
+
+                log(`Provider redirect response status: ${redirectResponse.status}`);
+                log(`Provider redirect response headers: ${JSON.stringify([...redirectResponse.headers.entries()])}`);
+
+                const redirectResult = await redirectResponse.json();
+                log(`Provider redirect response: ${JSON.stringify(redirectResult, null, 2)}`);
+
+                if (redirectResponse.ok && redirectResult.location) {
+                    showResult('googleProviderResult', 
+                        `✅ Google OAuth URL generated successfully<br>
+                        <strong>Redirect URL:</strong> ${redirectResult.location}<br>
+                        This suggests the Google OAuth configuration is working.`, 
+                        'success');
+                } else {
+                    showResult('googleProviderResult', 
+                        `❌ Failed to generate Google OAuth URL<br>
+                        Status: ${redirectResponse.status}<br>
+                        Response: <pre>${JSON.stringify(redirectResult, null, 2)}</pre>`, 
+                        'error');
+                }
+
+            } catch (error) {
+                log(`Google provider test error: ${error.message}`);
+                showResult('googleProviderResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 4: Direct Provider Redirect Test
+        async function testProviderRedirect() {
+            log('Testing direct provider redirect...');
+            
+            if (!csrfToken) {
+                await getCSRFToken();
+            }
+            
+            if (!csrfToken) {
+                showResult('providerRedirectResult', '❌ No CSRF token available', 'error');
+                return;
+            }
+
+            try {
+                // Create a form and try to submit it like the frontend would
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `${ALLAUTH_BASE_URL}/auth/provider/redirect`;
+                form.style.display = 'none';
+                
+                const fields = {
+                    'provider': 'google',
+                    'process': 'login',
+                    'callback_url': '/callback/',
+                    'csrfmiddlewaretoken': csrfToken
+                };
+                
+                for (const [key, value] of Object.entries(fields)) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    form.appendChild(input);
+                }
+                
+                document.body.appendChild(form);
+                
+                log('Form created with fields: ' + JSON.stringify(fields));
+                log('Form action: ' + form.action);
+                log('About to submit form...');
+                
+                // This will actually redirect, so we'll note that
+                showResult('providerRedirectResult', 
+                    `⚠️ Form submission test ready<br>
+                    This test will redirect you to Google OAuth if it works.<br>
+                    Form action: ${form.action}<br>
+                    <button onclick="document.forms[document.forms.length-1].submit()">🚀 Submit Form (Will Redirect)</button>`, 
+                    'warning');
+                
+            } catch (error) {
+                log(`Provider redirect test error: ${error.message}`);
+                showResult('providerRedirectResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        window.onload = function() {
+            log('Google OAuth Configuration Test initialized');
+            log(`Backend URL: ${BACKEND_URL}`);
+            log(`AllAuth Base URL: ${ALLAUTH_BASE_URL}`);
+        };
+    </script>
+</body>
+</html>
