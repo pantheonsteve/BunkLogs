@@ -163,6 +163,28 @@ function Sidebar({
                   </NavLink>
                 </li>
               )}
+              
+              {user && user.role === 'Counselor' && (
+                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  <NavLink 
+                    to="/counselor-dashboard" 
+                    className={({ isActive }) => 
+                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                        isActive ? "text-blue-600 dark:text-blue-400" : "hover:text-gray-900 dark:hover:text-white"
+                      }`
+                    }
+                  >
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                      </svg>
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        My Reflections
+                      </span>
+                    </div>
+                  </NavLink>
+                </li>
+              )}
               <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                 <NavLink 
                   end 

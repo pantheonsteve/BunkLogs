@@ -11,7 +11,7 @@ from bunk_logs.bunks.models import Cabin
 from bunk_logs.bunks.models import Session
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
-from bunk_logs.bunklogs.models import BunkLog
+from bunk_logs.bunklogs.models import BunkLog, CounselorLog
 from bunk_logs.orders.models import Order, OrderItem, Item, ItemCategory, OrderType
 
 
@@ -329,6 +329,52 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
     def get_bunk(self, obj):
         return SimpleBunkSerializer(obj.bunk_assignment.bunk).data  # Use SimpleBunkSerializer
 
+
+class CounselorLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for CounselorLog model.
+    For POST requests, you need to provide:
+    - date
+    - day_quality_score (1-5)
+    - support_level_score (1-5)
+    - elaboration
+    - day_off (boolean)
+    - staff_care_support_needed (boolean)
+    - values_reflection
+    Note: counselor is automatically set to the current user
+    """
+    counselor = serializers.PrimaryKeyRelatedField(read_only=True)  # Make counselor read-only
+    
+    class Meta:
+        model = CounselorLog
+        fields = '__all__'
+        
+    def validate(self, data):
+        """
+        Validate the CounselorLog data.
+        """
+        # Validate scores are between 1 and 5
+        for score_field in ['day_quality_score', 'support_level_score']:
+            if score_field in data and data[score_field] is not None:
+                score = data[score_field]
+                if score < 1 or score > 5:
+                    raise serializers.ValidationError({score_field: "Score must be between 1 and 5"})
+        
+        # Check for duplicate counselor logs (same counselor on same date)
+        # Only perform this check if we have a request context (i.e., in DRF views)
+        if self.instance is None and hasattr(self, 'context') and 'request' in self.context:  # Only for creation, not updates
+            existing = CounselorLog.objects.filter(
+                counselor=self.context['request'].user,
+                date=data['date']
+            ).exists()
+            
+            if existing:
+                raise serializers.ValidationError(
+                    "A counselor log already exists for this date."
+                )
+                
+        return data
+        
 
 class SimpleCamperBunkAssignmentSerializer(serializers.ModelSerializer):
     """
