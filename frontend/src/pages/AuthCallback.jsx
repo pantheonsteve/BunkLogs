@@ -16,7 +16,7 @@ function AuthCallback() {
       return;
     }
 
-    const handleAuthCallback = () => {
+    const handleAuthCallback = async () => {
       try {
         // Mark as processed immediately
         hasProcessed.current = true;
@@ -65,19 +65,29 @@ function AuthCallback() {
           // Clear the URL fragment BEFORE login to prevent issues
           window.history.replaceState({}, document.title, window.location.pathname);
           
-          // Login with tokens
-          login({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          setStatus('success');
-          
-          // Delay the redirect to ensure login is processed
-          setTimeout(() => {
-            console.log('Redirecting to dashboard...');
-            navigate('/dashboard', { replace: true });
-          }, 1500); // Increased delay
+          // Login with tokens and wait for completion
+          try {
+            const loginResult = await login({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            
+            console.log('Login completed:', loginResult);
+            setStatus('success');
+            
+            // Additional delay to ensure all auth state is propagated
+            setTimeout(() => {
+              console.log('Redirecting to dashboard...');
+              navigate('/dashboard', { replace: true });
+            }, 2000); // Increased delay for auth state propagation
+            
+          } catch (loginError) {
+            console.error('Login failed:', loginError);
+            setStatus('error');
+            setTimeout(() => {
+              navigate('/signin?error=login_failed', { replace: true });
+            }, 3000);
+          }
         } else {
           console.log('❌ No tokens found, checking for errors...');
           
@@ -109,7 +119,13 @@ function AuthCallback() {
     };
 
     // Small delay to ensure URL is fully loaded, but only process once
-    const timeoutId = setTimeout(handleAuthCallback, 100);
+    const timeoutId = setTimeout(() => {
+      handleAuthCallback().catch(error => {
+        console.error('Async callback error:', error);
+        setStatus('error');
+        navigate('/signin?error=callback_failed', { replace: true });
+      });
+    }, 100);
     
     // Cleanup timeout if component unmounts
     return () => clearTimeout(timeoutId);
