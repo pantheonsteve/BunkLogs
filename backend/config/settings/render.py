@@ -54,8 +54,18 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-secure
 SESSION_COOKIE_SECURE = True
+# CRITICAL: Enable cross-origin sessions for production - share across subdomains
+SESSION_COOKIE_NAME = "__Secure-sessionid"
+SESSION_COOKIE_SAMESITE = 'Lax'  # Better subdomain sharing than 'None'
+SESSION_COOKIE_DOMAIN = '.bunklogs.net'  # Share sessions across all bunklogs.net subdomains
+SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-secure
 CSRF_COOKIE_SECURE = True
+# CRITICAL: Enable cross-origin cookies for production - match session settings  
+CSRF_COOKIE_NAME = "__Secure-csrftoken"
+CSRF_COOKIE_SAMESITE = 'Lax'  # Match session cookie setting
+CSRF_COOKIE_DOMAIN = '.bunklogs.net'  # Share CSRF tokens across all bunklogs.net subdomains
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access to CSRF token for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/topics/security/#ssl-https
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-seconds
 # TODO: set this to 60 seconds first and then to 518400 once you prove the former works

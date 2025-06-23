@@ -38,7 +38,15 @@ export async function init() {
       console.log('CSRF token pre-fetched during initialization:', cachedCSRFToken.substring(0, 8) + '...');
       
       // Set a cookie so the django.js getCSRFToken function can find it
-      document.cookie = `csrftoken=${data.csrfToken}; path=/; SameSite=Lax`;
+      // Use production cookie name and domain settings for cross-subdomain access
+      const isProduction = window.location.hostname.includes('bunklogs.net');
+      if (isProduction) {
+        // Production: use secure cookie with domain sharing
+        document.cookie = `__Secure-csrftoken=${data.csrfToken}; path=/; domain=.bunklogs.net; SameSite=Lax; Secure`;
+      } else {
+        // Development: use standard cookie
+        document.cookie = `csrftoken=${data.csrfToken}; path=/; SameSite=Lax`;
+      }
     }
   } catch (error) {
     console.warn('Failed to pre-fetch CSRF token during initialization:', error);
