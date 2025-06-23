@@ -1,6 +1,9 @@
 import { setup } from './lib/allauth'
 
-export function init() {
+// Import the CSRF token functions to ensure they're available
+let cachedCSRFToken = null;
+
+export async function init() {
   console.log('Initializing application...');
   
   // Get the backend URL from environment variables
@@ -23,6 +26,23 @@ export function init() {
   
   // Configure allauth with proper backend URL and credentials
   setup('browser', baseUrl, true);
+  
+  // Pre-fetch CSRF token to ensure it's available for subsequent requests
+  try {
+    const response = await fetch(`${backendUrl}/api/get-csrf-token/`, {
+      credentials: 'include'
+    });
+    if (response.ok) {
+      const data = await response.json();
+      cachedCSRFToken = data.csrfToken;
+      console.log('CSRF token pre-fetched during initialization:', cachedCSRFToken.substring(0, 8) + '...');
+      
+      // Set a cookie so the django.js getCSRFToken function can find it
+      document.cookie = `csrftoken=${data.csrfToken}; path=/; SameSite=Lax`;
+    }
+  } catch (error) {
+    console.warn('Failed to pre-fetch CSRF token during initialization:', error);
+  }
   
   console.log('Allauth initialized with:', {
     client: 'browser',

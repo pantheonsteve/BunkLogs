@@ -27,11 +27,17 @@ function ResetPasswordConfirm() {
         setIsLoading(true);
         const response = await getPasswordReset(key);
         
+        console.log("Key validation response:", response);
+        
         if (response.status === 200) {
           setIsValidKey(true);
         } else {
           setIsValidKey(false);
-          setError("This password reset link is invalid or has expired.");
+          if (response.status === 400 || response.status === 404) {
+            setError("This password reset link is invalid or has expired.");
+          } else {
+            setError("Unable to validate reset link. Please try again.");
+          }
         }
       } catch (error) {
         console.error("Key validation error:", error);
@@ -81,6 +87,8 @@ function ResetPasswordConfirm() {
         password_confirm: confirmPassword
       });
       
+      console.log("Password reset response:", response);
+      
       if (response.status === 200) {
         setIsSuccess(true);
         setTimeout(() => {
@@ -89,23 +97,26 @@ function ResetPasswordConfirm() {
           });
         }, 3000);
       } else {
-        setError("Failed to reset password. Please try again.");
+        // Handle error responses from allauth
+        console.error("Password reset failed:", response);
+        
+        if (response.status === 400 && response.data) {
+          if (response.data.password) {
+            setError(Array.isArray(response.data.password) ? response.data.password[0] : response.data.password);
+          } else if (response.data.password_confirm) {
+            setError(Array.isArray(response.data.password_confirm) ? response.data.password_confirm[0] : response.data.password_confirm);
+          } else if (response.data.key) {
+            setError("Invalid or expired reset link");
+          } else {
+            setError("Please check your passwords and try again");
+          }
+        } else {
+          setError("Failed to reset password. Please try again.");
+        }
       }
     } catch (error) {
       console.error("Password reset error:", error);
-      
-      if (error.response?.status === 400) {
-        const data = error.response.data;
-        if (data.password) {
-          setError(data.password[0] || "Invalid password");
-        } else if (data.password_confirm) {
-          setError(data.password_confirm[0] || "Password confirmation error");
-        } else {
-          setError("Please check your passwords and try again");
-        }
-      } else {
-        setError("Failed to reset password. Please try again.");
-      }
+      setError("Failed to reset password. Please try again.");
     } finally {
       setIsLoading(false);
     }

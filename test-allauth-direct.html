@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AllAuth Direct Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 50px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 15px; margin: 10px 0; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        input { padding: 8px; margin: 5px; width: 300px; }
+        textarea { width: 100%; height: 200px; }
+    </style>
+</head>
+<body>
+    <h1>AllAuth Direct API Testing</h1>
+    
+    <div class="test-section">
+        <h2>1. Get CSRF Token</h2>
+        <button onclick="getCSRFToken()">Get CSRF Token</button>
+        <div id="csrfResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Request Password Reset</h2>
+        <input type="email" id="resetEmail" placeholder="Enter email" value="admin@example.com">
+        <button onclick="requestReset()">Request Password Reset</button>
+        <div id="resetResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Key Validation</h2>
+        <input type="text" id="resetKey" placeholder="Enter reset key">
+        <button onclick="validateKey()">Validate Key</button>
+        <div id="validateResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Complete Password Reset</h2>
+        <input type="text" id="keyForReset" placeholder="Reset key">
+        <input type="password" id="newPassword" placeholder="New password" value="newpassword123">
+        <input type="password" id="confirmPassword" placeholder="Confirm password" value="newpassword123">
+        <button onclick="resetPassword()">Reset Password</button>
+        <div id="resetPasswordResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Debug Information</h2>
+        <textarea id="debugInfo" readonly>Debug information will appear here...</textarea>
+        <button onclick="clearDebug()">Clear Debug</button>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8000/_allauth/browser/v1';
+        let csrfToken = null;
+        
+        function log(message) {
+            console.log(message);
+            const debugTextarea = document.getElementById('debugInfo');
+            debugTextarea.value += new Date().toISOString() + ': ' + message + '\n';
+            debugTextarea.scrollTop = debugTextarea.scrollHeight;
+        }
+        
+        function clearDebug() {
+            document.getElementById('debugInfo').value = '';
+        }
+        
+        async function makeRequest(method, url, data = null, headers = {}) {
+            log(`Making ${method} request to ${url}`);
+            
+            const options = {
+                method,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    ...headers
+                },
+                credentials: 'include'
+            };
+            
+            if (csrfToken) {
+                options.headers['X-CSRFToken'] = csrfToken;
+                log(`Using CSRF token: ${csrfToken.substring(0, 10)}...`);
+            }
+            
+            if (data) {
+                options.body = JSON.stringify(data);
+                log(`Request data: ${JSON.stringify(data)}`);
+            }
+            
+            try {
+                log(`Request options: ${JSON.stringify(options, null, 2)}`);
+                const response = await fetch(url, options);
+                const result = await response.json();
+                log(`Response status: ${response.status}`);
+                log(`Response: ${JSON.stringify(result, null, 2)}`);
+                return result;
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                return { error: error.message };
+            }
+        }
+        
+        async function getCSRFToken() {
+            log('Getting CSRF token...');
+            try {
+                const response = await fetch('http://localhost:8000/api/get-csrf-token/', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                csrfToken = data.csrfToken;
+                log(`CSRF token received: ${csrfToken}`);
+                
+                const resultDiv = document.getElementById('csrfResult');
+                resultDiv.innerHTML = `<div class="result success">CSRF Token: ${csrfToken}</div>`;
+            } catch (error) {
+                log(`CSRF token error: ${error.message}`);
+                const resultDiv = document.getElementById('csrfResult');
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function requestReset() {
+            const email = document.getElementById('resetEmail').value;
+            log(`Requesting password reset for: ${email}`);
+            
+            const result = await makeRequest('POST', `${BASE_URL}/auth/password/request`, { email });
+            
+            const resultDiv = document.getElementById('resetResult');
+            if (result.status === 200) {
+                resultDiv.innerHTML = '<div class="result success">Password reset email sent successfully!</div>';
+            } else {
+                resultDiv.innerHTML = `<div class="result error">Error: ${JSON.stringify(result)}</div>`;
+            }
+        }
+        
+        async function validateKey() {
+            const key = document.getElementById('resetKey').value;
+            log(`Validating reset key: ${key}`);
+            
+            const result = await makeRequest('GET', `${BASE_URL}/auth/password/reset`, null, {
+                'X-Password-Reset-Key': key
+            });
+            
+            const resultDiv = document.getElementById('validateResult');
+            if (result.status === 200) {
+                resultDiv.innerHTML = '<div class="result success">Reset key is valid!</div>';
+                document.getElementById('keyForReset').value = key;
+            } else {
+                resultDiv.innerHTML = `<div class="result error">Error: ${JSON.stringify(result)}</div>`;
+            }
+        }
+        
+        async function resetPassword() {
+            const key = document.getElementById('keyForReset').value;
+            const password = document.getElementById('newPassword').value;
+            const password_confirm = document.getElementById('confirmPassword').value;
+            
+            log(`Resetting password with key: ${key}`);
+            
+            const result = await makeRequest('POST', `${BASE_URL}/auth/password/reset`, {
+                key,
+                password,
+                password_confirm
+            });
+            
+            const resultDiv = document.getElementById('resetPasswordResult');
+            if (result.status === 200) {
+                resultDiv.innerHTML = '<div class="result success">Password reset successfully!</div>';
+            } else {
+                resultDiv.innerHTML = `<div class="result error">Error: ${JSON.stringify(result)}</div>`;
+            }
+        }
+        
+        // Auto-get CSRF token on page load
+        window.onload = function() {
+            log('Page loaded, getting CSRF token...');
+            getCSRFToken();
+        };
+    </script>
+</body>
+</html>

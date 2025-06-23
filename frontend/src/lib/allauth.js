@@ -169,7 +169,12 @@ async function request (method, path, data, headers) {
   // Don't pass along authentication related headers to the config endpoint.
   if (path !== URLs.CONFIG) {
     if (settings.client === Client.BROWSER) {
-      options.headers['x-csrftoken'] = getCSRFToken()
+      const csrfToken = getCSRFToken();
+      if (csrfToken) {
+        options.headers['x-csrftoken'] = csrfToken;
+      } else {
+        console.warn('No CSRF token available for allauth request');
+      }
     } else if (settings.client === Client.APP) {
       // IMPORTANT!: Do NOT use `Client.APP` in a browser context, as you will
       // be vulnerable to CSRF attacks. This logic is only here for
@@ -335,10 +340,22 @@ export async function verifyEmail (key) {
 }
 
 export async function getPasswordReset (key) {
+  // Ensure we have a CSRF token before making the request
+  const csrfToken = getCSRFToken();
+  if (!csrfToken) {
+    // Try to get CSRF token synchronously
+    await getCSRFTokenAsync();
+  }
   return await request('GET', URLs.RESET_PASSWORD, undefined, { 'X-Password-Reset-Key': key })
 }
 
 export async function resetPassword (data) {
+  // Ensure we have a CSRF token before making the request
+  const csrfToken = getCSRFToken();
+  if (!csrfToken) {
+    // Try to get CSRF token synchronously
+    await getCSRFTokenAsync();
+  }
   return await request('POST', URLs.RESET_PASSWORD, data)
 }
 
