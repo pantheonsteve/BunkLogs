@@ -11,16 +11,47 @@ function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = () => {
       try {
+        // Debug: Log the full URL
+        console.log('=== AUTH CALLBACK DEBUG ===');
+        console.log('Full URL:', window.location.href);
+        console.log('Pathname:', window.location.pathname);
+        console.log('Search:', window.location.search);
+        console.log('Hash:', window.location.hash);
+        
         // Get tokens from URL fragment (after #)
         const fragment = window.location.hash.substring(1); // Remove the #
+        console.log('Fragment after removing #:', fragment);
+        
+        // Try both URLSearchParams and manual parsing
         const params = new URLSearchParams(fragment);
+        console.log('URLSearchParams entries:');
+        for (let [key, value] of params.entries()) {
+          console.log(`  ${key}: ${value ? value.substring(0, 20) + '...' : 'empty'}`);
+        }
         
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
+        // Manual parsing as backup
+        const manualParams = {};
+        if (fragment) {
+          fragment.split('&').forEach(pair => {
+            const [key, value] = pair.split('=');
+            if (key && value) {
+              manualParams[decodeURIComponent(key)] = decodeURIComponent(value);
+            }
+          });
+        }
+        console.log('Manual parsing result:', Object.keys(manualParams));
         
-        console.log('Auth callback params:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
+        const accessToken = params.get('access_token') || manualParams['access_token'];
+        const refreshToken = params.get('refresh_token') || manualParams['refresh_token'];
+        
+        console.log('Final tokens found:', { 
+          accessToken: accessToken ? 'YES (' + accessToken.substring(0, 20) + '...)' : 'NO',
+          refreshToken: refreshToken ? 'YES (' + refreshToken.substring(0, 20) + '...)' : 'NO'
+        });
 
         if (accessToken && refreshToken) {
+          console.log('✅ Tokens found, logging in...');
+          
           // Login with tokens
           login({
             access_token: accessToken,
@@ -33,21 +64,24 @@ function AuthCallback() {
           window.history.replaceState({}, document.title, window.location.pathname);
           
           setTimeout(() => {
+            console.log('Redirecting to dashboard...');
             navigate('/dashboard');
           }, 1000);
         } else {
+          console.log('❌ No tokens found, checking for errors...');
+          
           // Check for error in query parameters (as fallback)
           const urlParams = new URLSearchParams(window.location.search);
           const error = urlParams.get('auth_error') || urlParams.get('error');
           
           if (error) {
-            console.error('Auth error:', error);
+            console.error('Auth error found:', error);
             setStatus('error');
             setTimeout(() => {
               navigate('/signin?error=' + encodeURIComponent(error));
             }, 3000);
           } else {
-            console.error('No tokens found in callback');
+            console.error('No tokens and no error found');
             setStatus('error');
             setTimeout(() => {
               navigate('/signin?error=no_tokens');
@@ -63,7 +97,8 @@ function AuthCallback() {
       }
     };
 
-    handleAuthCallback();
+    // Add a small delay to ensure the URL is fully loaded
+    setTimeout(handleAuthCallback, 100);
   }, [navigate, login]);
 
   return (
