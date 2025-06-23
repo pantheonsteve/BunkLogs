@@ -1,3 +1,4 @@
+// Updated SocialLoginButton.jsx - Use backend domain for entire OAuth flow
 import { redirectToProvider, AuthProcess } from "../lib/allauth";
 import { useConfig } from "../context/AllAuthContext";
 
@@ -17,17 +18,9 @@ function SocialLoginButton({ provider = "google" }) {
       return;
     }
 
-    // Use a callback URL that matches your Google OAuth configuration
-    // Option 1: Use the admin domain callback (recommended)
-    const callbackUrl = 'https://admin.bunklogs.net/accounts/google/login/callback/';
-    
-    // Option 2: If you want to keep the frontend domain, ensure it's added to Google OAuth
-    // const callbackUrl = `${window.location.origin}/callback/`;
-    
-    console.log("Using callback URL:", callbackUrl);
-
-    // Use allauth's redirectToProvider function with the correct callback
-    redirectToProvider(provider, callbackUrl, AuthProcess.LOGIN);
+    // WORKAROUND: Use backend domain for entire OAuth flow
+    // This avoids cross-domain session issues
+    window.location.href = `${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/accounts/google/login/`;
   };
 
   // Don't render if config is still loading
