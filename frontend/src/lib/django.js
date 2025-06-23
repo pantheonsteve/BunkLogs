@@ -24,6 +24,7 @@ function getCookie (name) {
     const cookieToken = getCookie('__Secure-csrftoken') || getCookie('csrftoken');
     if (cookieToken) {
       console.log('CSRF token from cookie:', cookieToken.substring(0, 6) + '...');
+      cachedCSRFToken = cookieToken; // Cache the token we found
       return cookieToken;
     }
 
@@ -55,6 +56,5 @@ function getCookie (name) {
     }
 
     // Return null as last resort
-    return null;
     return null;
   }

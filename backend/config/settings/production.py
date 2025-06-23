@@ -45,15 +45,17 @@ SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
 SESSION_COOKIE_SECURE = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-name
 SESSION_COOKIE_NAME = "__Secure-sessionid"
-# CRITICAL: Enable cross-origin sessions for production
-SESSION_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_DOMAIN = '.bunklogs.net'  # Set to your custom domain
+# CRITICAL: Enable cross-origin sessions for production - share across subdomains
+SESSION_COOKIE_SAMESITE = 'Lax'  # Changed from 'None' to 'Lax' for better subdomain sharing
+SESSION_COOKIE_DOMAIN = '.bunklogs.net'  # Share sessions across all bunklogs.net subdomains
+SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-secure
 CSRF_COOKIE_SECURE = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-name
 CSRF_COOKIE_NAME = "__Secure-csrftoken"
-# CRITICAL: Enable cross-origin cookies for production
-CSRF_COOKIE_SAMESITE = 'Lax'
+# CRITICAL: Enable cross-origin cookies for production - match session settings
+CSRF_COOKIE_SAMESITE = 'Lax'  # Match session cookie setting
+CSRF_COOKIE_DOMAIN = '.bunklogs.net'  # Share CSRF tokens across all bunklogs.net subdomains
 # CRITICAL: Allow JavaScript access to CSRF token for AllAuth headless mode
 CSRF_COOKIE_HTTPONLY = False
 # https://docs.djangoproject.com/en/dev/topics/security/#ssl-https
@@ -309,7 +311,6 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Update CSRF trusted origins
-CSRF_COOKIE_DOMAIN = '.bunklogs.net'
 CSRF_TRUSTED_ORIGINS = [
     'https://bunklogs.net',
     'https://www.bunklogs.net',
