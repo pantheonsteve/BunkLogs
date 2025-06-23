@@ -5,8 +5,18 @@ import App from './App';
 
 import { init } from './init'
 
-// Initialize the application
-init()
+// Initialize the application asynchronously
+async function initializeApp() {
+  try {
+    await init();
+    console.log('App initialization completed');
+  } catch (error) {
+    console.error('App initialization failed:', error);
+  }
+}
+
+// Start initialization
+initializeApp();
 
 // Create a function to safely render the app after DOM is ready
 function renderApp() {

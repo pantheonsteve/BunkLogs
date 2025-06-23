@@ -20,7 +20,8 @@ function getCookie (name) {
   // Enhanced CSRF token function that tries multiple methods
   export function getCSRFToken () {
     // First try to get from cookies (works for same-domain)
-    const cookieToken = getCookie('csrftoken') || getCookie('__Secure-csrftoken');
+    // CRITICAL FIX: Check production cookie name FIRST
+    const cookieToken = getCookie('__Secure-csrftoken') || getCookie('csrftoken');
     if (cookieToken) {
       console.log('CSRF token from cookie:', cookieToken.substring(0, 6) + '...');
       return cookieToken;
@@ -32,22 +33,28 @@ function getCookie (name) {
       return cachedCSRFToken;
     }
 
-    console.log('No CSRF token available - fetching from server asynchronously');
+    console.warn('No CSRF token available - this may cause API requests to fail');
     
-    // Fetch from server asynchronously and cache it
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    fetch(`${apiUrl}/api/get-csrf-token/`, {
-      credentials: 'include'
-    })
-    .then(response => response.json())
-    .then(data => {
-      cachedCSRFToken = data.csrfToken;
-      console.log('CSRF token fetched from server:', cachedCSRFToken.substring(0, 6) + '...');
-    })
-    .catch(error => {
-      console.warn('Failed to fetch CSRF token from server:', error);
-    });
+    // Try to fetch from server synchronously as a last resort (not recommended but needed for allauth)
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // This is a synchronous XMLHttpRequest - not ideal but necessary for allauth compatibility
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', `${apiUrl}/api/get-csrf-token/`, false); // false = synchronous
+      xhr.withCredentials = true;
+      xhr.send();
+      
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        cachedCSRFToken = data.csrfToken;
+        console.log('CSRF token fetched synchronously:', cachedCSRFToken.substring(0, 6) + '...');
+        return cachedCSRFToken;
+      }
+    } catch (error) {
+      console.error('Failed to fetch CSRF token synchronously:', error);
+    }
 
-    // Return null for now - the async fetch will cache it for next time
+    // Return null as last resort
+    return null;
     return null;
   }
