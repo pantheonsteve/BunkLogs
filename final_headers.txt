@@ -1,0 +1,21 @@
+HTTP/2 200 
+date: Sun, 22 Jun 2025 03:48:32 GMT
+content-type: application/json
+cache-control: max-age=0, no-cache, no-store, must-revalidate, private
+content-language: en
+cross-origin-opener-policy: same-origin
+expires: Sun, 22 Jun 2025 03:48:32 GMT
+referrer-policy: same-origin
+rndr-id: b7061a9a-fd9b-4b67
+set-cookie: __Secure-csrftoken=u1hTP4BWTUpy6DPOKdLj1CZJ9OR1X9o0; expires=Sun, 21 Jun 2026 03:48:32 GMT; Max-Age=31449600; Path=/; SameSite=Lax; Secure
+strict-transport-security: max-age=60; includeSubDomains; preload
+vary: Cookie, Accept-Language, origin
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: gunicorn
+cf-cache-status: DYNAMIC
+server: cloudflare
+cf-ray: 9538c5472d6b904b-BOS
+alt-svc: h3=":443"; ma=86400
+
