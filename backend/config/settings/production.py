@@ -53,6 +53,8 @@ CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_NAME = "__Secure-csrftoken"
 # CRITICAL: Enable cross-origin cookies for production
 CSRF_COOKIE_SAMESITE = 'None'
+# CRITICAL: Allow JavaScript access to CSRF token for AllAuth headless mode
+CSRF_COOKIE_HTTPONLY = False
 # https://docs.djangoproject.com/en/dev/topics/security/#ssl-https
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-seconds
 # TODO: set this to 60 seconds first and then to 518400 once you prove the former works

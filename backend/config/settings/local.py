@@ -42,6 +42,7 @@ CACHES = {
 # CSRF Configuration for Local Development
 # Override base settings that require HTTPS for local HTTP development
 CSRF_COOKIE_SECURE = False  # Allow CSRF cookies over HTTP for local development
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
