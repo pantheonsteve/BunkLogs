@@ -1,126 +1,119 @@
+// Create: frontend/src/pages/AuthCallback.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { jwtDecode } from 'jwt-decode';
-import api from '../api';
 
 function AuthCallback() {
-  const [status, setStatus] = useState('Processing authentication...');
   const navigate = useNavigate();
-  const { login, isAuthenticated, loading } = useAuth();
-  
-  // Add logging for debugging authentication state
-  useEffect(() => {
-    console.log('Auth state in callback:', { isAuthenticated, loading });
-  }, [isAuthenticated, loading]);
+  const { login } = useAuth();
+  const [status, setStatus] = useState('processing');
 
   useEffect(() => {
-  const processAuth = async () => {
-    try {
-      // Process tokens as you're already doing
-      const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      
-      if (!accessToken) {
-        console.error('No access token found in URL');
-        setStatus('Authentication failed. No token received.');
-        return;
-      }
-      
-      // Store tokens in localStorage
-      localStorage.setItem('access_token', accessToken);
-      if (refreshToken) {
-        localStorage.setItem('refresh_token', refreshToken);
-      }
-      
-      // Decode JWT to get user email
-      const decoded = jwtDecode(accessToken);
-      console.log('Decoded JWT:', decoded);
-      let userEmail = decoded.email; // JWT should contain email
-      let userId = decoded.user_id; // JWT should contain user_id
-      
-      // If email not in token, fetch from user endpoint
-      if (!userEmail) {
-        console.error('Email not found in token, fetching from user endpoint...');
-        console.log(`/api/v1/users/${userId}`);
-        const userResponse = await api.get(`/api/v1/users/${userId}`);
-        console.log('User response:', userResponse.status);
-        if (userResponse.status === 200) {
-          userEmail = userResponse.data.email; // Get email from user response
-          localStorage.setItem('user_profile', JSON.stringify(userResponse.data));
-          // Get the JSON string from localStorage
-          const userProfileString = localStorage.getItem('user_profile');
-
-          // Parse the string into a JavaScript object
-          const userProfile = JSON.parse(userProfileString);
-
-          // Now you can access individual properties
-          const { first_name, last_name, email, role } = userProfile;
-
-          console.log(`Hello, ${first_name} ${last_name}`);
-          console.log(`Email: ${email}`);
-          console.log(`Role: ${role}`);
-        }
-      }
-      
-      // Now fetch user details using the email or user_id
+    const handleAuthCallback = () => {
       try {
-        let userProfile = null;
+        // Get tokens from URL fragment (after #)
+        const fragment = window.location.hash.substring(1); // Remove the #
+        const params = new URLSearchParams(fragment);
         
-        if (userEmail) {
-          // Try to fetch profile by email
-          const profileResponse = await api.get(`/api/v1/users/email/${userEmail}/`);
-          userProfile = profileResponse.data;
-        } else if (userId) {
-          // If no email but we have userId, fetch by user_id
-          const profileResponse = await api.get(`/api/v1/users/${userId}`);
-          userProfile = profileResponse.data;
-        }
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
         
-        if (userProfile) {
-          // Store full profile data
-          localStorage.setItem('user_profile', JSON.stringify(userProfile));
-          
-          // Important: Update the auth context with login AND pass the user profile
-          login({ 
-            access_token: accessToken, 
+        console.log('Auth callback params:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
+
+        if (accessToken && refreshToken) {
+          // Login with tokens
+          login({
+            access_token: accessToken,
             refresh_token: refreshToken,
-            user_profile: userProfile // Pass the user profile to the login function
           });
+
+          setStatus('success');
           
-          setStatus('Authentication successful. Redirecting...');
+          // Clear the URL fragment
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 1000);
         } else {
-          // If we couldn't get a profile but we have a token, still login
-          login({ access_token: accessToken, refresh_token: refreshToken });
-          setStatus('Authenticated with limited profile info. Redirecting...');
+          // Check for error in query parameters (as fallback)
+          const urlParams = new URLSearchParams(window.location.search);
+          const error = urlParams.get('auth_error') || urlParams.get('error');
+          
+          if (error) {
+            console.error('Auth error:', error);
+            setStatus('error');
+            setTimeout(() => {
+              navigate('/signin?error=' + encodeURIComponent(error));
+            }, 3000);
+          } else {
+            console.error('No tokens found in callback');
+            setStatus('error');
+            setTimeout(() => {
+              navigate('/signin?error=no_tokens');
+            }, 3000);
+          }
         }
-      } catch (profileError) {
-        console.error('Error fetching user profile:', profileError);
-        // Even if profile fetch fails, we can still login with the token
-        login({ access_token: accessToken, refresh_token: refreshToken });
-        setStatus('Authentication successful, but profile error. Redirecting...');
+      } catch (error) {
+        console.error('Auth callback error:', error);
+        setStatus('error');
+        setTimeout(() => {
+          navigate('/signin?error=callback_failed');
+        }, 3000);
       }
-      
-      // Wait briefly to ensure context is updated before redirect
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 500);
-    } catch (error) {
-      console.error('Auth processing error:', error);
-      setStatus('Authentication failed: ' + (error.message || 'Unknown error'));
-    }
-  };
-  
-    processAuth();
-  }, [login, navigate]);
+    };
+
+    handleAuthCallback();
+  }, [navigate, login]);
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white rounded shadow-md">
-        <h1 className="text-2xl font-bold mb-4">Authentication</h1>
-        <p className="text-gray-700">{status}</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          {status === 'processing' && (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-500 mx-auto"></div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+                Processing authentication...
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Please wait while we complete your Google sign in.
+              </p>
+            </>
+          )}
+          
+          {status === 'success' && (
+            <>
+              <div className="rounded-full h-12 w-12 bg-green-100 mx-auto flex items-center justify-center">
+                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+                Sign in successful!
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Redirecting to your dashboard...
+              </p>
+            </>
+          )}
+          
+          {status === 'error' && (
+            <>
+              <div className="rounded-full h-12 w-12 bg-red-100 mx-auto flex items-center justify-center">
+                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+                Authentication failed
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Redirecting back to sign in...
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
