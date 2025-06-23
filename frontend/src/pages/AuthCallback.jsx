@@ -67,19 +67,70 @@ function AuthCallback() {
           
           // Login with tokens and wait for completion
           try {
+            console.log('Starting login process...');
             const loginResult = await login({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
             
             console.log('Login completed:', loginResult);
+            
+            // Wait for user profile to be fully loaded
+            console.log('Waiting for user profile to load...');
+            let attempts = 0;
+            const maxAttempts = 50; // 5 seconds max wait
+            
+            const waitForUserProfile = () => {
+              return new Promise((resolve, reject) => {
+                const checkUser = () => {
+                  attempts++;
+                  
+                  // Get current auth state
+                  const token = localStorage.getItem('access_token');
+                  const userProfile = localStorage.getItem('user_profile');
+                  
+                  console.log(`Profile check attempt ${attempts}:`, {
+                    hasToken: !!token,
+                    hasProfile: !!userProfile,
+                    token: token ? token.substring(0, 20) + '...' : 'none'
+                  });
+                  
+                  if (token && userProfile) {
+                    try {
+                      const profile = JSON.parse(userProfile);
+                      if (profile && profile.id) {
+                        console.log('✅ User profile loaded:', profile);
+                        resolve(profile);
+                        return;
+                      }
+                    } catch (e) {
+                      console.warn('Failed to parse user profile:', e);
+                    }
+                  }
+                  
+                  if (attempts >= maxAttempts) {
+                    console.warn('⚠️ Timeout waiting for user profile, proceeding anyway');
+                    resolve(null);
+                    return;
+                  }
+                  
+                  // Try again in 100ms
+                  setTimeout(checkUser, 100);
+                };
+                
+                checkUser();
+              });
+            };
+            
+            await waitForUserProfile();
+            
             setStatus('success');
             
-            // Additional delay to ensure all auth state is propagated
+            // Additional delay to ensure all auth state is propagated to React components
             setTimeout(() => {
-              console.log('Redirecting to dashboard...');
+              console.log('🎯 Redirecting to dashboard with fully loaded profile...');
               navigate('/dashboard', { replace: true });
-            }, 2000); // Increased delay for auth state propagation
+            }, 1000); // Reduced delay since we already waited for profile
             
           } catch (loginError) {
             console.error('Login failed:', loginError);
@@ -142,8 +193,11 @@ function AuthCallback() {
                 Processing authentication...
               </h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                Please wait while we complete your Google sign in.
+                Completing your Google sign in and loading your profile...
               </p>
+              <div className="mt-4 text-xs text-gray-500 dark:text-gray-500">
+                This may take a few seconds while we set up your dashboard.
+              </div>
             </>
           )}
           
