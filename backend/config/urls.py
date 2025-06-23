@@ -12,6 +12,7 @@ from config import views
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
+    path("health/", views.health_check, name="health_check"),
     path(
         "about/",
         TemplateView.as_view(template_name="pages/about.html"),

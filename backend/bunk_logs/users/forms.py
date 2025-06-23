@@ -67,6 +67,19 @@ class UserCsvImportForm(forms.Form):
         label="Dry run",
         help_text="Validate the import without saving to database",
     )
+    batch_size = forms.IntegerField(
+        initial=25,
+        min_value=1,
+        max_value=100,
+        label="Batch size",
+        help_text="Number of users to process per batch (smaller batches are safer for large imports)",
+    )
+    use_fast_hashing = forms.BooleanField(
+        initial=True,
+        required=False,
+        label="Use fast password hashing",
+        help_text="Use faster (but less secure) password hashing for bulk imports. Recommended for large datasets.",
+    )
 
     def clean_csv_file(self):
         csv_file = self.cleaned_data.get('csv_file')

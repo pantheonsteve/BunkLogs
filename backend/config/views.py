@@ -6,6 +6,7 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 from django.views.generic import RedirectView, TemplateView
@@ -32,10 +33,53 @@ User = get_user_model()
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.db import connections
+from django.core.cache import cache
 
 @csrf_exempt
 def test_cors(request):
     return JsonResponse({"message": "CORS is working!"})
+
+
+@csrf_exempt
+def health_check(request):
+    """
+    Health check endpoint for Render.com and other monitoring services.
+    Returns 200 if the service is healthy, 503 if there are issues.
+    """
+    health_status = {
+        "status": "healthy",
+        "timestamp": timezone.now().isoformat(),
+        "checks": {}
+    }
+    
+    is_healthy = True
+    
+    # Check database connectivity
+    try:
+        db_conn = connections['default']
+        db_conn.cursor()
+        health_status["checks"]["database"] = "ok"
+    except Exception as e:
+        health_status["checks"]["database"] = f"error: {str(e)}"
+        is_healthy = False
+    
+    # Check cache connectivity (if configured)
+    try:
+        cache.set('health_check', 'ok', 30)
+        if cache.get('health_check') == 'ok':
+            health_status["checks"]["cache"] = "ok"
+        else:
+            health_status["checks"]["cache"] = "warning: cache not working"
+    except Exception as e:
+        health_status["checks"]["cache"] = f"error: {str(e)}"
+        # Don't mark as unhealthy for cache issues
+    
+    if not is_healthy:
+        health_status["status"] = "unhealthy"
+        return JsonResponse(health_status, status=503)
+    
+    return JsonResponse(health_status, status=200)
 
 
 class CustomEmailVerificationSentView(TemplateView):
