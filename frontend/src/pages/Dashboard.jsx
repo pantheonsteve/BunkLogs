@@ -27,7 +27,7 @@ function Dashboard() {
     
     // Redirect to role-specific dashboard if user has a specific role
     if (user && user.role) {
-      console.log('🚀 Redirecting based on role:', user.role);
+      console.log('🚀 Checking role for potential redirect:', user.role);
       switch (user.role) {
         case 'Unit Head':
           // Get today's date for the redirect
@@ -48,14 +48,10 @@ function Dashboard() {
           navigate(`/campercare/${user.id}/${formattedDateCare}`, { replace: true });
           return;
         case 'Counselor':
-          // Redirect counselors to counselor dashboard with today's date
-          const todayCounselor = new Date();
-          const yearCounselor = todayCounselor.getFullYear();
-          const monthCounselor = String(todayCounselor.getMonth() + 1).padStart(2, '0');
-          const dayCounselor = String(todayCounselor.getDate()).padStart(2, '0');
-          const formattedDateCounselor = `${yearCounselor}-${monthCounselor}-${dayCounselor}`;
-          navigate(`/counselor-dashboard/${formattedDateCounselor}`, { replace: true });
-          return;
+          // Counselors stay on the main dashboard by default
+          // They can navigate to CounselorDashboard via "My Reflections" link
+          console.log('📍 Counselor staying on main dashboard');
+          break;
         default:
           // Stay on general dashboard for other roles (Admin, etc.)
           console.log('📍 Staying on general dashboard for role:', user.role);
