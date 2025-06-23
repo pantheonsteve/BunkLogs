@@ -89,7 +89,16 @@ function ResetPasswordConfirm() {
       
       console.log("Password reset response:", response);
       
-      if (response.status === 200) {
+      // AllAuth headless mode success patterns:
+      // 1. Standard 200 OK
+      // 2. 401 with flows array (password reset successful, user needs to login)
+      // 3. Response contains flows without errors (indicates successful reset)
+      const isSuccess = response.status === 200 || 
+                       (response.data && response.data.flows && !response.data.errors) ||
+                       (response.status === 401 && response.data && response.data.flows);
+      
+      if (isSuccess) {
+        console.log("Password reset successful - redirecting to login");
         setIsSuccess(true);
         setTimeout(() => {
           navigate("/signin", { 
@@ -97,11 +106,23 @@ function ResetPasswordConfirm() {
           });
         }, 3000);
       } else {
-        // Handle error responses from allauth
+        // Handle actual error responses from allauth
         console.error("Password reset failed:", response);
         
         if (response.status === 400 && response.data) {
-          if (response.data.password) {
+          if (response.data.errors && response.data.errors.length > 0) {
+            // Handle specific field errors
+            const error = response.data.errors[0];
+            if (error.param === 'password') {
+              setError(error.message || "Password validation error");
+            } else if (error.param === 'password_confirm') {
+              setError(error.message || "Password confirmation error");
+            } else if (error.param === 'key') {
+              setError("Invalid or expired reset link");
+            } else {
+              setError(error.message || "Please check your passwords and try again");
+            }
+          } else if (response.data.password) {
             setError(Array.isArray(response.data.password) ? response.data.password[0] : response.data.password);
           } else if (response.data.password_confirm) {
             setError(Array.isArray(response.data.password_confirm) ? response.data.password_confirm[0] : response.data.password_confirm);
