@@ -1,5 +1,4 @@
-// Create: frontend/src/pages/AuthCallback.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
@@ -7,10 +6,20 @@ function AuthCallback() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [status, setStatus] = useState('processing');
+  const hasProcessed = useRef(false); // Prevent multiple executions
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (hasProcessed.current) {
+      console.log('AuthCallback already processed, skipping...');
+      return;
+    }
+
     const handleAuthCallback = () => {
       try {
+        // Mark as processed immediately
+        hasProcessed.current = true;
+
         // Debug: Log the full URL
         console.log('=== AUTH CALLBACK DEBUG ===');
         console.log('Full URL:', window.location.href);
@@ -52,6 +61,9 @@ function AuthCallback() {
         if (accessToken && refreshToken) {
           console.log('✅ Tokens found, logging in...');
           
+          // Clear the URL fragment BEFORE login to prevent issues
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
           // Login with tokens
           login({
             access_token: accessToken,
@@ -60,13 +72,11 @@ function AuthCallback() {
 
           setStatus('success');
           
-          // Clear the URL fragment
-          window.history.replaceState({}, document.title, window.location.pathname);
-          
+          // Delay the redirect to ensure login is processed
           setTimeout(() => {
             console.log('Redirecting to dashboard...');
-            navigate('/dashboard');
-          }, 1000);
+            navigate('/dashboard', { replace: true });
+          }, 1500); // Increased delay
         } else {
           console.log('❌ No tokens found, checking for errors...');
           
@@ -78,13 +88,13 @@ function AuthCallback() {
             console.error('Auth error found:', error);
             setStatus('error');
             setTimeout(() => {
-              navigate('/signin?error=' + encodeURIComponent(error));
+              navigate('/signin?error=' + encodeURIComponent(error), { replace: true });
             }, 3000);
           } else {
             console.error('No tokens and no error found');
             setStatus('error');
             setTimeout(() => {
-              navigate('/signin?error=no_tokens');
+              navigate('/signin?error=no_tokens', { replace: true });
             }, 3000);
           }
         }
@@ -92,14 +102,72 @@ function AuthCallback() {
         console.error('Auth callback error:', error);
         setStatus('error');
         setTimeout(() => {
-          navigate('/signin?error=callback_failed');
+          navigate('/signin?error=callback_failed', { replace: true });
         }, 3000);
       }
     };
 
-    // Add a small delay to ensure the URL is fully loaded
-    setTimeout(handleAuthCallback, 100);
-  }, [navigate, login]);
+    // Small delay to ensure URL is fully loaded, but only process once
+    const timeoutId = setTimeout(handleAuthCallback, 100);
+    
+    // Cleanup timeout if component unmounts
+    return () => clearTimeout(timeoutId);
+  }, []); // Empty dependency array - only run once
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          {status === 'processing' && (
+            <>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-500 mx-auto"></div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+                Processing authentication...
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Please wait while we complete your Google sign in.
+              </p>
+            </>
+          )}
+          
+          {status === 'success' && (
+            <>
+              <div className="rounded-full h-12 w-12 bg-green-100 mx-auto flex items-center justify-center">
+                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+                Sign in successful!
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Redirecting to your dashboard...
+              </p>
+            </>
+          )}
+          
+          {status === 'error' && (
+            <>
+              <div className="rounded-full h-12 w-12 bg-red-100 mx-auto flex items-center justify-center">
+                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+                Authentication failed
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Redirecting back to sign in...
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default AuthCallback;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
