@@ -505,15 +505,26 @@ def google_callback(request):
         
         # Generate JWT token
         refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
         
-        # Redirect to frontend with token - use environment FRONTEND_URL
+        # Debug: Log the tokens and redirect URL
+        print(f"Generated tokens - Access: {access_token[:20]}..., Refresh: {refresh_token[:20]}...")
+        
+        # Build redirect URL manually (don't use urlencode which might cause issues)
         frontend_url = getattr(settings, 'FRONTEND_URL', 'https://clc.bunklogs.net')
-        redirect_url = f"{frontend_url}/auth/callback#{urlencode({'access_token': str(refresh.access_token), 'refresh_token': str(refresh)})}"
-        print(f"Redirecting to: {redirect_url}")
+        
+        # FIXED: Manual URL construction instead of urlencode
+        redirect_url = f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}"
+        
+        print(f"Redirecting to: {redirect_url[:100]}...")  # Log first 100 chars
         
         return HttpResponseRedirect(redirect_url)
     except Exception as e:
         print(f"Google callback error: {str(e)}")
+        import traceback
+        traceback.print_exc()  # Print full traceback for debugging
+        
         # Redirect to frontend with error - use environment FRONTEND_URL
         frontend_url = getattr(settings, 'FRONTEND_URL', 'https://clc.bunklogs.net')
         return HttpResponseRedirect(f"{frontend_url}/signin?auth_error=callback_failed")
