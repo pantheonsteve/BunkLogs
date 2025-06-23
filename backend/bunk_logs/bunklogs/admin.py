@@ -12,7 +12,7 @@ from django.utils.translation import gettext_lazy as _
 from .forms import BunkLogAdminForm
 from .forms import BunkSelectionForm
 from .forms import BunkLogCsvImportForm
-from .models import BunkLog
+from .models import BunkLog, CounselorLog
 from .services.imports import import_bunk_logs_from_csv, generate_sample_csv
 from bunk_logs.utils.admin import TestDataAdminMixin
 
@@ -179,3 +179,135 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                     bunk__is_active=True,
                 ).select_related("camper")
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(CounselorLog)
+class CounselorLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
+    list_display = ("date", "counselor", "day_quality_score", "support_level_score", "day_off", "staff_care_support_needed")
+    list_filter = ("date", "counselor", "day_off", "staff_care_support_needed", "day_quality_score", "support_level_score")
+    search_fields = (
+        "counselor__first_name",
+        "counselor__last_name", 
+        "counselor__email",
+        "elaboration",
+        "values_reflection",
+    )
+    readonly_fields = ("created_at", "updated_at")
+    
+    fieldsets = (
+        (None, {
+            'fields': ('counselor', 'date')
+        }),
+        ('Scores', {
+            'fields': ('day_quality_score', 'support_level_score'),
+            'description': 'Rate your day and support level on a scale of 1-5'
+        }),
+        ('Status', {
+            'fields': ('day_off', 'staff_care_support_needed')
+        }),
+        ('Reflections', {
+            'fields': ('elaboration', 'values_reflection'),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_queryset(self, request):
+        """Filter queryset based on user permissions."""
+        qs = super().get_queryset(request)
+        
+        # Admin and staff can see all logs
+        if request.user.is_staff or request.user.role == 'Admin':
+            return qs
+            
+        # Unit heads and camper care can see logs for counselors in their units
+        if request.user.role in ['Unit Head', 'Camper Care']:
+            from django.utils import timezone
+            from bunk_logs.bunks.models import UnitStaffAssignment
+            from bunk_logs.users.models import User
+            
+            unit_ids = []
+            
+            # For Unit Head role
+            if request.user.role == 'Unit Head':
+                # Get units where user is assigned as unit_head
+                unit_assignments = UnitStaffAssignment.objects.filter(
+                    staff_member=request.user,
+                    role='unit_head',
+                    start_date__lte=timezone.now().date(),
+                    end_date__isnull=True
+                ).values_list('unit_id', flat=True)
+                unit_ids.extend(unit_assignments)
+                # Also include legacy unit_head field
+                unit_ids.extend(request.user.managed_units.values_list('id', flat=True))
+                
+            # For Camper Care role  
+            if request.user.role == 'Camper Care':
+                # Get units where user is assigned as camper_care
+                unit_assignments = UnitStaffAssignment.objects.filter(
+                    staff_member=request.user,
+                    role='camper_care',
+                    start_date__lte=timezone.now().date(),
+                    end_date__isnull=True
+                ).values_list('unit_id', flat=True)
+                unit_ids.extend(unit_assignments)
+                # Also include legacy camper_care field
+                unit_ids.extend(request.user.camper_care_units.values_list('id', flat=True))
+            
+            # Get counselors assigned to bunks in these units
+            counselor_ids = User.objects.filter(
+                role='Counselor',
+                assigned_bunks__unit_id__in=set(unit_ids)
+            ).values_list('id', flat=True)
+            
+            return qs.filter(counselor_id__in=counselor_ids)
+            
+        # Counselors can only see their own logs
+        if request.user.role == 'Counselor':
+            return qs.filter(counselor=request.user)
+            
+        # Default: see nothing
+        return qs.none()
+    
+    def has_change_permission(self, request, obj=None):
+        """Check if user has permission to change counselor logs."""
+        if not super().has_change_permission(request, obj):
+            return False
+            
+        # Admin and staff can change any log
+        if request.user.is_staff or request.user.role == 'Admin':
+            return True
+            
+        # Unit heads and camper care can view but not edit
+        if request.user.role in ['Unit Head', 'Camper Care']:
+            return False
+            
+        # Counselors can only edit their own logs
+        if request.user.role == 'Counselor' and obj:
+            # Check if it's their log and within edit window
+            from django.utils import timezone
+            today = timezone.now().date()
+            log_created_date = obj.created_at.date() if obj.created_at else obj.date
+            
+            return (obj.counselor == request.user and today == log_created_date)
+            
+        return False
+    
+    def has_add_permission(self, request):
+        """Check if user has permission to add counselor logs."""
+        if not super().has_add_permission(request):
+            return False
+            
+        # Only counselors and admin/staff can add counselor logs
+        return request.user.role in ['Counselor', 'Admin'] or request.user.is_staff
+    
+    def has_delete_permission(self, request, obj=None):
+        """Check if user has permission to delete counselor logs."""
+        if not super().has_delete_permission(request, obj):
+            return False
+            
+        # Only admin and staff can delete counselor logs
+        return request.user.is_staff or request.user.role == 'Admin'

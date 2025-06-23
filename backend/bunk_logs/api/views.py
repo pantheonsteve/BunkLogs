@@ -25,10 +25,10 @@ from bunk_logs.campers.models import CamperBunkAssignment
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
-from bunk_logs.bunklogs.models import BunkLog
+from bunk_logs.bunklogs.models import BunkLog, CounselorLog
 from bunk_logs.orders.models import Order, OrderItem, Item, ItemCategory, OrderType
 
-from .serializers import BunkLogSerializer
+from .serializers import BunkLogSerializer, CounselorLogSerializer
 from .serializers import BunkSerializer
 from .serializers import CamperBunkAssignmentSerializer
 from .serializers import CamperSerializer
@@ -692,6 +692,226 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         
         # Default: deny access
         raise PermissionDenied("You are not authorized to update this bunk log.")
+
+
+class CounselorLogViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = CounselorLog.objects.all()
+    serializer_class = CounselorLogSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        # Admin/staff can see all counselor logs
+        if user.is_staff or user.role == 'Admin':
+            return CounselorLog.objects.all()
+        # Unit heads can see logs for counselors in their units
+        if user.role == 'Unit Head':
+            # Get units where user is assigned as unit_head
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.managed_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as unit_head
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
+            # Get counselors assigned to bunks in these units
+            counselor_ids = Bunk.objects.filter(
+                unit_id__in=set(unit_ids)
+            ).values_list('counselors', flat=True).distinct()
+            
+            return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
+        # Camper care can see logs for counselors in their assigned units
+        if user.role == 'Camper Care':
+            # Get units where user is assigned as camper_care
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as camper_care
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
+            # Get counselors assigned to bunks in these units
+            counselor_ids = Bunk.objects.filter(
+                unit_id__in=set(unit_ids)
+            ).values_list('counselors', flat=True).distinct()
+            
+            return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
+        # Counselors can only see their own logs
+        if user.role == 'Counselor':
+            return CounselorLog.objects.filter(counselor=user)
+        # Default: see nothing
+        return CounselorLog.objects.none()
+    
+    def perform_create(self, serializer):
+        # Verify the user is a counselor
+        if self.request.user.role != 'Counselor':
+            raise PermissionDenied("Only counselors can create counselor logs.")
+        # Set the counselor automatically to the current user
+        serializer.save(counselor=self.request.user)
+    
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        user = self.request.user
+        
+        # Admin/staff can update any log
+        if user.is_staff or user.role == 'Admin':
+            serializer.save()
+            return
+        
+        # Unit heads and camper care cannot update counselor logs (view-only)
+        if user.role in ['Unit Head', 'Camper Care']:
+            raise PermissionDenied("You can view but not edit counselor logs.")
+        
+        # Counselors have specific restrictions
+        if user.role == 'Counselor':
+            # Check if user is the counselor who created the log
+            if instance.counselor.id != user.id:
+                raise PermissionDenied("You can only update your own counselor logs.")
+            
+            # Check if the update is happening on the same day the log was created
+            from django.utils import timezone
+            today = timezone.now().date()
+            log_created_date = instance.created_at.date() if instance.created_at else instance.date
+            
+            if today != log_created_date:
+                raise PermissionDenied("You can only update counselor logs on the day they were created.")
+            
+            # Don't allow changing the counselor field during update
+            if 'counselor' in serializer.validated_data:
+                serializer.validated_data['counselor'] = instance.counselor
+            
+            serializer.save()
+            return
+        
+        # Default: deny access
+        raise PermissionDenied("You are not authorized to update this counselor log.")
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Admin/staff can see all
+        if user.is_staff or user.role == 'Admin':
+            return CounselorLog.objects.all()
+            
+        # Unit heads and camper care can see logs for counselors in their units
+        if user.role in ['Unit Head', 'Camper Care']:
+            from django.utils import timezone
+            unit_ids = []
+            
+            # For Unit Head role
+            if user.role == 'Unit Head':
+                # Get units where user is assigned as unit_head
+                unit_assignments = UnitStaffAssignment.objects.filter(
+                    staff_member=user,
+                    role='unit_head',
+                    start_date__lte=timezone.now().date(),
+                    end_date__isnull=True
+                ).values_list('unit_id', flat=True)
+                unit_ids.extend(unit_assignments)
+                # Also include legacy unit_head field
+                unit_ids.extend(user.managed_units.values_list('id', flat=True))
+                
+            # For Camper Care role  
+            if user.role == 'Camper Care':
+                # Get units where user is assigned as camper_care
+                unit_assignments = UnitStaffAssignment.objects.filter(
+                    staff_member=user,
+                    role='camper_care',
+                    start_date__lte=timezone.now().date(),
+                    end_date__isnull=True
+                ).values_list('unit_id', flat=True)
+                unit_ids.extend(unit_assignments)
+                # Also include legacy camper_care field
+                unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            
+            # Get counselors assigned to bunks in these units
+            counselor_ids = User.objects.filter(
+                role='Counselor',
+                assigned_bunks__unit_id__in=set(unit_ids)
+            ).values_list('id', flat=True)
+            
+            return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
+            
+        # Counselors can only see their own logs
+        if user.role == 'Counselor':
+            return CounselorLog.objects.filter(counselor=user)
+            
+        # Default: see nothing
+        return CounselorLog.objects.none()
+    
+    def perform_create(self, serializer):
+        # Verify the user is a counselor
+        if self.request.user.role != 'Counselor':
+            raise PermissionDenied("Only counselors can create counselor logs.")
+        
+        # Set the counselor automatically to the current user
+        serializer.save(counselor=self.request.user)
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        
+        # Filter by date if provided
+        date_param = request.query_params.get('date', None)
+        if date_param:
+            try:
+                # Parse the date parameter and filter the queryset
+                from datetime import datetime
+                parsed_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+                queryset = queryset.filter(date=parsed_date)
+            except ValueError:
+                # Invalid date format, ignore the filter
+                pass
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({'results': serializer.data})
+    
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        user = self.request.user
+        
+        # Admin and staff can update any log
+        if user.is_staff or user.role == 'Admin':
+            serializer.save()
+            return
+            
+        # Unit heads and camper care can view but not edit
+        if user.role in ['Unit Head', 'Camper Care']:
+            raise PermissionDenied("You can view but not edit counselor logs.")
+        
+        # Counselors can only update their own logs
+        if user.role == 'Counselor':
+            if instance.counselor.id != user.id:
+                raise PermissionDenied("You can only update your own counselor logs.")
+            
+            # Check if the update is happening on the same day the log was created
+            from django.utils import timezone
+            today = timezone.now().date()
+            log_created_date = instance.created_at.date() if instance.created_at else instance.date
+            
+            if today != log_created_date:
+                raise PermissionDenied("You can only edit counselor logs on the day they were created.")
+            
+            # Don't allow changing the counselor field during update
+            if 'counselor' in serializer.validated_data:
+                serializer.validated_data['counselor'] = instance.counselor
+            
+            serializer.save()
+            return
+        
+        # Default: deny access
+        raise PermissionDenied("You are not authorized to update this counselor log.")
 
 class CamperBunkLogViewSet(APIView):
     renderer_classes = [JSONRenderer]

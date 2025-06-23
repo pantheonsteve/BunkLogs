@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
+import CounselorDashboard from './pages/CounselorDashboard';
 import UnitHeadDashboard from './pages/UnitHeadDashboard';
 import CamperCareDashboard from './pages/CamperCareDashboard';
 import AuthCallback from './pages/AuthCallback';
@@ -92,6 +93,22 @@ function Router() {
           element={
             <ProtectedRoute>
               <CamperCareDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/counselor-dashboard" 
+          element={
+            <ProtectedRoute>
+              <CounselorDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/counselor-dashboard/:date" 
+          element={
+            <ProtectedRoute>
+              <CounselorDashboard />
             </ProtectedRoute>
           } 
         />

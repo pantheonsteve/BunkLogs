@@ -66,3 +66,63 @@ class BunkLog(TestDataMixin):
     def camper(self):
         """Property to maintain compatibility with existing code."""
         return self.bunk_assignment.camper
+
+
+class CounselorLog(TestDataMixin):
+    """Daily personal reflection log for counselors."""
+
+    counselor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="counselor_logs",
+        limit_choices_to={"role": "Counselor"},
+    )
+    date = models.DateField()
+
+    # Day quality (1-5 scale)
+    day_quality_score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="How was your day? (1 = terrible, 5 = best day ever)",
+    )
+
+    # Support level (1-5 scale)
+    support_level_score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="How supported did you feel today? (1 = unsupported, 5 = fully supported)",
+    )
+
+    # Elaboration on scores
+    elaboration = models.TextField(
+        help_text="Elaborate on why - positive or negative (providing more information about questions 1 and 2)"
+    )
+
+    # Day off status
+    day_off = models.BooleanField(
+        default=False,
+        help_text="Check if you are on a day off today"
+    )
+
+    # Staff care/engagement support request
+    staff_care_support_needed = models.BooleanField(
+        default=False,
+        help_text="Check if you would like staff care/engagement support"
+    )
+
+    # Values reflection
+    values_reflection = models.TextField(
+        help_text="How did the bunk exemplify our values today?"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("counselor log")
+        verbose_name_plural = _("counselor logs")
+        unique_together = ("counselor", "date")
+        ordering = ["-date"]
+        app_label = "bunklogs"
+
+    def __str__(self):
+        return f"Counselor log for {self.counselor.get_full_name()} on {self.date}"

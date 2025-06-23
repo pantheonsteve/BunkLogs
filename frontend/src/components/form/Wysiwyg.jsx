@@ -6,22 +6,15 @@ const Wysiwyg = forwardRef(({ onChange, value, readOnly = false, showToolbar = t
     const editorRef = useRef(null);
     const quillRef = useRef(null);
 
-    console.log('=== Wysiwyg: Component rendered ===');
-    console.log('Props received:', { value, readOnly, showToolbar });
-    console.log('Value type and length:', typeof value, value ? value.length : 0);
-
     // Expose quill instance to parent
     useImperativeHandle(ref, () => ({
         getQuill: () => quillRef.current,
         setContent: (content) => {
-            console.log('=== Wysiwyg: setContent called ===', content);
             if (quillRef.current) {
                 try {
                     if (!content || content.trim() === '') {
-                        console.log('Setting empty content');
                         quillRef.current.setText('');
                     } else if (content.includes('<') && content.includes('>')) {
-                        console.log('Setting HTML content via setContent');
                         // HTML content - use dangerouslyPasteHTML for better reliability
                         quillRef.current.root.innerHTML = content;
                     } else {

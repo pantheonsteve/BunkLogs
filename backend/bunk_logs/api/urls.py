@@ -11,6 +11,7 @@ router.register(r'unit-staff-assignments', views.UnitStaffAssignmentViewSet, bas
 router.register(r'campers', views.CamperViewSet, basename='camper')
 router.register(r'camper-bunk-assignments', views.CamperBunkAssignmentViewSet, basename='camper-bunk-assignment')
 router.register(r'bunklogs', views.BunkLogViewSet, basename='bunklog')
+router.register(r'counselorlogs', views.CounselorLogViewSet, basename='counselorlog')
 # router.register(r'orders', views.OrderViewSet, basename='order')
 # router.register(r'items', views.ItemViewSet, basename='item')
 
