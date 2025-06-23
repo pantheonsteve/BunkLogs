@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false); // New state for active auth process
 
   // Check for token on mount
   useEffect(() => {
@@ -70,9 +71,12 @@ export function AuthProvider({ children }) {
   checkAuth();
 }, []);
 
-  const login = (tokens) => {
+  const login = async (tokens) => {
+    setIsAuthenticating(true); // Set authenticating state
     try {
-      // Store tokens in localStorage
+      console.log('🔐 Starting login process with tokens');
+      
+      // Store tokens in localStorage first
       localStorage.setItem('access_token', tokens.access_token);
       if (tokens.refresh_token) {
         localStorage.setItem('refresh_token', tokens.refresh_token);
@@ -84,57 +88,103 @@ export function AuthProvider({ children }) {
         setUser(tokens.user);
         // Also store in localStorage
         localStorage.setItem('user_profile', JSON.stringify(tokens.user));
-        return;
+        return tokens.user;
       }
       
       // If we have a full user profile passed directly (social login), use that
       if (tokens.user_profile) {
         console.log('Setting user from provided profile:', tokens.user_profile);
         setUser(tokens.user_profile);
-        return;
+        localStorage.setItem('user_profile', JSON.stringify(tokens.user_profile));
+        return tokens.user_profile;
       }
       
-      // Otherwise decode and set user from token
+      // For social login tokens, we need to fetch the user profile
+      console.log('🔍 Fetching user profile from token...');
       const decoded = jwtDecode(tokens.access_token);
-      console.log('Login successful, decoded token:', decoded);
+      console.log('Decoded token:', decoded);
       
-      // If we have user data in the token, use it
-      if (decoded.user_data) {
-        setUser(decoded.user_data);
-      } else {
-        // Try to get user profile from localStorage as a fallback
-        const storedProfile = localStorage.getItem('user_profile');
-        if (storedProfile) {
-          try {
-            const profile = JSON.parse(storedProfile);
-            setUser(profile);
-            console.log('User set from stored profile:', profile);
-            return;
-          } catch (e) {
-            console.warn('Failed to parse stored profile:', e);
-          }
+      // Try to fetch user profile immediately after login
+      let userProfile = null;
+      
+      if (decoded.email || decoded.user_id) {
+        try {
+          const endpoint = decoded.email 
+            ? `/api/v1/users/email/${decoded.email}/` 
+            : `/api/v1/users/${decoded.user_id}/`;
+            
+          console.log(`📡 Fetching user profile from ${endpoint}`);
+          const response = await api.get(endpoint);
+          userProfile = response.data;
+          
+          console.log('✅ User profile fetched:', userProfile);
+          setUser(userProfile);
+          localStorage.setItem('user_profile', JSON.stringify(userProfile));
+          
+          return userProfile;
+          
+        } catch (apiError) {
+          console.error("❌ Error fetching user profile:", apiError);
+          // Fall back to token data
         }
-        
-        // As a last resort, set minimal user info from token
-        setUser({
-          id: decoded.user_id,
-          email: decoded.email,
-          name: decoded.name || decoded.email
-        });
       }
+      
+      // If we have user data in the token, use it as fallback
+      if (decoded.user_data) {
+        userProfile = decoded.user_data;
+        setUser(userProfile);
+        localStorage.setItem('user_profile', JSON.stringify(userProfile));
+        return userProfile;
+      }
+      
+      // Try to get user profile from localStorage as a fallback
+      const storedProfile = localStorage.getItem('user_profile');
+      if (storedProfile) {
+        try {
+          const profile = JSON.parse(storedProfile);
+          setUser(profile);
+          console.log('📁 User set from stored profile:', profile);
+          return profile;
+        } catch (e) {
+          console.warn('Failed to parse stored profile:', e);
+        }
+      }
+      
+      // As a last resort, set minimal user info from token
+      userProfile = {
+        id: decoded.user_id,
+        email: decoded.email,
+        name: decoded.name || decoded.email,
+        role: decoded.role || 'Counselor'
+      };
+      
+      setUser(userProfile);
+      localStorage.setItem('user_profile', JSON.stringify(userProfile));
+      console.log('⚠️ Using minimal user profile from token:', userProfile);
+      
+      return userProfile;
+      
     } catch (error) {
-      console.error("Login error:", error);
-      // Even if localStorage fails, we can still set the user in memory
+      console.error("❌ Login error:", error);
+      
+      // Even if everything fails, try to set something from the token
       try {
         const decoded = jwtDecode(tokens.access_token);
-        setUser({
+        const fallbackUser = {
           id: decoded.user_id,
           email: decoded.email,
-          name: decoded.name || decoded.email
-        });
+          name: decoded.name || decoded.email,
+          role: decoded.role || 'Counselor'
+        };
+        setUser(fallbackUser);
+        localStorage.setItem('user_profile', JSON.stringify(fallbackUser));
+        return fallbackUser;
       } catch (decodeError) {
         console.error("Failed to decode token:", decodeError);
+        throw new Error('Failed to process login tokens');
       }
+    } finally {
+      setIsAuthenticating(false); // Clear authenticating state
     }
   };
 
@@ -180,6 +230,7 @@ export function AuthProvider({ children }) {
     user,
     setUser, // Expose setUser for direct profile updates
     loading,
+    isAuthenticating, // Expose the authenticating state
     error,
     login,
     logout,

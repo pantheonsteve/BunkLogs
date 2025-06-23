@@ -12,7 +12,7 @@ import api from '../api';
 
 function CounselorDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, loading: authLoading, isAuthenticating } = useAuth();
   const [counselorLogModalOpen, setCounselorLogModalOpen] = useState(false);
   const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
   const [selectedLogForView, setSelectedLogForView] = useState(null);
@@ -61,17 +61,27 @@ function CounselorDashboard() {
   // Fetch counselor logs data
   useEffect(() => {
     async function fetchCounselorLogs() {
-      if (!user?.id) return;
+      // Don't fetch if we're still authenticating or don't have a user ID
+      if (authLoading || isAuthenticating || !user?.id) {
+        console.log('⏳ Skipping data fetch - auth state:', { 
+          authLoading, 
+          isAuthenticating, 
+          hasUserId: !!user?.id 
+        });
+        return;
+      }
       
       try {
+        console.log('📡 Fetching counselor logs for user:', user.id);
         setLoading(true);
         setError(null);
         
         const response = await api.get('/api/v1/counselorlogs/');
         setCounselorLogs(response.data.results || []);
+        console.log('✅ Counselor logs loaded:', response.data.results?.length || 0, 'items');
         
       } catch (err) {
-        console.error('Error fetching counselor logs:', err);
+        console.error('❌ Error fetching counselor logs:', err);
         setError('Failed to load counselor logs');
       } finally {
         setLoading(false);
@@ -79,7 +89,7 @@ function CounselorDashboard() {
     }
     
     fetchCounselorLogs();
-  }, [user?.id, refreshTrigger]);
+  }, [user?.id, refreshTrigger, authLoading, isAuthenticating]);
 
   // Handle date change
   const handleDateChange = (newDate) => {
@@ -175,6 +185,31 @@ function CounselorDashboard() {
 
   // Check user roles
   const isCounselor = user?.role === 'Counselor';
+
+  // Show loading while authentication is completing
+  if (authLoading || isAuthenticating) {
+    return (
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+          <main className="grow">
+            <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white mt-4">
+                  Loading your dashboard...
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                  Please wait while we set up your profile.
+                </p>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   // Get formatted date for display and API calls
   const selected_date = selectedDate.toISOString().split('T')[0];
