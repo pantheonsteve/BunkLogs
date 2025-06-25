@@ -9,6 +9,16 @@ import api from '../../api'
 export default function SingleDatePicker({ className, date, setDate }) {
   const { user, token } = useAuth();
   
+  // Debug logging for component initialization
+  React.useEffect(() => {
+    console.log('🚀 SingleDatePicker initialized with user:', {
+      userId: user?.id,
+      userRole: user?.role,
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
+    });
+  }, []);
+  
   // Ensure the date is set to noon
   const normalizedDate = React.useMemo(() => {
     if (!date) return null;
@@ -44,27 +54,62 @@ export default function SingleDatePicker({ className, date, setDate }) {
         
         if (response.status === 200) {
           const data = response.data;
-          console.log('Assignment data:', data);
+          console.log('Assignment data received:', JSON.stringify(data, null, 2));
           
-          // Set the allowed date range based on the response
-          const rangeData = {
-            start_date: data.start_date,
-            end_date: data.end_date // Keep null if ongoing assignment
-          };
-          console.log('Setting allowed range:', rangeData);
-          setAllowedRange(rangeData);
+          // Validate that we have the required data
+          if (data && data.start_date) {
+            // Set the allowed date range based on the response
+            const rangeData = {
+              start_date: data.start_date,
+              end_date: data.end_date // Keep null if ongoing assignment
+            };
+            console.log('Setting allowed range:', JSON.stringify(rangeData, null, 2));
+            setAllowedRange(rangeData);
+          } else {
+            console.error('Invalid assignment data - missing start_date:', data);
+            // If data is invalid, use restrictive fallback
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const fallbackRange = {
+              start_date: todayStr,
+              end_date: null
+            };
+            console.log('Using fallback range:', fallbackRange);
+            setAllowedRange(fallbackRange);
+          }
         } else {
-          console.error('Failed to fetch assignment dates:', response.status, response.statusText);
+          console.error('Non-200 response:', response.status, response.statusText, response.data);
+          // Use restrictive fallback for non-200 responses
+          const today = new Date();
+          const todayStr = today.toISOString().split('T')[0];
+          setAllowedRange({
+            start_date: todayStr,
+            end_date: null
+          });
         }
       } catch (error) {
+        console.error('Error fetching date ranges:', error);
+        console.error('Error details:', {
+          message: error.message,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data
+        });
+        
         if (error.response?.status === 404) {
-          console.warn('No staff assignment found for user - allowing all dates');
-          // If user has no assignment, allow all dates (fallback for admin/staff)
+          console.warn('No staff assignment found for user - this might be an admin or user without assignment');
+          // For 404, allow all dates (user might be admin or not have assignment)
           setAllowedRange(null);
         } else {
-          console.error('Error fetching date ranges:', error);
-          // On error, allow all dates as fallback
-          setAllowedRange(null);
+          console.error('API call failed - setting restrictive fallback');
+          // For other errors (network, auth, etc.), be restrictive
+          // Set a very restrictive range that only allows today and future dates
+          const today = new Date();
+          const todayStr = today.toISOString().split('T')[0];
+          setAllowedRange({
+            start_date: todayStr,
+            end_date: null // Allow future dates
+          });
         }
       }
     }
@@ -73,16 +118,26 @@ export default function SingleDatePicker({ className, date, setDate }) {
   }, [user, token]);
 
   const isDateDisabled = (date) => {
-    console.log('isDateDisabled called with:', date, 'allowedRange:', allowedRange);
+    console.log('🗓️ isDateDisabled called with:', {
+      date: date,
+      dateString: date?.toString(),
+      allowedRange: allowedRange
+    });
     
     // If no allowed range is set, allow all dates (fallback for admin/staff or error cases)
     if (!allowedRange) {
-      console.log('No allowed range, allowing all dates');
+      console.log('❌ No allowed range set - allowing all dates');
+      return false;
+    }
+    
+    if (!allowedRange.start_date) {
+      console.log('❌ No start_date in allowed range - allowing all dates');
       return false;
     }
     
     // Parse the start date from the string format "YYYY-MM-DD"
     const startDateStr = allowedRange.start_date;
+    console.log('📅 Parsing start date:', startDateStr);
     const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
     const startDate = new Date(startYear, startMonth - 1, startDay); // Month is 0-indexed
     
@@ -110,13 +165,13 @@ export default function SingleDatePicker({ className, date, setDate }) {
     const afterEndDate = normalizedEndDate ? normalizedCheckDate > normalizedEndDate : false;
     const isDisabled = beforeStartDate || afterEndDate;
     
-    console.log('Date check:', {
+    console.log('🔍 Date comparison result:', {
       checkDate: normalizedCheckDate.toDateString(),
       startDate: normalizedStartDate.toDateString(),
       endDate: normalizedEndDate ? normalizedEndDate.toDateString() : 'null (ongoing)',
       beforeStartDate,
       afterEndDate,
-      isDisabled
+      isDisabled: isDisabled ? '❌ DISABLED' : '✅ ENABLED'
     });
     
     return isDisabled;
