@@ -3,8 +3,11 @@ import { format } from "date-fns"
 import { cn } from "../../lib/utils"
 import { Calendar } from "./calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
+import { useAuth } from '../../auth/AuthContext'
 
 export default function SingleDatePicker({ className, date, setDate }) {
+  const { user, token } = useAuth();
+  
   // Ensure the date is set to noon
   const normalizedDate = React.useMemo(() => {
     if (!date) return null;
@@ -12,6 +15,106 @@ export default function SingleDatePicker({ className, date, setDate }) {
     d.setHours(12, 0, 0, 0);
     return d;
   }, [date]);
+
+  const [allowedRange, setAllowedRange] = React.useState(null);
+
+  React.useEffect(() => {
+    async function fetchDateRanges() {
+      try {
+        if (!user?.id) {
+          console.warn('No user ID available');
+          return;
+        }
+
+        if (!token) {
+          console.warn('No access token available');
+          return;
+        }
+
+        const response = await fetch(`/api/v1/unit-staff-assignments/${user.id}/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Assignment data:', data);
+          
+          // Set the allowed date range based on the response
+          const rangeData = {
+            start_date: data.start_date,
+            end_date: data.end_date // Keep null if ongoing assignment
+          };
+          console.log('Setting allowed range:', rangeData);
+          setAllowedRange(rangeData);
+        } else if (response.status === 404) {
+          console.warn('No staff assignment found for user - allowing all dates');
+          // If user has no assignment, allow all dates (fallback for admin/staff)
+          setAllowedRange(null);
+        } else {
+          console.error('Failed to fetch assignment dates:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.error('Error fetching date ranges:', error);
+        // On error, allow all dates as fallback
+        setAllowedRange(null);
+      }
+    }
+
+    fetchDateRanges();
+  }, [user, token]);
+
+  const isDateDisabled = (date) => {
+    console.log('isDateDisabled called with:', date, 'allowedRange:', allowedRange);
+    
+    // If no allowed range is set, allow all dates (fallback for admin/staff or error cases)
+    if (!allowedRange) {
+      console.log('No allowed range, allowing all dates');
+      return false;
+    }
+    
+    // Parse the start date from the string format "YYYY-MM-DD"
+    const startDateStr = allowedRange.start_date;
+    const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+    const startDate = new Date(startYear, startMonth - 1, startDay); // Month is 0-indexed
+    
+    // Parse the end date if it exists
+    let endDate = null;
+    if (allowedRange.end_date) {
+      const endDateStr = allowedRange.end_date;
+      const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+      endDate = new Date(endYear, endMonth - 1, endDay); // Month is 0-indexed
+    }
+    
+    // Get the date being checked in the same format
+    const checkDate = new Date(date);
+    const checkYear = checkDate.getFullYear();
+    const checkMonth = checkDate.getMonth();
+    const checkDay = checkDate.getDate();
+    const normalizedCheckDate = new Date(checkYear, checkMonth, checkDay);
+    
+    // Normalize start and end dates for comparison
+    const normalizedStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const normalizedEndDate = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null;
+    
+    // Disable dates OUTSIDE the allowed range
+    const beforeStartDate = normalizedCheckDate < normalizedStartDate;
+    const afterEndDate = normalizedEndDate ? normalizedCheckDate > normalizedEndDate : false;
+    const isDisabled = beforeStartDate || afterEndDate;
+    
+    console.log('Date check:', {
+      checkDate: normalizedCheckDate.toDateString(),
+      startDate: normalizedStartDate.toDateString(),
+      endDate: normalizedEndDate ? normalizedEndDate.toDateString() : 'null (ongoing)',
+      beforeStartDate,
+      afterEndDate,
+      isDisabled
+    });
+    
+    return isDisabled;
+  };
 
   return (
     <div className={cn("grid gap-2", className)}>
@@ -35,15 +138,12 @@ export default function SingleDatePicker({ className, date, setDate }) {
           <Calendar
             mode="single"
             selected={normalizedDate}
+            disabled={isDateDisabled}
             onSelect={(selectedDate) => {
               if (selectedDate) {
-                // Ensure new selections are also set to noon
                 const newDate = new Date(selectedDate);
-                console.log('New Date', JSON.stringify(newDate));
                 newDate.setHours(12, 0, 0, 0);
-                // Save in local storage first
                 localStorage.setItem('selectedDate', JSON.stringify(newDate));
-                // Then set the date
                 setDate(newDate);
               } else {
                 localStorage.setItem('selectedDate', JSON.stringify(selectedDate));

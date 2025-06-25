@@ -32,9 +32,18 @@ function UnitHeadBunkGrid({ selectedDate }) {
           dateToUse = new Date().toISOString().split('T')[0];
         }
         
-        console.log(`[UnitHeadBunkGrid] Fetching data for date: ${dateToUse}`);
         const response = await api.get(`/api/v1/unithead/${user.id}/${dateToUse}/`);
-        setUnitData(response.data);
+        
+        
+        // The API returns an array of units, we need the first unit
+        let data = null;
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          data = response.data[0];
+        } else if (!Array.isArray(response.data)) {
+          data = response.data;
+        }
+        
+        setUnitData(data);
         setError(null);
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to fetch unit data');
@@ -85,7 +94,7 @@ function UnitHeadBunkGrid({ selectedDate }) {
   }
 
   // No data state
-  if (!unitData || !unitData.bunks || unitData.bunks.length === 0) {
+  if (!unitData || !unitData.bunks || !Array.isArray(unitData.bunks) || unitData.bunks.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="text-center max-w-md mx-auto">
@@ -96,7 +105,7 @@ function UnitHeadBunkGrid({ selectedDate }) {
             No bunks found
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            There are no bunks assigned to your unit yet.
+            {!unitData ? 'No unit data available.' : 'There are no bunks assigned to your unit yet.'}
           </p>
         </div>
       </div>

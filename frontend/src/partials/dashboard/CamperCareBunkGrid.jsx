@@ -34,7 +34,28 @@ function CamperCareBunkGrid({ selectedDate }) {
         
         console.log(`[CamperCareBunkGrid] Fetching data for date: ${dateToUse}`);
         const response = await api.get(`/api/v1/campercare/${user.id}/${dateToUse}/`);
-        setUnitData(response.data);
+        console.log('[CamperCareBunkGrid] API response:', response.data);
+        
+        // The API returns an array of units, but camper care typically manages one unit
+        const units = response.data;
+        if (units && units.length > 0) {
+          // Use the first unit (or combine multiple units if needed)
+          const primaryUnit = units[0];
+          
+          // If there are multiple units, combine their bunks
+          if (units.length > 1) {
+            const allBunks = units.flatMap(unit => unit.bunks || []);
+            setUnitData({
+              ...primaryUnit,
+              name: units.length > 1 ? `${primaryUnit.name} (+${units.length - 1} more)` : primaryUnit.name,
+              bunks: allBunks
+            });
+          } else {
+            setUnitData(primaryUnit);
+          }
+        } else {
+          setUnitData({ name: 'No Units', bunks: [] });
+        }
         setError(null);
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to fetch unit data');

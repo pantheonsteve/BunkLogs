@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CamperList Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>Testing CamperList Fix</h1>
+    
+    <div class="test-section info">
+        <h2>Test Plan</h2>
+        <ol>
+            <li>Open the BunkLogs application in the browser</li>
+            <li>Login as a Unit Head or Camper Care user</li>
+            <li>Navigate to a bunk dashboard</li>
+            <li>Verify that camper list loads without errors</li>
+            <li>Check that the "view-only access" indicator is shown</li>
+            <li>Verify that users cannot edit bunk logs</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>Manual Test Instructions</h2>
+        <p><strong>1. Open the application:</strong></p>
+        <p>Go to <a href="http://localhost:5173" target="_blank">http://localhost:5173</a></p>
+        
+        <p><strong>2. Login as Unit Head:</strong></p>
+        <p>Email: uh1@clc.org</p>
+        <p>Password: [Use the test password]</p>
+        
+        <p><strong>3. Navigate to a bunk:</strong></p>
+        <p>Look for a bunk in the Unit Head's units (e.g., Bunk 61)</p>
+        
+        <p><strong>4. Expected Behavior:</strong></p>
+        <ul>
+            <li>✅ Camper list should load without error messages</li>
+            <li>✅ Should show "👁️ View-only access" indicator</li>
+            <li>✅ Should show camper names and their log status</li>
+            <li>✅ Clicking on campers should show "View only" tooltip</li>
+            <li>✅ No 403 errors in browser console for current date</li>
+        </ul>
+        
+        <p><strong>5. Browser Console Check:</strong></p>
+        <p>Open browser dev tools (F12) and check the Console tab for:</p>
+        <ul>
+            <li>❌ No 403 Forbidden errors for today's date</li>
+            <li>❌ No "Error fetching campers" messages</li>
+            <li>✅ Should see successful API responses (200 status)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>Backend Log Analysis</h2>
+        <p>The backend logs should show:</p>
+        <ul>
+            <li>✅ Successful GET requests to bunklogs API for today's date (200 status)</li>
+            <li>❌ No 403 errors for valid date requests</li>
+            <li>ℹ️ Any 403 errors should only be for old/invalid dates (not today)</li>
+        </ul>
+    </div>
+
+    <script>
+        // Check if we can access the current date and format it correctly
+        const today = new Date().toISOString().split('T')[0];
+        console.log('Today\'s date for testing:', today);
+        
+        // Add current date to the page
+        const dateInfo = document.createElement('div');
+        dateInfo.className = 'test-section info';
+        dateInfo.innerHTML = `<h3>Current Test Date</h3><p>Today's date: <strong>${today}</strong></p><p>This is the date that should work without errors.</p>`;
+        document.body.appendChild(dateInfo);
+    </script>
+</body>
+</html>

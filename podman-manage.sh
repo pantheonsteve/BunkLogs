@@ -106,6 +106,18 @@ else:
         "
         ;;
     
+    "test-staff-assignment")
+        echo "🧪 Testing staff assignment endpoint..."
+        shift # Remove the command name
+        podman exec -it bunk_logs_local_django python manage.py test_staff_assignment_endpoint "$@"
+        ;;
+    
+    "test-campercare")
+        echo "🧪 Testing camper care endpoint..."
+        shift # Remove the command name
+        podman exec -it bunk_logs_local_django python manage.py test_campercare_endpoint "$@"
+        ;;
+    
     "psql")
         echo "🗄️  Opening PostgreSQL shell..."
         podman exec -it bunk_logs_local_postgres psql -U postgres -d bunk_logs
@@ -173,6 +185,8 @@ else:
         echo "  createsuperuser    Create Django superuser"
         echo "  collectstatic      Collect static files"
         echo "  test-counselor-log Test CounselorLog model"
+        echo "  test-staff-assignment Test staff assignment endpoint"
+        echo "  test-campercare    Test camper care endpoint"
         echo "  psql               Open PostgreSQL shell"
         echo "  redis-cli          Open Redis CLI"
         echo "  status             Show service status"

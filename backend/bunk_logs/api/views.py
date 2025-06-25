@@ -3,7 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
@@ -328,19 +328,79 @@ class BunkLogsInfoByDateViewSet(APIView):
         
         # Admin/staff can access all bunks
         if not (user.is_staff or user.role == 'Admin'):
-            # Unit heads can access bunks in their units
+            from bunk_logs.bunks.models import UnitStaffAssignment
+            from django.utils import timezone
+            from datetime import datetime
+            
+            # Parse the date for permission checks
+            try:
+                query_date = datetime.strptime(date, "%Y-%m-%d").date()
+            except Exception:
+                return Response({"error": "Invalid date format"}, status=400)
+            
+            # Unit heads can access bunks in their units (via UnitStaffAssignment)
             if user.role == 'Unit Head':
-                if not Bunk.objects.filter(id=bunk_id, unit__unit_head=user).exists():
+                # Check if user has unit head assignment for this bunk's unit on the given date
+                unit_head_assignments = UnitStaffAssignment.objects.filter(
+                    staff_member=user,
+                    role='unit_head',
+                    start_date__lte=query_date,
+                ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+                
+                # Check if any of these assignments are for units containing this bunk
+                has_access = False
+                for assignment in unit_head_assignments:
+                    if Bunk.objects.filter(id=bunk_id, unit=assignment.unit).exists():
+                        has_access = True
+                        break
+                
+                # Fallback to legacy unit_head field if no staff assignments found
+                if not has_access:
+                    has_access = Bunk.objects.filter(id=bunk_id, unit__unit_head=user).exists()
+                
+                if not has_access:
+                    logger.warning(
+                        f"403 Forbidden: User {user.id} ({user.role}) attempted to access bunk {bunk_id} on {query_date}, but lacks permissions."
+                    )
                     return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
-            # Camper care can access bunks in their assigned units
+                    
+            # Camper care can access bunks in their assigned units (via UnitStaffAssignment)
             elif user.role == 'Camper Care':
-                if not Bunk.objects.filter(id=bunk_id, unit__camper_care=user).exists():
+                # Check if user has camper care assignment for this bunk's unit on the given date
+                camper_care_assignments = UnitStaffAssignment.objects.filter(
+                    staff_member=user,
+                    role='camper_care',
+                    start_date__lte=query_date,
+                ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+                
+                # Check if any of these assignments are for units containing this bunk
+                has_access = False
+                for assignment in camper_care_assignments:
+                    if Bunk.objects.filter(id=bunk_id, unit=assignment.unit).exists():
+                        has_access = True
+                        break
+                
+                # Fallback to legacy camper_care field if no staff assignments found
+                if not has_access:
+                    has_access = Bunk.objects.filter(id=bunk_id, unit__camper_care=user).exists()
+                
+                if not has_access:
+                    logger.warning(
+                        f"403 Forbidden: User {user.id} ({user.role}) attempted to access bunk {bunk_id} on {query_date}, but lacks permissions."
+                    )
                     return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
+                    
             # Counselors can only access their assigned bunks
             elif user.role == 'Counselor':
                 if not Bunk.objects.filter(id=bunk_id, counselors__id=user.id).exists():
+                    logger.warning(
+                        f"403 Forbidden: User {user.id} ({user.role}) attempted to access bunk {bunk_id} on {query_date}, but lacks permissions."
+                    )
                     return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
             else:
+                logger.warning(
+                    f"403 Forbidden: User {user.id} ({user.role}) attempted to access bunk {bunk_id} on {query_date}, but lacks permissions."
+                )
                 return Response({"error": "You are not authorized to access this bunk's data"}, status=403)
         
         try:
@@ -401,7 +461,10 @@ class BunkLogsInfoByDateViewSet(APIView):
         except Bunk.DoesNotExist:
             return Response({"error": f"Bunk with ID {bunk_id} not found"}, status=404)
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in BunkLogsInfoByDateViewSet for bunk {bunk_id}, date {date}, user {user.email}: {str(e)}")
+            return Response({"error": f"Internal server error: {str(e)}"}, status=500)
 
 class UnitViewSet(viewsets.ModelViewSet):
     renderer_classes = [JSONRenderer]
@@ -469,41 +532,53 @@ class UnitStaffAssignmentViewSet(viewsets.ModelViewSet):
     ViewSet for UnitStaffAssignment model.
     - GET /api/unit-staff-assignments/ - List all assignments
     - POST /api/unit-staff-assignments/ - Create new assignment
-    - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment
+    - GET /api/unit-staff-assignments/{id}/ - Retrieve specific assignment by staff_member's user_id
     - PUT /api/unit-staff-assignments/{id}/ - Update assignment
     - DELETE /api/unit-staff-assignments/{id}/ - Delete assignment
     """
     queryset = UnitStaffAssignment.objects.all().select_related('unit', 'staff_member')
     serializer_class = UnitStaffAssignmentSerializer
     permission_classes = [IsAuthenticated]
+    lookup_field = 'staff_member__id'  # Use staff_member's user_id as the lookup field
 
     def get_queryset(self):
         """Filter assignments based on query parameters."""
         queryset = super().get_queryset()
-        
+
         # Filter by unit
         unit_id = self.request.query_params.get('unit', None)
         if unit_id:
             queryset = queryset.filter(unit_id=unit_id)
-        
+
         # Filter by role
         role = self.request.query_params.get('role', None)
         if role:
             queryset = queryset.filter(role=role)
-        
+
         # Filter by active assignments (no end date)
         active_only = self.request.query_params.get('active_only', None)
         if active_only == 'true':
             queryset = queryset.filter(end_date__isnull=True)
-        
+
         return queryset
+
+    def get_object(self):
+        """Retrieve a specific assignment by staff_member's user_id."""
+        user_id = self.kwargs.get(self.lookup_field)
+        try:
+            return self.queryset.get(staff_member__id=user_id)
+        except UnitStaffAssignment.DoesNotExist:
+            raise Http404("UnitStaffAssignment matching query does not exist.")
+        except UnitStaffAssignment.MultipleObjectsReturned:
+            # Handle multiple assignments by returning the latest one
+            return self.queryset.filter(staff_member__id=user_id).order_by('-start_date').first()
 
     def perform_create(self, serializer):
         """Handle assignment creation with business logic."""
         is_primary = serializer.validated_data.get('is_primary', False)
         unit = serializer.validated_data.get('unit')
         role = serializer.validated_data.get('role')
-        
+
         # If setting as primary, unset other primary assignments for this role
         if is_primary:
             UnitStaffAssignment.objects.filter(
@@ -511,14 +586,14 @@ class UnitStaffAssignmentViewSet(viewsets.ModelViewSet):
                 role=role, 
                 is_primary=True
             ).update(is_primary=False)
-        
+
         serializer.save()
 
     def perform_update(self, serializer):
         """Handle assignment updates with business logic."""
         is_primary = serializer.validated_data.get('is_primary', False)
         instance = self.get_object()
-        
+
         # If setting as primary, unset other primary assignments for this role
         if is_primary:
             UnitStaffAssignment.objects.filter(
@@ -526,20 +601,170 @@ class UnitStaffAssignmentViewSet(viewsets.ModelViewSet):
                 role=instance.role, 
                 is_primary=True
             ).exclude(id=instance.id).update(is_primary=False)
-        
+
         serializer.save()
 
 class CamperViewSet(viewsets.ModelViewSet):
     renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     queryset = Camper.objects.all()
     serializer_class = CamperSerializer
+    
+    def get_queryset(self):
+        """Filter campers based on user role and permissions."""
+        user = self.request.user
+        
+        # Admin/staff can see all campers
+        if user.is_staff or user.role == 'Admin':
+            return Camper.objects.all()
+        
+        # Unit heads can see campers in their units
+        if user.role == 'Unit Head':
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.managed_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as unit_head
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
+            return Camper.objects.filter(
+                camper_bunk_assignments__bunk__unit_id__in=set(unit_ids),
+                camper_bunk_assignments__is_active=True
+            ).distinct()
+        
+        # Camper care can see campers in their assigned units
+        if user.role == 'Camper Care':
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as camper_care
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
+            return Camper.objects.filter(
+                camper_bunk_assignments__bunk__unit_id__in=set(unit_ids),
+                camper_bunk_assignments__is_active=True
+            ).distinct()
+        
+        # Counselors can see campers in their bunks
+        if user.role == 'Counselor':
+            return Camper.objects.filter(
+                camper_bunk_assignments__bunk__in=user.assigned_bunks.all(),
+                camper_bunk_assignments__is_active=True
+            ).distinct()
+        
+        # Default: see nothing
+        return Camper.objects.none()
+    
+    def perform_create(self, serializer):
+        """Only staff can create campers."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can create campers.")
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Only staff can update campers."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can update campers.")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Only staff can delete campers."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can delete campers.")
+        instance.delete()
+
 
 class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
     renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     queryset = CamperBunkAssignment.objects.all()
     serializer_class = CamperBunkAssignmentSerializer
+    
+    def get_queryset(self):
+        """Filter assignments based on user role and permissions."""
+        user = self.request.user
+        
+        # Admin/staff can see all assignments
+        if user.is_staff or user.role == 'Admin':
+            return CamperBunkAssignment.objects.all()
+        
+        # Unit heads can see assignments in their units
+        if user.role == 'Unit Head':
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.managed_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as unit_head
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
+            return CamperBunkAssignment.objects.filter(
+                bunk__unit_id__in=set(unit_ids)
+            )
+        
+        # Camper care can see assignments in their assigned units
+        if user.role == 'Camper Care':
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as camper_care
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).values_list('unit_id', flat=True)
+            unit_ids.extend(unit_assignments)
+            
+            return CamperBunkAssignment.objects.filter(
+                bunk__unit_id__in=set(unit_ids)
+            )
+        
+        # Counselors can see assignments in their bunks
+        if user.role == 'Counselor':
+            return CamperBunkAssignment.objects.filter(
+                bunk__in=user.assigned_bunks.all()
+            )
+        
+        # Default: see nothing
+        return CamperBunkAssignment.objects.none()
+    
+    def perform_create(self, serializer):
+        """Only staff can create assignments."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can create camper bunk assignments.")
+        serializer.save()
+    
+    def perform_update(self, serializer):
+        """Only staff can update assignments."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can update camper bunk assignments.")
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Only staff can delete assignments."""
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff members can delete camper bunk assignments.")
+        instance.delete()
 
 class BunkLogViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -901,7 +1126,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             log_created_date = instance.created_at.date() if instance.created_at else instance.date
             
             if today != log_created_date:
-                raise PermissionDenied("You can only edit counselor logs on the day they were created.")
+                raise PermissionDenied("You can only update counselor logs on the day they were created.")
             
             # Don't allow changing the counselor field during update
             if 'counselor' in serializer.validated_data:
@@ -915,13 +1140,75 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
 
 class CamperBunkLogViewSet(APIView):
     renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     queryset = BunkLog.objects.all()
     serializer_class = BunkLogSerializer
+    
     def get(self, request, camper_id):
+        user = request.user
+        
         try:
             # Get the camper
             camper = Camper.objects.get(id=camper_id)
+            
+            # Check permissions
+            # Admin/staff can see all camper logs
+            if not (user.is_staff or user.role == 'Admin'):
+                # Get camper's current bunk assignments
+                current_assignments = CamperBunkAssignment.objects.filter(
+                    camper=camper, 
+                    is_active=True
+                )
+                
+                has_access = False
+                
+                # Unit heads can see logs for campers in their units
+                if user.role == 'Unit Head':
+                    from django.utils import timezone
+                    unit_ids = []
+                    # Legacy approach
+                    unit_ids.extend(user.managed_units.values_list('id', flat=True))
+                    # New approach - get units where user is assigned as unit_head
+                    unit_assignments = UnitStaffAssignment.objects.filter(
+                        staff_member=user,
+                        role='unit_head',
+                        start_date__lte=timezone.now().date(),
+                        end_date__isnull=True
+                    ).values_list('unit_id', flat=True)
+                    unit_ids.extend(unit_assignments)
+                    
+                    has_access = current_assignments.filter(
+                        bunk__unit_id__in=set(unit_ids)
+                    ).exists()
+                
+                # Camper care can see logs for campers in their assigned units
+                elif user.role == 'Camper Care':
+                    from django.utils import timezone
+                    unit_ids = []
+                    # Legacy approach
+                    unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+                    # New approach - get units where user is assigned as camper_care
+                    unit_assignments = UnitStaffAssignment.objects.filter(
+                        staff_member=user,
+                        role='camper_care',
+                        start_date__lte=timezone.now().date(),
+                        end_date__isnull=True
+                    ).values_list('unit_id', flat=True)
+                    unit_ids.extend(unit_assignments)
+                    
+                    has_access = current_assignments.filter(
+                        bunk__unit_id__in=set(unit_ids)
+                    ).exists()
+                
+                # Counselors can see logs for campers in their bunks
+                elif user.role == 'Counselor':
+                    has_access = current_assignments.filter(
+                        bunk__in=user.assigned_bunks.all()
+                    ).exists()
+                
+                if not has_access:
+                    return Response({"error": "You are not authorized to access this camper's data"}, status=403)
+            
             serialized_camper = CamperSerializer(camper).data
             # Get the bunk assignments for this camper
             assignments = CamperBunkAssignment.objects.filter(camper=camper)
@@ -949,6 +1236,8 @@ class CamperBunkLogViewSet(APIView):
             return Response(response_data)
         except Camper.DoesNotExist:
             return Response({"error": f"Camper with ID {camper_id} not found"}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
 
 
 # Order-related API Views
