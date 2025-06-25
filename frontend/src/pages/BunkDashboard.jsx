@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import api from '../api';
 import { useBunk } from '../contexts/BunkContext';
 import { saveSelectedDate, getSelectedDate } from '../utils/stateUtils';
 import { useAuth } from '../auth/AuthContext';
@@ -110,14 +111,81 @@ function BunkDashboard() {
     }
   }, [date]);
 
+  // State for assignment-based date validation
+  const [assignmentDateRange, setAssignmentDateRange] = React.useState(null);
+
+  // Fetch assignment date range for validation
+  React.useEffect(() => {
+    async function fetchAssignmentRange() {
+      if (!user?.id || !token) return;
+      
+      try {
+        const response = await api.get(`/api/v1/unit-staff-assignments/${user.id}/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.status === 200) {
+          const data = response.data;
+          setAssignmentDateRange({
+            start_date: data.start_date,
+            end_date: data.end_date
+          });
+          console.log('[BunkDashboard] Assignment date range loaded:', data.start_date, 'to', data.end_date || 'ongoing');
+        }
+      } catch (error) {
+        console.warn('[BunkDashboard] Could not fetch assignment dates:', error);
+        // Allow all dates if assignment fetch fails
+        setAssignmentDateRange(null);
+      }
+    }
+    
+    fetchAssignmentRange();
+  }, [user?.id, token]);
+
   const validateDate = (date) => {
-    const today = new Date();
-    const minDate = new Date();
-    minDate.setDate(today.getDate() - 30); // Allow access to the last 30 days
-
-    const maxDate = today; // No future dates allowed
-
-    return date >= minDate && date <= maxDate;
+    if (!date || !date.getTime()) {
+      return false;
+    }
+    
+    // If no assignment range loaded, allow the date (fallback behavior)
+    if (!assignmentDateRange || !assignmentDateRange.start_date) {
+      return true;
+    }
+    
+    // Use the same date validation logic as SingleDatePicker
+    const startDateStr = assignmentDateRange.start_date;
+    const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+    const startDate = new Date(startYear, startMonth - 1, startDay);
+    
+    let endDate = null;
+    if (assignmentDateRange.end_date) {
+      const endDateStr = assignmentDateRange.end_date;
+      const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+      endDate = new Date(endYear, endMonth - 1, endDay);
+    }
+    
+    // Normalize dates for comparison
+    const checkDate = new Date(date);
+    const normalizedCheckDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+    const normalizedStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const normalizedEndDate = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null;
+    
+    // Check if date is within assignment range
+    const beforeStartDate = normalizedCheckDate < normalizedStartDate;
+    const afterEndDate = normalizedEndDate ? normalizedCheckDate > normalizedEndDate : false;
+    const isValid = !beforeStartDate && !afterEndDate;
+    
+    console.log('[BunkDashboard] Date validation:', {
+      date: normalizedCheckDate.toDateString(),
+      startDate: normalizedStartDate.toDateString(),
+      endDate: normalizedEndDate ? normalizedEndDate.toDateString() : 'ongoing',
+      isValid: isValid ? '✅ VALID' : '❌ INVALID'
+    });
+    
+    return isValid;
   };
 
   const handleDateChange = React.useCallback((newDate) => {
@@ -129,9 +197,11 @@ function BunkDashboard() {
 
     if (!validateDate(newDate)) {
       console.warn('[BunkDashboard] Date out of range:', newDate);
+      const startDate = assignmentDateRange?.start_date || 'unknown';
+      const endDate = assignmentDateRange?.end_date || 'ongoing';
       setError({
-        message: 'Invalid Date',
-        details: 'You can only access data for the last 30 days.',
+        message: 'Date Outside Assignment Period',
+        details: `You can only access data from ${startDate} to ${endDate}. Please select a date within your assignment period.`,
         code: 400,
       });
       return;
