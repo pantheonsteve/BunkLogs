@@ -27,12 +27,25 @@ The URL of your backend deployed on Render.com (e.g., `https://your-app-name.onr
 ### 3. GOOGLE_CLIENT_ID
 Your Google OAuth client ID for authentication.
 
+### 4. Datadog RUM Configuration Secrets
+**IMPORTANT**: Add these secrets for Datadog RUM to work in production:
+
+- **VITE_DATADOG_APPLICATION_ID**: `06f040c0-8a9c-4ca0-865c-9ad82ae138a0`
+- **VITE_DATADOG_CLIENT_TOKEN**: `pub61357afeab81d99906c5d9ddf48dfaf5`
+- **VITE_DATADOG_SITE**: `datadoghq.com` (optional, defaults to this)
+- **VITE_DATADOG_ENV**: `production` (optional, defaults to this)
+- **VITE_DATADOG_SERVICE**: `bunklogs-frontend` (optional, defaults to this)
+- **VITE_DATADOG_VERSION**: `1.0.0` (optional, defaults to this)
+- **VITE_DATADOG_FORCE_ENABLE**: `true` (optional, for testing)
+
 ## Setting Up GitHub Secrets
 
 1. Go to your GitHub repository
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
 4. Add each secret with the exact names listed above
+
+**⚠️ CRITICAL**: Make sure to add **ALL** the Datadog secrets above, or RUM will not work in production!
 
 ## Deployment Process
 
