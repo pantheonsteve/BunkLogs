@@ -110,10 +110,30 @@ function BunkDashboard() {
     }
   }, [date]);
 
+  const validateDate = (date) => {
+    const today = new Date();
+    const minDate = new Date();
+    minDate.setDate(today.getDate() - 30); // Allow access to the last 30 days
+
+    const maxDate = today; // No future dates allowed
+
+    return date >= minDate && date <= maxDate;
+  };
+
   const handleDateChange = React.useCallback((newDate) => {
     // Ensure a clean, new date object is set
     if (!newDate || !new Date(newDate).getTime()) {
       console.log('[BunkDashboard] Invalid date provided to handleDateChange');
+      return;
+    }
+
+    if (!validateDate(newDate)) {
+      console.warn('[BunkDashboard] Date out of range:', newDate);
+      setError({
+        message: 'Invalid Date',
+        details: 'You can only access data for the last 30 days.',
+        code: 400,
+      });
       return;
     }
 
@@ -259,7 +279,7 @@ function BunkDashboard() {
   const cabin_name = data?.bunk?.cabin?.name || "Bunk X"; // Default if cabin_name is not available
   const session_name = data?.bunk?.session?.name || "Session X"; // Default if session_name is not available
   const bunk_label = `${cabin_name}`;
-  const selected_date = data?.date || "2025-01-01"; // Format date as YYYY-MM-DD
+  const selected_date = data?.date || new Date().toISOString().split('T')[0]; // Format date as YYYY-MM-DD, default to today
   
   console.log(`[BunkDashboard] Rendering with bunk label: "${bunk_label}", date: ${selected_date}`);
   

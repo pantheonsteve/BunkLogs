@@ -9,6 +9,7 @@ import CamperDashboard from './pages/CamperDashboard';
 import CounselorDashboard from './pages/CounselorDashboard';
 import UnitHeadDashboard from './pages/UnitHeadDashboard';
 import CamperCareDashboard from './pages/CamperCareDashboard';
+import DatePickerTest from './pages/DatePickerTest';
 import AuthCallback from './pages/AuthCallback';
 import CallbackPage from './pages/CallbackPage';
 import ResetPassword from './pages/ResetPassword';
@@ -201,7 +202,7 @@ function Router() {
           } 
         />
 
-        
+        <Route path="/test-datepicker" element={<DatePickerTest />} />
         
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" />} />

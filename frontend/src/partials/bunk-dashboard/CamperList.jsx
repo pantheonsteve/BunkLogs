@@ -18,20 +18,48 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
         const fetchData = async () => {
             try {
                 setLoading(true);
+                setError(null); // Clear any previous errors
                 console.log(`[CamperList] Fetching data for bunk ${bunk_id}, date ${date}, refreshTrigger ${refreshTrigger}`);
+                console.log(`[CamperList] User role: ${userRole}`);
                 const response = await api.get(
                     `/api/v1/bunklogs/${bunk_id}/logs/${date}/`
                 );
                 console.log(`[CamperList] Data fetched:`, response.data.campers);
-                setData(response.data.campers);
+                console.log(`[CamperList] Response status:`, response.status);
+                
+                if (response.data && response.data.campers) {
+                    setData(response.data.campers);
+                    setError(null); // Ensure error is cleared on successful fetch
+                    console.log(`[CamperList] Successfully set ${response.data.campers.length} campers`);
+                } else {
+                    console.warn(`[CamperList] No campers data in response:`, response.data);
+                    setData([]);
+                    setError(null); // Clear error even if no data
+                }
             } catch (error) {
                 console.error('Error fetching campers:', error);
-                setError('Error fetching campers.');
+                console.error('Error details:', error.response?.data || error.message);
+                setError(`Error fetching campers: ${error.response?.data?.error || error.message}`);
+                setData([]); // Clear data on error
             } finally {
                 setLoading(false);
             }
         };
-        fetchData();
+        
+        // Don't fetch data for invalid/default dates
+        if (bunk_id && date && date !== "2025-01-01") {
+            fetchData();
+        } else if (date === "2025-01-01") {
+            console.warn(`[CamperList] Skipping fetch for default fallback date: ${date}`);
+            setLoading(false);
+            setError(null);
+            setData([]);
+        } else {
+            console.warn(`[CamperList] Missing required props - bunk_id: ${bunk_id}, date: ${date}`);
+            setLoading(false);
+            setError(null);
+            setData([]);
+        }
     }, [bunk_id, date, refreshTrigger]);
 
     // Filter campers based on log status
@@ -45,25 +73,32 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
     const completedCount = data.filter(camper => camper.bunk_log).length;
     const pendingCount = data.filter(camper => !camper.bunk_log).length;
 
+    // Debug logging (can be removed in production)
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[CamperList] Render - Total data: ${data.length}, Filtered: ${filteredData.length}, Filter: ${filterStatus}`);
+        console.log(`[CamperList] Render - User role: ${userRole}, Can edit: ${canEdit}`);
+    }
+
     // Loading state
     if (loading) {
         return (
             <div className="p-4">
                 <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                    <span className="ml-2 text-sm text-gray-500">Loading...</span>
+                    <span className="ml-2 text-sm text-gray-500">Loading campers...</span>
                 </div>
             </div>
         );
     }
 
-    // Error state
-    if (error) {
+    // Error state - only show if there's actually an error and no data
+    if (error && data.length === 0) {
         return (
             <div className="p-4">
-                <div className="flex items-center justify-center py-8 text-red-500">
-                    <AlertTriangle className="w-5 h-5" />
-                    <span className="ml-2 text-sm">Failed to load</span>
+                <div className="flex flex-col items-center justify-center py-8 text-red-500">
+                    <AlertTriangle className="w-5 h-5 mb-2" />
+                    <span className="text-sm font-medium">Failed to load</span>
+                    <span className="text-xs text-gray-500 mt-1 text-center">{error}</span>
                 </div>
             </div>
         );
@@ -184,7 +219,17 @@ function CamperList({ bunk_id, date, openBunkModal, refreshTrigger, userRole }) 
                 
                 {filteredData.length === 0 && (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                        <p className="text-sm">No campers found</p>
+                        {data.length === 0 ? (
+                            <div>
+                                <p className="text-sm">No campers assigned to this bunk</p>
+                                <p className="text-xs mt-1">Check the bunk assignments</p>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-sm">No campers match the current filter</p>
+                                <p className="text-xs mt-1">Try changing the filter above</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

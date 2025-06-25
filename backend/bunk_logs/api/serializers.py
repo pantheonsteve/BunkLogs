@@ -133,7 +133,7 @@ class UnitStaffAssignmentSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_staff_member_details(self, obj) -> Dict[str, Any]:
         return {
-            'id': obj.staff_member.id,
+            'id': obj.staff_member.id,  # Corrected to use 'id' instead of 'user_id'
             'first_name': obj.staff_member.first_name,
             'last_name': obj.staff_member.last_name,
             'email': obj.staff_member.email,
