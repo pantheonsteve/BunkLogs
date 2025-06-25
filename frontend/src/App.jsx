@@ -6,6 +6,24 @@ import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
 import './css/style.css';
 
+import { datadogRum } from '@datadog/browser-rum';
+import { reactPlugin } from '@datadog/browser-rum-react';
+
+datadogRum.init({
+    applicationId: 'b9ea1bc9-4292-4a87-ac04-c6299ff6f2e8',
+    clientToken: 'puba04f5160f90ae85243fa0ac315411d27',
+    site: 'datadoghq.com',
+    service:'bunklogs-frontend',
+    env: 'prod',
+    
+    // Specify a version number to identify the deployed version of your application in Datadog
+    // version: '1.0.0',
+    sessionSampleRate:  100,
+    sessionReplaySampleRate: 100,
+    defaultPrivacyLevel: 'mask-user-input',
+    plugins: [reactPlugin({ router: true })],
+});
+
 function App() {
   const [appReady, setAppReady] = useState(false);
   const { themeLoaded } = useThemeProvider();
