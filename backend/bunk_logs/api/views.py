@@ -226,16 +226,21 @@ def get_user_by_email(request, email):
         # Add unit information for Unit Heads
         if user.role == 'Unit Head':
             units = []
-            for unit in Unit.objects.filter(unit_head=user):
+            user_units = Unit.objects.filter(unit_head=user)
+            for unit in user_units:
                 units.append({
                     "id": str(unit.id),
                     "name": unit.name,
                 })
             data['units'] = units
-            data['unit_name'] = unit.name
-            # Add all bunks in this unit
-            unit_bunks = Bunk.objects.filter(unit=unit)
-            data['unit_bunks'] = BunkSerializer(unit_bunks, many=True).data
+            
+            # If user has units, add the first unit's name and bunks
+            if user_units.exists():
+                first_unit = user_units.first()
+                data['unit_name'] = first_unit.name
+                # Add all bunks in this unit
+                unit_bunks = Bunk.objects.filter(unit=first_unit)
+                data['unit_bunks'] = BunkSerializer(unit_bunks, many=True).data
         
         # If the user is not authenticated, only return basic non-sensitive information
         if not request.user.is_authenticated:
