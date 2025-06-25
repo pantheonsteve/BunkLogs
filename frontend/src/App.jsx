@@ -9,20 +9,34 @@ import './css/style.css';
 import { datadogRum } from '@datadog/browser-rum';
 import { reactPlugin } from '@datadog/browser-rum-react';
 
-datadogRum.init({
-    applicationId: 'b9ea1bc9-4292-4a87-ac04-c6299ff6f2e8',
-    clientToken: 'puba04f5160f90ae85243fa0ac315411d27',
-    site: 'datadoghq.com',
-    service:'bunklogs-frontend',
-    env: 'prod',
-    
-    // Specify a version number to identify the deployed version of your application in Datadog
-    // version: '1.0.0',
-    sessionSampleRate:  100,
-    sessionReplaySampleRate: 100,
+// Initialize Datadog RUM
+const isProduction = import.meta.env.NODE_ENV === 'production';
+const environment = import.meta.env.VITE_DATADOG_ENV || import.meta.env.NODE_ENV || 'development';
+
+if (isProduction && import.meta.env.VITE_DATADOG_APPLICATION_ID) {
+  datadogRum.init({
+    applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
+    clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
+    site: import.meta.env.VITE_DATADOG_SITE || 'datadoghq.com',
+    service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
+    env: environment,
+    version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
+    sessionSampleRate: 100, // Consider reducing for cost optimization (e.g., 10-50)
+    sessionReplaySampleRate: 20, // Reduced from 100% for cost optimization
     defaultPrivacyLevel: 'mask-user-input',
+    trackUserInteractions: true,
+    trackResources: true,
+    trackLongTasks: true,
+    allowedTracingUrls: [
+      (url) => url.startsWith(import.meta.env.VITE_API_URL), // Track API calls
+    ],
     plugins: [reactPlugin({ router: true })],
-});
+  });
+  
+  console.log(`Datadog RUM initialized for ${environment} environment`);
+} else {
+  console.log('Datadog RUM disabled - not in production or missing configuration');
+}
 
 function App() {
   const [appReady, setAppReady] = useState(false);
