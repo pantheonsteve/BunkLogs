@@ -4,6 +4,7 @@ import { cn } from "../../lib/utils"
 import { Calendar } from "./calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { useAuth } from '../../auth/AuthContext'
+import api from '../../api'
 
 export default function SingleDatePicker({ className, date, setDate }) {
   const { user, token } = useAuth();
@@ -31,15 +32,18 @@ export default function SingleDatePicker({ className, date, setDate }) {
           return;
         }
 
-        const response = await fetch(`/api/v1/unit-staff-assignments/${user.id}/`, {
+        console.log('Fetching assignment data for user:', user.id);
+        console.log('API base URL:', api.defaults.baseURL);
+        console.log('Full API URL will be:', `${api.defaults.baseURL}/api/v1/unit-staff-assignments/${user.id}/`);
+        const response = await api.get(`/api/v1/unit-staff-assignments/${user.id}/`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
         
-        if (response.ok) {
-          const data = await response.json();
+        if (response.status === 200) {
+          const data = response.data;
           console.log('Assignment data:', data);
           
           // Set the allowed date range based on the response
@@ -49,17 +53,19 @@ export default function SingleDatePicker({ className, date, setDate }) {
           };
           console.log('Setting allowed range:', rangeData);
           setAllowedRange(rangeData);
-        } else if (response.status === 404) {
-          console.warn('No staff assignment found for user - allowing all dates');
-          // If user has no assignment, allow all dates (fallback for admin/staff)
-          setAllowedRange(null);
         } else {
           console.error('Failed to fetch assignment dates:', response.status, response.statusText);
         }
       } catch (error) {
-        console.error('Error fetching date ranges:', error);
-        // On error, allow all dates as fallback
-        setAllowedRange(null);
+        if (error.response?.status === 404) {
+          console.warn('No staff assignment found for user - allowing all dates');
+          // If user has no assignment, allow all dates (fallback for admin/staff)
+          setAllowedRange(null);
+        } else {
+          console.error('Error fetching date ranges:', error);
+          // On error, allow all dates as fallback
+          setAllowedRange(null);
+        }
       }
     }
 
