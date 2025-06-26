@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import BunkDashboard from './pages/BunkDashboard';
 import CamperDashboard from './pages/CamperDashboard';
 import CounselorDashboard from './pages/CounselorDashboard';
@@ -70,6 +71,22 @@ function Router() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin-dashboard" 
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin-dashboard/:date" 
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
             </ProtectedRoute>
           } 
         />

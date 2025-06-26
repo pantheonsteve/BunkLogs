@@ -29,6 +29,15 @@ function Dashboard() {
     if (user && user.role) {
       console.log('🚀 Checking role for potential redirect:', user.role);
       switch (user.role) {
+        case 'Admin':
+          // Get today's date for the redirect
+          const todayAdmin = new Date();
+          const yearAdmin = todayAdmin.getFullYear();
+          const monthAdmin = String(todayAdmin.getMonth() + 1).padStart(2, '0');
+          const dayAdmin = String(todayAdmin.getDate()).padStart(2, '0');
+          const formattedDateAdmin = `${yearAdmin}-${monthAdmin}-${dayAdmin}`;
+          navigate(`/admin-dashboard/${formattedDateAdmin}`, { replace: true });
+          return;
         case 'Unit Head':
           // Get today's date for the redirect
           const today = new Date();
@@ -53,7 +62,7 @@ function Dashboard() {
           console.log('📍 Counselor staying on main dashboard');
           break;
         default:
-          // Stay on general dashboard for other roles (Admin, etc.)
+          // Stay on general dashboard for other roles
           console.log('📍 Staying on general dashboard for role:', user.role);
           break;
       }
