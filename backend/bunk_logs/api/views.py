@@ -639,8 +639,8 @@ class CamperViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return Camper.objects.filter(
-                camper_bunk_assignments__bunk__unit_id__in=set(unit_ids),
-                camper_bunk_assignments__is_active=True
+                bunk_assignments__bunk__unit_id__in=set(unit_ids),
+                bunk_assignments__is_active=True
             ).distinct()
         
         # Camper care can see campers in their assigned units
@@ -659,15 +659,15 @@ class CamperViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return Camper.objects.filter(
-                camper_bunk_assignments__bunk__unit_id__in=set(unit_ids),
-                camper_bunk_assignments__is_active=True
+                bunk_assignments__bunk__unit_id__in=set(unit_ids),
+                bunk_assignments__is_active=True
             ).distinct()
         
         # Counselors can see campers in their bunks
         if user.role == 'Counselor':
             return Camper.objects.filter(
-                camper_bunk_assignments__bunk__in=user.assigned_bunks.all(),
-                camper_bunk_assignments__is_active=True
+                bunk_assignments__bunk__in=user.assigned_bunks.all(),
+                bunk_assignments__is_active=True
             ).distinct()
         
         # Default: see nothing
@@ -1215,11 +1215,14 @@ class CamperBunkLogViewSet(APIView):
                         staff_member=user,
                         role='unit_head',
                         start_date__lte=timezone.now().date(),
-                        end_date__isnull=True
-                    ).values_list('unit_id', flat=True)
+                    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=timezone.now().date())).values_list('unit_id', flat=True)
                     unit_ids.extend(unit_assignments)
                     
-                    has_access = current_assignments.filter(
+                    # Check if camper has ANY assignments (past or present) in the assigned units
+                    all_assignments = CamperBunkAssignment.objects.filter(
+                        camper=camper
+                    )
+                    has_access = all_assignments.filter(
                         bunk__unit_id__in=set(unit_ids)
                     ).exists()
                 
@@ -1234,11 +1237,14 @@ class CamperBunkLogViewSet(APIView):
                         staff_member=user,
                         role='camper_care',
                         start_date__lte=timezone.now().date(),
-                        end_date__isnull=True
-                    ).values_list('unit_id', flat=True)
+                    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=timezone.now().date())).values_list('unit_id', flat=True)
                     unit_ids.extend(unit_assignments)
                     
-                    has_access = current_assignments.filter(
+                    # Check if camper has ANY assignments (past or present) in the assigned units
+                    all_assignments = CamperBunkAssignment.objects.filter(
+                        camper=camper
+                    )
+                    has_access = all_assignments.filter(
                         bunk__unit_id__in=set(unit_ids)
                     ).exists()
                 
