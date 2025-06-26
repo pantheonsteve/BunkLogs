@@ -343,11 +343,22 @@ class CounselorLogSerializer(serializers.ModelSerializer):
     - values_reflection
     Note: counselor is automatically set to the current user
     """
-    counselor = serializers.PrimaryKeyRelatedField(read_only=True)  # Make counselor read-only
+    counselor_first_name = serializers.CharField(source='counselor.first_name', read_only=True)
+    counselor_last_name = serializers.CharField(source='counselor.last_name', read_only=True)
+    counselor_email = serializers.CharField(source='counselor.email', read_only=True)
     
     class Meta:
         model = CounselorLog
-        fields = '__all__'
+        fields = [
+            'id', 'counselor', 'counselor_first_name', 'counselor_last_name', 
+            'counselor_email', 'date', 'day_quality_score', 'support_level_score',
+            'elaboration', 'day_off', 'staff_care_support_needed', 'values_reflection',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'counselor_first_name', 
+            'counselor_last_name', 'counselor_email', 'counselor'
+        ]
         
     def validate(self, data):
         """
