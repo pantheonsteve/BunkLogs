@@ -123,12 +123,15 @@ function AdminDashboard() {
 
   // Format date for display
   const formatDisplayDate = (dateStr) => {
-    const date = new Date(dateStr);
+    // Parse as UTC to avoid timezone offset issues
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(Date.UTC(year, month - 1, day));
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       year: 'numeric', 
       month: 'long', 
-      day: 'numeric' 
+      day: 'numeric',
+      timeZone: 'UTC'
     });
   };
 

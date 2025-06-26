@@ -15,10 +15,11 @@ import AuthCallback from './pages/AuthCallback';
 import CallbackPage from './pages/CallbackPage';
 import ResetPassword from './pages/ResetPassword';
 import ResetPasswordConfirm from './pages/ResetPasswordConfirm';
+import AuthSuccess from './pages/AuthSuccess';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import OrderEdit from './pages/OrderEdit';
-import AuthSuccess from './pages/AuthSuccess';
+import AdminBunkLogs from './pages/AdminBunkLogs';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -87,6 +88,22 @@ function Router() {
           element={
             <ProtectedRoute>
               <AdminDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin-bunk-logs" 
+          element={
+            <ProtectedRoute>
+              <AdminBunkLogs />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin-bunk-logs/:date" 
+          element={
+            <ProtectedRoute>
+              <AdminBunkLogs />
             </ProtectedRoute>
           } 
         />

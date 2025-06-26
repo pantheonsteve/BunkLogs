@@ -84,42 +84,46 @@ function BunkLogsTableViewCard({ bunkData }) {
         
         {/* Table Container with horizontal scroll for mobile */}
         <div className="overflow-x-auto">
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700/60">
-          <div className="overflow-x-auto w-full">
-            <table className="table-auto w-full dark:text-gray-300">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700/60">
+            <div className="overflow-x-auto w-full">
+              <table className="table-auto w-full dark:text-gray-300">
                 {/* Table header */}
-              <thead className="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-xs">
-              <tr>
-                {/* Column width: 2/12 */}
-                <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-left">Camper Name</div>
-                </th>
-                {/* Column width: 1/12 */}
-                <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-center">Date</div>
-                </th>
-                {/* Column width: 2/12 */}
-                <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-center">Social</div>
-                </th>
-                {/* Column width: 2/12 */}
-                <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-center">Behavior</div>
-                </th>
-                {/* Column width: 2/12 */}
-                <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-center">Participation</div>
-                </th>
-                {/* Column width: 3/12 */}
-                <th className="w-64 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-left">Camper Care Help</div>
-                </th>
-                {/* Column width: 2/12 */}
-                <th className="w-64 p-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-semibold text-center">Unit Head Help</div>
-                </th>
-              </tr>
-            </thead>
+                <thead className="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-xs">
+                  <tr>
+                    {/* Column width: 2/12 */}
+                    <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-left">Camper Name</div>
+                    </th>
+                    {/* Column width: 1/12 */}
+                    <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-center">Date</div>
+                    </th>
+                    {/* Column width: 2/12 */}
+                    <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-center">Social</div>
+                    </th>
+                    {/* Column width: 2/12 */}
+                    <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-center">Behavior</div>
+                    </th>
+                    {/* Column width: 2/12 */}
+                    <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-center">Participation</div>
+                    </th>
+                    {/* Column width: 3/12 */}
+                    <th className="w-64 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-left">Camper Care Help</div>
+                    </th>
+                    {/* Column width: 2/12 */}
+                    <th className="w-64 p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-center">Unit Head Help</div>
+                    </th>
+                    {/* Expand button column */}
+                    <th className="w-px p-2 border-b border-gray-200 dark:border-gray-700">
+                      <div className="font-semibold text-center"></div>
+                    </th>
+                  </tr>
+                </thead>
                 {Array.isArray(data) && data.length > 0 ? (
                   data.map((item, index) => {
                     const uniqueKey = item.id || `${item.camper_first_name}-${item.camper_last_name}-${index}`;
@@ -152,11 +156,13 @@ function BunkLogsTableViewCard({ bunkData }) {
                     )
                   })
                 ) : (
-                  <tr>
-                    <td colSpan="7" className="p-4 text-center text-gray-500 dark:text-gray-400">
-                      {loading ? 'Loading camper logs...' : 'No camper logs found'}
-                    </td>
-                  </tr>
+                  <tbody className="text-sm font-medium divide-y divide-gray-100 dark:divide-gray-700/60">
+                    <tr>
+                      <td colSpan="8" className="p-4 text-center text-gray-500 dark:text-gray-400">
+                        {loading ? 'Loading camper logs...' : 'No camper logs found'}
+                      </td>
+                    </tr>
+                  </tbody>
                 )}
               </table>
             </div>
