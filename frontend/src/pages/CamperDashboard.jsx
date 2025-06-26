@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api'; // Use the configured API instance with authentication
 import { useBunk } from '../contexts/BunkContext';
 
 import CamperPageSidebar from '../partials/camper-dashboard/CamperPageSidebar';
@@ -47,8 +47,8 @@ function CamperDashboard() {
           return;
         }
         
-        // Format the URL with the date parameter
-        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/campers/${camper_id}/logs`;
+        // Format the URL with the date parameter - use relative path since api instance handles base URL
+        const url = `/api/v1/campers/${camper_id}/logs`;
         console.log('API URL:', url);
         
         // Include bunk data in the request if available
@@ -60,7 +60,7 @@ function CamperDashboard() {
           };
         }
         
-        const response = await axios.get(url, requestConfig);
+        const response = await api.get(url, requestConfig);
         console.log('API Response Status:', response.status);
         console.log('API Response Data:', response.data);
         
