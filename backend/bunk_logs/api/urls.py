@@ -25,8 +25,12 @@ urlpatterns = [
     
     # Add dedicated endpoint for email-based user retrieval
     path('users/email/<str:email>/', views.get_user_by_email, name='user-by-email'),
-     # Add a URL pattern for the BunkLogsInfoByDateViewSet
+    # Add a URL pattern for the BunkLogsInfoByDateViewSet
     path('users/<str:user_id>', views.get_user_by_id, name='user-by-id'),
+    
+    # Bunklogs by date endpoint - returns all bunklogs for a specific date (must come before bunk-specific endpoint)
+    path('bunklogs/all/<str:date>/', views.BunkLogsAllByDateViewSet.as_view(), name='bunklogs-all-by-date'),
+    
     path('bunklogs/<str:bunk_id>/logs/<str:date>/', views.BunkLogsInfoByDateViewSet.as_view(), name='bunklog-by-date'),
     # URL for camper bunk logs
     path('campers/<str:camper_id>/logs/', views.CamperBunkLogViewSet.as_view(), name='camper-bunklogs'),

@@ -1860,3 +1860,283 @@ def get_camper_care_bunks(request, camper_care_id, date):
         return Response(data)
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+@extend_schema(
+    summary="Get all bunk logs by date",
+    description="API view to get all bunk logs for a specific date with comprehensive camper information.",
+    parameters=[
+        OpenApiParameter(
+            name='date',
+            description='Date in YYYY-MM-DD format',
+            required=True,
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.PATH,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(description="Bunk logs data retrieved successfully"),
+        403: OpenApiResponse(description="Permission denied"),
+        400: OpenApiResponse(description="Invalid date format"),
+    },
+)
+class BunkLogsAllByDateViewSet(APIView):
+    """
+    API view to get all bunk logs for a specific date.
+    Returns comprehensive information including camper details, bunk assignment, 
+    scores, reporting counselor, and support requests.
+    """
+    renderer_classes = [JSONRenderer]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, date):
+        user = request.user
+        
+        # Parse and validate date
+        try:
+            query_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({"error": "Invalid date format. Use YYYY-MM-DD format."}, status=400)
+        
+        # Get queryset based on user permissions
+        if user.is_staff or user.role == 'Admin':
+            queryset = BunkLog.objects.filter(date=query_date)
+        elif user.role == 'Unit Head':
+            unit_ids = []
+            unit_ids.extend(user.managed_units.values_list('id', flat=True))
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=query_date,
+            ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
+            
+            queryset = BunkLog.objects.filter(
+                date=query_date,
+                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+            )
+        elif user.role == 'Camper Care':
+            unit_ids = []
+            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                start_date__lte=query_date,
+            ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
+            
+            queryset = BunkLog.objects.filter(
+                date=query_date,
+                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+            )
+        elif user.role == 'Counselor':
+            queryset = BunkLog.objects.filter(
+                date=query_date,
+                bunk_assignment__bunk__in=user.assigned_bunks.all()
+            )
+        else:
+            return Response({"error": "You are not authorized to access bunk logs data"}, status=403)
+        
+        # Optimize queries
+        queryset = queryset.select_related(
+            'bunk_assignment__camper',
+            'bunk_assignment__bunk',
+            'bunk_assignment__bunk__unit',
+            'counselor'
+        ).order_by(
+            'bunk_assignment__bunk__unit__name',
+            'bunk_assignment__bunk__cabin__name',
+            'bunk_assignment__camper__last_name'
+        )
+        
+        # Build response data
+        logs_data = []
+        for log in queryset:
+            log_data = {
+                "id": str(log.id),
+                "date": log.date.strftime("%Y-%m-%d"),
+                "camper_first_name": log.bunk_assignment.camper.first_name,
+                "camper_last_name": log.bunk_assignment.camper.last_name,
+                "camper_id": str(log.bunk_assignment.camper.id),
+                "bunk_assignment_id": str(log.bunk_assignment.id),
+                "bunk_name": log.bunk_assignment.bunk.name,
+                "unit_name": log.bunk_assignment.bunk.unit.name if log.bunk_assignment.bunk.unit else None,
+                "social_score": log.social_score,
+                "participation_score": log.participation_score,
+                "behavioral_score": log.behavior_score,
+                "description": log.description,
+                "not_on_camp": log.not_on_camp,
+                "reporting_counselor_first_name": log.counselor.first_name if log.counselor else None,
+                "reporting_counselor_last_name": log.counselor.last_name if log.counselor else None,
+                "reporting_counselor_email": log.counselor.email if log.counselor else None,
+                "unit_head_help_requested": log.request_unit_head_help,
+                "camper_care_help_requested": log.request_camper_care_help,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+                "updated_at": log.updated_at.isoformat() if log.updated_at else None,
+            }
+            logs_data.append(log_data)
+        
+        return Response({
+            "date": date,
+            "total_logs": len(logs_data),
+            "logs": logs_data
+        })
+
+@extend_schema(
+    summary="Get all bunk logs by date",
+    description="API view to get all bunk logs for a specific date. Returns comprehensive information including camper details, bunk assignment, scores, reporting counselor, and support requests.",
+    parameters=[
+        OpenApiParameter(
+            name='date',
+            description='Date in YYYY-MM-DD format',
+            required=True,
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.PATH,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Bunk logs data retrieved successfully",
+        ),
+        403: OpenApiResponse(
+            description="Permission denied",
+        ),
+        400: OpenApiResponse(
+            description="Invalid date format",
+        ),
+    },
+)
+class BunkLogsAllByDateViewSet(APIView):
+    """
+    API view to get all bunk logs for a specific date.
+    The endpoint will be '/api/v1/bunklogs/all/<str:date>/''
+    where 'date' is the date in YYYY-MM-DD format.
+    
+    Response includes:
+    - Camper first and last names
+    - Bunk assignment information  
+    - Date
+    - Social score
+    - Participation score
+    - Behavioral score
+    - Description
+    - Reporting counselor information
+    - Unit head help requested
+    - Camper care help requested
+    - Not on camp status
+    """
+    renderer_classes = [JSONRenderer]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, date):
+        user = request.user
+        
+        # Parse and validate date
+        try:
+            query_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({"error": "Invalid date format. Use YYYY-MM-DD format."}, status=400)
+        
+        # Get queryset based on user permissions
+        if user.is_staff or user.role == 'Admin':
+            # Admin/staff can see all bunk logs
+            queryset = BunkLog.objects.filter(date=query_date)
+        elif user.role == 'Unit Head':
+            # Unit heads can see logs for bunks in their units
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.managed_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as unit_head
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=query_date,
+            ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
+            
+            queryset = BunkLog.objects.filter(
+                date=query_date,
+                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+            )
+        elif user.role == 'Camper Care':
+            # Camper care can see logs for bunks in their assigned units
+            from django.utils import timezone
+            unit_ids = []
+            # Legacy approach
+            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
+            # New approach - get units where user is assigned as camper_care
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='camper_care',
+                start_date__lte=query_date,
+            ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
+            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
+            
+            queryset = BunkLog.objects.filter(
+                date=query_date,
+                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+            )
+        elif user.role == 'Counselor':
+            # Counselors can see logs for their bunks only
+            queryset = BunkLog.objects.filter(
+                date=query_date,
+                bunk_assignment__bunk__in=user.assigned_bunks.all()
+            )
+        else:
+            # Default: no access
+            logger.warning(
+                f"403 Forbidden: User {user.id} ({user.role}) attempted to access bunk logs for {query_date}, but lacks permissions."
+            )
+            return Response({"error": "You are not authorized to access bunk logs data"}, status=403)
+        
+        # Select related fields to optimize database queries
+        queryset = queryset.select_related(
+            'bunk_assignment__camper',
+            'bunk_assignment__bunk',
+            'bunk_assignment__bunk__unit',
+            'counselor'
+        ).order_by(
+            'bunk_assignment__bunk__unit__name',
+            'bunk_assignment__bunk__cabin__name',
+            'bunk_assignment__camper__last_name',
+            'bunk_assignment__camper__first_name'
+        )
+        
+        # Build response data
+        logs_data = []
+        for log in queryset:
+            log_data = {
+                "id": str(log.id),
+                "date": log.date.strftime("%Y-%m-%d"),
+                
+                # Camper information
+                "camper_first_name": log.bunk_assignment.camper.first_name,
+                "camper_last_name": log.bunk_assignment.camper.last_name,
+                "camper_id": str(log.bunk_assignment.camper.id),
+                
+                # Bunk assignment information
+                "bunk_assignment_id": str(log.bunk_assignment.id),
+                "bunk_name": log.bunk_assignment.bunk.name,
+                "unit_name": log.bunk_assignment.bunk.unit.name if log.bunk_assignment.bunk.unit else None,
+                "social_score": log.social_score,
+                "participation_score": log.participation_score,
+                "behavioral_score": log.behavior_score,
+                "description": log.description,
+                "not_on_camp": log.not_on_camp,
+                "reporting_counselor_first_name": log.counselor.first_name if log.counselor else None,
+                "reporting_counselor_last_name": log.counselor.last_name if log.counselor else None,
+                "reporting_counselor_email": log.counselor.email if log.counselor else None,
+                "unit_head_help_requested": log.request_unit_head_help,
+                "camper_care_help_requested": log.request_camper_care_help,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+                "updated_at": log.updated_at.isoformat() if log.updated_at else None,
+            }
+            logs_data.append(log_data)
+        
+        return Response({
+            "date": date,
+            "total_logs": len(logs_data),
+            "logs": logs_data
+        })
+               
