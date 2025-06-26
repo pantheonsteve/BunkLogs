@@ -2,12 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
-import { Loader2, AlertTriangle, Users, Home, Heart } from 'lucide-react';
+import CamperCareBunkLogItem from '../../components/bunklogs/CamperCareBunkLogItem';
+import { Loader2, AlertTriangle, Users, Home, Heart, UserCheck, Clock, Baby, AlertCircle, UserX } from 'lucide-react';
+import GenericAvatar from '../../images/avatar-generic.png';
 
 function CamperCareBunkGrid({ selectedDate }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unitData, setUnitData] = useState(null);
+  const [allCampers, setAllCampers] = useState([]);
+  const [campersNeedingAttention, setCampersNeedingAttention] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'logs', 'attention'
   const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -42,6 +47,44 @@ function CamperCareBunkGrid({ selectedDate }) {
           // Use the first unit (or combine multiple units if needed)
           const primaryUnit = units[0];
           
+          // Collect all campers from all bunks across all units
+          const allCampersArray = [];
+          const campersNeedingAttentionArray = [];
+          
+          units.forEach(unit => {
+            unit.bunks.forEach(bunk => {
+              if (bunk.campers && bunk.campers.length > 0) {
+                bunk.campers.forEach(camper => {
+                  // Add bunk and unit context to camper data
+                  const camperWithContext = {
+                    ...camper,
+                    bunk_name: bunk.cabin_name,
+                    session_name: bunk.session_name,
+                    unit_name: unit.name,
+                    bunk_id: bunk.id
+                  };
+                  
+                  allCampersArray.push(camperWithContext);
+                  
+                  // Check if camper needs attention
+                  if (camper.bunk_log) {
+                    const needsAttention = 
+                      camper.bunk_log.request_camper_care_help ||
+                      camper.bunk_log.request_unit_head_help ||
+                      camper.bunk_log.not_on_camp;
+                    
+                    if (needsAttention) {
+                      campersNeedingAttentionArray.push(camperWithContext);
+                    }
+                  }
+                });
+              }
+            });
+          });
+          
+          setAllCampers(allCampersArray);
+          setCampersNeedingAttention(campersNeedingAttentionArray);
+          
           // If there are multiple units, combine their bunks
           if (units.length > 1) {
             const allBunks = units.flatMap(unit => unit.bunks || []);
@@ -55,6 +98,8 @@ function CamperCareBunkGrid({ selectedDate }) {
           }
         } else {
           setUnitData({ name: 'No Units', bunks: [] });
+          setAllCampers([]);
+          setCampersNeedingAttention([]);
         }
         setError(null);
       } catch (err) {
@@ -67,6 +112,48 @@ function CamperCareBunkGrid({ selectedDate }) {
 
     fetchUnitData();
   }, [user?.id, user?.role, selectedDate]);
+
+  // Helper functions
+  const getScoreBackgroundColor = (score) => {
+    if (!score) return "bg-gray-100";
+    
+    const scoreNum = parseInt(score);
+    if (scoreNum == 1) return 'bg-[#e86946]';
+    if (scoreNum == 2) return 'bg-[#de8d6f]';
+    if (scoreNum == 3) return 'bg-[#e5e825]';
+    if (scoreNum == 4) return 'bg-[#90d258]';
+    if (scoreNum == 5) return 'bg-[#18d128]';
+    return "bg-red-100";
+  };
+
+  const getHelpRequestedIcon = (help_requested) => {
+    if (help_requested === true) {
+      return (
+        <div className="flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="orange" className="size-6">
+            <path d="M10.5 1.875a1.125 1.125 0 0 1 2.25 0v8.219c.517.162 1.02.382 1.5.659V3.375a1.125 1.125 0 0 1 2.25 0v10.937a4.505 4.505 0 0 0-3.25 2.373 8.963 8.963 0 0 1 4-.935A.75.75 0 0 0 18 15v-2.266a3.368 3.368 0 0 1 .988-2.37 1.125 1.125 0 0 1 1.591 1.59 1.118 1.118 0 0 0-.329.79v3.006h-.005a6 6 0 0 1-1.752 4.007l-1.736 1.736a6 6 0 0 1-4.242 1.757H10.5a7.5 7.5 0 0 1-7.5-7.5V6.375a1.125 1.125 0 0 1 2.25 0v5.519c.46-.452.965-.832 1.5-1.141V3.375a1.125 1.125 0 0 1 2.25 0v6.526c.495-.1.997-.151 1.5-.151V1.875Z" />
+          </svg>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const getCampersWithLogs = () => {
+    return allCampers.filter(camper => camper.bunk_log);
+  };
+
+  const getCampersNotOnCamp = () => {
+    return allCampers.filter(camper => camper.bunk_log?.not_on_camp);
+  };
+
+  const getCampersRequestingCamperCare = () => {
+    return allCampers.filter(camper => camper.bunk_log?.request_camper_care_help);
+  };
+
+  const getCampersRequestingUnitHeadHelp = () => {
+    return allCampers.filter(camper => camper.bunk_log?.request_unit_head_help);
+  };
 
   // Loading state
   if (loading) {
@@ -143,8 +230,44 @@ function CamperCareBunkGrid({ selectedDate }) {
         </div>
       </div>
 
+      {/* Navigation tabs */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex border-b border-gray-100 dark:border-gray-700">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-6 py-4 text-sm font-medium border-b-2 ${
+              activeTab === 'overview'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            Bunk Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`px-6 py-4 text-sm font-medium border-b-2 ${
+              activeTab === 'logs'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            All Bunk Logs
+          </button>
+          <button
+            onClick={() => setActiveTab('attention')}
+            className={`px-6 py-4 text-sm font-medium border-b-2 ${
+              activeTab === 'attention'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            Needs Attention ({campersNeedingAttention.length})
+          </button>
+        </div>
+      </div>
+
       {/* Stats overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-lg flex items-center justify-center">
@@ -176,28 +299,268 @@ function CamperCareBunkGrid({ selectedDate }) {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
-              <Heart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <Baby className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {unitData.bunks.reduce((total, bunk) => total + (bunk.campers?.length || 0), 0)}
+                {allCampers.length}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Campers</p>
             </div>
           </div>
         </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {getCampersWithLogs().length}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">With Logs</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {campersNeedingAttention.length}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Need Attention</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Bunks grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {unitData.bunks.map((bunk) => (
-          <UnitHeadBunkCard
-            key={bunk.id}
-            bunk={bunk}
-            selectedDate={selectedDate}
-          />
-        ))}
-      </div>
+      {/* Tab content */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {unitData.bunks.map((bunk) => (
+            <UnitHeadBunkCard
+              key={bunk.id}
+              bunk={bunk}
+              selectedDate={selectedDate}
+            />
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'logs' && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              All Bunk Logs
+            </h3>
+            {getCampersWithLogs().length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="table-auto w-full">
+                  <thead className="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">Camper</th>
+                      <th className="px-4 py-3 text-center font-semibold">Date</th>
+                      <th className="px-4 py-3 text-center font-semibold">Social</th>
+                      <th className="px-4 py-3 text-center font-semibold">Behavior</th>
+                      <th className="px-4 py-3 text-center font-semibold">Participation</th>
+                      <th className="px-4 py-3 text-center font-semibold">Care Help</th>
+                      <th className="px-4 py-3 text-center font-semibold">Unit Help</th>
+                      <th className="px-4 py-3 text-center font-semibold"></th>
+                    </tr>
+                  </thead>
+                  {getCampersWithLogs().map((camper, index) => (
+                    <CamperCareBunkLogItem
+                      key={`${camper.id}-${index}`}
+                      id={camper.id}
+                      camper_id={camper.id}
+                      image={GenericAvatar}
+                      camper_first_name={camper.first_name}
+                      camper_last_name={camper.last_name}
+                      bunk_name={camper.bunk_name}
+                      date={camper.bunk_log.date}
+                      social_score={camper.bunk_log.social_score}
+                      behavior_score={camper.bunk_log.behavior_score}
+                      participation_score={camper.bunk_log.participation_score}
+                      camper_care_help={camper.bunk_log.request_camper_care_help}
+                      unit_head_help={camper.bunk_log.request_unit_head_help}
+                      description={camper.bunk_log.description}
+                      counselor_first_name={camper.bunk_log.counselor_first_name}
+                      counselor_last_name={camper.bunk_log.counselor_last_name}
+                    />
+                  ))}
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 dark:text-gray-400">No bunk logs found for today</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'attention' && (
+        <div className="space-y-6">
+          {/* Campers not on camp */}
+          {getCampersNotOnCamp().length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-red-200 dark:border-red-800">
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                    <UserX className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      Not On Camp ({getCampersNotOnCamp().length})
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Campers who are currently not on camp
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getCampersNotOnCamp().map((camper, index) => (
+                    <div key={`not-on-camp-${camper.id}-${index}`} className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
+                      <div className="flex items-center space-x-3">
+                        <img 
+                          src={GenericAvatar} 
+                          alt="Avatar" 
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">
+                            {camper.first_name} {camper.last_name}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {camper.bunk_name} • {camper.unit_name}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Campers requesting camper care help */}
+          {getCampersRequestingCamperCare().length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-orange-200 dark:border-orange-800">
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      Camper Care Help Requested ({getCampersRequestingCamperCare().length})
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Campers who need camper care attention
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getCampersRequestingCamperCare().map((camper, index) => (
+                    <div key={`care-help-${camper.id}-${index}`} className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
+                      <div className="flex items-center space-x-3">
+                        <img 
+                          src={GenericAvatar} 
+                          alt="Avatar" 
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">
+                            {camper.first_name} {camper.last_name}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {camper.bunk_name} • {camper.unit_name}
+                          </p>
+                          {camper.bunk_log.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                              {camper.bunk_log.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Campers requesting unit head help */}
+          {getCampersRequestingUnitHeadHelp().length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-yellow-200 dark:border-yellow-800">
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
+                    <UserCheck className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      Unit Head Help Requested ({getCampersRequestingUnitHeadHelp().length})
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Campers who need unit head attention
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getCampersRequestingUnitHeadHelp().map((camper, index) => (
+                    <div key={`unit-help-${camper.id}-${index}`} className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+                      <div className="flex items-center space-x-3">
+                        <img 
+                          src={GenericAvatar} 
+                          alt="Avatar" 
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">
+                            {camper.first_name} {camper.last_name}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {camper.bunk_name} • {camper.unit_name}
+                          </p>
+                          {camper.bunk_log.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                              {camper.bunk_log.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show message if no campers need attention */}
+          {campersNeedingAttention.length === 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <UserCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  All Good!
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  No campers currently need special attention.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
