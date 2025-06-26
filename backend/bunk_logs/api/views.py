@@ -49,6 +49,7 @@ from drf_spectacular.types import OpenApiTypes
 from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
 import json
+import logging
 
 #from .permissions import BunkAccessPermission
 #from .permissions import IsCounselorForBunk
@@ -56,6 +57,7 @@ import json
 
 User = get_user_model()
 
+logger = logging.getLogger(__name__)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class UserCreate(generics.CreateAPIView):
@@ -466,8 +468,6 @@ class BunkLogsInfoByDateViewSet(APIView):
         except Bunk.DoesNotExist:
             return Response({"error": f"Bunk with ID {bunk_id} not found"}, status=404)
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error in BunkLogsInfoByDateViewSet for bunk {bunk_id}, date {date}, user {user.email}: {str(e)}")
             return Response({"error": f"Internal server error: {str(e)}"}, status=500)
 
@@ -1142,6 +1142,43 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         
         # Default: deny access
         raise PermissionDenied("You are not authorized to update this counselor log.")
+    
+    @action(detail=False, methods=['get'], url_path=r'(?P<date>\d{4}-\d{2}-\d{2})')
+    def by_date(self, request, date=None):
+        """
+        Custom action to get counselor logs by date.
+        URL: /api/v1/counselorlogs/2025-06-25/
+        """
+        # Validate date format
+        try:
+            from datetime import datetime
+            query_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({"error": "Invalid date format. Use YYYY-MM-DD format."}, status=400)
+        
+        # Get the filtered queryset based on user permissions
+        queryset = self.get_queryset()
+        
+        # Filter by the specific date
+        queryset = queryset.filter(date=query_date)
+        
+        # Order logs by counselor name for consistent output
+        queryset = queryset.select_related('counselor').order_by(
+            'counselor__first_name', 
+            'counselor__last_name'
+        )
+        
+        # Serialize the logs
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Return response in the same format as the list view but with date info
+        response_data = {
+            "date": date,
+            "total_logs": queryset.count(),
+            "results": serializer.data
+        }
+        
+        return Response(response_data)
 
 class CamperBunkLogViewSet(APIView):
     renderer_classes = [JSONRenderer]
