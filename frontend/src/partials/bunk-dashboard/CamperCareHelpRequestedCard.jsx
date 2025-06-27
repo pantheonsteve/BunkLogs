@@ -46,6 +46,11 @@ function CamperCareHelpRequestedCard({ bunkData }) {
               {Array.isArray(data) ? (
                 data.map((item, index) => {
                   const uniqueKey = item.id || `${item.camper_first_name}-${item.camper_last_name}-${index}`;
+                  // Build the date string from bunkData
+                  const selectedDate = new Date(bunkData.date);
+                  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+                  // Build the URL to the camper's page for this date
+                  const camperUrl = `/camper/${item.camper_id}/${dateStr}`;
                   return (
                   <tr key={uniqueKey}>
                       <td className="p-2">
@@ -53,7 +58,12 @@ function CamperCareHelpRequestedCard({ bunkData }) {
                         <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
                           <img className="rounded-full ml-1" width="36" height="36" viewBox="0 0 36 36" src={GenericAvatar} />
                         </div>
-                        <div className="text-gray-800 dark:text-gray-100">{item.camper_first_name} {item.camper_last_name}</div>
+                        <a 
+                          href={camperUrl}
+                          className="text-gray-800 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                        >
+                          {item.camper_first_name} {item.camper_last_name}
+                        </a>
                       </div>
                       </td>
                       <td className="p-2">
