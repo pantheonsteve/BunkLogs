@@ -75,21 +75,6 @@ class Unit(TestDataMixin):
     """Group of bunks managed by unit heads."""
 
     name = models.CharField(max_length=100)
-    unit_head = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        limit_choices_to={"role": "Unit Head"},
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="managed_units",
-    )
-    camper_care = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        limit_choices_to={"role": "Camper Care"},
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="camper_care_units",
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -110,7 +95,7 @@ class Unit(TestDataMixin):
             start_date__lte=timezone.now().date(),
             end_date__isnull=True,
         ).first()
-        return assignment.staff_member if assignment else self.unit_head
+        return assignment.staff_member if assignment else None
 
     @property
     def primary_camper_care(self):
@@ -121,7 +106,7 @@ class Unit(TestDataMixin):
             start_date__lte=timezone.now().date(),
             end_date__isnull=True,
         ).first()
-        return assignment.staff_member if assignment else self.camper_care
+        return assignment.staff_member if assignment else None
 
     @property
     def all_unit_heads(self):
@@ -131,11 +116,7 @@ class Unit(TestDataMixin):
             start_date__lte=timezone.now().date(),
             end_date__isnull=True,
         ).select_related("staff_member")
-        staff_members = [a.staff_member for a in assignments]
-        # Include legacy unit_head if not in assignments
-        if self.unit_head and self.unit_head not in staff_members:
-            staff_members.append(self.unit_head)
-        return staff_members
+        return [a.staff_member for a in assignments]
 
     @property
     def all_camper_care(self):
@@ -145,11 +126,17 @@ class Unit(TestDataMixin):
             start_date__lte=timezone.now().date(),
             end_date__isnull=True,
         ).select_related("staff_member")
-        staff_members = [a.staff_member for a in assignments]
-        # Include legacy camper_care if not in assignments
-        if self.camper_care and self.camper_care not in staff_members:
-            staff_members.append(self.camper_care)
-        return staff_members
+        return [a.staff_member for a in assignments]
+
+    @property
+    def unit_heads(self):
+        """Alias for all_unit_heads for API compatibility."""
+        return self.all_unit_heads
+
+    @property
+    def camper_care_staff(self):
+        """Alias for all_camper_care for API compatibility."""
+        return self.all_camper_care
 
 
 class Bunk(TestDataMixin):

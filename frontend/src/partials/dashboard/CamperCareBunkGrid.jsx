@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
 import CamperCareBunkLogItem from '../../components/bunklogs/CamperCareBunkLogItem';
-import { Loader2, AlertTriangle, Users, Home, Heart, UserCheck, Clock, Baby, AlertCircle, UserX } from 'lucide-react';
+import CamperCareFilters from '../../components/CamperCareFilters';
+import { Loader2, AlertTriangle, Users, Home, Heart, UserCheck, Clock, Baby, AlertCircle, UserX, Filter } from 'lucide-react';
 import GenericAvatar from '../../images/avatar-generic.png';
 
 function CamperCareBunkGrid({ selectedDate }) {
@@ -13,7 +14,20 @@ function CamperCareBunkGrid({ selectedDate }) {
   const [allCampers, setAllCampers] = useState([]);
   const [campersNeedingAttention, setCampersNeedingAttention] = useState([]);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'logs', 'attention'
+  const [filters, setFilters] = useState({});
+  const [showFilters, setShowFilters] = useState(false);
   const { user, isAuthenticated } = useAuth();
+
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo(() => filters, [JSON.stringify(filters)]);
+
+  // Handle filter changes - MUST be declared before any conditional returns
+  const handleFiltersChange = useCallback((newFilters) => {
+    setFilters(newFilters);
+  }, []);
+
+  // Get all bunks for filter options
+  const allBunks = unitData?.bunks || [];
 
   useEffect(() => {
     const fetchUnitData = async () => {
@@ -37,8 +51,24 @@ function CamperCareBunkGrid({ selectedDate }) {
           dateToUse = new Date().toISOString().split('T')[0];
         }
         
-        console.log(`[CamperCareBunkGrid] Fetching data for date: ${dateToUse}`);
-        const response = await api.get(`/api/v1/campercare/${user.id}/${dateToUse}/`);
+        console.log(`[CamperCareBunkGrid] Fetching data for date: ${dateToUse}`, {
+          filters: memoizedFilters,
+          hasFilters: Object.values(memoizedFilters).some(v => v !== '' && v != null)
+        });
+        
+        // Build query parameters from filters
+        const params = new URLSearchParams();
+        Object.entries(memoizedFilters).forEach(([key, value]) => {
+          if (value !== '' && value != null && value !== undefined) {
+            params.append(key, value);
+          }
+        });
+        
+        // Construct the API URL with filters
+        const baseUrl = `/api/v1/campercare/${user.id}/${dateToUse}/`;
+        const url = params.toString() ? `${baseUrl}?${params}` : baseUrl;
+        
+        const response = await api.get(url);
         console.log('[CamperCareBunkGrid] API response:', response.data);
         
         // The API returns an array of units, but camper care typically manages one unit
@@ -111,7 +141,7 @@ function CamperCareBunkGrid({ selectedDate }) {
     };
 
     fetchUnitData();
-  }, [user?.id, user?.role, selectedDate]);
+  }, [user?.id, user?.role, selectedDate, memoizedFilters]);
 
   // Helper functions
   const getScoreBackgroundColor = (score) => {
@@ -215,20 +245,38 @@ function CamperCareBunkGrid({ selectedDate }) {
     <div className="space-y-6">
       {/* Unit header */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center">
-            <Heart className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center">
+              <Heart className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {unitData.name}
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                {unitData.bunks.length} bunk{unitData.bunks.length !== 1 ? 's' : ''} under your care
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {unitData.name}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              {unitData.bunks.length} bunk{unitData.bunks.length !== 1 ? 's' : ''} under your care
-            </p>
-          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Filters
+          </button>
         </div>
       </div>
+
+      {/* Filters Panel */}
+      <CamperCareFilters
+        onFiltersChange={handleFiltersChange}
+        bunks={allBunks}
+        initialFilters={filters}
+        showFilters={showFilters}
+        onToggleFilters={() => setShowFilters(!showFilters)}
+      />
 
       {/* Navigation tabs */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">

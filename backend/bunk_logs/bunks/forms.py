@@ -11,34 +11,11 @@ class UnitForm(forms.ModelForm):
         model = Unit
         fields = [
             "name",
-            "unit_head",
-        ]  # Only include fields that exist in the Unit model
+        ]  # Removed legacy unit_head and camper_care fields
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        all_users = User.objects.all()
-
-        unit_head_users = User.objects.filter(role=User.UNIT_HEAD)
-
-        # If no results, try variations of the role name
-        if not unit_head_users.exists():
-            # Try uppercase with underscore (UNIT_HEAD)
-            unit_head_users = User.objects.filter(role="UNIT_HEAD")
-
-            # If still no results, try with space (Unit Head)
-            if not unit_head_users.exists():
-                unit_head_users = User.objects.filter(role="Unit Head")
-
-                # Try case insensitive search as a fallback
-                if not unit_head_users.exists():
-                    unit_head_users = User.objects.filter(role__icontains="unit")
-
-                    # Last resort: show all users
-                    if not unit_head_users.exists():
-                        unit_head_users = all_users
-
-        self.fields["unit_head"].queryset = unit_head_users
+        # No special field configuration needed since we removed the legacy fields
 
 
 class CabinCsvImportForm(forms.Form):

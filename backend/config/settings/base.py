@@ -361,6 +361,7 @@ SOCIALACCOUNT_QUERY_EMAIL = True
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.TokenAuthentication",  # For API token auth
         "rest_framework.authentication.SessionAuthentication",  # Keep for admin use
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],

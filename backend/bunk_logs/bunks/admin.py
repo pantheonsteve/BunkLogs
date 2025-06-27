@@ -27,17 +27,30 @@ from bunk_logs.utils.admin import TestDataAdminMixin
 class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = (
         "name",
-        "unit_head",
-        "camper_care",
+        "get_primary_unit_head",
+        "get_primary_camper_care",
         "created_at",
         "updated_at",
-    )  # Include camper_care field
-    search_fields = ("name", "unit_head", "camper_care")
-    list_filter = ("unit_head", "camper_care", "created_at", "updated_at")
+    )
+    search_fields = ("name",)
+    list_filter = ("created_at", "updated_at")
     date_hierarchy = "created_at"
-    autocomplete_fields = ["unit_head", "camper_care"]
-
-    form = UnitForm
+    
+    def get_primary_unit_head(self, obj):
+        """Display the primary unit head."""
+        unit_head = obj.primary_unit_head
+        if unit_head:
+            return f"{unit_head.get_full_name()} ({unit_head.email})"
+        return "None"
+    get_primary_unit_head.short_description = "Primary Unit Head"
+    
+    def get_primary_camper_care(self, obj):
+        """Display the primary camper care."""
+        camper_care = obj.primary_camper_care
+        if camper_care:
+            return f"{camper_care.get_full_name()} ({camper_care.email})"
+        return "None"
+    get_primary_camper_care.short_description = "Primary Camper Care"
 
     def get_urls(self):
         urls = super().get_urls()
@@ -107,18 +120,26 @@ class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
 @admin.register(UnitStaffAssignment)
 class UnitStaffAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('unit', 'staff_member', 'role', 'is_primary', 'start_date', 'end_date', 'created_at')
-    list_filter = ('role', 'is_primary', 'start_date', 'end_date', 'created_at')
-    search_fields = ('unit__name', 'staff_member__first_name', 'staff_member__last_name', 'staff_member__email')
-    autocomplete_fields = ['unit', 'staff_member']
-    date_hierarchy = 'start_date'
+    list_display = (
+        "unit",
+        "staff_member",
+        "role",
+        "is_primary",
+        "start_date",
+        "end_date",
+        "created_at",
+    )
+    list_filter = ("role", "is_primary", "start_date", "end_date", "created_at")
+    search_fields = ("unit__name", "staff_member__first_name", "staff_member__last_name", "staff_member__email")
+    autocomplete_fields = ["unit", "staff_member"]
+    date_hierarchy = "start_date"
     
     fieldsets = (
-        ('Assignment Details', {
-            'fields': ('unit', 'staff_member', 'role', 'is_primary')
+        (None, {
+            "fields": ("unit", "staff_member", "role", "is_primary")
         }),
-        ('Timeline', {
-            'fields': ('start_date', 'end_date')
+        ("Dates", {
+            "fields": ("start_date", "end_date")
         }),
     )
     
