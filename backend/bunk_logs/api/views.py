@@ -228,7 +228,17 @@ def get_user_by_email(request, email):
         # Add unit information for Unit Heads
         if user.role == 'Unit Head':
             units = []
-            user_units = Unit.objects.filter(unit_head=user)
+            # Get units where user is assigned as unit_head via UnitStaffAssignment
+            from django.utils import timezone
+            from bunk_logs.bunks.models import UnitStaffAssignment
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=user,
+                role='unit_head',
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True
+            ).select_related('unit')
+            
+            user_units = [assignment.unit for assignment in unit_assignments]
             for unit in user_units:
                 units.append({
                     "id": str(unit.id),
@@ -237,7 +247,7 @@ def get_user_by_email(request, email):
             data['units'] = units
             
             # If user has units, add the first unit's name and bunks
-            if user_units.exists():
+            if user_units:
                 first_unit = user_units.first()
                 data['unit_name'] = first_unit.name
                 # Add all bunks in this unit
@@ -360,10 +370,6 @@ class BunkLogsInfoByDateViewSet(APIView):
                     if Bunk.objects.filter(id=bunk_id, unit=assignment.unit).exists():
                         has_access = True
                         break
-                
-                # Fallback to legacy unit_head field if no staff assignments found
-                if not has_access:
-                    has_access = Bunk.objects.filter(id=bunk_id, unit__unit_head=user).exists()
                 
                 if not has_access:
                     logger.warning(
@@ -627,9 +633,7 @@ class CamperViewSet(viewsets.ModelViewSet):
         if user.role == 'Unit Head':
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.managed_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as unit_head
+            # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
@@ -639,7 +643,7 @@ class CamperViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return Camper.objects.filter(
-                bunk_assignments__bunk__unit_id__in=set(unit_ids),
+                bunk_assignments__bunk__unit_id__in=unit_assignments,
                 bunk_assignments__is_active=True
             ).distinct()
         
@@ -647,9 +651,7 @@ class CamperViewSet(viewsets.ModelViewSet):
         if user.role == 'Camper Care':
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as camper_care
+            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='camper_care',
@@ -659,7 +661,7 @@ class CamperViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return Camper.objects.filter(
-                bunk_assignments__bunk__unit_id__in=set(unit_ids),
+                bunk_assignments__bunk__unit_id__in=unit_assignments,
                 bunk_assignments__is_active=True
             ).distinct()
         
@@ -710,9 +712,7 @@ class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
         if user.role == 'Unit Head':
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.managed_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as unit_head
+            # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
@@ -722,16 +722,14 @@ class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return CamperBunkAssignment.objects.filter(
-                bunk__unit_id__in=set(unit_ids)
+                bunk__unit_id__in=unit_assignments
             )
         
         # Camper care can see assignments in their assigned units
         if user.role == 'Camper Care':
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as camper_care
+            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='camper_care',
@@ -741,7 +739,7 @@ class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return CamperBunkAssignment.objects.filter(
-                bunk__unit_id__in=set(unit_ids)
+                bunk__unit_id__in=unit_assignments
             )
         
         # Counselors can see assignments in their bunks
@@ -782,11 +780,7 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             return BunkLog.objects.all()
         # Unit heads can see logs for bunks in their units
         if user.role == 'Unit Head':
-            # Check both legacy unit_head field and new staff assignments
-            unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.managed_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as unit_head
+            # Get units where user is assigned as unit_head via UnitStaffAssignment
             from django.utils import timezone
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
@@ -794,18 +788,15 @@ class BunkLogViewSet(viewsets.ModelViewSet):
                 start_date__lte=timezone.now().date(),
                 end_date__isnull=True
             ).values_list('unit_id', flat=True)
-            unit_ids.extend(unit_assignments)
             
             return BunkLog.objects.filter(
-                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+                bunk_assignment__bunk__unit_id__in=unit_assignments
             )
         # Camper care can see logs for bunks in their assigned units
         if user.role == 'Camper Care':
-            # Check both legacy camper_care field and new staff assignments
+            # Check staff assignments
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as camper_care
+            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             from django.utils import timezone
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
@@ -816,7 +807,7 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             unit_ids.extend(unit_assignments)
             
             return BunkLog.objects.filter(
-                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+                bunk_assignment__bunk__unit_id__in=unit_assignments
             )
         # Counselors can only see logs for their bunks
         if user.role == 'Counselor':
@@ -848,21 +839,15 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             
         # Unit heads can update logs for bunks in their units
         if user.role == 'Unit Head':
-            # Check both legacy unit_head field and new staff assignments
-            has_access = False
-            # Legacy approach
-            if user.managed_units.filter(bunks=instance.bunk_assignment.bunk).exists():
-                has_access = True
-            # New approach - check staff assignments
+            # Check staff assignments via UnitStaffAssignment
             from django.utils import timezone
-            if UnitStaffAssignment.objects.filter(
+            has_access = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
                 unit__bunks=instance.bunk_assignment.bunk,
                 start_date__lte=timezone.now().date(),
                 end_date__isnull=True
-            ).exists():
-                has_access = True
+            ).exists()
             
             if has_access:
                 serializer.save()
@@ -872,7 +857,7 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         
         # Camper care can update logs for bunks in their assigned units
         if user.role == 'Camper Care':
-            # Check both legacy camper_care field and new staff assignments
+            # Check staff assignments
             has_access = False
             # Legacy approach
             from bunk_logs.bunks.models import Bunk
@@ -939,9 +924,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             # Get units where user is assigned as unit_head
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.managed_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as unit_head
+            # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
@@ -952,7 +935,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             
             # Get counselors assigned to bunks in these units
             counselor_ids = Bunk.objects.filter(
-                unit_id__in=set(unit_ids)
+                unit_id__in=unit_assignments
             ).values_list('counselors', flat=True).distinct()
             
             return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
@@ -961,9 +944,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             # Get units where user is assigned as camper_care
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as camper_care
+            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='camper_care',
@@ -974,7 +955,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             
             # Get counselors assigned to bunks in these units
             counselor_ids = Bunk.objects.filter(
-                unit_id__in=set(unit_ids)
+                unit_id__in=unit_assignments
             ).values_list('counselors', flat=True).distinct()
             
             return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
@@ -1050,8 +1031,6 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                     end_date__isnull=True
                 ).values_list('unit_id', flat=True)
                 unit_ids.extend(unit_assignments)
-                # Also include legacy unit_head field
-                unit_ids.extend(user.managed_units.values_list('id', flat=True))
                 
             # For Camper Care role  
             if user.role == 'Camper Care':
@@ -1063,13 +1042,11 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                     end_date__isnull=True
                 ).values_list('unit_id', flat=True)
                 unit_ids.extend(unit_assignments)
-                # Also include legacy camper_care field
-                unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
             
             # Get counselors assigned to bunks in these units
             counselor_ids = User.objects.filter(
                 role='Counselor',
-                assigned_bunks__unit_id__in=set(unit_ids)
+                assigned_bunks__unit_id__in=unit_assignments
             ).values_list('id', flat=True)
             
             return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
@@ -1208,9 +1185,7 @@ class CamperBunkLogViewSet(APIView):
                 if user.role == 'Unit Head':
                     from django.utils import timezone
                     unit_ids = []
-                    # Legacy approach
-                    unit_ids.extend(user.managed_units.values_list('id', flat=True))
-                    # New approach - get units where user is assigned as unit_head
+                    # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
                     unit_assignments = UnitStaffAssignment.objects.filter(
                         staff_member=user,
                         role='unit_head',
@@ -1223,16 +1198,14 @@ class CamperBunkLogViewSet(APIView):
                         camper=camper
                     )
                     has_access = all_assignments.filter(
-                        bunk__unit_id__in=set(unit_ids)
+                        bunk__unit_id__in=unit_assignments
                     ).exists()
                 
                 # Camper care can see logs for campers in their assigned units
                 elif user.role == 'Camper Care':
                     from django.utils import timezone
                     unit_ids = []
-                    # Legacy approach
-                    unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
-                    # New approach - get units where user is assigned as camper_care
+                    # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
                     unit_assignments = UnitStaffAssignment.objects.filter(
                         staff_member=user,
                         role='camper_care',
@@ -1245,7 +1218,7 @@ class CamperBunkLogViewSet(APIView):
                         camper=camper
                     )
                     has_access = all_assignments.filter(
-                        bunk__unit_id__in=set(unit_ids)
+                        bunk__unit_id__in=unit_assignments
                     ).exists()
                 
                 # Counselors can see logs for campers in their bunks
@@ -1797,11 +1770,11 @@ def get_unit_head_bunks(request, unithead_id, date):
 
 @extend_schema(
     summary="Get camper care bunks",
-    description="Get all bunks managed by a specific camper care team member (via UnitStaffAssignment) with counselors and campers.",
+    description="Get all bunks managed by a specific camper care team member with filtering options.",
     parameters=[
         OpenApiParameter(
             name='camper_care_id',
-            description='Camper care user ID',
+            description='ID of the camper care team member',
             required=True,
             type=OpenApiTypes.STR,
             location=OpenApiParameter.PATH,
@@ -1813,17 +1786,75 @@ def get_unit_head_bunks(request, unithead_id, date):
             type=OpenApiTypes.DATE,
             location=OpenApiParameter.PATH,
         ),
+        OpenApiParameter(
+            name='bunk_id',
+            description='Filter by specific bunk ID',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='unit_head_help',
+            description='Filter by unit head help requested (true/false)',
+            required=False,
+            type=OpenApiTypes.BOOL,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='camper_care_help',
+            description='Filter by camper care help requested (true/false)',
+            required=False,
+            type=OpenApiTypes.BOOL,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='social_score_min',
+            description='Minimum social score (1-5)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='social_score_max',
+            description='Maximum social score (1-5)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='behavior_score_min',
+            description='Minimum behavior score (1-5)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='behavior_score_max',
+            description='Maximum behavior score (1-5)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='participation_score_min',
+            description='Minimum participation score (1-5)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name='participation_score_max',
+            description='Maximum participation score (1-5)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
     ],
     responses={
-        200: OpenApiResponse(
-            description="Camper care bunks data retrieved successfully",
-        ),
-        403: OpenApiResponse(
-            description="Permission denied",
-        ),
-        404: OpenApiResponse(
-            description="No unit found for this camper care team member",
-        ),
+        200: OpenApiResponse(description="Camper care bunks data retrieved successfully"),
+        403: OpenApiResponse(description="Permission denied"),
+        404: OpenApiResponse(description="No unit found for this camper care team member"),
+        500: OpenApiResponse(description="Server error"),
     },
 )
 @api_view(['GET'])
@@ -1832,6 +1863,14 @@ def get_camper_care_bunks(request, camper_care_id, date):
     """
     Get all bunks managed by a specific camper care team member (via UnitStaffAssignment) with counselors and campers.
     Endpoint: /api/campercare/<camper_care_id>/<date>/
+    
+    Supports filtering by:
+    - bunk_id: Filter by specific bunk
+    - unit_head_help: Filter by unit head help requested
+    - camper_care_help: Filter by camper care help requested
+    - social_score_min/max: Filter by social score range
+    - behavior_score_min/max: Filter by behavior score range
+    - participation_score_min/max: Filter by participation score range
     """
     try:
         from bunk_logs.bunks.models import Unit, UnitStaffAssignment
@@ -1847,6 +1886,19 @@ def get_camper_care_bunks(request, camper_care_id, date):
         except Exception:
             return Response({'error': 'Invalid date format.'}, status=400)
 
+        # Get filter parameters
+        filters = {
+            'bunk_id': request.query_params.get('bunk_id'),
+            'unit_head_help': request.query_params.get('unit_head_help'),
+            'camper_care_help': request.query_params.get('camper_care_help'),
+            'social_score_min': request.query_params.get('social_score_min'),
+            'social_score_max': request.query_params.get('social_score_max'),
+            'behavior_score_min': request.query_params.get('behavior_score_min'),
+            'behavior_score_max': request.query_params.get('behavior_score_max'),
+            'participation_score_min': request.query_params.get('participation_score_min'),
+            'participation_score_max': request.query_params.get('participation_score_max'),
+        }
+
         assignments = UnitStaffAssignment.objects.filter(
             staff_member_id=camper_care_id,
             role='camper_care',
@@ -1855,13 +1907,11 @@ def get_camper_care_bunks(request, camper_care_id, date):
 
         units = Unit.objects.filter(staff_assignments__in=assignments).distinct()
         if not units.exists():
-            legacy_unit = Unit.objects.filter(camper_care_id=camper_care_id).first()
-            if legacy_unit:
-                units = [legacy_unit]
-            else:
-                return Response({'error': 'No unit found for this camper care team member.'}, status=404)
+            # Fallback for legacy data - this should be removed eventually
+            return Response({'error': 'No unit found for this camper care team member.'}, status=404)
 
-        context = {'date': date}
+        # Pass filters through context
+        context = {'date': date, 'filters': filters}
         data = [CamperCareBunksSerializer(unit, context=context).data for unit in units]
         return Response(data)
     except Exception as e:
@@ -1908,32 +1958,26 @@ class BunkLogsAllByDateViewSet(APIView):
         if user.is_staff or user.role == 'Admin':
             queryset = BunkLog.objects.filter(date=query_date)
         elif user.role == 'Unit Head':
-            unit_ids = []
-            unit_ids.extend(user.managed_units.values_list('id', flat=True))
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
                 start_date__lte=query_date,
             ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
-            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
-                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+                bunk_assignment__bunk__unit_id__in=unit_assignments.values_list('unit_id', flat=True)
             )
         elif user.role == 'Camper Care':
-            unit_ids = []
-            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='camper_care',
                 start_date__lte=query_date,
             ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
-            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
-                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+                bunk_assignment__bunk__unit_id__in=unit_assignments.values_list('unit_id', flat=True)
             )
         elif user.role == 'Counselor':
             queryset = BunkLog.objects.filter(
@@ -2051,9 +2095,7 @@ class BunkLogsAllByDateViewSet(APIView):
             # Unit heads can see logs for bunks in their units
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.managed_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as unit_head
+            # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
@@ -2063,15 +2105,13 @@ class BunkLogsAllByDateViewSet(APIView):
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
-                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+                bunk_assignment__bunk__unit_id__in=unit_assignments
             )
         elif user.role == 'Camper Care':
             # Camper care can see logs for bunks in their assigned units
             from django.utils import timezone
             unit_ids = []
-            # Legacy approach
-            unit_ids.extend(user.camper_care_units.values_list('id', flat=True))
-            # New approach - get units where user is assigned as camper_care
+            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='camper_care',
@@ -2081,7 +2121,7 @@ class BunkLogsAllByDateViewSet(APIView):
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
-                bunk_assignment__bunk__unit_id__in=set(unit_ids)
+                bunk_assignment__bunk__unit_id__in=unit_assignments
             )
         elif user.role == 'Counselor':
             # Counselors can see logs for their bunks only

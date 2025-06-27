@@ -152,14 +152,16 @@ class SimpleUnitSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_unit_head(self, obj) -> Optional[Dict[str, Any]]:
-        if obj.unit_head:
-            return SimpleUserSerializer(obj.unit_head).data
+        primary_unit_head = obj.primary_unit_head
+        if primary_unit_head:
+            return SimpleUserSerializer(primary_unit_head).data
         return None
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_camper_care(self, obj) -> Optional[Dict[str, Any]]:
-        if obj.camper_care:
-            return SimpleUserSerializer(obj.camper_care).data
+        primary_camper_care = obj.primary_camper_care
+        if primary_camper_care:
+            return SimpleUserSerializer(primary_camper_care).data
         return None
 
 
@@ -579,7 +581,7 @@ class UnitCamperSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'bunk_log']
     
     def get_bunk_log(self, obj):
-        """Get bunk log for this camper on the specified date."""
+        """Get bunk log for this camper on the specified date with filtering."""
         # Get the date from the context (passed from the view)
         date = self.context.get('date')
         if not date:
@@ -602,6 +604,14 @@ class UnitCamperSerializer(serializers.ModelSerializer):
                 bunk_assignment=assignment,
                 date=date
             )
+            
+            # Apply filters if they exist - only filter if there are actual filter parameters
+            filters = self.context.get('filters', {})
+            has_filters = any(v is not None and v != '' for v in filters.values()) if filters else False
+            
+            if has_filters and not self._passes_filters(bunk_log, assignment, filters):
+                return None
+            
             # Get the serialized bunk log data
             bunk_log_data = BunkLogSerializer(bunk_log).data
             
@@ -613,7 +623,90 @@ class UnitCamperSerializer(serializers.ModelSerializer):
             
             return bunk_log_data
         except BunkLog.DoesNotExist:
+            # Return None regardless of filters - let the parent serializer handle filtering
             return None
+    
+    def _passes_filters(self, bunk_log, assignment, filters):
+        """Check if a bunk log passes all the specified filters."""
+        # Filter by bunk ID
+        if filters.get('bunk_id'):
+            try:
+                target_bunk_id = int(filters['bunk_id'])
+                if assignment.bunk.id != target_bunk_id:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        # Filter by unit head help requested
+        if filters.get('unit_head_help') is not None:
+            try:
+                unit_head_help = str(filters['unit_head_help']).lower() in ['true', '1', 'yes']
+                if bunk_log.request_unit_head_help != unit_head_help:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        # Filter by camper care help requested
+        if filters.get('camper_care_help') is not None:
+            try:
+                camper_care_help = str(filters['camper_care_help']).lower() in ['true', '1', 'yes']
+                if bunk_log.request_camper_care_help != camper_care_help:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        # Filter by social score range
+        if filters.get('social_score_min') is not None:
+            try:
+                min_score = int(filters['social_score_min'])
+                if bunk_log.social_score is None or bunk_log.social_score < min_score:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        if filters.get('social_score_max') is not None:
+            try:
+                max_score = int(filters['social_score_max'])
+                if bunk_log.social_score is None or bunk_log.social_score > max_score:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        # Filter by behavior score range
+        if filters.get('behavior_score_min') is not None:
+            try:
+                min_score = int(filters['behavior_score_min'])
+                if bunk_log.behavior_score is None or bunk_log.behavior_score < min_score:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        if filters.get('behavior_score_max') is not None:
+            try:
+                max_score = int(filters['behavior_score_max'])
+                if bunk_log.behavior_score is None or bunk_log.behavior_score > max_score:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        # Filter by participation score range
+        if filters.get('participation_score_min') is not None:
+            try:
+                min_score = int(filters['participation_score_min'])
+                if bunk_log.participation_score is None or bunk_log.participation_score < min_score:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        if filters.get('participation_score_max') is not None:
+            try:
+                max_score = int(filters['participation_score_max'])
+                if bunk_log.participation_score is None or bunk_log.participation_score > max_score:
+                    return False
+            except (ValueError, TypeError):
+                pass
+        
+        return True
 
 
 class UnitBunkDetailSerializer(serializers.ModelSerializer):
@@ -628,12 +721,32 @@ class UnitBunkDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'cabin_name', 'session_name', 'counselors', 'campers']
     
     def get_campers(self, obj):
-        """Get active campers assigned to this bunk."""
+        """Get active campers assigned to this bunk with filtering applied."""
         active_assignments = obj.camper_assignments.filter(is_active=True)
         campers = [assignment.camper for assignment in active_assignments]
         # Pass the date context from the parent serializer
         context = self.context.copy() if self.context else {}
-        return UnitCamperSerializer(campers, many=True, context=context).data
+        camper_data = UnitCamperSerializer(campers, many=True, context=context).data
+        
+        # Only filter out campers if specific filters are applied
+        filters = context.get('filters', {})
+        has_filters = any(v is not None and v != '' for v in filters.values()) if filters else False
+        
+        if has_filters:
+            # When filters are applied, only show campers that have matching bunk logs
+            filtered_campers = [camper for camper in camper_data if camper.get('bunk_log') is not None]
+            return filtered_campers
+        else:
+            # When no filters, show all campers regardless of whether they have bunk logs
+            return camper_data
+    
+    def to_representation(self, instance):
+        """Override to show bunks even when no campers match filters."""
+        data = super().to_representation(instance)
+        
+        # Always return the bunk data, even if no campers match filters
+        # This ensures bunks are still visible in the UI when filters don't match
+        return data
 
 
 class UnitHeadBunksSerializer(serializers.ModelSerializer):
@@ -649,7 +762,9 @@ class UnitHeadBunksSerializer(serializers.ModelSerializer):
         bunks = obj.bunks.all()
         # Pass the context from the view to the bunk serializer
         context = self.context.copy() if self.context else {}
-        return UnitBunkDetailSerializer(bunks, many=True, context=context).data
+        bunk_data = UnitBunkDetailSerializer(bunks, many=True, context=context).data
+        # Return all bunks, even if they have no matching campers after filtering
+        return bunk_data
 
 
 class CamperCareBunksSerializer(serializers.ModelSerializer):
@@ -665,7 +780,9 @@ class CamperCareBunksSerializer(serializers.ModelSerializer):
         bunks = obj.bunks.all()
         # Pass the context from the view to the bunk serializer
         context = self.context.copy() if self.context else {}
-        return UnitBunkDetailSerializer(bunks, many=True, context=context).data
+        bunk_data = UnitBunkDetailSerializer(bunks, many=True, context=context).data
+        # Return all bunks, even if they have no matching campers after filtering
+        return bunk_data
 
 
 class SocialAppDiagnosticSerializer(serializers.Serializer):
