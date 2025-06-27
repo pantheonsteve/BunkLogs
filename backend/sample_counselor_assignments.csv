@@ -1,0 +1,4 @@
+counselor_email,cabin_name,session_name,start_date,end_date,is_primary
+john.doe@example.com,Cabin A,Summer 2025,2025-06-15,2025-08-15,true
+jane.smith@example.com,Cabin B,Summer 2025,2025-06-15,,false
+mike.wilson@example.com,Cabin A,Summer 2025,2025-07-01,2025-07-31,false

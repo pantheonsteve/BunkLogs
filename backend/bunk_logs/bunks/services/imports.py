@@ -1,12 +1,14 @@
 import csv
 from pathlib import Path
 from typing import Any
+from datetime import datetime
 
 from bunk_logs.users.models import User  # Adjust based on your actual model
 from bunk_logs.bunks.models import Bunk  # Adjust based on your actual model
 from bunk_logs.bunks.models import Cabin  # Adjust based on your actual model
 from bunk_logs.bunks.models import Session  # Adjust based on your actual model
 from bunk_logs.bunks.models import Unit  # Adjust based on your actual model
+from bunk_logs.bunks.models import CounselorBunkAssignment
 
 
 class UnitImportError(ValueError):
@@ -279,5 +281,159 @@ def import_bunks_from_csv(file_path, *, dry_run=False):
 
     except (OSError, FileNotFoundError, PermissionError) as e:
         results["errors"].append(f"File error: {e!s}")
+
+    return results
+
+
+class CounselorBunkAssignmentImportError(ValueError):
+    """Custom exception for counselor bunk assignment import errors."""
+
+    MISSING_COUNSELOR_EMAIL = "Counselor email is required"
+    MISSING_BUNK_INFO = "Bunk information is required (cabin_name and session_name)"
+    COUNSELOR_NOT_FOUND = "Counselor not found"
+    BUNK_NOT_FOUND = "Bunk not found"
+    INVALID_DATE_FORMAT = "Invalid date format. Use YYYY-MM-DD"
+    INVALID_PRIMARY_VALUE = "Invalid is_primary value. Use 'true', 'false', '1', or '0'"
+
+
+def _validate_counselor_assignment_data(row: dict) -> None:
+    """Validate counselor bunk assignment data."""
+    if not row.get("counselor_email", "").strip():
+        raise CounselorBunkAssignmentImportError(CounselorBunkAssignmentImportError.MISSING_COUNSELOR_EMAIL)
+
+    if not (row.get("cabin_name", "").strip() and row.get("session_name", "").strip()):
+        raise CounselorBunkAssignmentImportError(CounselorBunkAssignmentImportError.MISSING_BUNK_INFO)
+
+
+def _parse_date(date_str: str) -> datetime.date:
+    """Parse date string in YYYY-MM-DD format."""
+    if not date_str or not date_str.strip():
+        return None
+
+    try:
+        return datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        raise CounselorBunkAssignmentImportError(CounselorBunkAssignmentImportError.INVALID_DATE_FORMAT)
+
+
+def _parse_boolean(value: str) -> bool:
+    """Parse boolean value from string."""
+    if not value or not value.strip():
+        return False
+
+    value = value.strip().lower()
+    if value in ('true', '1', 'yes', 'y'):
+        return True
+    elif value in ('false', '0', 'no', 'n'):
+        return False
+    else:
+        raise CounselorBunkAssignmentImportError(CounselorBunkAssignmentImportError.INVALID_PRIMARY_VALUE)
+
+
+def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
+    """
+    Import counselor bunk assignments from CSV file.
+
+    Expected CSV columns:
+    - counselor_email (required): Email of the counselor
+    - cabin_name (required): Name of the cabin
+    - session_name (required): Name of the session
+    - start_date (required): Start date in YYYY-MM-DD format
+    - end_date (optional): End date in YYYY-MM-DD format (blank for ongoing)
+    - is_primary (optional): 'true'/'false' or '1'/'0' - whether this is the primary counselor
+    """
+
+    results = {
+        "success_count": 0,
+        "created": 0,
+        "updated": 0,
+        "errors": [],
+        "warnings": [],
+    }
+
+    try:
+        file_path = Path(file_path)
+
+        with file_path.open(encoding='utf-8') as csv_file:
+            reader = csv.DictReader(csv_file)
+
+            for row_num, row in enumerate(reader, start=2):  # Start at 2 because row 1 is headers
+                try:
+                    # Validate required data
+                    _validate_counselor_assignment_data(row)
+
+                    # Find counselor
+                    counselor_email = row["counselor_email"].strip()
+                    try:
+                        counselor = User.objects.get(email=counselor_email, role="Counselor")
+                    except User.DoesNotExist:
+                        raise CounselorBunkAssignmentImportError(
+                            f"{CounselorBunkAssignmentImportError.COUNSELOR_NOT_FOUND}: {counselor_email}"
+                        )
+
+                    # Find bunk
+                    cabin_name = row["cabin_name"].strip()
+                    session_name = row["session_name"].strip()
+                    try:
+                        bunk = Bunk.objects.get(
+                            cabin__name=cabin_name,
+                            session__name=session_name
+                        )
+                    except Bunk.DoesNotExist:
+                        raise CounselorBunkAssignmentImportError(
+                            f"{CounselorBunkAssignmentImportError.BUNK_NOT_FOUND}: {cabin_name} - {session_name}"
+                        )
+
+                    # Parse dates
+                    start_date = _parse_date(row.get("start_date", ""))
+                    if not start_date:
+                        # Default to today if no start date provided
+                        from django.utils import timezone
+                        start_date = timezone.now().date()
+
+                    end_date = _parse_date(row.get("end_date", ""))
+
+                    # Parse is_primary
+                    is_primary = _parse_boolean(row.get("is_primary", "false"))
+
+                    # Prepare assignment data
+                    assignment_data = {
+                        "counselor": counselor,
+                        "bunk": bunk,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "is_primary": is_primary,
+                    }
+
+                    if not dry_run:
+                        # Check if assignment already exists
+                        existing_assignment = CounselorBunkAssignment.objects.filter(
+                            counselor=counselor,
+                            bunk=bunk,
+                            start_date=start_date,
+                        ).first()
+
+                        if existing_assignment:
+                            # Update existing assignment
+                            existing_assignment.end_date = end_date
+                            existing_assignment.is_primary = is_primary
+                            existing_assignment.save()
+                            results["updated"] += 1
+                        else:
+                            # Create new assignment
+                            CounselorBunkAssignment.objects.create(**assignment_data)
+                            results["created"] += 1
+
+                    results["success_count"] += 1
+
+                except CounselorBunkAssignmentImportError as e:
+                    results["errors"].append(f"Row {row_num}: {e}")
+                except Exception as e:
+                    results["errors"].append(f"Row {row_num}: Unexpected error - {e}")
+
+    except (OSError, FileNotFoundError, PermissionError) as e:
+        results["errors"].append(f"File error: {e}")
+    except Exception as e:
+        results["errors"].append(f"Unexpected error: {e}")
 
     return results

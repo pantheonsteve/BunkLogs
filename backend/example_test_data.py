@@ -78,7 +78,7 @@ test_bunk = Bunk.objects.create(
     is_active=True,
     is_test_data=True
 )
-test_bunk.counselors.add(test_user1)
+test_bunk.assign_counselor(test_user1, is_primary=True)
 
 print(f"Created test bunk: {test_bunk.name}")
 

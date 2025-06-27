@@ -1,0 +1,65 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    › <a href="{% url 'admin:app_list' app_label='bunks' %}">Bunks</a>
+    › <a href="{% url 'admin:bunks_counselorbunkassignment_changelist' %}">Counselor bunk assignments</a>
+    › {% trans 'Import CSV' %}
+  </div>
+{% endblock breadcrumbs %}
+
+{% block content %}
+  <div id="content-main">
+    <form action="." method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div>
+        <fieldset class="module aligned">
+          <h2>{{ title }}</h2>
+          {% if subtitle %}
+            <p class="help">{{ subtitle }}</p>
+          {% endif %}
+          
+          {% if expected_headers %}
+            <div class="form-row">
+              <div class="help">
+                <h3>Required CSV Headers:</h3>
+                <ul>
+                  {% for header in expected_headers %}
+                    <li>{{ header }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+          {% endif %}
+
+          {% if sample_data %}
+            <div class="form-row">
+              <div class="help">
+                <h3>Sample CSV Format:</h3>
+                <pre style="background: #f8f8f8; padding: 10px; border: 1px solid #ddd;">{% for line in sample_data %}{{ line }}
+{% endfor %}</pre>
+              </div>
+            </div>
+          {% endif %}
+
+          {% for field in form %}
+            <div class="form-row">
+              <div>
+                <label class="required" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                <div class="help">{{ field.help_text }}</div>
+                {% if field.errors %}{{ field.errors }}{% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </fieldset>
+        <div class="submit-row">
+          <input type="submit" value="{% trans 'Import' %}" class="default" />
+          <a href="{% url 'admin:bunks_counselorbunkassignment_changelist' %}" class="button cancel-link">{% trans 'Cancel' %}</a>
+        </div>
+      </div>
+    </form>
+  </div>
+{% endblock content %}

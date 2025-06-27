@@ -149,14 +149,28 @@ class UserDetailsView(viewsets.ReadOnlyModelViewSet):
         data['groups'] = [group.name for group in user.groups.all()]
         
         # Manually add bunk data to avoid circular references
-        from bunk_logs.bunks.models import Bunk
+        from bunk_logs.bunks.models import CounselorBunkAssignment
+        from django.utils import timezone
+        from django.db import models
+        
         assigned_bunks = []
-        for bunk in Bunk.objects.filter(counselors=user):
+        today = timezone.now().date()
+        
+        # Get active counselor assignments
+        active_assignments = CounselorBunkAssignment.objects.filter(
+            counselor=user,
+            start_date__lte=today
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+        ).select_related('bunk', 'bunk__cabin', 'bunk__session')
+        
+        for assignment in active_assignments:
+            bunk = assignment.bunk
             assigned_bunks.append({
                 "id": str(bunk.id),
                 "name": bunk.name,
-                "cabin": str(bunk.cabin) if hasattr(bunk, 'cabin') else None,
-                "session": str(bunk.session) if hasattr(bunk, 'session') else None,
+                "cabin": str(bunk.cabin) if hasattr(bunk, 'cabin') and bunk.cabin else None,
+                "session": str(bunk.session) if hasattr(bunk, 'session') and bunk.session else None,
                 # Add any other basic bunk fields needed but avoid nesting counselors here
             })
         data['assigned_bunks'] = assigned_bunks
@@ -205,7 +219,20 @@ def get_user_by_email(request, email):
                     # Get the bunks in the Unit Head's unit
                     unit_bunks = Bunk.objects.filter(unit=request.user.unit)
                     # Check if requested user is a counselor in any of those bunks
-                    if not unit_bunks.filter(counselors=user).exists():
+                    from bunk_logs.bunks.models import CounselorBunkAssignment
+                    from django.utils import timezone
+                    from django.db import models
+                    
+                    today = timezone.now().date()
+                    has_counselor_assignment = CounselorBunkAssignment.objects.filter(
+                        counselor=user,
+                        bunk__in=unit_bunks,
+                        start_date__lte=today
+                    ).filter(
+                        models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+                    ).exists()
+                    
+                    if not has_counselor_assignment:
                         raise PermissionDenied("You do not have permission to view this user's details")
                 else:
                     raise PermissionDenied("You do not have permission to view this user's details")
@@ -215,13 +242,26 @@ def get_user_by_email(request, email):
         data = serializer.data
 
         assigned_bunks = []
-        for bunk in Bunk.objects.filter(counselors=user):
+        from bunk_logs.bunks.models import CounselorBunkAssignment
+        from django.utils import timezone
+        from django.db import models
+        
+        today = timezone.now().date()
+        active_assignments = CounselorBunkAssignment.objects.filter(
+            counselor=user,
+            start_date__lte=today
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+        ).select_related('bunk', 'bunk__cabin', 'bunk__session')
+        
+        for assignment in active_assignments:
+            bunk = assignment.bunk
             assigned_bunks.append({
                 "id": str(bunk.id),
                 "bunk_id": str(bunk.id),
                 "name": bunk.name,
-                "cabin": str(bunk.cabin) if hasattr(bunk, 'cabin') else None,
-                "session": str(bunk.session) if hasattr(bunk, 'session') else None,
+                "cabin": str(bunk.cabin) if hasattr(bunk, 'cabin') and bunk.cabin else None,
+                "session": str(bunk.session) if hasattr(bunk, 'session') and bunk.session else None,
             })
         data['assigned_bunks'] = assigned_bunks
         
@@ -455,8 +495,9 @@ class BunkLogsInfoByDateViewSet(APIView):
                     "bunk_log": serialized_log,
                 })
             # Get counselors for this bunk
-            counselors_data = []  # You'll need to implement this part
-            for counselor in bunk.counselors.all():
+            counselors_data = []
+            current_counselors = bunk.get_current_counselors()
+            for counselor in current_counselors:
                 counselors_data.append({
                     "id": str(counselor.id),
                     "first_name": counselor.first_name,
@@ -667,8 +708,22 @@ class CamperViewSet(viewsets.ModelViewSet):
         
         # Counselors can see campers in their bunks
         if user.role == 'Counselor':
+            # Get bunks from counselor assignments
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            from django.utils import timezone
+            from django.db import models
+            
+            today = timezone.now().date()
+            active_assignments = CounselorBunkAssignment.objects.filter(
+                counselor=user,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            )
+            assigned_bunks = [assignment.bunk for assignment in active_assignments]
+            
             return Camper.objects.filter(
-                bunk_assignments__bunk__in=user.assigned_bunks.all(),
+                bunk_assignments__bunk__in=assigned_bunks,
                 bunk_assignments__is_active=True
             ).distinct()
         
@@ -744,8 +799,22 @@ class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
         
         # Counselors can see assignments in their bunks
         if user.role == 'Counselor':
+            # Get bunks from counselor assignments
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            from django.utils import timezone
+            from django.db import models
+            
+            today = timezone.now().date()
+            active_assignments = CounselorBunkAssignment.objects.filter(
+                counselor=user,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            )
+            assigned_bunks = [assignment.bunk for assignment in active_assignments]
+            
             return CamperBunkAssignment.objects.filter(
-                bunk__in=user.assigned_bunks.all()
+                bunk__in=assigned_bunks
             )
         
         # Default: see nothing
@@ -811,8 +880,22 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             )
         # Counselors can only see logs for their bunks
         if user.role == 'Counselor':
+            # Get bunks from counselor assignments
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            from django.utils import timezone
+            from django.db import models
+            
+            today = timezone.now().date()
+            active_assignments = CounselorBunkAssignment.objects.filter(
+                counselor=user,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            )
+            assigned_bunks = [assignment.bunk for assignment in active_assignments]
+            
             return BunkLog.objects.filter(
-                bunk_assignment__bunk__in=user.assigned_bunks.all()
+                bunk_assignment__bunk__in=assigned_bunks
             )
         # Default: see nothing
         return BunkLog.objects.none()
@@ -821,8 +904,21 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         # Verify the user is allowed to create a log for this bunk assignment
         bunk_assignment = serializer.validated_data.get('bunk_assignment')
         if self.request.user.role == 'Counselor':
-            # Check if user is a counselor for this bunk
-            if not self.request.user.assigned_bunks.filter(id=bunk_assignment.bunk.id).exists():
+            # Check if user is a counselor for this bunk using new assignment system
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            from django.utils import timezone
+            from django.db import models
+            
+            today = timezone.now().date()
+            has_assignment = CounselorBunkAssignment.objects.filter(
+                counselor=self.request.user,
+                bunk=bunk_assignment.bunk,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            ).exists()
+            
+            if not has_assignment:
                 raise PermissionDenied("You are not authorized to create logs for this bunk.")
         # Set the counselor automatically to the current user
         serializer.save(counselor=self.request.user)
@@ -882,8 +978,21 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         
         # Counselors have specific restrictions
         if user.role == 'Counselor':
-            # Check if user is a counselor for this bunk
-            if not user.assigned_bunks.filter(id=instance.bunk_assignment.bunk.id).exists():
+            # Check if user is a counselor for this bunk using new assignment system
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            from django.utils import timezone
+            from django.db import models
+            
+            today = timezone.now().date()
+            has_assignment = CounselorBunkAssignment.objects.filter(
+                counselor=user,
+                bunk=instance.bunk_assignment.bunk,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            ).exists()
+            
+            if not has_assignment:
                 raise PermissionDenied("You are not authorized to update logs for this bunk.")
             
             # Check if user is the original counselor who created the log
@@ -1223,8 +1332,22 @@ class CamperBunkLogViewSet(APIView):
                 
                 # Counselors can see logs for campers in their bunks
                 elif user.role == 'Counselor':
+                    # Get bunks from counselor assignments
+                    from bunk_logs.bunks.models import CounselorBunkAssignment
+                    from django.utils import timezone
+                    from django.db import models
+                    
+                    today = timezone.now().date()
+                    active_assignments = CounselorBunkAssignment.objects.filter(
+                        counselor=user,
+                        start_date__lte=today
+                    ).filter(
+                        models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+                    )
+                    assigned_bunks = [assignment.bunk for assignment in active_assignments]
+                    
                     has_access = current_assignments.filter(
-                        bunk__in=user.assigned_bunks.all()
+                        bunk__in=assigned_bunks
                     ).exists()
                 
                 if not has_access:

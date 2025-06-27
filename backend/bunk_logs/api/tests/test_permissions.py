@@ -43,7 +43,8 @@ class CounselorPermissionsTest(TestCase):
             session=self.session,
             is_active=True
         )
-        self.bunk.counselors.add(self.counselor1)
+        # Use the new assignment method
+        self.bunk.assign_counselor(self.counselor1, is_primary=True)
         
         # Create a camper and assign to the bunk
         self.camper = Camper.objects.create(
