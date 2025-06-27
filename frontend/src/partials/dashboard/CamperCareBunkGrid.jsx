@@ -515,36 +515,49 @@ function CamperCareBunkGrid({ selectedDate }) {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {getCampersRequestingCamperCare().map((camper, index) => (
-                    <div key={`care-help-${camper.id}-${index}`} className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
-                      <div className="flex items-center space-x-3">
-                        <img 
-                          src={GenericAvatar} 
-                          alt="Avatar" 
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-gray-100">
-                            {camper.first_name} {camper.last_name}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {camper.bunk_name} • {camper.unit_name}
-                          </p>
-                          {camper.bunk_log.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-                              {camper.bunk_log.description}
+                  {getCampersRequestingCamperCare().map((camper, index) => {
+                    // Build the date string in YYYY-MM-DD format
+                    const dateStr = selectedDate
+                      ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+                      : new Date().toISOString().split('T')[0];
+                    // Build the URL to the camper's page for this date
+                    const camperUrl = `/camper/${camper.id}/${dateStr}`;
+                    return (
+                      <a
+                        key={`care-help-${camper.id}-${index}`}
+                        href={camperUrl}
+                        className="block bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800 hover:shadow-lg transition-shadow cursor-pointer"
+                        tabIndex={0}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <img 
+                            src={GenericAvatar} 
+                            alt="Avatar" 
+                            className="w-10 h-10 rounded-full"
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 dark:text-gray-100">
+                              {camper.first_name} {camper.last_name}
                             </p>
-                          )}
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {camper.bunk_name} • {camper.unit_name}
+                            </p>
+                            {camper.bunk_log.description && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                <span
+                                  dangerouslySetInnerHTML={{ __html: camper.bunk_log.description }}
+                                />
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
-
-          {/* Campers requesting unit head help */}
           {getCampersRequestingUnitHeadHelp().length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-yellow-200 dark:border-yellow-800">
               <div className="p-6">
