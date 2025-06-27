@@ -57,16 +57,29 @@ class IsCounselorForBunk(permissions.BasePermission):
         
         # Counselors can access their assigned bunks
         if request.user.role == 'Counselor':
-            from bunk_logs.bunks.models import Bunk
-            has_access = Bunk.objects.filter(
-                id=bunk_id, 
-                counselors__id=request.user.id
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            from django.utils import timezone
+            from django.db import models
+            
+            today = timezone.now().date()
+            has_access = CounselorBunkAssignment.objects.filter(
+                bunk_id=bunk_id,
+                counselor=request.user,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
             ).exists()
             
             logger.debug(f"Counselor access to bunk {bunk_id}: {has_access}")
             
             # Log all assigned bunks for debugging
-            assigned_bunk_ids = list(Bunk.objects.filter(counselors__id=request.user.id).values_list('id', flat=True))
+            assigned_assignments = CounselorBunkAssignment.objects.filter(
+                counselor=request.user,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            )
+            assigned_bunk_ids = [assignment.bunk.id for assignment in assigned_assignments]
             logger.debug(f"User is assigned to bunk IDs: {assigned_bunk_ids}")
             
             return has_access

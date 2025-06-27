@@ -92,7 +92,7 @@ class Command(BaseCommand):
                 is_active=True,
                 is_test_data=True
             )
-            test_bunk.counselors.add(test_user)
+            test_bunk.assign_counselor(test_user, is_primary=True)
             
             # Create test campers
             for i in range(3):

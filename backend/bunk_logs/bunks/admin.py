@@ -12,14 +12,17 @@ from .forms import BunkCsvImportForm
 from .forms import CabinCsvImportForm
 from .forms import UnitCsvImportForm
 from .forms import UnitForm
+from .forms import CounselorBunkAssignmentCsvImportForm
 from .models import Bunk
 from .models import Cabin
 from .models import Session
 from .models import Unit
 from .models import UnitStaffAssignment
+from .models import CounselorBunkAssignment
 from .services.imports import import_bunks_from_csv
 from .services.imports import import_cabins_from_csv
 from .services.imports import import_units_from_csv
+from .services.imports import import_counselor_bunk_assignments_from_csv
 from bunk_logs.utils.admin import TestDataAdminMixin
 
 
@@ -224,12 +227,29 @@ class SessionAdmin(TestDataAdminMixin, admin.ModelAdmin):
     search_fields = ("name", "start_date", "end_date")
 
 
+class CounselorBunkAssignmentInline(admin.TabularInline):
+    model = CounselorBunkAssignment
+    extra = 0
+    autocomplete_fields = ["counselor"]
+    fields = ["counselor", "start_date", "end_date", "is_primary"]
+
+
 @admin.register(Bunk)
 class BunkAdmin(TestDataAdminMixin, admin.ModelAdmin):
-    list_display = ("name", "cabin", "session", "unit", "is_active", "is_test_data_colored")
+    list_display = ("name", "cabin", "session", "unit", "is_active", "get_current_counselors_display", "is_test_data_colored")
     list_filter = ("is_active", "session", "cabin", "unit")
     search_fields = ("cabin__name", "session__name")
     actions = ["activate_bunks", "deactivate_bunks"]
+    inlines = [CounselorBunkAssignmentInline]
+    
+    def get_current_counselors_display(self, obj):
+        """Display current counselors"""
+        counselors = obj.get_current_counselors()
+        if counselors:
+            names = [counselor.get_full_name() for counselor in counselors]
+            return ", ".join(names)
+        return "None"
+    get_current_counselors_display.short_description = "Current Counselors"
 
     def get_urls(self):
         urls = super().get_urls()
@@ -303,3 +323,122 @@ class BunkAdmin(TestDataAdminMixin, admin.ModelAdmin):
     def deactivate_bunks(self, request, queryset):
         updated = queryset.update(is_active=False)
         self.message_user(request, f"{updated} bunks were deactivated.")
+
+
+@admin.register(CounselorBunkAssignment)
+class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
+    list_display = (
+        "counselor",
+        "bunk",
+        "start_date",
+        "end_date",
+        "is_primary",
+        "is_active",
+        "created_at",
+    )
+    list_filter = (
+        "is_primary",
+        "start_date",
+        "end_date",
+        "bunk__session",
+        "bunk__unit",
+        "created_at",
+    )
+    search_fields = (
+        "counselor__first_name",
+        "counselor__last_name",
+        "counselor__email",
+        "bunk__cabin__name",
+    )
+    date_hierarchy = "start_date"
+    autocomplete_fields = ["counselor", "bunk"]
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path("import-counselor-assignments/", self.import_counselor_assignments, name="counselor_assignment_import_csv"),
+        ]
+        return custom_urls + urls
+
+    def import_counselor_assignments(self, request):
+        if request.method == "POST":
+            form = CounselorBunkAssignmentCsvImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                csv_file = form.cleaned_data["csv_file"]
+                dry_run = form.cleaned_data["dry_run"]
+                
+                # Save the uploaded file to a secure temporary file
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    temp_path = Path(temp_file.name)
+                    for chunk in csv_file.chunks():
+                        temp_file.write(chunk)
+
+                # Process the CSV file
+                result = import_counselor_bunk_assignments_from_csv(temp_path, dry_run=dry_run)
+
+                if dry_run:
+                    messages.info(
+                        request,
+                        f"Dry run completed. {result['success_count']} counselor assignments would be processed. "
+                        f"Created: {result['created']}, Updated: {result['updated']}"
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f"Successfully processed {result['success_count']} counselor assignments. "
+                        f"Created: {result['created']}, Updated: {result['updated']}"
+                    )
+
+                # Display any errors
+                for error in result["errors"]:
+                    messages.error(request, error)
+
+                # Display any warnings
+                for warning in result["warnings"]:
+                    messages.warning(request, warning)
+
+                # Clean up temporary file
+                temp_path.unlink(missing_ok=True)
+
+                return redirect("..")
+        else:
+            form = CounselorBunkAssignmentCsvImportForm()
+
+        return render(
+            request,
+            "admin/csv_import_form.html",
+            {
+                "form": form,
+                "title": "Import Counselor Bunk Assignments from CSV",
+                "subtitle": "Upload a CSV file with counselor assignment data",
+                "expected_headers": [
+                    "counselor_email (required): Email of the counselor",
+                    "cabin_name (required): Name of the cabin", 
+                    "session_name (required): Name of the session",
+                    "start_date (required): Start date in YYYY-MM-DD format",
+                    "end_date (optional): End date in YYYY-MM-DD format (blank for ongoing)",
+                    "is_primary (optional): 'true'/'false' or '1'/'0' for primary counselor",
+                ],
+                "sample_data": [
+                    "counselor_email,cabin_name,session_name,start_date,end_date,is_primary",
+                    "john.doe@example.com,Cabin A,Summer 2025,2025-06-15,2025-08-15,true",
+                    "jane.smith@example.com,Cabin B,Summer 2025,2025-06-15,,false",
+                ],
+            },
+        )
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["import_counselor_assignments"] = reverse("admin:counselor_assignment_import_csv")
+        return super().changelist_view(request, extra_context=extra_context)
+    
+    def is_active(self, obj):
+        """Display if the assignment is currently active"""
+        return obj.is_active
+    is_active.boolean = True
+    is_active.short_description = "Currently Active"
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related(
+            "counselor", "bunk", "bunk__cabin", "bunk__session", "bunk__unit"
+        )

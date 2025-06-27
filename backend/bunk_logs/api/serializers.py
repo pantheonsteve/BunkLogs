@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any, List
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
+from django.db import models
+from django.utils import timezone
 
 from bunk_logs.users.models import User
 from bunk_logs.bunks.models import Bunk
@@ -170,11 +172,16 @@ class SimpleBunkSerializer(serializers.ModelSerializer):
     unit = SimpleUnitSerializer()
     cabin = CabinSerializer()
     session = SessionSerializer()
-    counselors = SimpleUserSerializer(many=True, read_only=True)  # Use SimpleUserSerializer here
+    counselors = serializers.SerializerMethodField()
 
     class Meta:
         model = Bunk
         fields = ['counselors', 'session', 'unit', 'cabin', 'id']  # Exclude the field causing recursion
+    
+    def get_counselors(self, obj):
+        """Get current counselors from assignments"""
+        current_counselors = obj.get_current_counselors()
+        return SimpleUserSerializer(current_counselors, many=True).data
 
 
 class ApiUserSerializer(serializers.ModelSerializer):
@@ -213,8 +220,17 @@ class ApiUserSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunks(self, obj) -> List[Dict[str, Any]]:
         if obj.role == 'Counselor':
-            # Use SimpleBunkSerializer instead of BunkSerializer to avoid recursion
-            return SimpleBunkSerializer(Bunk.objects.filter(counselors=obj), many=True).data
+            # Get bunks from counselor assignments
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            today = timezone.now().date()
+            active_assignments = CounselorBunkAssignment.objects.filter(
+                counselor=obj,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            )
+            bunks = [assignment.bunk for assignment in active_assignments]
+            return SimpleBunkSerializer(bunks, many=True).data
         return []
     
     @extend_schema_field(OpenApiTypes.OBJECT)
@@ -235,11 +251,16 @@ class BunkSerializer(serializers.ModelSerializer):
     unit = UnitSerializer()
     cabin = CabinSerializer()
     session = SessionSerializer()
-    counselors = SimpleUserSerializer(many=True, read_only=True)  # Use SimpleUserSerializer here
+    counselors = serializers.SerializerMethodField()
 
     class Meta:
         model = Bunk
         fields = "__all__"
+    
+    def get_counselors(self, obj):
+        """Get current counselors from assignments"""
+        current_counselors = obj.get_current_counselors()
+        return SimpleUserSerializer(current_counselors, many=True).data
 
 
 class CamperSerializer(serializers.ModelSerializer):
@@ -711,7 +732,7 @@ class UnitCamperSerializer(serializers.ModelSerializer):
 
 class UnitBunkDetailSerializer(serializers.ModelSerializer):
     """Detailed bunk serializer for unit endpoints including counselors and campers."""
-    counselors = UnitCounselorSerializer(many=True, read_only=True)
+    counselors = serializers.SerializerMethodField()
     campers = serializers.SerializerMethodField()
     cabin_name = serializers.CharField(source='cabin.name', read_only=True)
     session_name = serializers.CharField(source='session.name', read_only=True)
@@ -719,6 +740,11 @@ class UnitBunkDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bunk
         fields = ['id', 'cabin_name', 'session_name', 'counselors', 'campers']
+    
+    def get_counselors(self, obj):
+        """Get current counselors from assignments"""
+        current_counselors = obj.get_current_counselors()
+        return UnitCounselorSerializer(current_counselors, many=True).data
     
     def get_campers(self, obj):
         """Get active campers assigned to this bunk with filtering applied."""

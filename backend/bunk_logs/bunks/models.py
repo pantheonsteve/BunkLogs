@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
@@ -69,6 +70,88 @@ class UnitStaffAssignment(models.Model):
 
     def __str__(self):
         return f"{self.unit.name} - {self.staff_member.get_full_name()} ({self.get_role_display()})"
+
+
+class CounselorBunkAssignment(TestDataMixin):
+    """Assignment of counselors to bunks with date tracking."""
+
+    # Add error message constants
+    OVERLAPPING_ASSIGNMENT_ERROR = "Counselor already has an active bunk assignment during this period."
+
+    counselor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bunk_assignments",
+        limit_choices_to={"role": "Counselor"},
+    )
+    bunk = models.ForeignKey(
+        "Bunk",
+        on_delete=models.CASCADE,
+        related_name="counselor_assignments",
+    )
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Is this counselor the primary counselor for this bunk?"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("counselor bunk assignment")
+        verbose_name_plural = _("counselor bunk assignments")
+        ordering = ["-start_date", "-is_primary"]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(end_date__isnull=True) | models.Q(end_date__gte=models.F("start_date")),
+                name="valid_date_range_counselor_bunk"
+            )
+        ]
+        app_label = "bunks"
+
+    def __str__(self):
+        end_str = f" - {self.end_date}" if self.end_date else " - Present"
+        primary_str = " (Primary)" if self.is_primary else ""
+        return f"{self.counselor.get_full_name()} -> {self.bunk.name} ({self.start_date}{end_str}){primary_str}"
+
+    @property
+    def is_active(self):
+        """Check if this assignment is currently active"""
+        today = timezone.now().date()
+        return self.start_date <= today and (self.end_date is None or self.end_date >= today)
+
+    def clean(self):
+        """Validate the assignment"""
+        # Validate that dates are logical
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError("End date cannot be before start date.")
+
+        # Check for overlapping assignments if we're setting this as primary
+        if self.is_primary:
+            overlapping_primary = CounselorBunkAssignment.objects.filter(
+                bunk=self.bunk,
+                is_primary=True,
+            )
+
+            # Exclude current instance if it exists (for updates)
+            if self.pk:
+                overlapping_primary = overlapping_primary.exclude(pk=self.pk)
+
+            # Check for active overlaps
+            for assignment in overlapping_primary:
+                if assignment.is_active:
+                    # Check if our date range overlaps with this active assignment
+                    their_end = assignment.end_date or timezone.now().date()
+                    our_end = self.end_date or timezone.now().date()
+                    
+                    if (self.start_date <= their_end and our_end >= assignment.start_date):
+                        raise ValidationError("Another counselor is already the primary for this bunk during this period.")
+
+    def save(self, *args, **kwargs):
+        # Run validation
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 class Unit(TestDataMixin):
@@ -149,11 +232,6 @@ class Bunk(TestDataMixin):
         related_name="bunks",
     )
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="bunks")
-    counselors = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        limit_choices_to={"role": "Counselor"},
-        related_name="assigned_bunks",
-    )
     unit = models.ForeignKey(
         Unit,
         on_delete=models.SET_NULL,
@@ -182,3 +260,50 @@ class Bunk(TestDataMixin):
         if self.session:
             return f"(No Cabin) - {self.session.name}"
         return "(Undefined Bunk)"
+
+    def get_current_counselors(self):
+        """Get all currently assigned counselors"""
+        today = timezone.now().date()
+        return [
+            assignment.counselor 
+            for assignment in self.counselor_assignments.filter(
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            ).order_by("-is_primary", "-start_date")
+        ]
+    
+    def get_primary_counselor(self):
+        """Get the primary counselor for this bunk"""
+        today = timezone.now().date()
+        primary_assignment = self.counselor_assignments.filter(
+            start_date__lte=today,
+            is_primary=True
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+        ).first()
+        
+        return primary_assignment.counselor if primary_assignment else None
+    
+    def assign_counselor(self, counselor, start_date=None, end_date=None, is_primary=False):
+        """Assign a counselor to this bunk"""
+        if start_date is None:
+            start_date = timezone.now().date()
+        
+        return CounselorBunkAssignment.objects.create(
+            counselor=counselor,
+            bunk=self,
+            start_date=start_date,
+            end_date=end_date,
+            is_primary=is_primary
+        )
+    
+    @property
+    def counselor(self):
+        """Backward compatibility property - returns primary counselor"""
+        return self.get_primary_counselor()
+
+    @property  
+    def current_counselors(self):
+        """Property for current counselors list"""
+        return self.get_current_counselors()
