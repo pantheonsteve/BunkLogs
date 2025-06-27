@@ -266,12 +266,13 @@ function BunkDashboard() {
   };
 
   // Check user roles
+  const isAdmin = user?.role === 'Admin';
   const isCounselor = user?.role === 'Counselor';
   const isCamperCare = user?.role === 'Camper Care';
   const isUnitHead = user?.role === 'Unit Head';
   
   // Define view-only roles that can see cards but cannot edit
-  const isViewOnlyRole = isCamperCare || isUnitHead;
+  const isViewOnlyRole = isCamperCare || isUnitHead || isAdmin;
 
   useEffect(() => {
     async function fetchData() {

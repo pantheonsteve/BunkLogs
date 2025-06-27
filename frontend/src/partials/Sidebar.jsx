@@ -226,7 +226,7 @@ function Sidebar({
                       </div>
                     </NavLink>
                   </li>
-                  <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  {/* <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                     <NavLink 
                       to="/admin-dashboard" 
                       className={({ isActive }) => 
@@ -245,7 +245,7 @@ function Sidebar({
                         </span>
                       </div>
                     </NavLink>
-                  </li>
+                  </li> */}
                 </>
               )}
               <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">

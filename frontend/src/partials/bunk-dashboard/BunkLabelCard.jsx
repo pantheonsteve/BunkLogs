@@ -26,6 +26,10 @@ function BunkLabelCard({ bunkLabel, session }) {
       <span className="font-semibold text-gray-800 dark:text-gray-100 text-2xl text-center">
         {bunkLabel}
       </span>
+      <br />
+      <span className="font-semibold text-gray-800 dark:text-gray-100 text-l text-center">
+        {session ? `${session}` : ''}
+      </span>
     </div>
   );
 }

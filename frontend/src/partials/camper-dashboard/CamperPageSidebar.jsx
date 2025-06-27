@@ -111,7 +111,7 @@ function CamperPageSidebar({
               </h3>
             </Link>
             <h3 className="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3">
-              <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">Campers</span>
+              <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">{bunk_name}</span>
             </h3>
             <ul className="mt-3">
               {/* Bunk */}
