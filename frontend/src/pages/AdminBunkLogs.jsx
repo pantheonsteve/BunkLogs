@@ -686,6 +686,7 @@ function AdminBunkLogs() {
                             <AdminBunkLogItem
                               key={log.id}
                               log={log}
+                              date={date}
                               onViewDetails={viewLogDetails}
                             />
                           ))}

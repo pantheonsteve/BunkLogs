@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import GenericAvatar from '../../images/avatar-generic.png';
 
-function AdminBunkLogItem({ log, onViewDetails }) {
+function AdminBunkLogItem({ log, date, onViewDetails }) {
   const [open, setOpen] = useState(false);
 
   // Score background color mapping - same as CamperLogsBunkViewItem
@@ -50,32 +51,47 @@ function AdminBunkLogItem({ log, onViewDetails }) {
       <tr>
         {/* Camper Name */}
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="flex items-center text-gray-800">
+          <Link 
+            to={`/camper/${log.camper_id}/${date}`}
+            className="flex items-center text-gray-800 hover:text-blue-600 transition-colors"
+          >
             <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {log.camper_first_name?.[0]}{log.camper_last_name?.[0]}
               </span>
             </div>
-            <div className="font-medium text-gray-800 dark:text-gray-100">
+            <div className="font-medium text-gray-800 dark:text-gray-100 hover:text-blue-600 transition-colors">
               {log.camper_first_name} {log.camper_last_name}
             </div>
-          </div>
+          </Link>
         </td>
 
         {/* Bunk/Unit */}
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
           <div className="text-center">
-            <div className="font-medium text-gray-800 dark:text-gray-100">{log.bunk_name}</div>
+            <div className="font-medium text-gray-800 dark:text-gray-100">{log.bunk_cabin_name}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">{log.unit_name || 'No unit'}</div>
           </div>
         </td>
 
         {/* Date */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="text-center">{log.date}</div>
-        </td>
+          <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+            <div className="text-center">
+              {log.date ? (() => {
+                // Parse as UTC to avoid timezone offset issues
+                const [year, month, day] = log.date.split('-');
+                const date = new Date(Date.UTC(year, month - 1, day));
+                return date.toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric',
+                  timeZone: 'UTC'
+                });
+              })() : ''}
+            </div>
+          </td>
 
-        {/* Social Score */}
+          {/* Social Score */}
         <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap ${getScoreBackgroundColor(log.social_score)}`}>
           <div className="text-center">{log.social_score}</div>
         </td>

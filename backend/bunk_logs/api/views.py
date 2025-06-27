@@ -2010,6 +2010,8 @@ class BunkLogsAllByDateViewSet(APIView):
                 "camper_id": str(log.bunk_assignment.camper.id),
                 "bunk_assignment_id": str(log.bunk_assignment.id),
                 "bunk_name": log.bunk_assignment.bunk.name,
+                "bunk_cabin_name": log.bunk_assignment.bunk.cabin.name if log.bunk_assignment.bunk.cabin else None,
+                "bunk_session": log.bunk_assignment.bunk.session.name if log.bunk_assignment.bunk.session else None,
                 "unit_name": log.bunk_assignment.bunk.unit.name if log.bunk_assignment.bunk.unit else None,
                 "social_score": log.social_score,
                 "participation_score": log.participation_score,
@@ -2164,6 +2166,8 @@ class BunkLogsAllByDateViewSet(APIView):
                 # Bunk assignment information
                 "bunk_assignment_id": str(log.bunk_assignment.id),
                 "bunk_name": log.bunk_assignment.bunk.name,
+                "bunk_cabin_name": log.bunk_assignment.bunk.cabin.name if log.bunk_assignment.bunk.cabin else None,
+                "bunk_session": log.bunk_assignment.bunk.session.name if log.bunk_assignment.bunk.session else None,
                 "unit_name": log.bunk_assignment.bunk.unit.name if log.bunk_assignment.bunk.unit else None,
                 "social_score": log.social_score,
                 "participation_score": log.participation_score,
