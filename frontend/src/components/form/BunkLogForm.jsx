@@ -388,6 +388,51 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
 
   console.log('useAuth:', useAuth()); // Debug
 
+  // InfoTooltip component for score explanations
+  const InfoTooltip = ({ text }) => {
+    const [visible, setVisible] = useState(false);
+    const tooltipRef = useRef(null);
+
+    // Hide tooltip on outside click (for mobile)
+    useEffect(() => {
+      if (!visible) return;
+      const handleClick = (e) => {
+        if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
+          setVisible(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClick);
+      return () => document.removeEventListener('mousedown', handleClick);
+    }, [visible]);
+
+    return (
+      <span className="relative inline-block align-middle ml-1">
+        <button
+          type="button"
+          aria-label="Info"
+          tabIndex={0}
+          className="text-blue-500 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full p-0.5"
+          onMouseEnter={() => setVisible(true)}
+          onMouseLeave={() => setVisible(false)}
+          onClick={() => setVisible(v => !v)}
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 8a1 1 0 112 0v4a1 1 0 11-2 0V8zm1-4a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
+          </svg>
+        </button>
+        {visible && (
+          <div
+            ref={tooltipRef}
+            className="absolute z-20 left-1/2 -translate-x-1/2 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg p-2 text-xs text-gray-800 dark:text-gray-100"
+            style={{ minWidth: '180px' }}
+          >
+            {text}
+          </div>
+        )}
+      </span>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6">
       <div className="flex justify-between items-center mb-6">
@@ -650,6 +695,12 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
                 <div className="flex justify-between items-center mb-1">
                   <label htmlFor="behavior_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Behavior Score: {formData.behavior_score}
+                    <InfoTooltip text="How was this camper's behavior today?
+5 - Very good day.
+4 - Had a challenge they were able to resolve on their own.
+3 - Had one minor challenge.
+2 - Had a few challenging moments throughout the day.
+1 - Had several challenging moments." />
                   </label>
                   <span className="text-sm text-gray-500">1-5</span>
                 </div>
@@ -675,6 +726,12 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
                 <div className="flex justify-between items-center mb-1">
                   <label htmlFor="participation_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Participation Score: {formData.participation_score}
+                    <InfoTooltip text="How often did the camper participate in the day's activities?
+5 - Always participated in all activities.
+4 - Mostly participated in all activities.
+3 - Sometimes participated in activities they enjoyed.
+2 - Reluctantly participated or participated with hesitation (i.e. joined after being asked).
+1 - Did not participate (i.e. sat off to side, wandered, seemed disengaged)." />
                   </label>
                   <span className="text-sm text-gray-500">1-5</span>
                 </div>
@@ -700,6 +757,12 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
                 <div className="flex justify-between items-center mb-1">
                   <label htmlFor="social_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Social Score: {formData.social_score}
+                    <InfoTooltip text="Was the camper included socially today?
+5 - Yes! The camper felt a sense of belonging at all times.
+4 - Mostly! The camper was included most times of the day.
+3 - Somewhat. The camper sometimes was included.
+2 - With encouragement. The camper was only included with the encouragement of a staff member.
+1 - Rarely or not at all. The camper spent the majority of the day alone or isolated." />
                   </label>
                   <span className="text-sm text-gray-500">1-5</span>
                 </div>
