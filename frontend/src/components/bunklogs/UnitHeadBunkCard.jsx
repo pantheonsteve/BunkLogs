@@ -46,11 +46,17 @@ function UnitHeadBunkCard({ bunk, selectedDate }) {
         </div>
 
         {/* Cabin name */}
-        <div className="text-center mb-3">
+        <div className="text-center mb-1">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
             {bunk.cabin_name}
           </h2>
           <div className="w-8 h-0.5 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full mx-auto"></div>
+        </div>
+        {/* Unit name */}
+        <div className="text-center mb-2">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 italic">
+            {bunk.unit_name}
+          </span>
         </div>
 
         {/* Session info */}

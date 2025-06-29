@@ -117,14 +117,21 @@ function CamperCareBunkGrid({ selectedDate }) {
           
           // If there are multiple units, combine their bunks
           if (units.length > 1) {
-            const allBunks = units.flatMap(unit => unit.bunks || []);
+            // Add unit_name to each bunk
+            const allBunks = units.flatMap(unit =>
+              (unit.bunks || []).map(bunk => ({ ...bunk, unit_name: unit.name }))
+            );
             setUnitData({
               ...primaryUnit,
               name: units.length > 1 ? `${primaryUnit.name} (+${units.length - 1} more)` : primaryUnit.name,
               bunks: allBunks
             });
           } else {
-            setUnitData(primaryUnit);
+            // Add unit_name to each bunk for single unit as well
+            setUnitData({
+              ...primaryUnit,
+              bunks: (primaryUnit.bunks || []).map(bunk => ({ ...bunk, unit_name: primaryUnit.name }))
+            });
           }
         } else {
           setUnitData({ name: 'No Units', bunks: [] });
