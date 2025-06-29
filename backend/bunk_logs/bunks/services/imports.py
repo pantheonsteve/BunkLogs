@@ -437,3 +437,66 @@ def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
         results["errors"].append(f"Unexpected error: {e}")
 
     return results
+
+
+def import_unit_staff_assignments_from_csv(file_path, *, dry_run=False):
+    """Import unit staff assignments from CSV file."""
+    import csv
+    from bunk_logs.users.models import User
+    from bunk_logs.bunks.models import Unit, UnitStaffAssignment
+    from datetime import datetime
+
+    success_count = 0
+    error_records = []
+    file_path = Path(file_path)
+
+    with file_path.open(encoding='utf-8') as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row_num, row in enumerate(reader, start=2):
+            try:
+                staff_email = row.get("staff_email", "").strip()
+                unit_name = row.get("unit_name", "").strip()
+                role = row.get("role", "").strip()
+                is_primary = row.get("is_primary", "").strip().lower() == "true"
+                start_date = row.get("start_date", "").strip()
+                end_date = row.get("end_date", "").strip()
+
+                if not staff_email or not unit_name or not role or not start_date:
+                    raise ValueError("Missing required fields: staff_email, unit_name, role, start_date")
+
+                try:
+                    staff_member = User.objects.get(email=staff_email)
+                except User.DoesNotExist:
+                    raise ValueError(f"Staff member with email '{staff_email}' not found")
+
+                try:
+                    unit = Unit.objects.get(name=unit_name)
+                except Unit.DoesNotExist:
+                    raise ValueError(f"Unit with name '{unit_name}' not found")
+
+                # Parse dates
+                start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+                end_date_obj = None
+                if end_date:
+                    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+                if not dry_run:
+                    assignment, created = UnitStaffAssignment.objects.update_or_create(
+                        unit=unit,
+                        staff_member=staff_member,
+                        role=role,
+                        defaults={
+                            "is_primary": is_primary,
+                            "start_date": start_date_obj,
+                            "end_date": end_date_obj,
+                        },
+                    )
+                success_count += 1
+            except Exception as e:
+                error_records.append({"row": row_num, "error": str(e)})
+
+    return {
+        "success_count": success_count,
+        "error_count": len(error_records),
+        "errors": error_records,
+    }

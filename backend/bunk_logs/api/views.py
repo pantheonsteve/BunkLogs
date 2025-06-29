@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from bunk_logs.campers.models import Camper
 from bunk_logs.campers.models import CamperBunkAssignment
@@ -50,6 +51,8 @@ from allauth.socialaccount.models import SocialApp, SocialAccount, SocialToken
 
 import json
 import logging
+import csv
+from io import TextIOWrapper
 
 #from .permissions import BunkAccessPermission
 #from .permissions import IsCounselorForBunk
@@ -2018,7 +2021,7 @@ def get_camper_care_bunks(request, camper_care_id, date):
             'social_score_max': request.query_params.get('social_score_max'),
             'behavior_score_min': request.query_params.get('behavior_score_min'),
             'behavior_score_max': request.query_params.get('behavior_score_max'),
-            'participation_score_min': request.query_params.get('participation_score_min'),
+                       'participation_score_min': request.query_params.get('participation_score_min'),
             'participation_score_max': request.query_params.get('participation_score_max'),
         }
 
@@ -2089,7 +2092,7 @@ class BunkLogsAllByDateViewSet(APIView):
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
-                bunk_assignment__bunk__unit_id__in=unit_assignments.values_list('unit_id', flat=True)
+                bunk_assignment__bunk__unit_id__in=unit_assignments
             )
         elif user.role == 'Camper Care':
             unit_assignments = UnitStaffAssignment.objects.filter(
@@ -2100,7 +2103,7 @@ class BunkLogsAllByDateViewSet(APIView):
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
-                bunk_assignment__bunk__unit_id__in=unit_assignments.values_list('unit_id', flat=True)
+                bunk_assignment__bunk__unit_id__in=unit_assignments
             )
         elif user.role == 'Counselor':
             queryset = BunkLog.objects.filter(
@@ -2219,14 +2222,11 @@ class BunkLogsAllByDateViewSet(APIView):
         elif user.role == 'Unit Head':
             # Unit heads can see logs for bunks in their units
             from django.utils import timezone
-            unit_ids = []
-            # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
                 start_date__lte=query_date,
             ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
-            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
@@ -2235,14 +2235,11 @@ class BunkLogsAllByDateViewSet(APIView):
         elif user.role == 'Camper Care':
             # Camper care can see logs for bunks in their assigned units
             from django.utils import timezone
-            unit_ids = []
-            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='camper_care',
                 start_date__lte=query_date,
             ).filter(Q(end_date__isnull=True) | Q(end_date__gte=query_date))
-            unit_ids.extend(unit_assignments.values_list('unit_id', flat=True))
             
             queryset = BunkLog.objects.filter(
                 date=query_date,
@@ -2312,4 +2309,57 @@ class BunkLogsAllByDateViewSet(APIView):
             "total_logs": len(logs_data),
             "logs": logs_data
         })
-               
+
+class UnitStaffAssignmentCSVImportView(APIView):
+    """
+    API endpoint to import UnitStaffAssignment objects from a CSV file.
+    Only staff/admin users can use this endpoint.
+    CSV columns: unit_id, staff_member_id, role, start_date, end_date, is_primary
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, format=None):
+        if not request.user.is_staff:
+            return Response({'error': 'Only staff can import assignments.'}, status=403)
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file uploaded.'}, status=400)
+        # Parse CSV
+        decoded_file = TextIOWrapper(file_obj, encoding='utf-8')
+        reader = csv.DictReader(decoded_file)
+        created, updated, errors = 0, 0, []
+        for i, row in enumerate(reader, start=2):  # start=2 for header row
+            try:
+                unit_id = row.get('unit_id')
+                staff_member_id = row.get('staff_member_id')
+                role = row.get('role')
+                start_date = row.get('start_date')
+                end_date = row.get('end_date') or None
+                is_primary = row.get('is_primary', 'False').lower() in ['true', '1', 'yes']
+                if not (unit_id and staff_member_id and role and start_date):
+                    errors.append(f"Row {i}: Missing required fields.")
+                    continue
+                unit = Unit.objects.get(id=unit_id)
+                staff_member = User.objects.get(id=staff_member_id)
+                assignment, created_flag = UnitStaffAssignment.objects.update_or_create(
+                    unit=unit,
+                    staff_member=staff_member,
+                    role=role,
+                    defaults={
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'is_primary': is_primary
+                    }
+                )
+                if created_flag:
+                    created += 1
+                else:
+                    updated += 1
+            except Exception as e:
+                errors.append(f"Row {i}: {str(e)}")
+        return Response({
+            'created': created,
+            'updated': updated,
+            'errors': errors
+        })
