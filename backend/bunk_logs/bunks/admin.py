@@ -13,6 +13,7 @@ from .forms import CabinCsvImportForm
 from .forms import UnitCsvImportForm
 from .forms import UnitForm
 from .forms import CounselorBunkAssignmentCsvImportForm
+from .forms import UnitStaffAssignmentCsvImportForm
 from .models import Bunk
 from .models import Cabin
 from .models import Session
@@ -23,6 +24,7 @@ from .services.imports import import_bunks_from_csv
 from .services.imports import import_cabins_from_csv
 from .services.imports import import_units_from_csv
 from .services.imports import import_counselor_bunk_assignments_from_csv
+from .services.imports import import_unit_staff_assignments_from_csv
 from bunk_logs.utils.admin import TestDataAdminMixin
 
 
@@ -148,6 +150,71 @@ class UnitStaffAssignmentAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('unit', 'staff_member')
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "import-assignments/",
+                self.import_assignments,
+                name="unitstaffassignment_import_csv",
+            ),
+        ]
+        return custom_urls + urls
+
+    def import_assignments(self, request):
+        if request.method == "POST":
+            form = UnitStaffAssignmentCsvImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                csv_file = form.cleaned_data["csv_file"]
+                dry_run = form.cleaned_data["dry_run"]
+
+                # Save the uploaded file to a secure temporary file
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    temp_path = Path(temp_file.name)
+                    for chunk in csv_file.chunks():
+                        temp_file.write(chunk)
+
+                result = import_unit_staff_assignments_from_csv(temp_path, dry_run=dry_run)
+
+                if dry_run:
+                    messages.info(
+                        request,
+                        f"Dry run completed. {result['success_count']} assignments would be imported.",
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f"Successfully imported {result['success_count']} assignments.",
+                    )
+
+                if result["error_count"] > 0:
+                    for error in result["errors"]:
+                        messages.error(
+                            request,
+                            f"Row {error['row']}: {error['error']}",
+                        )
+
+                # Clean up the temporary file
+                temp_path.unlink(missing_ok=True)
+
+                return redirect("admin:bunks_unitstaffassignment_changelist")
+        else:
+            form = UnitStaffAssignmentCsvImportForm()
+
+        context = {
+            "form": form,
+            "title": "Import Unit Staff Assignments",
+            "opts": self.model._meta,
+            "app_label": self.model._meta.app_label,
+            "model_name": self.model._meta.model_name,
+        }
+        return render(request, "admin/csv_form.html", context)
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["import_assignments"] = reverse("admin:unitstaffassignment_import_csv")
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(Cabin)

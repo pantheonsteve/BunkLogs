@@ -70,3 +70,15 @@ class CounselorBunkAssignmentCsvImportForm(forms.Form):
         label="Dry run",
         help_text="Validate the import without saving to database.",
     )
+
+
+class UnitStaffAssignmentCsvImportForm(forms.Form):
+    csv_file = forms.FileField(
+        label="CSV File",
+        help_text="""Upload a CSV file with columns: staff_email, unit_name, role, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD, optional), is_primary (true/false, optional)""",
+    )
+    dry_run = forms.BooleanField(
+        required=False,
+        label="Dry run",
+        help_text="Validate the import without saving to database.",
+    )

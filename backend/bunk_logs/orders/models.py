@@ -68,6 +68,7 @@ class Order(TestDataMixin):
         on_delete=models.CASCADE,
         related_name="orders",
     )
+    additional_notes = models.TextField(blank=True, null=True, help_text='Additional notes for this order')
 
     class Meta:
         verbose_name = _("Order")
