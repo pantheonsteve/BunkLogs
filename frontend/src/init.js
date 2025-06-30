@@ -3,6 +3,24 @@ import { setup } from './lib/allauth'
 // Import the CSRF token functions to ensure they're available
 let cachedCSRFToken = null;
 
+import { datadogRum } from '@datadog/browser-rum';
+import { reactPlugin } from '@datadog/browser-rum-react';
+
+datadogRum.init({
+    applicationId: '06f040c0-8a9c-4ca0-865c-9ad82ae138a0',
+    clientToken: 'pub61357afeab81d99906c5d9ddf48dfaf5',
+    site: 'datadoghq.com',
+    service:'bunlogs-frontend',
+    env: 'prod',
+    
+    // Specify a version number to identify the deployed version of your application in Datadog
+    // version: '1.0.0',
+    sessionSampleRate:  100,
+    sessionReplaySampleRate: 20,
+    defaultPrivacyLevel: 'mask-user-input',
+    plugins: [reactPlugin({ router: true })],
+});
+
 export async function init() {
   console.log('Initializing application...');
   
