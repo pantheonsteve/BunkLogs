@@ -7,6 +7,8 @@ import Header from '../partials/Header';
 import CamperCareBunkGrid from '../partials/dashboard/CamperCareBunkGrid';
 import UserProfile from '../partials/dashboard/UserProfile';
 import SingleDatePicker from '../components/ui/SingleDatePicker';
+import CamperCareBunkLogsList from '../partials/dashboard/CamperCareBunkLogsList';
+import CamperCareNeedsAttentionList from '../partials/dashboard/CamperCareNeedsAttentionList';
 
 function CamperCareDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -72,6 +74,9 @@ function CamperCareDashboard() {
     setSelectedDate(standardizedDate);
   }, [id, navigate]);
 
+  // View state for sidebar navigation
+  const [activeView, setActiveView] = useState('overview'); // 'overview', 'bunklogs', 'needsattention'
+
   // Redirect if not a Camper Care team member
   if (!loading && (!user || user.role !== 'Camper Care')) {
     return <Navigate to="/dashboard" replace />;
@@ -98,7 +103,24 @@ function CamperCareDashboard() {
     <div className="flex h-[100dvh] overflow-hidden">
 
       {/* Sidebar */}
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <Sidebar 
+        sidebarOpen={sidebarOpen} 
+        setSidebarOpen={setSidebarOpen} 
+        extraLinks={[
+          {
+            label: 'My Bunk Logs',
+            onClick: () => setActiveView('bunklogs'),
+            active: activeView === 'bunklogs',
+            role: 'Camper Care',
+          },
+          {
+            label: 'Needs Attention',
+            onClick: () => setActiveView('needsattention'),
+            active: activeView === 'needsattention',
+            role: 'Camper Care',
+          },
+        ]}
+      />
 
       {/* Content area */}
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
@@ -143,9 +165,10 @@ function CamperCareDashboard() {
 
             {/* User profile */}
             <UserProfile user={userProfile} />
-            
-            {/* Unit bunks grid */}
-            <CamperCareBunkGrid selectedDate={selectedDate} />
+            {/* Main content view */}
+            {activeView === 'overview' && <CamperCareBunkGrid selectedDate={selectedDate} />}
+            {activeView === 'bunklogs' && <CamperCareBunkLogsList selectedDate={selectedDate} />}
+            {activeView === 'needsattention' && <CamperCareNeedsAttentionList selectedDate={selectedDate} />}
           </div>
         </main>
 
