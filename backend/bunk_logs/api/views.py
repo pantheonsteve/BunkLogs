@@ -1928,11 +1928,7 @@ def get_unit_head_bunks(request, unithead_id, date):
 
         units = Unit.objects.filter(staff_assignments__in=assignments).distinct()
         if not units.exists():
-            legacy_unit = Unit.objects.filter(unit_head_id=unithead_id).first()
-            if legacy_unit:
-                units = [legacy_unit]
-            else:
-                return Response({'error': 'No unit found for this unit head.'}, status=404)
+            return Response({'error': 'No unit found for this unit head.'}, status=404)
 
         context = {'date': date}
         data = [UnitHeadBunksSerializer(unit, context=context).data for unit in units]
