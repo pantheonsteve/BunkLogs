@@ -8,6 +8,7 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
   const [selectedOrderType, setSelectedOrderType] = useState('');
   const [availableItems, setAvailableItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [narrativeDescription, setNarrativeDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -98,7 +99,8 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
         order_status: 'submitted',
         order_bunk: parseInt(bunkId),
         order_type: parseInt(selectedOrderType),
-        order_items: selectedItems
+        order_items: selectedItems,
+        narrative_description: narrativeDescription
       };
 
       const response = await api.post('/api/orders/', orderData);
@@ -129,6 +131,7 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
     setSelectedOrderType('');
     setAvailableItems([]);
     setSelectedItems([]);
+    setNarrativeDescription('');
     setError(null);
   };
 
@@ -194,6 +197,21 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* Narrative Description */}
+                <div>
+                  <label htmlFor="narrativeDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Narrative Description (optional)
+                  </label>
+                  <textarea
+                    id="narrativeDescription"
+                    value={narrativeDescription}
+                    onChange={e => setNarrativeDescription(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="Describe your order..."
+                  />
                 </div>
 
                 {/* Items Selection */}

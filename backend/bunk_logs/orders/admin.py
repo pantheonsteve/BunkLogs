@@ -89,7 +89,7 @@ class OrderAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
             'fields': ('user', 'order_date', 'order_status', 'order_bunk')
         }),
         ('Order Details', {
-            'fields': ('order_type',)
+            'fields': ('order_type', 'additional_notes', 'narrative_description')
         }),
     )
     inlines = [OrderItemInline]

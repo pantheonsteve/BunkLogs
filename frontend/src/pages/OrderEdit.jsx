@@ -19,7 +19,8 @@ function OrderEdit() {
   
   const [formData, setFormData] = useState({
     order_type: '',
-    order_items: []
+    order_items: [],
+    narrative_description: ''
   });
 
   // Check if user is a counselor
@@ -72,6 +73,10 @@ function OrderEdit() {
           });
         }
         
+        if (orderData.narrative_description) {
+          setFormData(prev => ({ ...prev, narrative_description: orderData.narrative_description }));
+        }
+        
       } catch (error) {
         console.error('Error fetching data:', error);
         if (error.response?.status === 404) {
@@ -113,6 +118,11 @@ function OrderEdit() {
     return item ? item.item_quantity : 0;
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -134,7 +144,8 @@ function OrderEdit() {
       
       const updateData = {
         order_type: formData.order_type,
-        order_items: itemsWithQuantity // Only send items with quantity > 0
+        order_items: itemsWithQuantity, // Only send items with quantity > 0
+        narrative_description: formData.narrative_description
       };
       
       await api.patch(`/api/orders/${orderId}/`, updateData);
@@ -264,6 +275,22 @@ function OrderEdit() {
                       {orderTypes.find(type => type.id === formData.order_type)?.type_name || 'Loading...'}
                     </div>
                     <p className="mt-1 text-xs text-gray-500">Order type cannot be changed when editing an existing order</p>
+                  </div>
+
+                  {/* Narrative Description */}
+                  <div>
+                    <label htmlFor="narrativeDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Narrative Description (optional)
+                    </label>
+                    <textarea
+                      id="narrativeDescription"
+                      name="narrative_description"
+                      value={formData.narrative_description}
+                      onChange={handleInputChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Describe your order..."
+                    />
                   </div>
 
                   {/* Items Selection - Show All Items for this Order Type */}
