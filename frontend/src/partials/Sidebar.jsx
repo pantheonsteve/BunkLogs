@@ -10,6 +10,7 @@ function Sidebar({
   sidebarOpen,
   setSidebarOpen,
   variant = 'default',
+  extraLinks = [], // <-- new prop for extra sidebar links
 }) {
   const location = useLocation();
   const { pathname } = location;
@@ -248,6 +249,34 @@ function Sidebar({
                   </li> */}
                 </>
               )}
+              {/* Camper Care extra links */}
+              {user && user.role === 'Camper Care' && extraLinks && extraLinks.map(link => (
+                <li key={link.label} className={`px-3 py-2 rounded-lg mb-0.5 last:mb-0 ${link.active ? 'bg-rose-50 dark:bg-rose-900/20' : ''}`}>
+                  <button
+                    className={`block w-full text-left text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                      link.active ? "text-rose-600 dark:text-rose-400 font-semibold" : "hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                    onClick={link.onClick}
+                  >
+                    <div className="flex items-center">
+                      {/* Add icons for Camper Care extra links */}
+                      {link.label === 'My Bunk Logs' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M6.75 21v-2.25M17.25 21v-2.25M3 6.75h18M3 17.25h18M3 12h18" />
+                        </svg>
+                      )}
+                      {link.label === 'Needs Attention' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2.25m0 3.75h.008v.008H12v-.008zm9-6.75a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        {link.label}
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              ))}
               <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                 <NavLink 
                   end 
