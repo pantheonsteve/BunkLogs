@@ -37,6 +37,9 @@ function AdminBunkLogs() {
     behavioralScore: ''
   });
 
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
   // Parse and validate date from URL parameters
   useEffect(() => {
     if (date && date !== 'undefined') {
@@ -318,6 +321,42 @@ function AdminBunkLogs() {
   const uniqueBunks = [...new Set(bunkLogs.map(log => log.bunk_name))].sort();
   const uniqueUnits = [...new Set(bunkLogs.map(log => log.unit_name).filter(Boolean))].sort();
 
+  // Sorting handler
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        // Toggle direction
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  // Apply sorting to filteredLogs
+  const sortedLogs = React.useMemo(() => {
+    if (!sortConfig.key) return filteredLogs;
+    const sorted = [...filteredLogs].sort((a, b) => {
+      let aValue, bValue;
+      if (sortConfig.key === 'bunk') {
+        aValue = a.bunk_name?.toLowerCase() || '';
+        bValue = b.bunk_name?.toLowerCase() || '';
+      } else if (sortConfig.key === 'lastName') {
+        aValue = a.camper_last_name?.toLowerCase() || '';
+        bValue = b.camper_last_name?.toLowerCase() || '';
+      } else if (['social_score', 'behavioral_score', 'participation_score'].includes(sortConfig.key)) {
+        aValue = Number(a[sortConfig.key]) || 0;
+        bValue = Number(b[sortConfig.key]) || 0;
+      } else {
+        aValue = '';
+        bValue = '';
+      }
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [filteredLogs, sortConfig]);
+
   return (
     <div className="flex h-[100dvh] overflow-hidden">
       {/* Sidebar */}
@@ -566,7 +605,11 @@ function AdminBunkLogs() {
                 </div>
               </div>
               
-              <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+              <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 cursor-pointer border-2 transition-all duration-150 "
+                onClick={() => setFilters(prev => ({ ...prev, camperCareHelp: prev.camperCareHelp === 'true' ? '' : 'true' }))}
+                style={{ borderColor: filters.camperCareHelp === 'true' ? '#ef4444' : 'transparent' }}
+                title="Show only logs with Camper Care Help requested"
+              >
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <FileText className="w-8 h-8 text-red-500" />
@@ -580,7 +623,11 @@ function AdminBunkLogs() {
                 </div>
               </div>
               
-              <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+              <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 cursor-pointer border-2 transition-all duration-150 "
+                onClick={() => setFilters(prev => ({ ...prev, unitHeadHelp: prev.unitHeadHelp === 'true' ? '' : 'true' }))}
+                style={{ borderColor: filters.unitHeadHelp === 'true' ? '#facc15' : 'transparent' }}
+                title="Show only logs with Unit Head Help requested"
+              >
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <FileText className="w-8 h-8 text-yellow-500" />
@@ -650,39 +697,55 @@ function AdminBunkLogs() {
                           {/* Table header */}
                           <thead className="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-xs">
                             <tr>
-                              <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-left">Camper Name</div>
+                              <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer select-none" onClick={() => handleSort('lastName')}>
+                                <div className="font-semibold text-left flex items-center gap-1">
+                                  Camper Name
+                                  {sortConfig.key === 'lastName' && (
+                                    <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                  )}
+                                </div>
                               </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Bunk/Unit</div>
+                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer select-none" onClick={() => handleSort('bunk')}>
+                                <div className="font-semibold text-center flex items-center gap-1 justify-center">
+                                  Bunk/Unit
+                                  {sortConfig.key === 'bunk' && (
+                                    <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                  )}
+                                </div>
                               </th>
                               <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
                                 <div className="font-semibold text-center">Date</div>
                               </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Social</div>
+                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer select-none" onClick={() => handleSort('social_score')}>
+                                <div className="font-semibold text-center flex items-center gap-1 justify-center">
+                                  Social
+                                  {sortConfig.key === 'social_score' && (
+                                    <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                  )}
+                                </div>
                               </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Behavior</div>
+                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer select-none" onClick={() => handleSort('behavioral_score')}>
+                                <div className="font-semibold text-center flex items-center gap-1 justify-center">
+                                  Behavior
+                                  {sortConfig.key === 'behavioral_score' && (
+                                    <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                  )}
+                                </div>
                               </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Participation</div>
+                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer select-none" onClick={() => handleSort('participation_score')}>
+                                <div className="font-semibold text-center flex items-center gap-1 justify-center">
+                                  Participation
+                                  {sortConfig.key === 'participation_score' && (
+                                    <span>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                  )}
+                                </div>
                               </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Not On Camp</div>
-                              </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Camper Care Help</div>
-                              </th>
-                              <th className="w-1/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center">Unit Head Help</div>
-                              </th>
-                              <th className="w-px p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-center"></div>
+                              <th className="w-3/12 p-2 border-b border-gray-200 dark:border-gray-700">
+                                <div className="font-semibold text-center">Description</div>
                               </th>
                             </tr>
                           </thead>
-                          {filteredLogs.map((log) => (
+                          {sortedLogs.map((log) => (
                             <AdminBunkLogItem
                               key={log.id}
                               log={log}
