@@ -26,6 +26,10 @@ function OrderEdit() {
   // Check if user is a counselor
   const isCounselor = user?.role === 'Counselor';
 
+  // Helper to get current order type object
+  const currentOrderTypeObj = orderTypes.find(type => type.id === formData.order_type);
+  const isMaintenanceRequest = currentOrderTypeObj?.type_name === 'Maintenance Request';
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -103,6 +107,23 @@ function OrderEdit() {
         return {
           ...prev,
           order_items: [...existingItems, { item: itemId, item_quantity: quantity }]
+        };
+      } else {
+        return {
+          ...prev,
+          order_items: existingItems
+        };
+      }
+    });
+  };
+
+  const handleItemCheckboxChange = (itemId, checked) => {
+    setFormData(prev => {
+      const existingItems = prev.order_items.filter(item => item.item !== itemId);
+      if (checked) {
+        return {
+          ...prev,
+          order_items: [...existingItems, { item: itemId, item_quantity: 1 }]
         };
       } else {
         return {
@@ -299,35 +320,54 @@ function OrderEdit() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Order Items
                       </label>
-                      <p className="text-xs text-gray-500 mb-3">Adjust quantities for items you want to order. Set to 0 to remove an item.</p>
-                      <div className="space-y-3 max-h-64 overflow-y-auto border border-gray-200 rounded-md p-4">
-                        {items.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                            <div className="flex-1">
-                              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {item.item_name}
-                              </h4>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {item.item_description || 'No description available'}
-                              </p>
+                      {isMaintenanceRequest ? (
+                        <div className="space-y-3 max-h-64 overflow-y-auto border border-gray-200 rounded-md p-4">
+                          {items.map((item) => {
+                            const selectedItem = formData.order_items.find(i => i.item === item.id);
+                            return (
+                              <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.item_name}</h4>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">{item.item_description || 'No description available'}</p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!selectedItem && selectedItem.item_quantity > 0}
+                                    onChange={e => handleItemCheckboxChange(item.id, e.target.checked)}
+                                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-64 overflow-y-auto border border-gray-200 rounded-md p-4">
+                          {items.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                              <div className="flex-1">
+                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.item_name}</h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{item.item_description || 'No description available'}</p>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <label htmlFor={`quantity-${item.id}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                  Qty:
+                                </label>
+                                <input
+                                  type="number"
+                                  id={`quantity-${item.id}`}
+                                  min="0"
+                                  max="100"
+                                  value={getItemQuantity(item.id)}
+                                  onChange={e => handleItemChange(item.id, parseInt(e.target.value) || 0)}
+                                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <label htmlFor={`quantity-${item.id}`} className="text-sm text-gray-700 dark:text-gray-300">
-                                Qty:
-                              </label>
-                              <input
-                                type="number"
-                                id={`quantity-${item.id}`}
-                                min="0"
-                                max="100"
-                                value={getItemQuantity(item.id)}
-                                onChange={(e) => handleItemChange(item.id, parseInt(e.target.value) || 0)}
-                                className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
