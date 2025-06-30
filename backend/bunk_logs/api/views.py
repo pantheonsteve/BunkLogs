@@ -448,7 +448,7 @@ class BunkLogsInfoByDateViewSet(APIView):
                     
             # Counselors can only access their assigned bunks
             elif user.role == 'Counselor':
-                if not Bunk.objects.filter(id=bunk_id, counselors__id=user.id).exists():
+                if not Bunk.objects.filter(id=bunk_id, counselor_assignments__counselor__id=user.id).exists():
                     logger.warning(
                         f"403 Forbidden: User {user.id} ({user.role}) attempted to access bunk {bunk_id} on {query_date}, but lacks permissions."
                     )
@@ -1048,7 +1048,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             # Get counselors assigned to bunks in these units
             counselor_ids = Bunk.objects.filter(
                 unit_id__in=unit_assignments
-            ).values_list('counselors', flat=True).distinct()
+            ).values_list('counselor_assignments__counselor', flat=True).distinct()
             
             return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
         # Camper care can see logs for counselors in their assigned units
@@ -1068,7 +1068,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             # Get counselors assigned to bunks in these units
             counselor_ids = Bunk.objects.filter(
                 unit_id__in=unit_assignments
-            ).values_list('counselors', flat=True).distinct()
+            ).values_list('counselor_assignments__counselor', flat=True).distinct()
             
             return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
         # Counselors can only see their own logs
@@ -1688,7 +1688,7 @@ def debug_user_bunks(request):
         "is_staff": request.user.is_staff,
     }
     # Check direct assigned bunks - only get the id field,
-    bunks_query = Bunk.objects.filter(counselors__id=request.user.id)
+    bunks_query = Bunk.objects.filter(counselor_assignments__counselor__id=request.user.id)
     assigned_bunks = []
     for bunk in bunks_query:
         assigned_bunks.append({
@@ -2021,7 +2021,7 @@ def get_camper_care_bunks(request, camper_care_id, date):
             'social_score_max': request.query_params.get('social_score_max'),
             'behavior_score_min': request.query_params.get('behavior_score_min'),
             'behavior_score_max': request.query_params.get('behavior_score_max'),
-                       'participation_score_min': request.query_params.get('participation_score_min'),
+            'participation_score_min': request.query_params.get('participation_score_min'),
             'participation_score_max': request.query_params.get('participation_score_max'),
         }
 
