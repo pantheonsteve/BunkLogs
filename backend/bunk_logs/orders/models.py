@@ -69,6 +69,7 @@ class Order(TestDataMixin):
         related_name="orders",
     )
     additional_notes = models.TextField(blank=True, null=True, help_text='Additional notes for this order')
+    narrative_description = models.TextField(blank=True, null=True, help_text='Narrative description of the order')
 
     class Meta:
         verbose_name = _("Order")

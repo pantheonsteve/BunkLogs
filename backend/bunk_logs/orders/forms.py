@@ -94,6 +94,8 @@ class OrderImportForm(CsvImportForm):
                 if field not in header:
                     raise forms.ValidationError(f'CSV file must contain a {field} column')
                     
+            # Optionally check for narrative_description, but do not require it
+            
             # Reset the file pointer so it can be read again later
             csv_file.seek(0)
             return csv_file

@@ -1,4 +1,3 @@
-
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.template.response import TemplateResponse
@@ -45,11 +44,13 @@ def import_orders(request):
                         order_status = 'submitted'  # Default if invalid status
                     
                     # Create the order with specified fields
+                    narrative_description = row.get('narrative_description', '').strip() or None
                     order = Order.objects.create(
                         user_id=user_id,
                         order_bunk_id=order_bunk_id,
                         order_type=order_type,
-                        order_status=order_status
+                        order_status=order_status,
+                        narrative_description=narrative_description
                     )
                     
                     # Process order items if included
