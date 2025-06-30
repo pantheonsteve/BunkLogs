@@ -57,6 +57,26 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
     }
   };
 
+  // Helper to get selected order type object
+  const selectedOrderTypeObj = orderTypes.find(type => String(type.id) === String(selectedOrderType));
+  const isMaintenanceRequest = selectedOrderTypeObj?.type_name === 'Maintenance Request';
+
+  // New handler for checkbox logic
+  const handleItemCheckboxChange = (itemId, checked) => {
+    setSelectedItems(prev => {
+      if (checked) {
+        // Add item with quantity 1 if not already present
+        if (!prev.some(item => item.item === itemId)) {
+          return [...prev, { item: itemId, item_quantity: 1 }];
+        }
+        return prev;
+      } else {
+        // Remove item
+        return prev.filter(item => item.item !== itemId);
+      }
+    });
+  };
+
   const handleItemQuantityChange = (itemId, quantity) => {
     const parsedQuantity = parseInt(quantity) || 0;
     
@@ -224,33 +244,53 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
                       {availableItems.map(item => {
                         const selectedItem = selectedItems.find(si => si.item === item.id);
                         const quantity = selectedItem ? selectedItem.item_quantity : '';
-                        
-                        return (
-                          <div key={item.id} className="p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {item.item_name}
-                                </h4>
-                                {item.item_description && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {item.item_description}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="ml-4">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="Qty"
-                                  value={quantity}
-                                  onChange={(e) => handleItemQuantityChange(item.id, e.target.value)}
-                                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                />
+                        if (isMaintenanceRequest) {
+                          // Checkbox UI
+                          return (
+                            <div key={item.id} className="p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-medium text-gray-900 dark:text-white">{item.item_name}</h4>
+                                  {item.item_description && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.item_description}</p>
+                                  )}
+                                </div>
+                                <div className="ml-4">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!selectedItem}
+                                    onChange={e => handleItemCheckboxChange(item.id, e.target.checked)}
+                                    className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                  />
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
+                          );
+                        } else {
+                          // Quantity input UI (existing)
+                          return (
+                            <div key={item.id} className="p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-medium text-gray-900 dark:text-white">{item.item_name}</h4>
+                                  {item.item_description && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.item_description}</p>
+                                  )}
+                                </div>
+                                <div className="ml-4">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Qty"
+                                    value={quantity}
+                                    onChange={(e) => handleItemQuantityChange(item.id, e.target.value)}
+                                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
                       })}
                     </div>
                   </div>
