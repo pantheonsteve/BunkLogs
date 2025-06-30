@@ -1,4 +1,3 @@
-import './datadog-init';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ThemeProvider from './utils/ThemeContext';

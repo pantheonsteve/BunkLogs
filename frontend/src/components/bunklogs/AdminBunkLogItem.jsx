@@ -32,25 +32,11 @@ function AdminBunkLogItem({ log, date, onViewDetails }) {
     return null;
   };
 
-  // Status indicator for not on camp
-  const getNotOnCampIcon = (not_on_camp) => {
-    if (not_on_camp === true) {
-      return (
-        <div className="flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="gray" className="size-6">
-            <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
-    <tbody className="text-sm font-medium divide-y divide-gray-100 dark:divide-gray-700/60">
+    <tbody className="text-sm font-medium divide-y divide-gray-200 dark:divide-gray-700/60">
       <tr>
         {/* Camper Name */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
           <Link 
             to={`/camper/${log.camper_id}/${date}`}
             className="flex items-center text-gray-800 hover:text-blue-600 transition-colors"
@@ -67,7 +53,7 @@ function AdminBunkLogItem({ log, date, onViewDetails }) {
         </td>
 
         {/* Bunk/Unit */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
+        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
           <div className="text-center">
             <div className="font-medium text-gray-800 dark:text-gray-100">{log.bunk_cabin_name}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">{log.unit_name || 'No unit'}</div>
@@ -75,130 +61,84 @@ function AdminBunkLogItem({ log, date, onViewDetails }) {
         </td>
 
         {/* Date */}
-          <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-            <div className="text-center">
-              {log.date ? (() => {
-                // Parse as UTC to avoid timezone offset issues
-                const [year, month, day] = log.date.split('-');
-                const date = new Date(Date.UTC(year, month - 1, day));
-                return date.toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric',
-                  timeZone: 'UTC'
-                });
-              })() : ''}
-            </div>
-          </td>
+        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
+          <div className="text-center">
+            {log.date ? (() => {
+              // Parse as UTC to avoid timezone offset issues
+              const [year, month, day] = log.date.split('-');
+              const date = new Date(Date.UTC(year, month - 1, day));
+              return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                timeZone: 'UTC'
+              });
+            })() : ''}
+          </div>
+        </td>
 
-          {/* Social Score */}
-        <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap ${getScoreBackgroundColor(log.social_score)}`}>
+        {/* Social Score */}
+        <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700 ${getScoreBackgroundColor(log.social_score)}`}> 
           <div className="text-center">{log.social_score}</div>
         </td>
 
         {/* Behavioral Score */}
-        <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap ${getScoreBackgroundColor(log.behavioral_score)}`}>
+        <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700 ${getScoreBackgroundColor(log.behavioral_score)}`}> 
           <div className="text-center">{log.behavioral_score}</div>
         </td>
 
         {/* Participation Score */}
-        <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap ${getScoreBackgroundColor(log.participation_score)}`}>
+        <td className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700 ${getScoreBackgroundColor(log.participation_score)}`}> 
           <div className="text-center">{log.participation_score}</div>
         </td>
 
-        {/* Not On Camp */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="text-center">{getNotOnCampIcon(log.not_on_camp)}</div>
-        </td>
-
-        {/* Camper Care Help */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="text-center">{getHelpRequestedIcon(log.camper_care_help_requested)}</div>
-        </td>
-
-        {/* Unit Head Help */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-          <div className="text-center">{getHelpRequestedIcon(log.unit_head_help_requested)}</div>
-        </td>
-
-        {/* Expand button */}
-        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap w-px">
-          <div className="flex items-center">
-            <button
-              className={`text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 ${open && 'rotate-180'}`}
-              aria-expanded={open}
-              onClick={() => setOpen(!open)}
-              aria-controls={`description-${log.id}`}
-            >
-              <span className="sr-only">Menu</span>
-              <svg className="w-8 h-8 fill-current" viewBox="0 0 32 32">
-                <path d="M16 20l-5.4-5.4 1.4-1.4 4 4 4-4 1.4 1.4z" />
-              </svg>
-            </button>
-          </div>
-        </td>
-      </tr>
-
-      {/* Expandable details row */}
-      <tr id={`description-${log.id}`} role="region" className={`${!open && 'hidden'}`}>
-        <td colSpan="10" className="px-2 first:pl-5 last:pr-5 py-3">
-          <div className="bg-gray-50 dark:bg-gray-950/[0.15] dark:text-gray-400 p-3 -mt-3">
-            <div className="text-sm mb-3">
-              <div className="mb-3">
-                <strong>Description:</strong>
-                <div className="mt-1" dangerouslySetInnerHTML={{ __html: log.description }}></div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <strong>Reporting Counselor:</strong>
-                  <div className="mt-1">
-                    {log.reporting_counselor_first_name && log.reporting_counselor_last_name ? (
-                      <div>
-                        {log.reporting_counselor_first_name} {log.reporting_counselor_last_name}
-                        <div className="text-xs text-gray-500">{log.reporting_counselor_email}</div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">No counselor assigned</span>
-                    )}
-                  </div>
-                </div>
-                
-                <div>
-                  <strong>Created:</strong>
-                  <div className="mt-1">
-                    {new Date(log.created_at).toLocaleString('en-US', { 
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {(log.not_on_camp || log.camper_care_help_requested || log.unit_head_help_requested) && (
-                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                  <strong>Status Flags:</strong>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {log.not_on_camp && (
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full text-gray-600 bg-gray-100">
-                        Not on camp
-                      </span>
-                    )}
-                    {log.camper_care_help_requested && (
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full text-red-600 bg-red-50">
-                        Camper care help requested
-                      </span>
-                    )}
-                    {log.unit_head_help_requested && (
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full text-yellow-600 bg-yellow-50">
-                        Unit head help requested
-                      </span>
-                    )}
-                  </div>
-                </div>
+        {/* Description column - always visible */}
+        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-pre-line max-w-xs break-words align-top align-center border border-gray-300 dark:border-gray-700">
+          <div className="text-gray-700 dark:text-gray-200 text-sm" style={{ whiteSpace: 'pre-line' }}>
+            {/* Status badges for help requests */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {log.camper_care_help_requested && (
+                <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full text-red-700 bg-red-100 border border-red-200">
+                  <svg className="w-3 h-3 mr-1 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path d="M18 13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6zm-1-6H3v6h14V7zm-7 2a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1z"/></svg>
+                  Camper Care Help
+                </span>
+              )}
+              {log.unit_head_help_requested && (
+                <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full text-yellow-800 bg-yellow-100 border border-yellow-200">
+                  <svg className="w-3 h-3 mr-1 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm1 12H9v-2h2v2zm0-4H9V6h2v4z"/></svg>
+                  Unit Head Help
+                </span>
+              )}
+            </div>
+            <div>
+              {log.description ? (
+                log.description.includes('<') ? (
+                  <span dangerouslySetInnerHTML={{ __html: log.description }} />
+                ) : (
+                  log.description
+                )
+              ) : (
+                <span className="text-gray-400">No description</span>
+              )}
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              <strong>Reporting Counselor:</strong>{' '}
+              {log.reporting_counselor_first_name && log.reporting_counselor_last_name ? (
+                <span>
+                  {log.reporting_counselor_first_name} {log.reporting_counselor_last_name}
+                  {log.reporting_counselor_email && (
+                    <span className="block text-xs text-gray-400">{log.reporting_counselor_email}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-gray-400">No counselor assigned</span>
+              )}
+              {log.created_at && (
+                <span className="block text-xs text-gray-400 mt-1">
+                  <strong>Created:</strong> {new Date(log.created_at).toLocaleString('en-US', {
+                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                  })}
+                </span>
               )}
             </div>
           </div>
