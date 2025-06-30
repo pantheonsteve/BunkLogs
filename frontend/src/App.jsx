@@ -51,6 +51,17 @@ if ((isProduction || import.meta.env.VITE_DATADOG_FORCE_ENABLE) && import.meta.e
       service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
       version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0'
     });
+
+    console.log('VITE env at runtime:', {
+      VITE_DATADOG_APPLICATION_ID: import.meta.env.VITE_DATADOG_APPLICATION_ID,
+      VITE_DATADOG_CLIENT_TOKEN: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
+      VITE_DATADOG_SITE: import.meta.env.VITE_DATADOG_SITE,
+      VITE_DATADOG_SERVICE: import.meta.env.VITE_DATADOG_SERVICE,
+      VITE_DATADOG_ENV: import.meta.env.VITE_DATADOG_ENV,
+      VITE_DATADOG_VERSION: import.meta.env.VITE_DATADOG_VERSION,
+      VITE_API_URL: import.meta.env.VITE_API_URL,
+      MODE: import.meta.env.MODE,
+    });
     
     // Send a test event to verify connection
     datadogRum.addAction('datadog_rum_initialized', {
