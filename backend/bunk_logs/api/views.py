@@ -1282,21 +1282,44 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path=r'(?P<date>\d{4}-\d{2}-\d{2})')
     def by_date(self, request, date=None):
         """
-        Custom action to get counselor logs by date.
-        URL: /api/v1/counselorlogs/2025-06-25/
+        Custom action to get counselor logs by date with timezone support.
+        URL: /api/v1/counselorlogs/2025-06-25/?timezone=America/New_York
         """
         # Validate date format
         try:
             from datetime import datetime
+            from zoneinfo import ZoneInfo
+            from django.utils import timezone as django_timezone
+            
             query_date = datetime.strptime(date, "%Y-%m-%d").date()
         except ValueError:
             return Response({"error": "Invalid date format. Use YYYY-MM-DD format."}, status=400)
         
+        # Get timezone from query parameter, default to UTC
+        timezone_str = request.query_params.get('timezone', 'UTC')
+        
+        try:
+            # Validate timezone
+            user_timezone = ZoneInfo(timezone_str)
+        except Exception:
+            return Response({"error": f"Invalid timezone: {timezone_str}"}, status=400)
+        
+        # Create start and end of the local day in the user's timezone
+        local_start = datetime.combine(query_date, datetime.min.time()).replace(tzinfo=user_timezone)
+        local_end = datetime.combine(query_date, datetime.max.time()).replace(tzinfo=user_timezone)
+        
+        # Convert to UTC for database filtering
+        utc_start = local_start.astimezone(ZoneInfo('UTC'))
+        utc_end = local_end.astimezone(ZoneInfo('UTC'))
+        
         # Get the filtered queryset based on user permissions
         queryset = self.get_queryset()
         
-        # Filter by the specific date
-        queryset = queryset.filter(date=query_date)
+        # Filter by created_at timestamp within the local day boundaries
+        queryset = queryset.filter(
+            created_at__gte=utc_start,
+            created_at__lte=utc_end
+        )
         
         # Order logs by counselor name for consistent output
         queryset = queryset.select_related('counselor').order_by(
@@ -1310,6 +1333,9 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         # Return response in the same format as the list view but with date info
         response_data = {
             "date": date,
+            "timezone": timezone_str,
+            "local_day_start": local_start.isoformat(),
+            "local_day_end": local_end.isoformat(),
             "total_logs": queryset.count(),
             "results": serializer.data
         }
