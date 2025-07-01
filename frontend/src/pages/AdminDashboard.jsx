@@ -68,7 +68,13 @@ function AdminDashboard() {
         setLoading(true);
         setError(null);
         
-        const response = await api.get(`/api/v1/counselorlogs/${date}/`);
+        // Get user's timezone
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        console.log('🌍 User timezone:', timezone);
+        
+        const response = await api.get(`/api/v1/counselorlogs/${date}/`, {
+          params: { timezone }
+        });
         setCounselorLogs(response.data.results || []);
         console.log('✅ Counselor logs loaded:', response.data.results?.length || 0, 'items');
         
@@ -134,19 +140,6 @@ function AdminDashboard() {
       timeZone: 'UTC'
     });
   };
-
-  // Helper: check if a date string is within the selected local day
-  const isInSelectedLocalDay = (isoString) => {
-    const logDate = new Date(isoString);
-    return (
-      logDate.getFullYear() === selectedDate.getFullYear() &&
-      logDate.getMonth() === selectedDate.getMonth() &&
-      logDate.getDate() === selectedDate.getDate()
-    );
-  };
-
-  // Filter logs to only those created on the selected local day
-  const filteredLogs = counselorLogs.filter(log => isInSelectedLocalDay(log.created_at));
 
   // Show loading state while authentication is completing
   if (authLoading || isAuthenticating) {
@@ -279,7 +272,7 @@ function AdminDashboard() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Logs</p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {filteredLogs.length}
+                      {counselorLogs.length}
                     </p>
                   </div>
                 </div>
@@ -293,8 +286,8 @@ function AdminDashboard() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg. Quality Score</p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {filteredLogs.length > 0 
-                        ? (filteredLogs.reduce((sum, log) => sum + log.day_quality_score, 0) / filteredLogs.length).toFixed(1)
+                      {counselorLogs.length > 0 
+                        ? (counselorLogs.reduce((sum, log) => sum + log.day_quality_score, 0) / counselorLogs.length).toFixed(1)
                         : '--'
                       }
                     </p>
@@ -310,7 +303,7 @@ function AdminDashboard() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Support Needed</p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {filteredLogs.filter(log => log.staff_care_support_needed).length}
+                      {counselorLogs.filter(log => log.staff_care_support_needed).length}
                     </p>
                   </div>
                 </div>
@@ -335,7 +328,7 @@ function AdminDashboard() {
                   <div className="flex items-center justify-center py-12">
                     <div className="text-red-600 dark:text-red-400">{error}</div>
                   </div>
-                ) : filteredLogs.length === 0 ? (
+                ) : counselorLogs.length === 0 ? (
                   <div className="flex items-center justify-center py-12">
                     <div className="text-center">
                       <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -375,7 +368,7 @@ function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {filteredLogs.map((log) => (
+                      {counselorLogs.map((log) => (
                         <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">

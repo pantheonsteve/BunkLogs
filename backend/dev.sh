@@ -319,7 +319,7 @@ case "$1" in
         BACKUP_FILE="/tmp/prod_sync_${TIMESTAMP}.sql"
         
         print_status "Creating backup of production database..."
-        if ! pg_dump "$PROD_DATABASE_URL" > "$BACKUP_FILE"; then
+        if ! pg_dump --no-owner --no-privileges "$PROD_DATABASE_URL" > "$BACKUP_FILE"; then
             print_error "Failed to create production backup"
             print_error "Please check your PROD_DATABASE_URL and network connectivity"
             rm -f "$BACKUP_FILE"
@@ -335,12 +335,12 @@ case "$1" in
         print_status "Restoring production data to local database..."
         if ! $COMPOSE_CMD -f docker-compose.local.yml exec -T postgres psql -U postgres bunk_logs_local < "$BACKUP_FILE"; then
             print_error "Failed to restore database"
-            rm -f "$BACKUP_FILE"
+            # rm -f "$BACKUP_FILE"   # Commented out to keep the backup file for debugging
             exit 1
         fi
         
         # Clean up
-        rm -f "$BACKUP_FILE"
+        # rm -f "$BACKUP_FILE"   # Commented out to keep the backup file for debugging
         
         print_success "Production database successfully synced to local!"
         print_success "Your local database now contains production data."
