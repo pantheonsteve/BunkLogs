@@ -200,6 +200,12 @@ function OrderDetail() {
                       {order?.narrative_description ? order.narrative_description : <span className="text-gray-400">No description provided.</span>}
                     </dd>
                   </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Additional Notes</dt>
+                    <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                      {order?.additional_notes ? order.additional_notes : <span className="text-gray-400">No additional notes provided.</span>}
+                    </dd>
+                  </div>
                 </dl>
               </div>
             </div>
