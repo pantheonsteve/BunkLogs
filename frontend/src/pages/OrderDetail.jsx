@@ -194,7 +194,7 @@ function OrderDetail() {
                       {order?.order_bunk_name}
                     </dd>
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Narrative Description</dt>
                     <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line">
                       {order?.narrative_description ? order.narrative_description : <span className="text-gray-400">No description provided.</span>}
