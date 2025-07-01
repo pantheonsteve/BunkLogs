@@ -17,6 +17,8 @@ function OrderDetail() {
   const isCounselor = user?.role === 'Counselor';
   const canEdit = isCounselor && order?.order_status === 'submitted';
 
+  console.log(orderId, order, user, isCounselor, canEdit);
+
   useEffect(() => {
     const fetchOrder = async () => {
       try {
