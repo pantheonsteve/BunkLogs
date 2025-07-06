@@ -38,6 +38,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("date", "get_camper_name", "get_bunk_name", "counselor")
     list_filter = ("date", "bunk_assignment__bunk", "counselor")
     list_editable = ("date",)  # Allow quick editing of dates in list view
+    list_display_links = ("get_camper_name",)  # Make camper name the clickable link instead of date
     search_fields = (
         "bunk_assignment__camper__first_name",
         "bunk_assignment__camper__last_name",
@@ -203,6 +204,7 @@ class CounselorLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("date", "counselor", "day_quality_score", "support_level_score", "day_off", "staff_care_support_needed")
     list_filter = ("date", "counselor", "day_off", "staff_care_support_needed", "day_quality_score", "support_level_score")
     list_editable = ("date",)  # Allow quick editing of dates in list view
+    list_display_links = ("counselor",)  # Make counselor the clickable link instead of date
     search_fields = (
         "counselor__first_name",
         "counselor__last_name", 
