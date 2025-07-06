@@ -69,15 +69,38 @@ class BunkLog(TestDataMixin):
         return self.bunk_assignment.camper
 
     def save(self, *args, **kwargs):
-        """Override save method to set date for new records only."""
+        """Override save method to set date for new records and handle duplicates gracefully."""
         # For new records, set date based on local timezone at creation time
-        # For existing records, preserve any manually set dates
         if not self.pk:
-            # Get the current local time for new records
             local_now = timezone.localtime()
             self.date = local_now.date()
+            
+            # Check if this would create a duplicate before saving
+            existing = BunkLog.objects.filter(
+                bunk_assignment_id=self.bunk_assignment_id,
+                date=self.date
+            ).first()
+            
+            if existing:
+                # If a record already exists for this bunk_assignment + date,
+                # shift the date to make it unique
+                from datetime import timedelta
+                original_date = self.date
+                days_offset = 1
+                
+                while BunkLog.objects.filter(
+                    bunk_assignment_id=self.bunk_assignment_id,
+                    date=self.date
+                ).exists():
+                    # Try the next day
+                    self.date = original_date + timedelta(days=days_offset)
+                    days_offset += 1
+                    
+                    # Safety limit to prevent infinite loop
+                    if days_offset > 30:
+                        break
         
-        # Call parent save - allow manual date changes for existing records
+        # Call parent save
         super().save(*args, **kwargs)
 
 
@@ -141,13 +164,36 @@ class CounselorLog(TestDataMixin):
         return f"Counselor log for {self.counselor.get_full_name()} on {self.date}"
 
     def save(self, *args, **kwargs):
-        """Override save method to set date for new records only."""
+        """Override save method to set date for new records and handle duplicates gracefully."""
         # For new records, set date based on local timezone at creation time
-        # For existing records, preserve any manually set dates
         if not self.pk:
-            # Get the current local time for new records
             local_now = timezone.localtime()
             self.date = local_now.date()
+            
+            # Check if this would create a duplicate before saving
+            existing = CounselorLog.objects.filter(
+                counselor_id=self.counselor_id,
+                date=self.date
+            ).first()
+            
+            if existing:
+                # If a record already exists for this counselor + date,
+                # shift the date to make it unique
+                from datetime import timedelta
+                original_date = self.date
+                days_offset = 1
+                
+                while CounselorLog.objects.filter(
+                    counselor_id=self.counselor_id,
+                    date=self.date
+                ).exists():
+                    # Try the next day
+                    self.date = original_date + timedelta(days=days_offset)
+                    days_offset += 1
+                    
+                    # Safety limit to prevent infinite loop
+                    if days_offset > 30:
+                        break
         
-        # Call parent save - allow manual date changes for existing records
+        # Call parent save
         super().save(*args, **kwargs)

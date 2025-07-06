@@ -45,6 +45,22 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
         "description",
     )
 
+    def save_model(self, request, obj, form, change):
+        """Override save to provide better error messages for duplicates."""
+        try:
+            super().save_model(request, obj, form, change)
+        except Exception as e:
+            if "unique constraint" in str(e).lower() and "bunk_assignment_id_date" in str(e):
+                from django.contrib import messages
+                messages.error(
+                    request, 
+                    f"A log already exists for {obj.bunk_assignment.camper} on {obj.date}. "
+                    f"Please choose a different date or edit the existing log."
+                )
+                raise
+            else:
+                raise
+
     @admin.display(
         description=_("Camper"),
     )
