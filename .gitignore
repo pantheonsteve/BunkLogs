@@ -143,3 +143,10 @@ github-actions-key.json
 *.json
 backend/.env
 llm_context/
+
+# Database dumps and backups
+*.sql
+*.dump
+*backup*.sql
+*dump*.sql
+database_backups/
