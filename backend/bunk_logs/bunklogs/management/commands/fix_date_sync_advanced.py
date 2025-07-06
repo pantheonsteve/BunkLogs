@@ -1,11 +1,12 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.db import transaction
-from bunk_logs.bunklogs.models import BunkLog
+from bunk_logs.bunklogs.models import BunkLog, CounselorLog
+from collections import defaultdict
 
 
 class Command(BaseCommand):
-    help = 'Fix BunkLog records with mismatched date and created_at fields (handles duplicates)'
+    help = 'Fix BunkLog and CounselorLog records with advanced conflict resolution'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -14,19 +15,21 @@ class Command(BaseCommand):
             help='Show what would be changed without making changes',
         )
         parser.add_argument(
-            '--delete-duplicates',
-            action='store_true',
-            help='Delete duplicate records when fixing dates',
+            '--batch-size',
+            type=int,
+            default=100,
+            help='Number of records to process in each batch (default: 100)',
         )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-        delete_duplicates = options['delete_duplicates']
+        batch_size = options['batch_size']
         
-        self.stdout.write("🔧 Fixing BunkLog date mismatches...")
-        self.stdout.write("This will update the 'date' field to match the 'created_at' date")
-        self.stdout.write("The created_at field will be used as the source of truth.")
-        self.stdout.write("")
+        mode = "DRY RUN" if dry_run else "LIVE"
+        self.stdout.write(self.style.WARNING(f"🔧 Advanced date sync fix - {mode} MODE"))
+        self.stdout.write("=" * 80)
+        
+        self.fix_bunklogs_advanced(dry_run, batch_size)
         
         # Find records that need updating
         mismatched_logs = []

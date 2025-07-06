@@ -88,7 +88,8 @@ class Command(BaseCommand):
                     'camper_name': camper_name,
                     'id': log.id,
                     'old_date': log.date,
-                    'new_date': created_date
+                    'new_date': created_date,
+                    'description': log.description[:100] + '...' if len(log.description) > 100 else log.description
                 })
             
             processed += 1
@@ -105,6 +106,7 @@ class Command(BaseCommand):
         self.stdout.write("\n📊 Examples of changes:")
         for i, item in enumerate(mismatched_logs[:5]):
             self.stdout.write(f"  ID {item['id']}: {item['camper_name']} - {item['old_date']} → {item['new_date']}")
+            self.stdout.write(f"    Description: {item['description'] or 'No description'}")
         
         if len(mismatched_logs) > 5:
             self.stdout.write(f"  ... and {len(mismatched_logs) - 5} more")
@@ -157,7 +159,8 @@ class Command(BaseCommand):
                     'counselor_name': counselor_name,
                     'id': log.id,
                     'old_date': log.date,
-                    'new_date': created_date
+                    'new_date': created_date,
+                    'elaboration': log.elaboration[:100] + '...' if len(log.elaboration) > 100 else log.elaboration
                 })
             
             processed += 1
@@ -174,6 +177,7 @@ class Command(BaseCommand):
         self.stdout.write("\n📊 Examples of changes:")
         for i, item in enumerate(mismatched_logs[:5]):
             self.stdout.write(f"  ID {item['id']}: {item['counselor_name']} - {item['old_date']} → {item['new_date']}")
+            self.stdout.write(f"    Elaboration: {item['elaboration'] or 'No elaboration'}")
         
         if len(mismatched_logs) > 5:
             self.stdout.write(f"  ... and {len(mismatched_logs) - 5} more")

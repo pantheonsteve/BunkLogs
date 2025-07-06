@@ -43,7 +43,8 @@ class Command(BaseCommand):
                     'created_date': created_date,
                     'created_at': log.created_at,
                     'created_at_local': timezone.localtime(log.created_at),
-                    'bunk': bunk_name
+                    'bunk': bunk_name,
+                    'description': log.description[:100] + '...' if len(log.description) > 100 else log.description
                 })
         
         self.stdout.write(f"Found {len(mismatched_logs)} records with mismatched dates\n")
@@ -88,6 +89,7 @@ class Command(BaseCommand):
                 direction = "after" if diff > 0 else "before"
                 self.stdout.write(f"ID {log['id']}: {log['camper']} - Log date {abs(diff)} day(s) {direction} creation")
                 self.stdout.write(f"   Log date: {log['log_date']}, Created: {log['created_date']} at {log['created_at_local'].strftime('%H:%M')}")
+                self.stdout.write(f"   Description: {log['description'] or 'No description'}")
                 self.stdout.write("")
         else:
             self.stdout.write(self.style.SUCCESS("✅ All BunkLog records have matching date and created_at fields!"))
