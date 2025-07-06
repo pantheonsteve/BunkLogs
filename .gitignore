@@ -142,3 +142,4 @@ frontend/build/
 github-actions-key.json
 *.json
 backend/.env
+llm_context/
