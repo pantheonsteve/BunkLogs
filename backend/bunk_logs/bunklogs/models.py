@@ -69,24 +69,16 @@ class BunkLog(TestDataMixin):
         return self.bunk_assignment.camper
 
     def save(self, *args, **kwargs):
-        """Override save method to ensure date field always matches created_at date."""
-        # For new records, always set date based on local timezone at creation time
+        """Override save method to set date for new records only."""
+        # For new records, set date based on local timezone at creation time
+        # For existing records, preserve any manually set dates
         if not self.pk:
             # Get the current local time for new records
             local_now = timezone.localtime()
             self.date = local_now.date()
         
-        # Call parent save first to populate created_at
+        # Call parent save - allow manual date changes for existing records
         super().save(*args, **kwargs)
-        
-        # After saving, ensure date matches created_at date in local timezone
-        # This ensures consistency between date and created_at regardless of when it was created
-        created_date = timezone.localtime(self.created_at).date()
-        if self.date != created_date:
-            # Use update to avoid triggering save() again and prevent recursion
-            BunkLog.objects.filter(pk=self.pk).update(date=created_date)
-            # Update the instance in memory to reflect the change
-            self.date = created_date
 
 
 class CounselorLog(TestDataMixin):
@@ -149,21 +141,13 @@ class CounselorLog(TestDataMixin):
         return f"Counselor log for {self.counselor.get_full_name()} on {self.date}"
 
     def save(self, *args, **kwargs):
-        """Override save method to ensure date field always matches created_at date."""
-        # For new records, always set date based on local timezone at creation time
+        """Override save method to set date for new records only."""
+        # For new records, set date based on local timezone at creation time
+        # For existing records, preserve any manually set dates
         if not self.pk:
             # Get the current local time for new records
             local_now = timezone.localtime()
             self.date = local_now.date()
         
-        # Call parent save first to populate created_at
+        # Call parent save - allow manual date changes for existing records
         super().save(*args, **kwargs)
-        
-        # After saving, ensure date matches created_at date in local timezone
-        # This ensures consistency between date and created_at regardless of when it was created
-        created_date = timezone.localtime(self.created_at).date()
-        if self.date != created_date:
-            # Use update to avoid triggering save() again and prevent recursion
-            CounselorLog.objects.filter(pk=self.pk).update(date=created_date)
-            # Update the instance in memory to reflect the change
-            self.date = created_date
