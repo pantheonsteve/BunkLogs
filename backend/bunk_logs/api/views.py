@@ -904,22 +904,6 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         return BunkLog.objects.none()
 
     def perform_create(self, serializer):
-        # Ensure the date is always a date object in the server's timezone
-        from django.utils import timezone
-        import datetime
-        validated_data = serializer.validated_data
-        log_date = validated_data.get('date')
-        if isinstance(log_date, datetime.datetime):
-            # Convert to local date
-            log_date = timezone.localtime(log_date).date()
-            serializer.validated_data['date'] = log_date
-        elif isinstance(log_date, str):
-            # Parse string to date
-            try:
-                log_date = datetime.datetime.strptime(log_date, '%Y-%m-%d').date()
-                serializer.validated_data['date'] = log_date
-            except Exception:
-                pass
         # Verify the user is allowed to create a log for this bunk assignment
         bunk_assignment = serializer.validated_data.get('bunk_assignment')
         if self.request.user.role == 'Counselor':
@@ -939,6 +923,11 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             
             if not has_assignment:
                 raise PermissionDenied("You are not authorized to create logs for this bunk.")
+        
+        # Remove any date from validated_data to let the model's save method handle it
+        if 'date' in serializer.validated_data:
+            del serializer.validated_data['date']
+        
         # Set the counselor automatically to the current user
         serializer.save(counselor=self.request.user)
 
@@ -1094,22 +1083,10 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         return CounselorLog.objects.none()
     
     def perform_create(self, serializer):
-        # Ensure the date is always a date object in the server's timezone
-        from django.utils import timezone
-        import datetime
-        validated_data = serializer.validated_data
-        log_date = validated_data.get('date')
-        if isinstance(log_date, datetime.datetime):
-            # Convert to local date
-            log_date = timezone.localtime(log_date).date()
-            serializer.validated_data['date'] = log_date
-        elif isinstance(log_date, str):
-            # Parse string to date
-            try:
-                log_date = datetime.datetime.strptime(log_date, '%Y-%m-%d').date()
-                serializer.validated_data['date'] = log_date
-            except Exception:
-                pass
+        # Remove any date from validated_data to let the model's save method handle it
+        if 'date' in serializer.validated_data:
+            del serializer.validated_data['date']
+            
         if self.request.user.role != 'Counselor':
             serializer.save()
         else:

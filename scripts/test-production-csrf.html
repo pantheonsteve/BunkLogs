@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSRF Token Test for Production</title>
+</head>
+<body>
+    <h1>Production CSRF Token Test</h1>
+    <div id="output"></div>
+    <button onclick="testCSRFFlow()">Test Password Reset with CSRF</button>
+
+    <script>
+    // Copy the CSRF token function from the frontend
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function getCSRFToken() {
+        // Try production cookie name first, then fallback to dev
+        const cookieToken = getCookie('__Secure-csrftoken') || getCookie('csrftoken');
+        return cookieToken;
+    }
+
+    async function testCSRFFlow() {
+        const output = document.getElementById('output');
+        output.innerHTML = '<p>Testing CSRF flow...</p>';
+
+        try {
+            // First, get the AllAuth config to set cookies
+            const configResponse = await fetch('https://admin.bunklogs.net/_allauth/browser/v1/config', {
+                credentials: 'include',
+                headers: {
+                    'Origin': 'https://clc.bunklogs.net'
+                }
+            });
+
+            output.innerHTML += '<p>✅ Config request successful</p>';
+
+            // Get CSRF token
+            const csrfToken = getCSRFToken();
+            if (csrfToken) {
+                output.innerHTML += `<p>✅ CSRF Token found: ${csrfToken.substring(0, 8)}...</p>`;
+            } else {
+                output.innerHTML += '<p>❌ No CSRF token found</p>';
+                return;
+            }
+
+            // Test password reset
+            const resetResponse = await fetch('https://admin.bunklogs.net/_allauth/browser/v1/auth/password/request', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Origin': 'https://clc.bunklogs.net',
+                    'X-CSRFToken': csrfToken,
+                    'Referer': 'https://clc.bunklogs.net/accounts/password/reset'
+                },
+                body: JSON.stringify({
+                    email: 'stevebresnick@gmail.com'
+                })
+            });
+
+            if (resetResponse.ok) {
+                const result = await resetResponse.json();
+                output.innerHTML += `<p>✅ Password reset successful: ${JSON.stringify(result)}</p>`;
+                output.innerHTML += '<p><strong>🎉 PRODUCTION PASSWORD RESET IS WORKING!</strong></p>';
+            } else {
+                output.innerHTML += `<p>❌ Password reset failed: ${resetResponse.status}</p>`;
+                const errorText = await resetResponse.text();
+                output.innerHTML += `<p>Error: ${errorText}</p>`;
+            }
+        } catch (error) {
+            output.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+        }
+    }
+
+    // Auto-run test when page loads
+    window.onload = function() {
+        setTimeout(testCSRFFlow, 1000);
+    }
+    </script>
+</body>
+</html>
