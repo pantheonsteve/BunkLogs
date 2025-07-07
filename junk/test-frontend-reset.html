@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Password Reset Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button { margin: 5px; padding: 10px; }
+        input { margin: 5px; padding: 8px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Frontend Password Reset Test</h1>
+    
+    <div id="status" class="result info">Click "Test Reset Request" to start the flow</div>
+    
+    <h2>Step 1: Request Password Reset</h2>
+    <input type="email" id="email" placeholder="Email" value="admin@example.com">
+    <button id="requestReset">Test Reset Request</button>
+    <div id="requestResult" class="result"></div>
+    
+    <h2>Step 2: Test Reset Link</h2>
+    <p>After requesting reset, check the latest email and paste the reset key here:</p>
+    <input type="text" id="resetKey" placeholder="Reset key (e.g., 7-abc123-...)">
+    <button id="validateKey">Validate Reset Key</button>
+    <div id="validateResult" class="result"></div>
+    
+    <h2>Step 3: Reset Password</h2>
+    <input type="password" id="newPassword" placeholder="New password" value="newpassword123">
+    <input type="password" id="confirmPassword" placeholder="Confirm password" value="newpassword123">
+    <button id="resetPassword">Reset Password</button>
+    <div id="resetResult" class="result"></div>
+    
+    <h2>Quick Actions</h2>
+    <button id="checkEmail">Check Latest Email</button>
+    <button id="openFrontend">Open Frontend Reset Page</button>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        const FRONTEND_BASE = 'http://localhost:5174';
+        
+        // Helper function to get CSRF token
+        async function getCSRFToken() {
+            try {
+                const response = await fetch(`${API_BASE}/api/get-csrf-token/`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                return data.csrfToken;
+            } catch (error) {
+                console.error('Failed to get CSRF token:', error);
+                return null;
+            }
+        }
+        
+        // Step 1: Request password reset
+        document.getElementById('requestReset').addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const resultDiv = document.getElementById('requestResult');
+            
+            try {
+                resultDiv.textContent = 'Requesting password reset...';
+                resultDiv.className = 'result info';
+                
+                const csrfToken = await getCSRFToken();
+                if (!csrfToken) {
+                    throw new Error('Could not get CSRF token');
+                }
+                
+                const response = await fetch(`${API_BASE}/_allauth/browser/v1/auth/password/request`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email })
+                });
+                
+                const result = await response.json();
+                console.log('Reset request result:', result);
+                
+                if (result.status === 200) {
+                    resultDiv.textContent = '✅ Password reset email sent successfully!';
+                    resultDiv.className = 'result success';
+                    
+                    // Automatically check for the latest email after a delay
+                    setTimeout(() => {
+                        document.getElementById('checkEmail').click();
+                    }, 2000);
+                } else {
+                    resultDiv.textContent = `❌ Reset request failed: ${JSON.stringify(result)}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                console.error('Reset request error:', error);
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        });
+        
+        // Step 2: Validate reset key
+        document.getElementById('validateKey').addEventListener('click', async () => {
+            const resetKey = document.getElementById('resetKey').value;
+            const resultDiv = document.getElementById('validateResult');
+            
+            if (!resetKey) {
+                resultDiv.textContent = '❌ Please enter a reset key';
+                resultDiv.className = 'result error';
+                return;
+            }
+            
+            try {
+                resultDiv.textContent = 'Validating reset key...';
+                resultDiv.className = 'result info';
+                
+                const response = await fetch(`${API_BASE}/_allauth/browser/v1/auth/password/reset`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Password-Reset-Key': resetKey
+                    },
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                console.log('Key validation result:', result);
+                
+                if (result.status === 200) {
+                    resultDiv.textContent = `✅ Reset key is valid! User: ${result.data.user.email}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `❌ Key validation failed: ${JSON.stringify(result)}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                console.error('Key validation error:', error);
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        });
+        
+        // Step 3: Reset password
+        document.getElementById('resetPassword').addEventListener('click', async () => {
+            const resetKey = document.getElementById('resetKey').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const resultDiv = document.getElementById('resetResult');
+            
+            if (!resetKey || !newPassword || !confirmPassword) {
+                resultDiv.textContent = '❌ Please fill in all fields';
+                resultDiv.className = 'result error';
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                resultDiv.textContent = '❌ Passwords do not match';
+                resultDiv.className = 'result error';
+                return;
+            }
+            
+            try {
+                resultDiv.textContent = 'Resetting password...';
+                resultDiv.className = 'result info';
+                
+                const csrfToken = await getCSRFToken();
+                if (!csrfToken) {
+                    throw new Error('Could not get CSRF token');
+                }
+                
+                const response = await fetch(`${API_BASE}/_allauth/browser/v1/auth/password/reset`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        key: resetKey,
+                        password: newPassword,
+                        password_confirm: confirmPassword
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('Password reset result:', result);
+                
+                if (result.status === 200) {
+                    resultDiv.textContent = '🎉 Password reset successful!';
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `❌ Password reset failed: ${JSON.stringify(result)}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                console.error('Password reset error:', error);
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        });
+        
+        // Quick action: Check latest email
+        document.getElementById('checkEmail').addEventListener('click', async () => {
+            try {
+                const response = await fetch('http://localhost:8025/api/v1/messages');
+                const data = await response.json();
+                
+                if (data.messages && data.messages.length > 0) {
+                    const latestEmail = data.messages[0];
+                    
+                    // Get email content
+                    const emailResponse = await fetch(`http://localhost:8025/api/v1/message/${latestEmail.ID}`);
+                    const emailData = await emailResponse.json();
+                    
+                    // Extract reset key
+                    const keyMatch = emailData.Text.match(/key\/([^\\s]*)/);
+                    if (keyMatch) {
+                        const resetKey = keyMatch[1];
+                        document.getElementById('resetKey').value = resetKey;
+                        
+                        document.getElementById('status').textContent = `📧 Latest email: "${latestEmail.Subject}" - Reset key extracted and filled in!`;
+                        document.getElementById('status').className = 'result success';
+                    } else {
+                        document.getElementById('status').textContent = `📧 Latest email: "${latestEmail.Subject}" - No reset key found`;
+                        document.getElementById('status').className = 'result info';
+                    }
+                } else {
+                    document.getElementById('status').textContent = '📧 No emails found';
+                    document.getElementById('status').className = 'result info';
+                }
+            } catch (error) {
+                console.error('Email check error:', error);
+                document.getElementById('status').textContent = `❌ Error checking email: ${error.message}`;
+                document.getElementById('status').className = 'result error';
+            }
+        });
+        
+        // Quick action: Open frontend
+        document.getElementById('openFrontend').addEventListener('click', () => {
+            window.open(`${FRONTEND_BASE}/accounts/password/reset`, '_blank');
+        });
+    </script>
+</body>
+</html>
