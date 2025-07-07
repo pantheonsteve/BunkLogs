@@ -16,8 +16,6 @@ function UnitHeadBunkGrid({ selectedDate }) {
   const [counselorLogs, setCounselorLogs] = useState([]);
   const [campersNeedingAttention, setCampersNeedingAttention] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [viewingDetails, setViewingDetails] = useState(false);
   const { user, isAuthenticated } = useAuth();
 
   // Helper function to format date consistently
@@ -118,22 +116,23 @@ function UnitHeadBunkGrid({ selectedDate }) {
         setCounselorLogsLoading(true);
         setCounselorLogsError(null);
         const dateToUse = formatDateString(selectedDate);
-        console.log('📡 [UnitHead] Fetching counselor logs for date:', dateToUse);
-        console.log('📡 [UnitHead] User info:', { id: user?.id, role: user?.role, email: user?.email });
+        console.log('📡 Fetching counselor logs for date:', dateToUse);
         
-        // Use the same endpoint as AdminDashboard with timezone support
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        console.log('🌍 [UnitHead] User timezone:', timezone);
-        
-        const response = await api.get(`/api/v1/counselorlogs/${dateToUse}/`, {
-          params: { timezone }
-        });
+        // Simple approach - just try the main endpoint with date parameter
+        const response = await api.get(`/api/v1/counselorlogs/?date=${dateToUse}`);
         
         console.log('🔍 Counselor logs response:', response.data);
         console.log('🔍 Response status:', response.status);
         
-        // Use the same response parsing as AdminDashboard
-        const logs = response.data.results || [];
+        // Handle different response formats
+        let logs = [];
+        if (response.data && response.data.results && Array.isArray(response.data.results)) {
+          logs = response.data.results;
+        } else if (Array.isArray(response.data)) {
+          logs = response.data;
+        } else {
+          logs = [];
+        }
         
         setCounselorLogs(logs);
         console.log('✅ Counselor logs loaded:', logs.length, 'items');
@@ -190,8 +189,23 @@ function UnitHeadBunkGrid({ selectedDate }) {
   // Handler for viewing counselor log details
   const viewLogDetails = (log) => {
     console.log('Viewing counselor log details:', log);
-    setSelectedLog(log);
-    setViewingDetails(true);
+    
+    if (!log) {
+      alert('No log data available');
+      return;
+    }
+    
+    const details = [
+      `Counselor: ${log.counselor_first_name || 'Unknown'} ${log.counselor_last_name || 'User'}`,
+      `Quality Score: ${log.day_quality_score || 0}/5`,
+      `Support Score: ${log.support_level_score || 0}/5`,
+      `Day Off: ${log.day_off ? 'Yes' : 'No'}`,
+      `Support Needed: ${log.staff_care_support_needed ? 'Yes' : 'No'}`,
+      `Date: ${log.date || 'Unknown'}`,
+      `Submitted: ${log.created_at ? new Date(log.created_at).toLocaleString() : 'Unknown'}`
+    ];
+    
+    alert(`Counselor Log Details:\n\n${details.join('\n')}`);
   };
 
   // Loading state
@@ -582,229 +596,6 @@ function UnitHeadBunkGrid({ selectedDate }) {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Counselor Log Detail Modal */}
-      {viewingDetails && selectedLog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Counselor Log Details
-                </h3>
-                <button
-                  onClick={() => setViewingDetails(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold w-8 h-8 flex items-center justify-center"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="space-y-6">
-                {/* Counselor Info */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Counselor Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Name</p>
-                      <p className="text-lg text-gray-900 dark:text-white">
-                        {selectedLog.counselor_first_name || 'Unknown'} {selectedLog.counselor_last_name || 'User'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Email</p>
-                      <p className="text-lg text-gray-900 dark:text-white">
-                        {selectedLog.counselor_email || 'Not provided'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Date</p>
-                      <p className="text-lg text-gray-900 dark:text-white">
-                        {selectedLog.date
-                          ? new Date(selectedLog.date + 'T00:00:00').toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })
-                          : 'Unknown'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Elaboration</p>
-                      <div className="text-lg text-gray-900 dark:text-white prose dark:prose-invert max-w-none">
-                        {selectedLog.elaboration ? (
-                          <span
-                            dangerouslySetInnerHTML={{ __html: selectedLog.elaboration }}
-                          />
-                        ) : (
-                          <span>None</span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Submitted</p>
-                      <p className="text-lg text-gray-900 dark:text-white">
-                        {selectedLog.created_at
-                          ? new Date(selectedLog.created_at).toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : 'Unknown'}
-                      </p>
-                    </div>
-                    {/* Values Reflection */}
-                    {selectedLog.values_reflection && (
-                      <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Values Reflection</p>
-                        <div className="text-lg text-gray-900 dark:text-white prose dark:prose-invert max-w-none">
-                          <span
-                            dangerouslySetInnerHTML={{ __html: selectedLog.values_reflection }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-center">
-                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Day Quality Score</p>
-                    <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-2">
-                      {selectedLog.day_quality_score || 0}<span className="text-lg">/5</span>
-                    </p>
-                  </div>
-                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 text-center">
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">Support Level Score</p>
-                    <p className="text-3xl font-bold text-green-700 dark:text-green-300 mt-2">
-                      {selectedLog.support_level_score || 0}<span className="text-lg">/5</span>
-                    </p>
-                  </div>
-                  <div className={`rounded-lg p-4 text-center ${
-                    selectedLog.day_off 
-                      ? 'bg-yellow-50 dark:bg-yellow-900/20' 
-                      : 'bg-gray-50 dark:bg-gray-700'
-                  }`}>
-                    <p className={`text-sm font-medium ${
-                      selectedLog.day_off 
-                        ? 'text-yellow-600 dark:text-yellow-400' 
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`}>Day Off</p>
-                    <p className={`text-2xl font-bold mt-2 ${
-                      selectedLog.day_off 
-                        ? 'text-yellow-700 dark:text-yellow-300' 
-                        : 'text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {selectedLog.day_off ? 'Yes' : 'No'}
-                    </p>
-                  </div>
-                  <div className={`rounded-lg p-4 text-center ${
-                    selectedLog.staff_care_support_needed 
-                      ? 'bg-red-50 dark:bg-red-900/20' 
-                      : 'bg-gray-50 dark:bg-gray-700'
-                  }`}>
-                    <p className={`text-sm font-medium ${
-                      selectedLog.staff_care_support_needed 
-                        ? 'text-red-600 dark:text-red-400' 
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`}>Support Needed</p>
-                    <p className={`text-2xl font-bold mt-2 ${
-                      selectedLog.staff_care_support_needed 
-                        ? 'text-red-700 dark:text-red-300' 
-                        : 'text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {selectedLog.staff_care_support_needed ? 'Yes' : 'No'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Comments and Notes */}
-                {(selectedLog.comments || selectedLog.notes || selectedLog.activities) && (
-                  <div className="space-y-4">
-                    {selectedLog.comments && (
-                      <div>
-                        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Comments</h4>
-                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                            {selectedLog.comments}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedLog.notes && (
-                      <div>
-                        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Notes</h4>
-                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                            {selectedLog.notes}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedLog.activities && (
-                      <div>
-                        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Activities</h4>
-                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                            {selectedLog.activities}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Additional Details */}
-                {(selectedLog.mood || selectedLog.behavior || selectedLog.participation) && (
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Additional Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {selectedLog.mood && (
-                        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                          <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Mood</p>
-                          <p className="text-lg text-purple-700 dark:text-purple-300 mt-1">
-                            {selectedLog.mood}
-                          </p>
-                        </div>
-                      )}
-                      {selectedLog.behavior && (
-                        <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
-                          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Behavior</p>
-                          <p className="text-lg text-indigo-700 dark:text-indigo-300 mt-1">
-                            {selectedLog.behavior}
-                          </p>
-                        </div>
-                      )}
-                      {selectedLog.participation && (
-                        <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4">
-                          <p className="text-sm font-medium text-teal-600 dark:text-teal-400">Participation</p>
-                          <p className="text-lg text-teal-700 dark:text-teal-300 mt-1">
-                            {selectedLog.participation}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
-                  <button
-                    onClick={() => setViewingDetails(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>

@@ -121,27 +121,7 @@ function Sidebar({
               </li>
               
               {/* Role-specific dashboard links */}
-              {user && user.role === 'Unit Head' && (
-                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
-                  <NavLink 
-                    to="/dashboard/unithead" 
-                    className={({ isActive }) => 
-                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
-                        isActive ? "text-emerald-600 dark:text-emerald-400" : "hover:text-gray-900 dark:hover:text-white"
-                      }`
-                    }
-                  >
-                    <div className="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V9.75a.75.75 0 0 0-.75-.75h-4.5m0 11.25h-4.5V9.75a.75.75 0 0 0-.75-.75h-4.5m0 11.25V9.75a.75.75 0 0 0-.75-.75H2.25" />
-                      </svg>
-                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
-                        Unit Dashboard
-                      </span>
-                    </div>
-                  </NavLink>
-                </li>
-              )}
+
               
               {user && user.role === 'Camper Care' && (
                 <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">

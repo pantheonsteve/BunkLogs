@@ -121,8 +121,27 @@ export default function SingleDatePicker({ className, date, setDate }) {
     console.log('🗓️ isDateDisabled called with:', {
       date: date,
       dateString: date?.toString(),
-      allowedRange: allowedRange
+      allowedRange: allowedRange,
+      userRole: user?.role
     });
+    
+    // For counselors, prevent selection of future dates
+    if (user?.role === 'Counselor') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of today
+      
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0); // Set to start of the date being checked
+      
+      if (checkDate > today) {
+        console.log('❌ Future date disabled for counselor:', {
+          checkDate: checkDate.toDateString(),
+          today: today.toDateString(),
+          isFuture: true
+        });
+        return true; // Disable future dates for counselors
+      }
+    }
     
     // If no allowed range is set, allow all dates (fallback for admin/staff or error cases)
     if (!allowedRange) {

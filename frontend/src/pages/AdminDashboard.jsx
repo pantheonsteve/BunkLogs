@@ -5,6 +5,7 @@ import { Calendar, Users, FileText, Eye, ChevronLeft, ChevronRight, Download } f
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
 import SingleDatePicker from '../components/ui/SingleDatePicker';
+import CounselorLogsGrid from '../partials/admin-dashboard/CounselorLogsGrid';
 import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 
@@ -311,129 +312,13 @@ function AdminDashboard() {
             </div>
 
             {/* Counselor Logs Table */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Counselor Logs for {date && formatDisplayDate(date)}
-                </h2>
-              </div>
-              
-              <div className="overflow-x-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                    <span className="ml-3 text-gray-600 dark:text-gray-400">Loading logs...</span>
-                  </div>
-                ) : error ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-red-600 dark:text-red-400">{error}</div>
-                  </div>
-                ) : counselorLogs.length === 0 ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-center">
-                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                        No logs found
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        No counselor logs were submitted for this date.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-900">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Counselor
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Quality Score
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Support Score
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Day Off
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Support Needed
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Submitted
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {counselorLogs.map((log) => (
-                        <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    {log.counselor_first_name?.[0]}{log.counselor_last_name?.[0]}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {log.counselor_first_name} {log.counselor_last_name}
-                                </div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {log.counselor_email}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(log.day_quality_score)}`}>
-                              {log.day_quality_score}/5
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(log.support_level_score)}`}>
-                              {log.support_level_score}/5
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              log.day_off ? 'text-blue-600 bg-blue-50' : 'text-gray-600 bg-gray-50'
-                            }`}>
-                              {log.day_off ? 'Yes' : 'No'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              log.staff_care_support_needed ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'
-                            }`}>
-                              {log.staff_care_support_needed ? 'Yes' : 'No'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {new Date(log.created_at).toLocaleTimeString('en-US', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => viewLogDetails(log)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
+            <CounselorLogsGrid
+              date={date}
+              loading={loading}
+              error={error}
+              counselorLogs={counselorLogs}
+              viewLogDetails={viewLogDetails}
+            />
 
             {/* Detail Modal */}
             {viewingDetails && selectedLog && (

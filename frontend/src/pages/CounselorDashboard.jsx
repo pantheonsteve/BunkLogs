@@ -58,6 +58,26 @@ function CounselorDashboard() {
     }
   }, [date, navigate]);
 
+  // For counselors, redirect future dates to today
+  useEffect(() => {
+    if (user?.role === 'Counselor' && date && date !== 'undefined') {
+      const today = new Date();
+      const selectedDate = new Date(date);
+      
+      // Check if the selected date is in the future
+      if (selectedDate > today) {
+        console.log('Counselor tried to access future date, redirecting to today');
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+        
+        navigate(`/counselor-dashboard/${formattedDate}`, { replace: true });
+        return;
+      }
+    }
+  }, [date, user?.role, navigate]);
+
   // Fetch counselor logs data
   useEffect(() => {
     async function fetchCounselorLogs() {
