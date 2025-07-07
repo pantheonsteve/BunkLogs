@@ -45,11 +45,25 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
         return canEditExisting;
       }
       
-      // If there's no existing log, counselors can create new logs
+      // For new logs, counselors can only create logs for today or past dates (no future dates)
+      const today = new Date().toISOString().split('T')[0];
+      const logDate = dateToUse;
+      
+      if (logDate > today) {
+        return false; // Cannot create logs for future dates
+      }
+      
+      // If there's no existing log and date is valid, counselors can create new logs
       return true;
     }
     
     return false;
+  };
+  
+  // Check if the selected date is in the future
+  const isDateInFuture = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return dateToUse > today;
   };
   
   // For WYSIWYG editors
@@ -197,6 +211,43 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
     }));
   };
   
+  // Client-side validation function for counselor logs
+  const validateCounselorForm = () => {
+    const errors = [];
+    
+    // Validate date constraints
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    if (formData.date > today) {
+      errors.push('Cannot create logs for future dates');
+    }
+    
+    if (formData.date < thirtyDaysAgoStr) {
+      errors.push('Cannot create logs older than 30 days');
+    }
+    
+    // Validate required fields for work days
+    if (!formData.day_off) {
+      if (!formData.elaboration?.trim()) {
+        errors.push('Elaboration is required for work days');
+      }
+      
+      if (!formData.values_reflection?.trim()) {
+        errors.push('Values reflection is required for work days');
+      }
+    }
+    
+    // Validate staff care support request
+    if (formData.staff_care_support_needed && !formData.elaboration?.trim()) {
+      errors.push('Please explain why you need staff care support in the elaboration field');
+    }
+    
+    return errors;
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -214,6 +265,14 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
     
     setLoading(true);
     setError(null);
+    
+    // Client-side validation
+    const validationErrors = validateCounselorForm();
+    if (validationErrors.length > 0) {
+      setError(`Validation Error: ${validationErrors.join(', ')}`);
+      setLoading(false);
+      return;
+    }
     
     // Get the latest token directly from localStorage
     const currentToken = localStorage.getItem('access_token');
@@ -294,19 +353,21 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
       }
       
       if (err.response) {
-        
-        let errorMessage = `Error ${err.response.status}`;
-        
-        // Try to extract specific error messages from the response
-        if (err.response.data) {
-          if (typeof err.response.data === 'string') {
-            errorMessage += `: ${err.response.data}`;
-          } else if (err.response.data.message) {
-            errorMessage += `: ${err.response.data.message}`;
-          } else if (err.response.data.detail) {
-            errorMessage += `: ${err.response.data.detail}`;
-          } else if (err.response.data.non_field_errors) {
-            const nonFieldErrors = err.response.data.non_field_errors;
+        // Handle validation errors from our new model constraints
+        if (err.response.status === 400 && err.response.data) {
+          const validationErrors = err.response.data;
+          
+          // Handle specific validation error messages
+          if (validationErrors.date) {
+            setError(`Date Error: ${validationErrors.date}`);
+          } else if (validationErrors.elaboration) {
+            setError(`Elaboration Error: ${validationErrors.elaboration}`);
+          } else if (validationErrors.values_reflection) {
+            setError(`Values Reflection Error: ${validationErrors.values_reflection}`);
+          } else if (validationErrors.__all__) {
+            setError(`Validation Error: ${validationErrors.__all__}`);
+          } else if (validationErrors.non_field_errors) {
+            const nonFieldErrors = validationErrors.non_field_errors;
             
             // Special handling for duplicate log error
             if (nonFieldErrors.some(error => error.includes('already exists for this date'))) {
@@ -442,7 +503,10 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
             <div>
               <h3 className="text-sm font-medium">Cannot Create Counselor Log</h3>
               <p className="text-sm mt-1">
-                You do not have permission to create counselor logs.
+                {isDateInFuture() 
+                  ? "You cannot create logs for future dates. Please select today's date or a past date."
+                  : "You do not have permission to create counselor logs."
+                }
               </p>
             </div>
           </div>

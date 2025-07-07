@@ -224,12 +224,69 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     if (isViewMode) return; // Don't update form in view mode
     
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    
+    // Special handling for not_on_camp checkbox
+    if (name === 'not_on_camp' && type === 'checkbox') {
+      setFormData(prev => {
+        const updated = { ...prev, [name]: checked };
+        
+        // If camper is marked as not on camp, clear scores and help requests
+        if (checked) {
+          updated.social_score = null;
+          updated.behavior_score = null;
+          updated.participation_score = null;
+          updated.request_camper_care_help = false;
+          updated.request_unit_head_help = false;
+        }
+        
+        return updated;
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value,
+      }));
+    }
   };
   
+  // Client-side validation function
+  const validateForm = () => {
+    const errors = [];
+    
+    // Validate date constraints
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    if (formData.date > today) {
+      errors.push('Cannot create logs for future dates');
+    }
+    
+    if (formData.date < thirtyDaysAgoStr) {
+      errors.push('Cannot create logs older than 30 days');
+    }
+    
+    // Validate scores vs not_on_camp constraint
+    if (formData.not_on_camp) {
+      if (formData.social_score || formData.behavior_score || formData.participation_score) {
+        errors.push('Cannot score a camper who was not on camp');
+      }
+    } else {
+      // If camper was on camp, at least one score should be provided
+      if (!formData.social_score && !formData.behavior_score && !formData.participation_score) {
+        errors.push('At least one score must be provided for campers who were on camp');
+      }
+    }
+    
+    // Validate help requests require description
+    if ((formData.request_camper_care_help || formData.request_unit_head_help) && !formData.description?.trim()) {
+      errors.push('Description is required when requesting help from camper care or unit head');
+    }
+    
+    return errors;
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -244,6 +301,14 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     
     setLoading(true);
     setError(null);
+    
+    // Client-side validation
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      setError(`Validation Error: ${validationErrors.join(', ')}`);
+      setLoading(false);
+      return;
+    }
     
     // Form validation
     if (!formData.counselor) {
@@ -355,9 +420,34 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     } catch (err) {
       console.error('Error submitting form:', err);
       if (err.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        setError(`Error ${err.response.status}: ${err.response.data?.message || 'Failed to submit bunk log'}`);
+        // Handle validation errors from our new model constraints
+        if (err.response.status === 400 && err.response.data) {
+          const validationErrors = err.response.data;
+          
+          // Handle specific validation error messages
+          if (validationErrors.date) {
+            setError(`Date Error: ${validationErrors.date}`);
+          } else if (validationErrors.social_score || validationErrors.behavior_score || validationErrors.participation_score) {
+            const scoreErrors = [
+              validationErrors.social_score,
+              validationErrors.behavior_score, 
+              validationErrors.participation_score
+            ].filter(Boolean);
+            setError(`Score Error: ${scoreErrors.join(', ')}`);
+          } else if (validationErrors.description) {
+            setError(`Description Error: ${validationErrors.description}`);
+          } else if (validationErrors.__all__) {
+            setError(`Validation Error: ${validationErrors.__all__}`);
+          } else {
+            // Generic validation error
+            const errorMessages = Object.entries(validationErrors)
+              .map(([field, message]) => `${field}: ${message}`)
+              .join(', ');
+            setError(`Validation Error: ${errorMessages}`);
+          }
+        } else {
+          setError(`Error ${err.response.status}: ${err.response.data?.message || 'Failed to submit bunk log'}`);
+        }
       } else if (err.request) {
         // The request was made but no response was received
         setError('Network error: No response received from server');
