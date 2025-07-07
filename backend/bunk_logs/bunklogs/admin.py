@@ -35,7 +35,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                 ).select_related("camper")
         return form
 
-    list_display = ("date", "get_camper_name", "get_bunk_name", "counselor")
+    list_display = ("date", "get_local_creation_date", "get_camper_name", "get_bunk_name", "counselor")
     list_filter = ("date", "bunk_assignment__bunk", "counselor")
     list_editable = ("date",)  # Allow quick editing of dates in list view
     list_display_links = ("get_camper_name",)  # Make camper name the clickable link instead of date
@@ -61,6 +61,15 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                 raise
             else:
                 raise
+
+    @admin.display(
+        description=_("Created (Local)"),
+    )
+    def get_local_creation_date(self, obj):
+        """Show the local creation date for debugging purposes."""
+        from django.utils import timezone
+        local_created = timezone.localtime(obj.created_at)
+        return local_created.strftime("%Y-%m-%d %H:%M")
 
     @admin.display(
         description=_("Camper"),

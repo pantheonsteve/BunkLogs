@@ -394,6 +394,21 @@ class CounselorLogSerializer(serializers.ModelSerializer):
                 if score < 1 or score > 5:
                     raise serializers.ValidationError({score_field: "Score must be between 1 and 5"})
         
+        # Prevent counselors from creating logs for future dates
+        if hasattr(self, 'context') and 'request' in self.context:
+            user = self.context['request'].user
+            log_date = data.get('date')
+            
+            # Only apply this restriction to counselors (admins/staff can create logs for any date)
+            if user.role == 'Counselor' and log_date:
+                from django.utils import timezone
+                today = timezone.now().date()
+                
+                if log_date > today:
+                    raise serializers.ValidationError({
+                        'date': f"Counselors cannot create logs for future dates. Today is {today}, but you're trying to create a log for {log_date}."
+                    })
+        
         # Check for duplicate counselor logs (same counselor on same date)
         # Only perform this check if we have a request context (i.e., in DRF views)
         if self.instance is None and hasattr(self, 'context') and 'request' in self.context:  # Only for creation, not updates

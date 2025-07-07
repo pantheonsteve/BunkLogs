@@ -96,6 +96,10 @@ show_help() {
     echo "  backup-db       - Backup local database"
     echo "  restore-db      - Restore local database"
     echo "  sync-prod-db    - Sync production database to local (DESTRUCTIVE)"
+    echo "  import-prod-db  - Import production database using backup script (RECOMMENDED)"
+    echo "  analyze-date-conflicts - Analyze unique constraint conflicts preventing date fixes"
+    echo "  smart-date-fix  - Intelligently fix date conflicts by handling duplicates"
+    echo "  fix-july-6-7-dates - Fix BunkLog date fields to match created_at timezone"
     echo "  help            - Show this help message"
 }
 
@@ -353,6 +357,288 @@ case "$1" in
         print_success "Database sync complete!"
         ;;
     
+    import-prod-db)
+        print_warning "⚠️  This will COMPLETELY REPLACE your local database with production data!"
+        print_warning "⚠️  All local data will be lost!"
+        echo ""
+        read -p "Are you sure you want to continue? (type 'yes' to confirm): " confirm
+        
+        if [ "$confirm" != "yes" ]; then
+            print_status "Operation cancelled."
+            exit 0
+        fi
+        
+        print_status "Importing production database using backup script..."
+        
+        # Change to project root where backup script is located
+        cd "$(dirname "$0")/.."
+        
+        # Check if backup script exists
+        if [ ! -f "backup-and-sync-db.sh" ]; then
+            print_error "backup-and-sync-db.sh not found in project root"
+            exit 1
+        fi
+        
+        # Make sure script is executable
+        chmod +x backup-and-sync-db.sh
+        
+        # Run the backup and sync script
+        ./backup-and-sync-db.sh
+        
+        if [ $? -eq 0 ]; then
+            print_success "Production database successfully imported!"
+            print_success "You can now log in with production user accounts."
+        else
+            print_error "Database import failed. Check the output above for details."
+            exit 1
+        fi
+        ;;
+    
+    analyze-date-conflicts)
+        check_venv
+        print_status "Analyzing date fix conflicts..."
+        export DJANGO_READ_DOT_ENV_FILE=True
+        python manage.py shell -c "
+from bunk_logs.bunklogs.models import BunkLog
+from django.utils import timezone
+from django.db.models import Q
+from datetime import date
+
+# Find records that need date fixes (check each record individually)
+all_records = BunkLog.objects.all().order_by('bunk_assignment_id', 'date')
+needs_fix = []
+
+for record in all_records:
+    correct_date = timezone.localtime(record.created_at).date()
+    if record.date != correct_date:
+        needs_fix.append(record)
+
+print(f'Found {len(needs_fix)} records that need date fixes')
+print()
+
+# Check for potential conflicts
+conflicts = []
+for record in needs_fix[:20]:  # Check first 20
+    correct_date = timezone.localtime(record.created_at).date()
+    
+    # Check if there's already a record for this bunk_assignment on the correct date
+    existing = BunkLog.objects.filter(
+        bunk_assignment_id=record.bunk_assignment_id,
+        date=correct_date
+    ).exclude(id=record.id).first()
+    
+    if existing:
+        conflicts.append({
+            'record_id': record.id,
+            'bunk_assignment': record.bunk_assignment_id,
+            'wrong_date': record.date,
+            'correct_date': correct_date,
+            'existing_id': existing.id,
+            'existing_created': existing.created_at
+        })
+
+print(f'Found {len(conflicts)} potential conflicts:')
+for conflict in conflicts[:10]:
+    print(f'  Record {conflict[\"record_id\"]} (bunk {conflict[\"bunk_assignment\"]}) wants to move from {conflict[\"wrong_date\"]} to {conflict[\"correct_date\"]}')
+    print(f'    But record {conflict[\"existing_id\"]} already exists for {conflict[\"correct_date\"]} (created: {conflict[\"existing_created\"]})')
+    print()
+"
+        ;;
+    
+    smart-date-fix)
+        check_venv
+        print_status "Running smart date fix (dry run first)..."
+        export DJANGO_READ_DOT_ENV_FILE=True
+        
+        # Show what would happen
+        python manage.py smart_date_fix --dry-run --strategy=keep-latest
+        
+        echo ""
+        print_warning "⚠️  This will modify and delete records to resolve date conflicts!"
+        read -p "Do you want to proceed with the actual fix? (type 'yes' to confirm): " confirm
+        
+        if [ "$confirm" == "yes" ]; then
+            print_status "Applying smart date fix..."
+            python manage.py smart_date_fix --strategy=keep-latest
+            print_success "Smart date fix complete!"
+        else
+            print_status "Operation cancelled."
+        fi
+        ;;
+    
+    fix-july-6-7-dates)
+        check_venv
+        print_status "Fixing ALL BunkLog dates to match America/New_York timezone..."
+        export DJANGO_READ_DOT_ENV_FILE=True
+        
+        # First, run analysis to show what will happen
+        python manage.py shell -c "
+from bunk_logs.bunklogs.models import BunkLog
+from django.utils import timezone
+from datetime import date, datetime
+from django.db import transaction
+
+print('🔍 Analyzing BunkLog date mismatches (America/New_York timezone)...')
+print('=' * 70)
+
+# Find ALL logs where date field doesn't match the local timezone date
+mismatched_logs = []
+total_logs = BunkLog.objects.count()
+
+print(f'Checking {total_logs} BunkLogs for date field mismatches...')
+print('(This may take a moment for large datasets)')
+print()
+
+# Check each log to see if date matches local timezone
+for log in BunkLog.objects.all():
+    local_date = timezone.localtime(log.created_at).date()
+    if log.date != local_date:
+        mismatched_logs.append({
+            'log': log,
+            'current_date': log.date,
+            'correct_date': local_date,
+            'created_at': log.created_at
+        })
+
+print(f'Found {len(mismatched_logs)} logs with incorrect date fields')
+print()
+
+if len(mismatched_logs) == 0:
+    print('✅ All BunkLog dates already match America/New_York timezone!')
+    exit()
+
+# Analyze the mismatches
+date_changes = {}
+for item in mismatched_logs:
+    change_key = f'{item[\"current_date\"]} → {item[\"correct_date\"]}'
+    if change_key not in date_changes:
+        date_changes[change_key] = []
+    date_changes[change_key].append(item)
+
+print('📊 Date changes needed:')
+for change, logs in date_changes.items():
+    print(f'  {change}: {len(logs)} logs')
+
+print()
+
+# Check for potential duplicates after fixing
+print('🔍 Checking for potential duplicate conflicts...')
+duplicates_to_delete = []
+logs_to_fix = []
+
+for item in mismatched_logs:
+    log = item['log']
+    correct_date = item['correct_date']
+    
+    # Check if there's already a log for this bunk on the correct date
+    existing = BunkLog.objects.filter(
+        bunk_assignment_id=log.bunk_assignment_id,
+        date=correct_date
+    ).exclude(id=log.id).first()
+    
+    if existing:
+        duplicates_to_delete.append({
+            'log': log,
+            'existing': existing,
+            'reason': f'Duplicate - log for {correct_date} already exists'
+        })
+    else:
+        logs_to_fix.append(item)
+
+print(f'� Summary:')
+print(f'  - Logs to FIX (update date): {len(logs_to_fix)}')
+print(f'  - Logs to DELETE (duplicates): {len(duplicates_to_delete)}')
+print()
+
+if duplicates_to_delete:
+    print('🗑️  Logs to DELETE (duplicates):')
+    for item in duplicates_to_delete[:10]:
+        log = item['log']
+        existing = item['existing']
+        print(f'  - ID {log.id} (bunk {log.bunk_assignment_id}) - duplicate of ID {existing.id}')
+    if len(duplicates_to_delete) > 10:
+        print(f'  ... and {len(duplicates_to_delete) - 10} more')
+    print()
+
+if logs_to_fix:
+    print('🔧 Logs to FIX (update date field):')
+    for item in logs_to_fix[:10]:
+        log = item['log']
+        print(f'  - ID {log.id} (bunk {log.bunk_assignment_id}): {item[\"current_date\"]} → {item[\"correct_date\"]}')
+    if len(logs_to_fix) > 10:
+        print(f'  ... and {len(logs_to_fix) - 10} more')
+    print()
+
+print(f'🎯 Total fixes needed: {len(logs_to_fix) + len(duplicates_to_delete)}')
+"
+        
+        echo ""
+        print_warning "⚠️  This was a DRY RUN - no changes were made!"
+        read -p "Do you want to EXECUTE the fixes? (type 'yes' to confirm): " confirm
+        
+        if [ "$confirm" == "yes" ]; then
+            print_status "Executing BunkLog date fixes for America/New_York timezone..."
+            python manage.py shell -c "
+from bunk_logs.bunklogs.models import BunkLog
+from django.utils import timezone
+from datetime import date
+from django.db import transaction
+
+print('🚀 EXECUTING BunkLog date fixes...')
+print('=' * 50)
+
+# Find all mismatched logs again
+mismatched_logs = []
+for log in BunkLog.objects.all():
+    local_date = timezone.localtime(log.created_at).date()
+    if log.date != local_date:
+        mismatched_logs.append({
+            'log': log,
+            'current_date': log.date,
+            'correct_date': local_date
+        })
+
+deleted_count = 0
+fixed_count = 0
+
+# Use transaction for safety
+with transaction.atomic():
+    for item in mismatched_logs:
+        log = item['log']
+        correct_date = item['correct_date']
+        
+        # Check for existing log on correct date
+        existing = BunkLog.objects.filter(
+            bunk_assignment_id=log.bunk_assignment_id,
+            date=correct_date
+        ).exclude(id=log.id).first()
+        
+        if existing:
+            # Delete duplicate
+            print(f'🗑️  DELETING duplicate ID {log.id} (bunk {log.bunk_assignment_id}) - {correct_date} log already exists (ID {existing.id})')
+            log.delete()
+            deleted_count += 1
+        else:
+            # Fix date to match local timezone
+            print(f'🔧 FIXING ID {log.id} (bunk {log.bunk_assignment_id}): {item[\"current_date\"]} → {correct_date}')
+            log.date = correct_date
+            log.save()
+            fixed_count += 1
+
+print()
+print(f'✅ COMPLETED:')
+print(f'  - Deleted {deleted_count} duplicate records')
+print(f'  - Fixed {fixed_count} date fields to match America/New_York timezone')
+print(f'  - Total processed: {deleted_count + fixed_count}')
+print()
+print('🎯 All BunkLog dates now consistently use America/New_York timezone!')
+"
+            print_success "BunkLog timezone fixes completed!"
+        else
+            print_status "Operation cancelled."
+        fi
+        ;;
+
     help|"")
         show_help
         ;;

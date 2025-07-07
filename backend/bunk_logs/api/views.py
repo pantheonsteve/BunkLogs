@@ -1129,56 +1129,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         
         # Default: deny access
         raise PermissionDenied("You are not authorized to update this counselor log.")
-    
-    def get_queryset(self):
-        user = self.request.user
-        
-        # Admin/staff can see all
-        if user.is_staff or user.role == 'Admin':
-            return CounselorLog.objects.all()
-            
-        # Unit heads and camper care can see logs for counselors in their units
-        if user.role in ['Unit Head', 'Camper Care']:
-            from django.utils import timezone
-            unit_ids = []
-            
-            # For Unit Head role
-            if user.role == 'Unit Head':
-                # Get units where user is assigned as unit_head
-                unit_assignments = UnitStaffAssignment.objects.filter(
-                    staff_member=user,
-                    role='unit_head',
-                    start_date__lte=timezone.now().date(),
-                    end_date__isnull=True
-                ).values_list('unit_id', flat=True)
-                unit_ids.extend(unit_assignments)
-                
-            # For Camper Care role  
-            if user.role == 'Camper Care':
-                # Get units where user is assigned as camper_care
-                unit_assignments = UnitStaffAssignment.objects.filter(
-                    staff_member=user,
-                    role='camper_care',
-                    start_date__lte=timezone.now().date(),
-                    end_date__isnull=True
-                ).values_list('unit_id', flat=True)
-                unit_ids.extend(unit_assignments)
-            
-            # Get counselors assigned to bunks in these units
-            counselor_ids = User.objects.filter(
-                role='Counselor',
-                assigned_bunks__unit_id__in=unit_assignments
-            ).values_list('id', flat=True)
-            
-            return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
-            
-        # Counselors can only see their own logs
-        if user.role == 'Counselor':
-            return CounselorLog.objects.filter(counselor=user)
-            
-        # Default: see nothing
-        return CounselorLog.objects.none()
-    
+
     def perform_create(self, serializer):
         # Ensure the date is always a date object in the server's timezone
         from django.utils import timezone

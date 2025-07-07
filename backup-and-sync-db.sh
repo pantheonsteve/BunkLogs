@@ -21,7 +21,7 @@ PROD_DB_PASSWORD="bpiFWVkn3Ku89g7A67WjpRsWitc6K0Hw"
 # Local database configuration
 LOCAL_DB_HOST="localhost"
 LOCAL_DB_PORT="5432"
-LOCAL_DB_NAME="bunk_logs"
+LOCAL_DB_NAME="bunk_logs_local"
 LOCAL_DB_USER="postgres"
 LOCAL_DB_PASSWORD="postgres"
 
