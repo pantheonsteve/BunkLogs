@@ -168,16 +168,16 @@ CORS_ALLOWED_ORIGINS = [
     "https://clc.bunklogs.net",  # Your actual frontend URL
     "https://bunklogs.net",
     "https://www.bunklogs.net",
-    "https://storage.googleapis.com/bunk-logs-frontend-prod",  # Direct bucket access
-    "https://storage.cloud.google.com/bunk-logs-frontend-prod",  # Alternative bucket URL
+    "https://storage.googleapis.com",  # Direct bucket access (no path)
+    "https://storage.cloud.google.com",  # Alternative bucket URL (no path)
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://clc.bunklogs.net",  # Your actual frontend URL
     "https://bunklogs.net",
     "https://www.bunklogs.net",
-    "https://storage.googleapis.com/bunk-logs-frontend-prod",
-    "https://storage.cloud.google.com/bunk-logs-frontend-prod",
+    "https://storage.googleapis.com",
+    "https://storage.cloud.google.com",
 ]
 
 # JWT Settings for dj-rest-auth
