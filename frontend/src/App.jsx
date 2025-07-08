@@ -14,75 +14,77 @@ const isDevelopment = import.meta.env.DEV;
 const isProduction = import.meta.env.PROD;
 const environment = import.meta.env.VITE_DATADOG_ENV || (isProduction ? 'production' : 'development');
 
-console.log('🔍 Datadog Environment Check:', {
+console.log('🔍 Datadog RUM Environment Check:', {
   isDevelopment,
   isProduction,
   environment,
   hasAppId: !!import.meta.env.VITE_DATADOG_APPLICATION_ID,
   hasClientToken: !!import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
-  nodeEnv: import.meta.env.NODE_ENV,
-  mode: import.meta.env.MODE
+  apiUrl: import.meta.env.VITE_API_URL,
 });
 
-// Always try to initialize in production OR if explicitly configured
-// if ((isProduction || import.meta.env.VITE_DATADOG_FORCE_ENABLE) && import.meta.env.VITE_DATADOG_APPLICATION_ID) {
-//   try {
-//     datadogRum.init({
-//       applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
-//       clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
-//       site: import.meta.env.VITE_DATADOG_SITE || 'datadoghq.com',
-//       service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
-//       env: environment,
-//       version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
-//       sessionSampleRate: 100,
-//       sessionReplaySampleRate: 20,
-//       defaultPrivacyLevel: 'mask-user-input',
-//       trackUserInteractions: true,
-//       trackResources: true,
-//       trackLongTasks: true,
-//       allowedTracingUrls: [
-//         (url) => url.startsWith(import.meta.env.VITE_API_URL), // Track API calls
-//       ],
-//       plugins: [reactPlugin({ router: true })],
-//     });
+// Initialize Datadog RUM if we have the required configuration
+if (import.meta.env.VITE_DATADOG_APPLICATION_ID && import.meta.env.VITE_DATADOG_CLIENT_TOKEN) {
+  try {
+    datadogRum.init({
+      applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
+      clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
+      site: import.meta.env.VITE_DATADOG_SITE || 'datadoghq.com',
+      service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
+      env: environment,
+      version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
+      
+      // Sampling rates - optimized for production
+      sessionSampleRate: 100,
+      sessionReplaySampleRate: 20, // Reduced from 98% to save costs
+      
+      // Privacy settings - better for user privacy
+      defaultPrivacyLevel: 'mask-user-input', // More secure than 'allow'
+      
+      // Performance tracking
+      trackUserInteractions: true,
+      trackResources: true,
+      trackLongTasks: true,
+      
+      // Enable distributed tracing between frontend and backend
+      allowedTracingUrls: [
+        // Track API calls to your backend for full-stack traces
+        (url) => {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          return apiUrl && url.startsWith(apiUrl);
+        },
+      ],
+      
+      // React-specific plugin
+      plugins: [reactPlugin({ router: true })],
+    });
     
-//     console.log('✅ Datadog RUM initialized successfully:', {
-//       environment,
-//       service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
-//       version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0'
-//     });
+    console.log('✅ Datadog RUM initialized successfully:', {
+      applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID?.slice(0, 8) + '...',
+      service: import.meta.env.VITE_DATADOG_SERVICE,
+      environment,
+      version: import.meta.env.VITE_DATADOG_VERSION,
+      tracingEnabled: !!import.meta.env.VITE_API_URL,
+    });
 
-//     console.log('VITE env at runtime:', {
-//       VITE_DATADOG_APPLICATION_ID: import.meta.env.VITE_DATADOG_APPLICATION_ID,
-//       VITE_DATADOG_CLIENT_TOKEN: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
-//       VITE_DATADOG_SITE: import.meta.env.VITE_DATADOG_SITE,
-//       VITE_DATADOG_SERVICE: import.meta.env.VITE_DATADOG_SERVICE,
-//       VITE_DATADOG_ENV: import.meta.env.VITE_DATADOG_ENV,
-//       VITE_DATADOG_VERSION: import.meta.env.VITE_DATADOG_VERSION,
-//       VITE_API_URL: import.meta.env.VITE_API_URL,
-//       MODE: import.meta.env.MODE,
-//     });
+    // Send initialization event
+    datadogRum.addAction('datadog_rum_initialized', {
+      timestamp: Date.now(),
+      environment,
+      version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
+      userAgent: navigator.userAgent.substring(0, 100), // Truncated for privacy
+    });
     
-//     // Send a test event to verify connection
-//     datadogRum.addAction('datadog_rum_initialized', {
-//       timestamp: Date.now(),
-//       environment,
-//       userAgent: navigator.userAgent
-//     });
-    
-//   } catch (error) {
-//     console.error('❌ Failed to initialize Datadog RUM:', error);
-//   }
-// } else {
-//   console.log('⚠️ Datadog RUM not initialized:', {
-//     reason: !isProduction && !import.meta.env.VITE_DATADOG_FORCE_ENABLE 
-//       ? 'Not in production mode' 
-//       : 'Missing configuration',
-//     isProduction,
-//     hasAppId: !!import.meta.env.VITE_DATADOG_APPLICATION_ID,
-//     hasClientToken: !!import.meta.env.VITE_DATADOG_CLIENT_TOKEN
-//   });
-// }
+  } catch (error) {
+    console.error('❌ Failed to initialize Datadog RUM:', error);
+  }
+} else {
+  console.log('⚠️ Datadog RUM not initialized - missing configuration:', {
+    hasAppId: !!import.meta.env.VITE_DATADOG_APPLICATION_ID,
+    hasClientToken: !!import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
+    environment,
+  });
+}
 
 function App() {
   const [appReady, setAppReady] = useState(false);
