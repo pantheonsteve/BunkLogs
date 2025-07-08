@@ -21,6 +21,7 @@ ALLOWED_HOSTS = env.list(
     default=[
         "bunklogs.net",
         "www.bunklogs.net",
+        "admin.bunklogs.net",  # Admin subdomain
         "*.onrender.com",  # Render.com domain pattern
     ]
 )
@@ -168,6 +169,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://clc.bunklogs.net",  # Your actual frontend URL
     "https://bunklogs.net",
     "https://www.bunklogs.net",
+    "https://admin.bunklogs.net",  # Admin subdomain
     "https://storage.googleapis.com",  # Direct bucket access (no path)
     "https://storage.cloud.google.com",  # Alternative bucket URL (no path)
 ]
@@ -176,9 +178,51 @@ CSRF_TRUSTED_ORIGINS = [
     "https://clc.bunklogs.net",  # Your actual frontend URL
     "https://bunklogs.net",
     "https://www.bunklogs.net",
+    "https://admin.bunklogs.net",  # Admin subdomain
     "https://storage.googleapis.com",
     "https://storage.cloud.google.com",
 ]
+
+# CORS headers configuration - include Datadog headers for production monitoring
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-session-token",
+    "x-email-verification-key", 
+    "x-password-reset-key",
+    "x-datadog-origin",  # Allow Datadog headers
+    "x-datadog-parent-id",
+    "x-datadog-sampling-priority",
+    "x-datadog-trace-id",
+    "x-datadog-sampled",
+    "x-request-id",
+    # Additional common CORS headers that might be needed
+    "access-control-allow-origin",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "access-control-allow-credentials",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# Ensure CORS middleware is properly configured
+CORS_ALLOW_ALL_ORIGINS = False  # Explicitly set to False for security
+
+# Additional CORS configuration for debugging
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Enable CORS debugging in production temporarily
+import os
+if os.getenv('CORS_DEBUG', 'false').lower() == 'true':
+    CORS_REPLACE_HTTPS_REFERER = True
 
 # JWT Settings for dj-rest-auth
 REST_AUTH = {
