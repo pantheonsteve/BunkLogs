@@ -283,12 +283,12 @@ class BunkLogSerializer(serializers.ModelSerializer):
     """
     Serializer for BunkLog model.
     For POST requests, you need to provide:
-    - date
     - bunk_assignment (id)
     - other fields as needed
-    Note: counselor is automatically set to the current user
+    Note: counselor and date are automatically set
     """
     counselor = serializers.PrimaryKeyRelatedField(read_only=True)  # Make counselor read-only
+    date = serializers.DateField(required=False)  # Make date optional for creation
     
     class Meta:
         model = BunkLog
@@ -305,17 +305,9 @@ class BunkLogSerializer(serializers.ModelSerializer):
                 if score < 1 or score > 5:
                     raise serializers.ValidationError({score_field: "Score must be between 1 and 5"})
         
-        # Check for duplicate bunk logs (same camper on same date)
-        if self.instance is None:  # Only for creation, not updates
-            existing = BunkLog.objects.filter(
-                bunk_assignment=data['bunk_assignment'],
-                date=data['date']
-            ).exists()
-            
-            if existing:
-                raise serializers.ValidationError(
-                    "A bunk log already exists for this camper on this date."
-                )
+        # Skip duplicate validation here since we'll handle it in perform_create
+        # This allows the model's save() method to set the date automatically
+        # and our view's error handling to provide better error messages
                 
         return data
     

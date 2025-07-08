@@ -904,6 +904,10 @@ class BunkLogViewSet(viewsets.ModelViewSet):
         return BunkLog.objects.none()
 
     def perform_create(self, serializer):
+        from django.core.exceptions import ValidationError
+        from django.db import IntegrityError
+        from rest_framework import serializers as drf_serializers
+        
         # Verify the user is allowed to create a log for this bunk assignment
         bunk_assignment = serializer.validated_data.get('bunk_assignment')
         if self.request.user.role == 'Counselor':
@@ -929,7 +933,47 @@ class BunkLogViewSet(viewsets.ModelViewSet):
             del serializer.validated_data['date']
         
         # Set the counselor automatically to the current user
-        serializer.save(counselor=self.request.user)
+        try:
+            serializer.save(counselor=self.request.user)
+        except (ValidationError, IntegrityError) as exc:
+            # Handle duplicate entry and other validation errors
+            error_messages = []
+            
+            if isinstance(exc, ValidationError):
+                if hasattr(exc, 'message_dict'):
+                    # Handle field-specific errors
+                    for field, messages in exc.message_dict.items():
+                        if isinstance(messages, list):
+                            error_messages.extend(messages)
+                        else:
+                            error_messages.append(str(messages))
+                elif hasattr(exc, 'messages'):
+                    # Handle non-field errors
+                    error_messages.extend(exc.messages)
+                else:
+                    error_messages.append(str(exc))
+            elif isinstance(exc, IntegrityError):
+                # Handle database integrity errors (like unique constraint violations)
+                error_messages.append(str(exc))
+            
+            # Check if this is a duplicate entry error
+            error_text = ' '.join(error_messages).lower()
+            if ('unique' in error_text or 'duplicate' in error_text or 
+                'already exists' in error_text or 'constraint' in error_text):
+                # Check if it's specifically about bunk_assignment + date uniqueness
+                if 'bunk_assignment' in error_text and 'date' in error_text:
+                    raise drf_serializers.ValidationError({
+                        'non_field_errors': ['A bunk log already exists for this camper on this date.']
+                    })
+                else:
+                    raise drf_serializers.ValidationError({
+                        'non_field_errors': ['A bunk log already exists for this camper on this date.']
+                    })
+            else:
+                # Re-raise as DRF validation error
+                raise drf_serializers.ValidationError({
+                    'non_field_errors': error_messages
+                })
 
     def perform_update(self, serializer):
         # Verify the user is allowed to update this bunk log
