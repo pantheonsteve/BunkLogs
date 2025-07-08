@@ -7,7 +7,9 @@ import Router from './Router';
 import './css/style.css';
 
 import { datadogRum } from '@datadog/browser-rum';
-import { reactPlugin } from '@datadog/browser-rum-react';
+
+// *** FIX: Expose datadogRum globally for console access ***
+window.datadogRum = datadogRum;
 
 // Initialize Datadog RUM
 const isDevelopment = import.meta.env.DEV;
@@ -21,11 +23,14 @@ console.log('🔍 Datadog RUM Environment Check:', {
   hasAppId: !!import.meta.env.VITE_DATADOG_APPLICATION_ID,
   hasClientToken: !!import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
   apiUrl: import.meta.env.VITE_API_URL,
+  datadogAvailable: typeof datadogRum,
 });
 
 // Initialize Datadog RUM if we have the required configuration
 if (import.meta.env.VITE_DATADOG_APPLICATION_ID && import.meta.env.VITE_DATADOG_CLIENT_TOKEN) {
   try {
+    console.log('🔍 Starting Datadog RUM initialization...');
+    
     datadogRum.init({
       applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
       clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
@@ -34,29 +39,31 @@ if (import.meta.env.VITE_DATADOG_APPLICATION_ID && import.meta.env.VITE_DATADOG_
       env: environment,
       version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
       
-      // Sampling rates - optimized for production
+      // Sampling rates
       sessionSampleRate: 100,
-      sessionReplaySampleRate: 20, // Reduced from 98% to save costs
+      sessionReplaySampleRate: 20,
       
-      // Privacy settings - better for user privacy
-      defaultPrivacyLevel: 'mask-user-input', // More secure than 'allow'
+      // Privacy settings
+      defaultPrivacyLevel: 'mask-user-input',
       
       // Performance tracking
       trackUserInteractions: true,
       trackResources: true,
       trackLongTasks: true,
       
+      // Enable debug mode temporarily
+      debug: true,
+      
+      // Tracking consent
+      trackingConsent: 'granted',
+      
       // Enable distributed tracing between frontend and backend
       allowedTracingUrls: [
-        // Track API calls to your backend for full-stack traces
         (url) => {
           const apiUrl = import.meta.env.VITE_API_URL;
           return apiUrl && url.startsWith(apiUrl);
         },
       ],
-      
-      // React-specific plugin
-      plugins: [reactPlugin({ router: true })],
     });
     
     console.log('✅ Datadog RUM initialized successfully:', {
@@ -65,6 +72,7 @@ if (import.meta.env.VITE_DATADOG_APPLICATION_ID && import.meta.env.VITE_DATADOG_
       environment,
       version: import.meta.env.VITE_DATADOG_VERSION,
       tracingEnabled: !!import.meta.env.VITE_API_URL,
+      globallyAvailable: typeof window.datadogRum,
     });
 
     // Send initialization event
@@ -72,11 +80,24 @@ if (import.meta.env.VITE_DATADOG_APPLICATION_ID && import.meta.env.VITE_DATADOG_
       timestamp: Date.now(),
       environment,
       version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
-      userAgent: navigator.userAgent.substring(0, 100), // Truncated for privacy
+      userAgent: navigator.userAgent.substring(0, 100),
     });
+    
+    console.log('📤 Initialization event sent');
+    
+    // Test the context
+    setTimeout(() => {
+      try {
+        const context = datadogRum.getInternalContext();
+        console.log('🔍 RUM Context after init:', context);
+      } catch (e) {
+        console.log('⚠️ Could not get RUM context:', e);
+      }
+    }, 1000);
     
   } catch (error) {
     console.error('❌ Failed to initialize Datadog RUM:', error);
+    console.error('Error details:', error.stack);
   }
 } else {
   console.log('⚠️ Datadog RUM not initialized - missing configuration:', {
