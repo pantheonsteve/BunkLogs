@@ -58,13 +58,12 @@ if (import.meta.env.VITE_DATADOG_APPLICATION_ID && import.meta.env.VITE_DATADOG_
       trackingConsent: 'granted',
       
       // Enable distributed tracing between frontend and backend
-      // TEMPORARILY DISABLED due to CORS issues - will re-enable after backend deployment
-      // allowedTracingUrls: [
-      //   (url) => {
-      //     const apiUrl = import.meta.env.VITE_API_URL;
-      //     return apiUrl && url.startsWith(apiUrl);
-      //   },
-      // ],
+      allowedTracingUrls: [
+        (url) => {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          return apiUrl && url.startsWith(apiUrl);
+        },
+      ],
     });
     
     console.log('✅ Datadog RUM initialized successfully:', {
