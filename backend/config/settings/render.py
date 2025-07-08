@@ -224,6 +224,10 @@ import os
 if os.getenv('CORS_DEBUG', 'false').lower() == 'true':
     CORS_REPLACE_HTTPS_REFERER = True
 
+# Debug CORS configuration
+print(f"🔍 CORS_ALLOW_HEADERS: {CORS_ALLOW_HEADERS}")
+print(f"🔍 CORS_ALLOWED_ORIGINS: {CORS_ALLOWED_ORIGINS}")
+
 # JWT Settings for dj-rest-auth
 REST_AUTH = {
     'USE_JWT': True,
@@ -324,4 +328,4 @@ if 'django_redis' in CACHES.get('default', {}).get('BACKEND', ''):
 MIDDLEWARE = [
     'ddtrace.contrib.django.TraceMiddleware',
 ] + MIDDLEWARE
-# Force deployment
+# Force deployment timestamp: 2025-07-08 04:45 UTC
