@@ -78,6 +78,9 @@ const CounselorLogsGrid = ({
                                 Counselor
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Bunk Assignment
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Quality Score
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -125,6 +128,21 @@ const CounselorLogsGrid = ({
                                             </div>
                                         </div>
                                     </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-900 dark:text-white">
+                                        {log.bunk_names || 'No bunk assignment'}
+                                    </div>
+                                    {log.bunk_assignments && log.bunk_assignments.length > 0 && (
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            {log.bunk_assignments.map((assignment, index) => (
+                                                <div key={assignment.id}>
+                                                    {assignment.unit_name && `${assignment.unit_name} Unit`}
+                                                    {assignment.cabin_name && ` • ${assignment.cabin_name}`}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(log.day_quality_score || 0)}`}>
