@@ -280,3 +280,89 @@ if 'django_redis' in CACHES.get('default', {}).get('BACKEND', ''):
 MIDDLEWARE = [
     'ddtrace.contrib.django.TraceMiddleware',
 ] + MIDDLEWARE
+
+# Enhanced Logging Configuration for Datadog
+# ------------------------------------------------------------------------------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'datadog': {
+            # This formatter includes trace correlation when DD_LOGS_INJECTION=true
+            'format': '[%(levelname)s] %(asctime)s %(name)s: %(message)s',
+        },
+        'json': {
+            # JSON format for structured logging
+            'format': '{"level": "%(levelname)s", "time": "%(asctime)s", "name": "%(name)s", "message": "%(message)s"}',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'datadog' if os.getenv('DD_LOGS_INJECTION') == 'true' else 'verbose',
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': '/tmp/django.log',
+            'formatter': 'json',
+        },
+    },
+    'loggers': {
+        # Django framework logs
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',  # Log 4xx and 5xx responses
+            'propagate': True,
+        },
+        'django.security': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+        # Your application logs
+        'bunk_logs': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        # Datadog tracer logs
+        'ddtrace': {
+            'handlers': ['console'],
+            'level': 'WARNING',  # Reduce ddtrace noise
+            'propagate': False,
+        },
+        # Third-party logs
+        'allauth': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
+    },
+}
+
+# Datadog Log Configuration
+# ------------------------------------------------------------------------------
+if os.getenv('DD_LOGS_ENABLED', 'false').lower() == 'true':
+    # Additional log configuration for Datadog
+    LOGGING['formatters']['datadog_json'] = {
+        'format': '{"dd.service": "%(dd.service)s", "dd.env": "%(dd.env)s", "dd.version": "%(dd.version)s", "dd.trace_id": "%(dd.trace_id)s", "dd.span_id": "%(dd.span_id)s", "level": "%(levelname)s", "time": "%(asctime)s", "logger": "%(name)s", "message": "%(message)s"}',
+    }
+    
+    # Update console handler to use Datadog JSON format if logs injection is enabled
+    if os.getenv('DD_LOGS_INJECTION') == 'true':
+        LOGGING['handlers']['console']['formatter'] = 'datadog_json'
