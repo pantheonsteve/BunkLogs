@@ -4,7 +4,7 @@ import { cn } from "../../lib/utils"
 import { Calendar } from "./calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { useAuth } from '../../auth/AuthContext'
-import api from '../../api'
+import api, { fetchStaffAssignmentSafe, getDateRangeForUser } from '../../api'
 
 export default function SingleDatePicker({ className, date, setDate }) {
   const { user, token } = useAuth();
@@ -42,50 +42,41 @@ export default function SingleDatePicker({ className, date, setDate }) {
           return;
         }
 
-        console.log('Fetching assignment data for user:', user.id);
-        console.log('API base URL:', api.defaults.baseURL);
-        console.log('Full API URL will be:', `${api.defaults.baseURL}/api/v1/unit-staff-assignments/${user.id}/`);
-        const response = await api.get(`/api/v1/unit-staff-assignments/${user.id}/`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.status === 200) {
-          const data = response.data;
-          console.log('Assignment data received:', JSON.stringify(data, null, 2));
+        // Check if user is admin - if so, set a reasonable date range without API call
+        if (user?.role === 'Admin' || user?.is_staff === true || user?.is_superuser === true) {
+          console.log('User is admin, setting broad date range without API call');
+          const adminRange = getDateRangeForUser(user);
+          setAllowedRange(adminRange);
           
-          // Validate that we have the required data
-          if (data && data.start_date) {
-            // Set the allowed date range based on the response
-            const rangeData = {
-              start_date: data.start_date,
-              end_date: data.end_date // Keep null if ongoing assignment
-            };
-            console.log('Setting allowed range:', JSON.stringify(rangeData, null, 2));
-            setAllowedRange(rangeData);
-          } else {
-            console.error('Invalid assignment data - missing start_date:', data);
-            // If data is invalid, use restrictive fallback
-            const today = new Date();
-            const todayStr = today.toISOString().split('T')[0];
-            const fallbackRange = {
-              start_date: todayStr,
-              end_date: null
-            };
-            console.log('Using fallback range:', fallbackRange);
-            setAllowedRange(fallbackRange);
-          }
+          console.log('Set admin date range:', adminRange);
+          return;
+        }
+
+        console.log('Fetching assignment data for user:', user.id);
+        
+        // Try to get staff assignment safely
+        const assignmentData = await fetchStaffAssignmentSafe(user.id);
+        
+        if (assignmentData && assignmentData.start_date) {
+          // Set the allowed date range based on the response
+          const rangeData = {
+            start_date: assignmentData.start_date,
+            end_date: assignmentData.end_date // Keep null if ongoing assignment
+          };
+          console.log('Setting allowed range from assignment:', rangeData);
+          setAllowedRange(rangeData);
+        } else if (assignmentData === null) {
+          // No staff assignment found - user is likely admin
+          console.log('No staff assignment found - treating as admin user');
+          const adminRange = getDateRangeForUser(user);
+          setAllowedRange(adminRange);
+          console.log('Set admin date range:', adminRange);
         } else {
-          console.error('Non-200 response:', response.status, response.statusText, response.data);
-          // Use restrictive fallback for non-200 responses
-          const today = new Date();
-          const todayStr = today.toISOString().split('T')[0];
-          setAllowedRange({
-            start_date: todayStr,
-            end_date: null
-          });
+          console.error('Invalid assignment data - missing start_date:', assignmentData);
+          // If data is invalid, use restrictive fallback
+          const fallbackRange = getDateRangeForUser(user);
+          console.log('Using fallback range:', fallbackRange);
+          setAllowedRange(fallbackRange);
         }
       } catch (error) {
         console.error('Error fetching date ranges:', error);
@@ -96,21 +87,10 @@ export default function SingleDatePicker({ className, date, setDate }) {
           data: error.response?.data
         });
         
-        if (error.response?.status === 404) {
-          console.warn('No staff assignment found for user - this might be an admin or user without assignment');
-          // For 404, allow all dates (user might be admin or not have assignment)
-          setAllowedRange(null);
-        } else {
-          console.error('API call failed - setting restrictive fallback');
-          // For other errors (network, auth, etc.), be restrictive
-          // Set a very restrictive range that only allows today and future dates
-          const today = new Date();
-          const todayStr = today.toISOString().split('T')[0];
-          setAllowedRange({
-            start_date: todayStr,
-            end_date: null // Allow future dates
-          });
-        }
+        // For any error, use fallback range based on user role
+        const fallbackRange = getDateRangeForUser(user);
+        setAllowedRange(fallbackRange);
+        console.log('Set fallback date range due to error:', fallbackRange);
       }
     }
 

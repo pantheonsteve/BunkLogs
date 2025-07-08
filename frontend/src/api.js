@@ -111,4 +111,54 @@ api.interceptors.response.use(
   }
 );
 
+// Helper functions for common API operations
+
+// Safely fetch staff assignment - returns null if user doesn't have assignment (e.g., admin)
+export const fetchStaffAssignmentSafe = async (userId) => {
+  try {
+    const response = await api.get(`/api/v1/unit-staff-assignments/${userId}/`);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      // User doesn't have staff assignment - likely admin
+      console.log('No staff assignment found for user - likely admin or user without assignment');
+      return null;
+    }
+    throw error;
+  }
+};
+
+// Check user role/permissions
+export const checkUserRole = async () => {
+  try {
+    const response = await api.get('/api/auth/user/');
+    return response.data;
+  } catch (error) {
+    console.error('Error checking user role:', error);
+    throw error;
+  }
+};
+
+// Get appropriate date range based on user role
+export const getDateRangeForUser = (user) => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  // For admin users, allow a broader range
+  if (user?.role === 'Admin' || user?.is_staff === true || user?.is_superuser === true) {
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const startOfYearStr = startOfYear.toISOString().split('T')[0];
+    return {
+      start_date: startOfYearStr,
+      end_date: todayStr
+    };
+  }
+  
+  // For regular users, be more restrictive
+  return {
+    start_date: todayStr,
+    end_date: null
+  };
+};
+
 export default api;
