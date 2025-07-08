@@ -361,6 +361,8 @@ class CounselorLogSerializer(serializers.ModelSerializer):
     counselor_first_name = serializers.CharField(source='counselor.first_name', read_only=True)
     counselor_last_name = serializers.CharField(source='counselor.last_name', read_only=True)
     counselor_email = serializers.CharField(source='counselor.email', read_only=True)
+    bunk_assignments = serializers.SerializerMethodField()
+    bunk_names = serializers.CharField(read_only=True)
     
     class Meta:
         model = CounselorLog
@@ -368,12 +370,34 @@ class CounselorLogSerializer(serializers.ModelSerializer):
             'id', 'counselor', 'counselor_first_name', 'counselor_last_name', 
             'counselor_email', 'date', 'day_quality_score', 'support_level_score',
             'elaboration', 'day_off', 'staff_care_support_needed', 'values_reflection',
-            'created_at', 'updated_at'
+            'bunk_assignments', 'bunk_names', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'counselor_first_name', 
-            'counselor_last_name', 'counselor_email', 'counselor'
+            'counselor_last_name', 'counselor_email', 'counselor', 'bunk_assignments', 'bunk_names'
         ]
+        
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_bunk_assignments(self, obj):
+        """Get detailed bunk assignment information for the counselor on the log date."""
+        assignments = obj.current_bunk_assignments
+        if not assignments:
+            return []
+        
+        result = []
+        for assignment in assignments:
+            result.append({
+                'id': assignment.id,
+                'bunk_id': assignment.bunk.id,
+                'bunk_name': assignment.bunk.name,
+                'unit_name': assignment.bunk.unit.name if assignment.bunk.unit else None,
+                'cabin_name': assignment.bunk.cabin.name if assignment.bunk.cabin else None,
+                'session_name': assignment.bunk.session.name if assignment.bunk.session else None,
+                'is_primary': assignment.is_primary,
+                'start_date': assignment.start_date,
+                'end_date': assignment.end_date,
+            })
+        return result
         
     def validate(self, data):
         """

@@ -274,6 +274,37 @@ class CounselorLog(TestDataMixin):
         low_scores = self.day_quality_score <= 2 or self.support_level_score <= 2
         return low_scores or self.staff_care_support_needed
 
+    @property
+    def current_bunk_assignments(self):
+        """Get the counselor's current bunk assignments for the log date."""
+        from bunk_logs.bunks.models import CounselorBunkAssignment
+        
+        # Get all bunk assignments that were active on the log date
+        assignments = CounselorBunkAssignment.objects.filter(
+            counselor=self.counselor,
+            start_date__lte=self.date,
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=self.date)
+        ).select_related('bunk', 'bunk__unit', 'bunk__cabin', 'bunk__session').order_by('-is_primary', '-start_date')
+        
+        return assignments
+
+    @property
+    def bunk_names(self):
+        """Get comma-separated string of bunk names for this counselor on the log date."""
+        assignments = self.current_bunk_assignments
+        if not assignments:
+            return "No bunk assignment"
+        
+        bunk_names = []
+        for assignment in assignments:
+            name = assignment.bunk.name
+            if assignment.is_primary:
+                name += " (Primary)"
+            bunk_names.append(name)
+        
+        return ", ".join(bunk_names)
+
     def can_edit(self, user):
         """Business rule: who can edit this counselor log."""
         # Original counselor can edit their own log
