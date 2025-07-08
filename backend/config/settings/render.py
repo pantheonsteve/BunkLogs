@@ -324,3 +324,4 @@ if 'django_redis' in CACHES.get('default', {}).get('BACKEND', ''):
 MIDDLEWARE = [
     'ddtrace.contrib.django.TraceMiddleware',
 ] + MIDDLEWARE
+# Force deployment
