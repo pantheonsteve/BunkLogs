@@ -356,7 +356,7 @@ class CounselorLogSerializer(serializers.ModelSerializer):
     - day_off (boolean)
     - staff_care_support_needed (boolean)
     - values_reflection
-    Note: counselor is automatically set to the current user
+    Note: counselor is automatically set to the current user.
     """
     counselor_first_name = serializers.CharField(source='counselor.first_name', read_only=True)
     counselor_last_name = serializers.CharField(source='counselor.last_name', read_only=True)
