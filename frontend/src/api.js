@@ -141,13 +141,16 @@ export const checkUserRole = async () => {
 
 // Get appropriate date range based on user role
 export const getDateRangeForUser = (user) => {
+  // Use local timezone date to avoid off-by-one errors
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
   
   // For admin users, allow a broader range
   if (user?.role === 'Admin' || user?.is_staff === true || user?.is_superuser === true) {
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
-    const startOfYearStr = startOfYear.toISOString().split('T')[0];
+    const startOfYearStr = `${year}-01-01`;
     return {
       start_date: startOfYearStr,
       end_date: todayStr

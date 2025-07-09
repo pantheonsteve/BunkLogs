@@ -17,12 +17,40 @@ export default function SingleDatePicker({ className, date, setDate }) {
       hasToken: !!token,
       tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
     });
+    
+    // Debug: Log current date information
+    const now = new Date();
+    console.log('📅 Current date debugging:', {
+      jsDate: now.toString(),
+      jsDateLocal: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+      jsISOString: now.toISOString(),
+      jsISODate: now.toISOString().split('T')[0],
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezoneOffset: now.getTimezoneOffset()
+    });
   }, []);
   
-  // Ensure the date is set to noon
+  // Ensure the date is properly normalized to avoid timezone issues
   const normalizedDate = React.useMemo(() => {
     if (!date) return null;
-    const d = new Date(date);
+    
+    // Create a new date and set it to noon local time to avoid DST issues
+    let d;
+    if (typeof date === 'string') {
+      // If it's a string, parse it carefully
+      if (date.includes('T')) {
+        d = new Date(date);
+      } else {
+        // If it's just YYYY-MM-DD, treat it as local date
+        const [year, month, day] = date.split('-').map(Number);
+        d = new Date(year, month - 1, day, 12, 0, 0, 0);
+      }
+    } else {
+      // If it's already a Date object
+      d = new Date(date);
+    }
+    
+    // Set to noon to avoid timezone conversion issues
     d.setHours(12, 0, 0, 0);
     return d;
   }, [date]);
@@ -108,15 +136,23 @@ export default function SingleDatePicker({ className, date, setDate }) {
     // For counselors, prevent selection of future dates
     if (user?.role === 'Counselor') {
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to start of today
+      // Use local date comparison to avoid timezone issues
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
       
       const checkDate = new Date(date);
-      checkDate.setHours(0, 0, 0, 0); // Set to start of the date being checked
+      const checkYear = checkDate.getFullYear();
+      const checkMonth = checkDate.getMonth();
+      const checkDay = checkDate.getDate();
       
-      if (checkDate > today) {
+      // Compare year, month, day directly without time components
+      if (checkYear > todayYear || 
+          (checkYear === todayYear && checkMonth > todayMonth) ||
+          (checkYear === todayYear && checkMonth === todayMonth && checkDay > todayDay)) {
         console.log('❌ Future date disabled for counselor:', {
-          checkDate: checkDate.toDateString(),
-          today: today.toDateString(),
+          checkDate: `${checkYear}-${checkMonth + 1}-${checkDay}`,
+          today: `${todayYear}-${todayMonth + 1}-${todayDay}`,
           isFuture: true
         });
         return true; // Disable future dates for counselors
@@ -125,12 +161,12 @@ export default function SingleDatePicker({ className, date, setDate }) {
     
     // If no allowed range is set, allow all dates (fallback for admin/staff or error cases)
     if (!allowedRange) {
-      console.log('❌ No allowed range set - allowing all dates');
+      console.log('✅ No allowed range set - allowing all dates');
       return false;
     }
     
     if (!allowedRange.start_date) {
-      console.log('❌ No start_date in allowed range - allowing all dates');
+      console.log('✅ No start_date in allowed range - allowing all dates');
       return false;
     }
     
@@ -138,36 +174,43 @@ export default function SingleDatePicker({ className, date, setDate }) {
     const startDateStr = allowedRange.start_date;
     console.log('📅 Parsing start date:', startDateStr);
     const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-    const startDate = new Date(startYear, startMonth - 1, startDay); // Month is 0-indexed
     
     // Parse the end date if it exists
-    let endDate = null;
+    let endYear, endMonth, endDay;
     if (allowedRange.end_date) {
       const endDateStr = allowedRange.end_date;
-      const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-      endDate = new Date(endYear, endMonth - 1, endDay); // Month is 0-indexed
+      [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
     }
     
-    // Get the date being checked in the same format
+    // Get the date being checked in the same format (using local date components)
     const checkDate = new Date(date);
     const checkYear = checkDate.getFullYear();
-    const checkMonth = checkDate.getMonth();
+    const checkMonth = checkDate.getMonth() + 1; // getMonth() is 0-indexed, but our strings are 1-indexed
     const checkDay = checkDate.getDate();
-    const normalizedCheckDate = new Date(checkYear, checkMonth, checkDay);
     
-    // Normalize start and end dates for comparison
-    const normalizedStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-    const normalizedEndDate = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null;
+    // Check if date is before start date
+    const beforeStartDate = (
+      checkYear < startYear ||
+      (checkYear === startYear && checkMonth < startMonth) ||
+      (checkYear === startYear && checkMonth === startMonth && checkDay < startDay)
+    );
     
-    // Disable dates OUTSIDE the allowed range
-    const beforeStartDate = normalizedCheckDate < normalizedStartDate;
-    const afterEndDate = normalizedEndDate ? normalizedCheckDate > normalizedEndDate : false;
+    // Check if date is after end date (if end date exists)
+    let afterEndDate = false;
+    if (allowedRange.end_date) {
+      afterEndDate = (
+        checkYear > endYear ||
+        (checkYear === endYear && checkMonth > endMonth) ||
+        (checkYear === endYear && checkMonth === endMonth && checkDay > endDay)
+      );
+    }
+    
     const isDisabled = beforeStartDate || afterEndDate;
     
     console.log('🔍 Date comparison result:', {
-      checkDate: normalizedCheckDate.toDateString(),
-      startDate: normalizedStartDate.toDateString(),
-      endDate: normalizedEndDate ? normalizedEndDate.toDateString() : 'null (ongoing)',
+      checkDate: `${checkYear}-${checkMonth}-${checkDay}`,
+      startDate: `${startYear}-${startMonth}-${startDay}`,
+      endDate: allowedRange.end_date ? `${endYear}-${endMonth}-${endDay}` : 'null (ongoing)',
       beforeStartDate,
       afterEndDate,
       isDisabled: isDisabled ? '❌ DISABLED' : '✅ ENABLED'
@@ -201,13 +244,21 @@ export default function SingleDatePicker({ className, date, setDate }) {
             disabled={isDateDisabled}
             onSelect={(selectedDate) => {
               if (selectedDate) {
+                // Create a new date object and set it to noon local time
                 const newDate = new Date(selectedDate);
                 newDate.setHours(12, 0, 0, 0);
-                localStorage.setItem('selectedDate', JSON.stringify(newDate));
+                
+                // Store as ISO string but ensure it's treated as local date
+                const year = newDate.getFullYear();
+                const month = String(newDate.getMonth() + 1).padStart(2, '0');
+                const day = String(newDate.getDate()).padStart(2, '0');
+                const dateString = `${year}-${month}-${day}`;
+                
+                localStorage.setItem('selectedDate', JSON.stringify(dateString));
                 setDate(newDate);
               } else {
-                localStorage.setItem('selectedDate', JSON.stringify(selectedDate));
-                setDate(selectedDate);
+                localStorage.setItem('selectedDate', JSON.stringify(null));
+                setDate(null);
               }
             }}
             defaultMonth={normalizedDate}
