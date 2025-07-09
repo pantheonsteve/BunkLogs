@@ -34,6 +34,12 @@ export default function SingleDatePicker({ className, date, setDate }) {
   const normalizedDate = React.useMemo(() => {
     if (!date) return null;
     
+    console.log('📅 Normalizing date:', {
+      inputDate: date,
+      inputType: typeof date,
+      inputString: date?.toString(),
+    });
+    
     // Create a new date and set it to noon local time to avoid DST issues
     let d;
     if (typeof date === 'string') {
@@ -46,12 +52,22 @@ export default function SingleDatePicker({ className, date, setDate }) {
         d = new Date(year, month - 1, day, 12, 0, 0, 0);
       }
     } else {
-      // If it's already a Date object
-      d = new Date(date);
+      // If it's already a Date object, use its year, month, day to avoid timezone issues
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      d = new Date(year, month, day, 12, 0, 0, 0);
     }
     
-    // Set to noon to avoid timezone conversion issues
-    d.setHours(12, 0, 0, 0);
+    console.log('📅 Normalized date result:', {
+      originalDate: date?.toString(),
+      normalizedDate: d?.toString(),
+      year: d?.getFullYear(),
+      month: d?.getMonth(),
+      day: d?.getDate(),
+      formattedDate: d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null
+    });
+    
     return d;
   }, [date]);
 
@@ -261,7 +277,7 @@ export default function SingleDatePicker({ className, date, setDate }) {
                 setDate(null);
               }
             }}
-            defaultMonth={normalizedDate}
+            defaultMonth={normalizedDate || new Date()}
           />
         </PopoverContent>
       </Popover>

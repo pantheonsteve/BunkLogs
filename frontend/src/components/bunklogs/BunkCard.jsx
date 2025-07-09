@@ -8,7 +8,7 @@ import { Home, Users, Calendar, ArrowRight, Loader2 } from 'lucide-react';
 // Import utilities
 import { adjustColorOpacity, getCssVariable } from '../../utils/Utils';
 
-// Today's date constant - uses current date
+// Today's date constant - uses current local date
 const TODAY = new Date();
 
 function BunkCard({ cabin, session, bunk_id, counselors }) {
@@ -46,8 +46,24 @@ function BunkCard({ cabin, session, bunk_id, counselors }) {
 
   console.log('Bunk data:', bunkData);
 
-  // Format today's date as YYYY-MM-DD for the URL
-  const formattedDate = TODAY.toISOString().split('T')[0];
+  // Format today's date as YYYY-MM-DD for the URL (using local time)
+  const formattedDate = (() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const localDate = `${year}-${month}-${day}`;
+    
+    console.log('📅 [BunkCard] Date formatting:', {
+      todayObject: today.toString(),
+      localDate: localDate,
+      utcDate: today.toISOString().split('T')[0],
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezoneOffset: today.getTimezoneOffset()
+    });
+    
+    return localDate;
+  })();
 
   // Loading state
   if (isFetchingData) {

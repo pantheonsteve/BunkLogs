@@ -37,11 +37,23 @@ function CounselorDashboard() {
 
   // Parse and validate date from URL parameters
   useEffect(() => {
+    console.log('📅 [CounselorDashboard] Date parameter from URL:', { date, type: typeof date });
+    
     if (date && date !== 'undefined') {
       try {
         // Parse date in a timezone-safe way
         const [year, month, day] = date.split('-').map(Number);
         const parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0); // Set to noon local time
+        
+        console.log('📅 [CounselorDashboard] Parsed date:', {
+          urlDate: date,
+          parsedYear: year,
+          parsedMonth: month,
+          parsedDay: day,
+          parsedDate: parsedDate.toString(),
+          isValidDate: !isNaN(parsedDate.getTime())
+        });
+        
         if (!isNaN(parsedDate.getTime())) {
           setSelectedDate(parsedDate);
         }
@@ -53,12 +65,20 @@ function CounselorDashboard() {
 
   // Add redirect if no date parameter
   useEffect(() => {
+    console.log('📅 [CounselorDashboard] Checking redirect logic:', { date, hasDate: !!date, isUndefined: date === 'undefined' });
+    
     if (!date || date === 'undefined') {
       const today = new Date();
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const day = String(today.getDate()).padStart(2, '0');
       const formattedDate = `${year}-${month}-${day}`;
+      
+      console.log('📅 [CounselorDashboard] Redirecting to today:', {
+        todayDate: today.toString(),
+        formattedDate: formattedDate,
+        redirectPath: `/counselor-dashboard/${formattedDate}`
+      });
       
       navigate(`/counselor-dashboard/${formattedDate}`, { replace: true });
       return; // Exit early to avoid setting up the rest of the component
