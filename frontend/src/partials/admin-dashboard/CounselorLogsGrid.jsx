@@ -12,9 +12,11 @@ function getScoreColor(score) {
 function formatDisplayDate(date) {
     if (!date) return '';
     // Handle date strings properly to avoid timezone issues
-    // If it's a string in YYYY-MM-DD format, append time to ensure local timezone
+    // If it's a string in YYYY-MM-DD format, parse it as local date
     if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const [year, month, day] = date.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day, 12, 0, 0, 0); // Set to noon local time
+        return localDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     }
     return new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }

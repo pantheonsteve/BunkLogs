@@ -624,12 +624,16 @@ function UnitHeadBunkGrid({ selectedDate }) {
                       <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Date</p>
                       <p className="text-lg text-gray-900 dark:text-white">
                         {selectedLog.date
-                          ? new Date(selectedLog.date + 'T00:00:00').toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })
+                          ? (() => {
+                              const [year, month, day] = selectedLog.date.split('-').map(Number);
+                              const localDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+                              return localDate.toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                              });
+                            })()
                           : 'Unknown'}
                       </p>
                     </div>

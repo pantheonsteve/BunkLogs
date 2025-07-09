@@ -19,7 +19,12 @@ function AdminDashboard() {
   const [counselorLogs, setCounselorLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Initialize with today's date at noon local time
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    return today;
+  });
   const [selectedLog, setSelectedLog] = useState(null);
   const [viewingDetails, setViewingDetails] = useState(false);
 
@@ -27,7 +32,9 @@ function AdminDashboard() {
   useEffect(() => {
     if (date && date !== 'undefined') {
       try {
-        const parsedDate = new Date(date + 'T00:00:00');
+        // Parse date in a timezone-safe way
+        const [year, month, day] = date.split('-').map(Number);
+        const parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0); // Set to noon local time
         if (!isNaN(parsedDate.getTime())) {
           setSelectedDate(parsedDate);
         }
