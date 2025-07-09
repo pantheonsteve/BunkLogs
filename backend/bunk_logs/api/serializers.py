@@ -357,11 +357,12 @@ class CounselorLogSerializer(serializers.ModelSerializer):
     - staff_care_support_needed (boolean)
     - values_reflection
     Note: counselor is automatically set to the current user.
+    Include Bunk assignments as a nested field.
     """
     counselor_first_name = serializers.CharField(source='counselor.first_name', read_only=True)
     counselor_last_name = serializers.CharField(source='counselor.last_name', read_only=True)
     counselor_email = serializers.CharField(source='counselor.email', read_only=True)
-    bunk_assignments = serializers.SerializerMethodField()
+    bunk_assignments = serializers.SerializerMethodField() 
     bunk_names = serializers.CharField(read_only=True)
     
     class Meta:
