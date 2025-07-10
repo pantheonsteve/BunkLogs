@@ -834,15 +834,15 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
               </div>
             </div>
             
-            {/* Score Sliders */}
+            {/* Score Button Arrays */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-800 dark:text-white">Camper Scores</h3>
               
               {/* Behavior Score */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="behavior_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Behavior Score: {formData.behavior_score}
+                <div className="flex items-center mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Behavior Score
                     <InfoTooltip text="How was this camper's behavior today?
 5 - Very good day.
 4 - Had a challenge they were able to resolve on their own.
@@ -850,20 +850,31 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
 2 - Had a few challenging moments throughout the day.
 1 - Had several challenging moments." />
                   </label>
-                  <span className="text-sm text-gray-500">1-5</span>
                 </div>
-                <input
-                  id="behavior_score"
-                  name="behavior_score"
-                  type="range"
-                  min="1"
-                  max="5"
-                  className={`w-full h-2 bg-gray-200 rounded-lg appearance-none ${isViewMode ? 'cursor-not-allowed' : 'cursor-pointer'} dark:bg-gray-700`}
-                  value={formData.behavior_score}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex space-x-2">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => !isViewMode && handleChange({ target: { name: 'behavior_score', value: score } })}
+                      disabled={isViewMode}
+                      className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                        formData.behavior_score === score
+                          ? score === 1 ? 'bg-[#e86946] text-white border-[#e86946] shadow-md'
+                          : score === 2 ? 'bg-[#de8d6f] text-white border-[#de8d6f] shadow-md'
+                          : score === 3 ? 'bg-[#e5e825] text-gray-800 border-[#e5e825] shadow-md'
+                          : score === 4 ? 'bg-[#90d258] text-gray-800 border-[#90d258] shadow-md'
+                          : 'bg-[#18d128] text-white border-[#18d128] shadow-md'
+                          : isViewMode 
+                          ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                      }`}
+                    >
+                      {score}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>Poor</span>
                   <span>Excellent</span>
                 </div>
@@ -871,9 +882,9 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
               
               {/* Participation Score */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="participation_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Participation Score: {formData.participation_score}
+                <div className="flex items-center mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Participation Score
                     <InfoTooltip text="How often did the camper participate in the day's activities?
 5 - Always participated in all activities.
 4 - Mostly participated in all activities.
@@ -881,20 +892,31 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
 2 - Reluctantly participated or participated with hesitation (i.e. joined after being asked).
 1 - Did not participate (i.e. sat off to side, wandered, seemed disengaged)." />
                   </label>
-                  <span className="text-sm text-gray-500">1-5</span>
                 </div>
-                <input
-                  id="participation_score"
-                  name="participation_score"
-                  type="range"
-                  min="1"
-                  max="5"
-                  className={`w-full h-2 bg-gray-200 rounded-lg appearance-none ${isViewMode ? 'cursor-not-allowed' : 'cursor-pointer'} dark:bg-gray-700`}
-                  value={formData.participation_score}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex space-x-2">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => !isViewMode && handleChange({ target: { name: 'participation_score', value: score } })}
+                      disabled={isViewMode}
+                      className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                        formData.participation_score === score
+                          ? score === 1 ? 'bg-[#e86946] text-white border-[#e86946] shadow-md'
+                          : score === 2 ? 'bg-[#de8d6f] text-white border-[#de8d6f] shadow-md'
+                          : score === 3 ? 'bg-[#e5e825] text-gray-800 border-[#e5e825] shadow-md'
+                          : score === 4 ? 'bg-[#90d258] text-gray-800 border-[#90d258] shadow-md'
+                          : 'bg-[#18d128] text-white border-[#18d128] shadow-md'
+                          : isViewMode 
+                          ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                      }`}
+                    >
+                      {score}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>Poor</span>
                   <span>Excellent</span>
                 </div>
@@ -902,9 +924,9 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
               
               {/* Social Score */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="social_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Social Score: {formData.social_score}
+                <div className="flex items-center mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Social Score
                     <InfoTooltip text="Was the camper included socially today?
 5 - Yes! The camper felt a sense of belonging at all times.
 4 - Mostly! The camper was included most times of the day.
@@ -912,20 +934,31 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
 2 - With encouragement. The camper was only included with the encouragement of a staff member.
 1 - Rarely or not at all. The camper spent the majority of the day alone or isolated." />
                   </label>
-                  <span className="text-sm text-gray-500">1-5</span>
                 </div>
-                <input
-                  id="social_score"
-                  name="social_score"
-                  type="range"
-                  min="1"
-                  max="5"
-                  className={`w-full h-2 bg-gray-200 rounded-lg appearance-none ${isViewMode ? 'cursor-not-allowed' : 'cursor-pointer'} dark:bg-gray-700`}
-                  value={formData.social_score}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex space-x-2">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => !isViewMode && handleChange({ target: { name: 'social_score', value: score } })}
+                      disabled={isViewMode}
+                      className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                        formData.social_score === score
+                          ? score === 1 ? 'bg-[#e86946] text-white border-[#e86946] shadow-md'
+                          : score === 2 ? 'bg-[#de8d6f] text-white border-[#de8d6f] shadow-md'
+                          : score === 3 ? 'bg-[#e5e825] text-gray-800 border-[#e5e825] shadow-md'
+                          : score === 4 ? 'bg-[#90d258] text-gray-800 border-[#90d258] shadow-md'
+                          : 'bg-[#18d128] text-white border-[#18d128] shadow-md'
+                          : isViewMode 
+                          ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                      }`}
+                    >
+                      {score}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>Poor</span>
                   <span>Excellent</span>
                 </div>
