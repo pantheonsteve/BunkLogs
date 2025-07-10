@@ -47,51 +47,82 @@ function UnitHeadBunkGrid({ selectedDate }) {
         
         const response = await api.get(`/api/v1/unithead/${user.id}/${dateToUse}/`);
         
-        // The API returns an array of units, we need the first unit
+        // The API returns an array of units - handle multiple unit assignments
+        const units = response.data;
         let data = null;
-        if (Array.isArray(response.data) && response.data.length > 0) {
-          data = response.data[0];
+        
+        // Collect all campers from all bunks across all units for attention tracking
+        const allCampersArray = [];
+        const campersNeedingAttentionArray = [];
+        
+        if (units && units.length > 0) {
+          const primaryUnit = units[0];
           
-          // Collect all campers from all bunks for attention tracking
-          const allCampersArray = [];
-          const campersNeedingAttentionArray = [];
-          
-          if (data.bunks && data.bunks.length > 0) {
-            data.bunks.forEach(bunk => {
-              if (bunk.campers && bunk.campers.length > 0) {
-                bunk.campers.forEach(camper => {
-                  // Add bunk and unit context to camper data
-                  const camperWithContext = {
-                    ...camper,
-                    bunk_name: bunk.cabin_name,
-                    session_name: bunk.session_name,
-                    unit_name: data.name,
-                    bunk_id: bunk.id
-                  };
-                  
-                  allCampersArray.push(camperWithContext);
-                  
-                  // Check if camper needs attention
-                  if (camper.bunk_log) {
-                    const needsAttention = 
-                      camper.bunk_log.request_camper_care_help ||
-                      camper.bunk_log.request_unit_head_help ||
-                      camper.bunk_log.not_on_camp;
-                    
-                    if (needsAttention) {
-                      campersNeedingAttentionArray.push(camperWithContext);
-                    }
-                  }
-                });
-              }
+          // Handle multiple units by combining bunks
+          if (units.length > 1) {
+            const allBunks = units.flatMap(unit => {
+              // Add unit_name to each bunk for context
+              return (unit.bunks || []).map(bunk => ({ 
+                ...bunk, 
+                unit_name: unit.name 
+              }));
             });
+            
+            data = {
+              ...primaryUnit,
+              name: units.length > 1 ? `${primaryUnit.name} (+${units.length - 1} more)` : primaryUnit.name,
+              bunks: allBunks
+            };
+          } else {
+            // Add unit_name to each bunk for single unit as well
+            data = {
+              ...primaryUnit,
+              bunks: (primaryUnit.bunks || []).map(bunk => ({ 
+                ...bunk, 
+                unit_name: primaryUnit.name 
+              }))
+            };
           }
           
-          setAllCampers(allCampersArray);
-          setCampersNeedingAttention(campersNeedingAttentionArray);
-        } else if (!Array.isArray(response.data)) {
-          data = response.data;
+          // Collect all campers from all units
+          units.forEach(unit => {
+            if (unit.bunks && unit.bunks.length > 0) {
+              unit.bunks.forEach(bunk => {
+                if (bunk.campers && bunk.campers.length > 0) {
+                  bunk.campers.forEach(camper => {
+                    // Add bunk and unit context to camper data
+                    const camperWithContext = {
+                      ...camper,
+                      bunk_name: bunk.cabin_name,
+                      session_name: bunk.session_name,
+                      unit_name: unit.name,
+                      bunk_id: bunk.id
+                    };
+                    
+                    allCampersArray.push(camperWithContext);
+                    
+                    // Check if camper needs attention
+                    if (camper.bunk_log) {
+                      const needsAttention = 
+                        camper.bunk_log.request_camper_care_help ||
+                        camper.bunk_log.request_unit_head_help ||
+                        camper.bunk_log.not_on_camp;
+                      
+                      if (needsAttention) {
+                        campersNeedingAttentionArray.push(camperWithContext);
+                      }
+                    }
+                  });
+                }
+              });
+            }
+          });
+        } else {
+          data = { name: 'No Units', bunks: [] };
         }
+        
+        setAllCampers(allCampersArray);
+        setCampersNeedingAttention(campersNeedingAttentionArray);
         
         setUnitData(data);
         setError(null);
