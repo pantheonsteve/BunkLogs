@@ -9,14 +9,54 @@ import api, { fetchStaffAssignmentSafe, getDateRangeForUser } from '../../api'
 export default function SingleDatePicker({ className, date, setDate }) {
   const { user, token } = useAuth();
   
+  // Initialize with today's date if no date is provided
+  React.useEffect(() => {
+    if (!date && setDate) {
+      // Create today's date in local timezone
+      const today = new Date();
+      today.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+      console.log('🗓️ Initializing date picker with today\'s date:', {
+        date: today.toISOString(),
+        localDate: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+      setDate(today);
+    }
+  }, [date, setDate]);
+  
   // Debug logging for component initialization
   React.useEffect(() => {
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    
     console.log('🚀 SingleDatePicker initialized with user:', {
       userId: user?.id,
       userRole: user?.role,
       hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
+      tokenPreview: token ? `${token.substring(0, 10)}...` : 'none',
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      accessTokenPreview: accessToken ? `${accessToken.substring(0, 10)}...` : 'none'
     });
+    
+    // Check if token is expired
+    if (accessToken) {
+      try {
+        const payload = JSON.parse(atob(accessToken.split('.')[1]));
+        const isExpired = Date.now() >= payload.exp * 1000;
+        console.log('🔍 Token expiration check:', {
+          exp: new Date(payload.exp * 1000).toISOString(),
+          now: new Date().toISOString(),
+          isExpired
+        });
+        
+        if (isExpired) {
+          console.warn('⚠️ Access token is expired!');
+        }
+      } catch (e) {
+        console.error('❌ Error parsing token:', e);
+      }
+    }
     
     // Debug: Log current date information
     const now = new Date();
@@ -98,6 +138,32 @@ export default function SingleDatePicker({ className, date, setDate }) {
 
         console.log('Fetching assignment data for user:', user.id);
         
+        // Check token validity before making API call
+        const accessToken = localStorage.getItem('access_token');
+        if (accessToken) {
+          try {
+            const payload = JSON.parse(atob(accessToken.split('.')[1]));
+            const isExpired = Date.now() >= payload.exp * 1000;
+            if (isExpired) {
+              console.error('❌ Cannot fetch assignment data - access token is expired');
+              // Use fallback range
+              const fallbackRange = getDateRangeForUser(user);
+              setAllowedRange(fallbackRange);
+              console.log('Set fallback date range due to expired token:', fallbackRange);
+              return;
+            }
+          } catch (e) {
+            console.error('❌ Error checking token validity:', e);
+          }
+        } else {
+          console.error('❌ No access token available for API call');
+          // Use fallback range
+          const fallbackRange = getDateRangeForUser(user);
+          setAllowedRange(fallbackRange);
+          console.log('Set fallback date range due to missing token:', fallbackRange);
+          return;
+        }
+        
         // Try to get staff assignment safely
         const assignmentData = await fetchStaffAssignmentSafe(user.id);
         
@@ -131,6 +197,30 @@ export default function SingleDatePicker({ className, date, setDate }) {
           data: error.response?.data
         });
         
+        // Special handling for authentication errors
+        if (error.response?.status === 401) {
+          console.error('🚨 Authentication failed - token may be expired');
+          
+          // Check if this is a token expiration issue
+          const accessToken = localStorage.getItem('access_token');
+          if (accessToken) {
+            try {
+              const payload = JSON.parse(atob(accessToken.split('.')[1]));
+              const isExpired = Date.now() >= payload.exp * 1000;
+              if (isExpired) {
+                console.error('🕒 Confirmed: Access token is expired');
+                // Trigger a page refresh to force re-authentication
+                console.log('🔄 Triggering page refresh to force re-authentication...');
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1000);
+              }
+            } catch (e) {
+              console.error('❌ Error checking token expiration:', e);
+            }
+          }
+        }
+        
         // For any error, use fallback range based on user role
         const fallbackRange = getDateRangeForUser(user);
         setAllowedRange(fallbackRange);
@@ -149,7 +239,7 @@ export default function SingleDatePicker({ className, date, setDate }) {
       userRole: user?.role
     });
     
-    // For counselors, prevent selection of future dates
+    // For counselors, only prevent selection of future dates - allow all past dates
     if (user?.role === 'Counselor') {
       const today = new Date();
       // Use local date comparison to avoid timezone issues
@@ -162,10 +252,14 @@ export default function SingleDatePicker({ className, date, setDate }) {
       const checkMonth = checkDate.getMonth();
       const checkDay = checkDate.getDate();
       
-      // Compare year, month, day directly without time components
-      if (checkYear > todayYear || 
-          (checkYear === todayYear && checkMonth > todayMonth) ||
-          (checkYear === todayYear && checkMonth === todayMonth && checkDay > todayDay)) {
+      // Only disable future dates - allow today and all past dates
+      const isFutureDate = (
+        checkYear > todayYear || 
+        (checkYear === todayYear && checkMonth > todayMonth) ||
+        (checkYear === todayYear && checkMonth === todayMonth && checkDay > todayDay)
+      );
+      
+      if (isFutureDate) {
         console.log('❌ Future date disabled for counselor:', {
           checkDate: `${checkYear}-${checkMonth + 1}-${checkDay}`,
           today: `${todayYear}-${todayMonth + 1}-${todayDay}`,
@@ -173,8 +267,17 @@ export default function SingleDatePicker({ className, date, setDate }) {
         });
         return true; // Disable future dates for counselors
       }
+      
+      // Allow today and all past dates for counselors
+      console.log('✅ Date allowed for counselor (today or past date):', {
+        checkDate: `${checkYear}-${checkMonth + 1}-${checkDay}`,
+        today: `${todayYear}-${todayMonth + 1}-${todayDay}`,
+        isFuture: false
+      });
+      return false;
     }
     
+    // For non-counselors (admin/staff), use the existing logic
     // If no allowed range is set, allow all dates (fallback for admin/staff or error cases)
     if (!allowedRange) {
       console.log('✅ No allowed range set - allowing all dates');
@@ -269,6 +372,13 @@ export default function SingleDatePicker({ className, date, setDate }) {
                 const month = String(newDate.getMonth() + 1).padStart(2, '0');
                 const day = String(newDate.getDate()).padStart(2, '0');
                 const dateString = `${year}-${month}-${day}`;
+                
+                console.log('📅 Date selected:', {
+                  selectedDate: selectedDate.toString(),
+                  newDate: newDate.toString(),
+                  dateString: dateString,
+                  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                });
                 
                 localStorage.setItem('selectedDate', JSON.stringify(dateString));
                 setDate(newDate);

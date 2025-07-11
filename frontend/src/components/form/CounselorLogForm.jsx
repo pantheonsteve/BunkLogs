@@ -215,18 +215,30 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
   const validateCounselorForm = () => {
     const errors = [];
     
-    // Validate date constraints
+    // Validate date constraints for counselors
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
     
-    if (formData.date > today) {
-      errors.push('Cannot create logs for future dates');
-    }
-    
-    if (formData.date < thirtyDaysAgoStr) {
-      errors.push('Cannot create logs older than 30 days');
+    // Counselors can only submit logs for today's date
+    if (auth?.user?.role === 'Counselor') {
+      if (formData.date > today) {
+        errors.push('Cannot create logs for future dates');
+      }
+      
+      if (formData.date < today) {
+        errors.push('⚠️ You can only submit bunklogs for today\'s date. To submit a bunklog, please navigate to today\'s date.');
+      }
+    } else {
+      // Admin/staff can submit for any reasonable date range
+      if (formData.date > today) {
+        errors.push('Cannot create logs for future dates');
+      }
+      
+      if (formData.date < thirtyDaysAgoStr) {
+        errors.push('Cannot create logs older than 30 days');
+      }
     }
     
     // Validate required fields for work days

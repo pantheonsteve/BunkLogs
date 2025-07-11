@@ -72,7 +72,38 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    console.log('API Error:', error.response?.status, error.response?.data);
+    // Enhanced error logging for 401 errors
+    if (error.response?.status === 401) {
+      console.error('🚨 401 Authentication Error:', {
+        url: originalRequest.url,
+        method: originalRequest.method,
+        hasAuthHeader: !!originalRequest.headers?.Authorization,
+        authHeaderPreview: originalRequest.headers?.Authorization?.substring(0, 20) + '...',
+        errorData: error.response?.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Check if token exists and if it's expired
+      const accessToken = localStorage.getItem('access_token');
+      if (accessToken) {
+        try {
+          const payload = JSON.parse(atob(accessToken.split('.')[1]));
+          const isExpired = Date.now() >= payload.exp * 1000;
+          console.error('🔍 Token analysis:', {
+            hasToken: true,
+            isExpired,
+            exp: new Date(payload.exp * 1000).toISOString(),
+            now: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error('❌ Error parsing stored token:', e);
+        }
+      } else {
+        console.error('❌ No access token in localStorage');
+      }
+    } else {
+      console.log('API Error:', error.response?.status, error.response?.data);
+    }
     
     // If the error is due to an expired token (401) and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
