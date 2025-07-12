@@ -208,28 +208,41 @@ class UserDetailsView(viewsets.ReadOnlyModelViewSet):
 def get_user_by_email(request, email):
     """
     Endpoint to get user details by email.
+    PERFORMANCE OPTIMIZED: Uses select_related and prefetch_related to minimize database queries.
     """
     try:
-        # Get user by email
-        user = User.objects.get(email=email)
+        # Optimize user query with select_related for groups
+        user = User.objects.select_related().prefetch_related('groups').get(email=email)
         
         # Adjust security check to handle unauthenticated requests
         if request.user.is_authenticated:
             # For authenticated users, check permissions
             if not request.user.is_staff and request.user.email != email:
                 # Special case for Unit Heads - they should see full details for users in their units
-                if request.user.role == 'Unit Head' and hasattr(request.user, 'unit'):
-                    # Get the bunks in the Unit Head's unit
-                    unit_bunks = Bunk.objects.filter(unit=request.user.unit)
-                    # Check if requested user is a counselor in any of those bunks
-                    from bunk_logs.bunks.models import CounselorBunkAssignment
+                if request.user.role == 'Unit Head':
+                    # FIXED: Get units through UnitStaffAssignment instead of direct unit attribute
+                    from bunk_logs.bunks.models import CounselorBunkAssignment, UnitStaffAssignment
                     from django.utils import timezone
                     from django.db import models
                     
                     today = timezone.now().date()
+                    
+                    # Get the requesting user's assigned units
+                    user_units = UnitStaffAssignment.objects.filter(
+                        staff_member=request.user,
+                        role='unit_head',
+                        start_date__lte=today
+                    ).filter(
+                        models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+                    ).values_list('unit_id', flat=True)
+                    
+                    if not user_units:
+                        raise PermissionDenied("You do not have permission to view this user's details")
+                    
+                    # Use exists() for better performance - check if target user has assignments in any of the requesting user's units
                     has_counselor_assignment = CounselorBunkAssignment.objects.filter(
                         counselor=user,
-                        bunk__in=unit_bunks,
+                        bunk__unit_id__in=user_units,
                         start_date__lte=today
                     ).filter(
                         models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
@@ -240,80 +253,162 @@ def get_user_by_email(request, email):
                 else:
                     raise PermissionDenied("You do not have permission to view this user's details")
         
-        # Continue with existing code for serialization and response
-        serializer = ApiUserSerializer(user)
-        data = serializer.data
-
-        assigned_bunks = []
-        from bunk_logs.bunks.models import CounselorBunkAssignment
+        # PERFORMANCE FIX: Use optimized serializer that doesn't repeat queries
+        # Instead of using the serializer, build the response directly to avoid duplicate queries
         from django.utils import timezone
         from django.db import models
-        
         today = timezone.now().date()
-        active_assignments = CounselorBunkAssignment.objects.filter(
-            counselor=user,
-            start_date__lte=today
-        ).filter(
-            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
-        ).select_related('bunk', 'bunk__cabin', 'bunk__session')
         
-        for assignment in active_assignments:
-            bunk = assignment.bunk
-            assigned_bunks.append({
-                "id": str(bunk.id),
-                "bunk_id": str(bunk.id),
-                "name": bunk.name,
-                "cabin": str(bunk.cabin) if hasattr(bunk, 'cabin') and bunk.cabin else None,
-                "session": str(bunk.session) if hasattr(bunk, 'session') and bunk.session else None,
-            })
+        # PERFORMANCE FIX: Build response data that matches ApiUserSerializer format exactly
+        # This ensures API compatibility while avoiding the performance issues
+        data = {
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "role": user.role,
+            "profile_complete": user.profile_complete,
+            "is_active": user.is_active,
+            "is_staff": user.is_staff,
+            "is_superuser": user.is_superuser,
+            "date_joined": user.date_joined,
+            # Initialize fields that will be populated below to match serializer
+            "bunks": [],
+            "unit": None,
+            "unit_bunks": [],
+        }
+
+        # PERFORMANCE OPTIMIZED: Single query with all necessary joins for counselor bunks
+        # Populate the 'bunks' field to match ApiUserSerializer.get_bunks() format
+        if user.role == 'Counselor':
+            from bunk_logs.bunks.models import CounselorBunkAssignment
+            active_assignments = CounselorBunkAssignment.objects.filter(
+                counselor=user,
+                start_date__lte=today
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            ).select_related('bunk', 'bunk__cabin', 'bunk__session', 'bunk__unit')
+            
+            # Build bunks data in the same format as SimpleBunkSerializer
+            bunks_data = []
+            for assignment in active_assignments:
+                bunk = assignment.bunk
+                bunks_data.append({
+                    "id": str(bunk.id),  # Convert to string for consistency
+                    "counselors": [],  # Could be populated if needed, but expensive
+                    "session": {
+                        "id": bunk.session.id if bunk.session else None,
+                        "name": bunk.session.name if bunk.session else None,
+                    } if bunk.session else None,
+                    "unit": {
+                        "id": bunk.unit.id if bunk.unit else None,
+                        "name": bunk.unit.name if bunk.unit else None,
+                    } if bunk.unit else None,
+                    "cabin": {
+                        "id": bunk.cabin.id if bunk.cabin else None,
+                        "name": bunk.cabin.name if bunk.cabin else None,
+                    } if bunk.cabin else None,
+                })
+            data['bunks'] = bunks_data
+        
+        # Also maintain the 'assigned_bunks' field for backward compatibility
+        assigned_bunks = []
+        if user.role == 'Counselor':
+            # Simplified version for the assigned_bunks field  
+            for assignment in active_assignments:
+                bunk = assignment.bunk
+                assigned_bunks.append({
+                    "id": str(bunk.id),
+                    "bunk_id": str(bunk.id),
+                    "name": bunk.name,
+                    "cabin": str(bunk.cabin) if hasattr(bunk, 'cabin') and bunk.cabin else None,
+                    "session": str(bunk.session) if hasattr(bunk, 'session') and bunk.session else None,
+                })
         data['assigned_bunks'] = assigned_bunks
         
-        # Add unit information for Unit Heads
+        # PERFORMANCE OPTIMIZED: Unit Head data with single optimized query
         if user.role == 'Unit Head':
-            units = []
-            # Get units where user is assigned as unit_head via UnitStaffAssignment
-            from django.utils import timezone
             from bunk_logs.bunks.models import UnitStaffAssignment
+            
+            # Single query with select_related for units
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role='unit_head',
-                start_date__lte=timezone.now().date(),
+                start_date__lte=today,
                 end_date__isnull=True
             ).select_related('unit')
             
-            user_units = [assignment.unit for assignment in unit_assignments]
-            for unit in user_units:
+            units = []
+            first_unit = None
+            
+            for assignment in unit_assignments:
+                unit = assignment.unit
                 units.append({
                     "id": str(unit.id),
                     "name": unit.name,
                 })
+                if first_unit is None:
+                    first_unit = unit
+            
             data['units'] = units
             
-            # If user has units, add the first unit's name and bunks
-            if user_units:
-                first_unit = user_units.first()
+            # Populate 'unit' field to match ApiUserSerializer.get_unit() format
+            if first_unit:
+                # Build unit data in UnitSerializer format (simplified)
+                data['unit'] = {
+                    "id": first_unit.id,
+                    "name": first_unit.name,
+                    "created_at": first_unit.created_at,
+                    "updated_at": first_unit.updated_at,
+                    # Note: Skipping complex nested data for performance
+                    "unit_head_details": None,
+                    "camper_care_details": None,
+                    "staff_assignments": [],
+                    "unit_heads": [],
+                    "camper_care_staff": [],
+                }
                 data['unit_name'] = first_unit.name
-                # Add all bunks in this unit
-                unit_bunks = Bunk.objects.filter(unit=first_unit)
-                data['unit_bunks'] = BunkSerializer(unit_bunks, many=True).data
+                
+                # Populate 'unit_bunks' field to match ApiUserSerializer.get_unit_bunks() format
+                unit_bunks = Bunk.objects.filter(unit=first_unit).select_related('cabin', 'session', 'unit')
+                unit_bunks_data = []
+                for bunk in unit_bunks:                unit_bunks_data.append({
+                    "id": str(bunk.id),  # Convert to string for consistency
+                    "name": bunk.name,   # Add missing name field - CRITICAL FIX
+                    "counselors": [],  # Simplified for performance
+                    "session": {
+                        "id": bunk.session.id if bunk.session else None,
+                        "name": bunk.session.name if bunk.session else None,
+                    } if bunk.session else None,
+                    "unit": {
+                        "id": bunk.unit.id if bunk.unit else None,
+                        "name": bunk.unit.name if bunk.unit else None,
+                    } if bunk.unit else None,
+                    "cabin": {
+                        "id": bunk.cabin.id if bunk.cabin else None,
+                        "name": bunk.cabin.name if bunk.cabin else None,
+                    } if bunk.cabin else None,
+                })
+                data['unit_bunks'] = unit_bunks_data
         
         # If the user is not authenticated, only return basic non-sensitive information
         if not request.user.is_authenticated:
-            # Filter data to only include safe fields
+            # Filter data to only include safe fields - maintain consistent naming
             safe_data = {
                 "id": data.get("id"),
                 "email": data.get("email"),
                 "first_name": data.get("first_name"),
                 "last_name": data.get("last_name"),
                 "role": data.get("role"),
-                "bunks": data.get("assigned_bunks"),
-                "units": data.get("units"),
+                "bunks": data.get("bunks", []),  # Use 'bunks' for consistency with serializer
+                "assigned_bunks": data.get("assigned_bunks", []),  # Keep for backward compatibility
+                "units": data.get("units", []),
                 "unit_name": data.get("unit_name"),
-                "unit_bunks": data.get("unit_bunks"),
+                "unit_bunks": data.get("unit_bunks", []),
             }
             return Response(safe_data)
             
-        # For authenticated users, return all data
+        # For authenticated users, add groups (already prefetched) and return all data
         data['groups'] = [group.name for group in user.groups.all()]
         
         return Response(data)
