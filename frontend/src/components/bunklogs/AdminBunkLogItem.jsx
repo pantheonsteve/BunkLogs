@@ -5,6 +5,10 @@ import GenericAvatar from '../../images/avatar-generic.png';
 function AdminBunkLogItem({ log, date, onViewDetails }) {
   const [open, setOpen] = useState(false);
 
+  // Debug: Log the structure of the log object
+  console.log('AdminBunkLogItem log object:', log);
+  console.log('Available properties:', Object.keys(log));
+
   // Score background color mapping - same as CamperLogsBunkViewItem
   const getScoreBackgroundColor = (score) => {
     if (!score) return "bg-gray-100";
@@ -55,7 +59,12 @@ function AdminBunkLogItem({ log, date, onViewDetails }) {
         {/* Bunk/Unit */}
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
           <div className="text-center">
-            <div className="font-medium text-gray-800 dark:text-gray-100">{log.bunk_cabin_name}</div>
+            <Link 
+              to={`/bunk/${log.bunk_id}/${date}`}
+              className="font-medium text-gray-800 dark:text-gray-100 hover:text-blue-600 transition-colors"
+            >
+              {log.bunk_cabin_name}
+            </Link>
             <div className="text-xs text-gray-500 dark:text-gray-400">{log.unit_name || 'No unit'}</div>
           </div>
         </td>

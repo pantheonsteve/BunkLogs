@@ -96,6 +96,7 @@ function AdminBunkLogs() {
         const response = await api.get(`/api/v1/bunklogs/all/${date}/`);
         setBunkLogs(response.data.logs || []);
         console.log('✅ Bunk logs loaded:', response.data.logs?.length || 0, 'items');
+        console.log('🔍 Sample log object:', response.data.logs?.[0]); // Add this line to debug
         
       } catch (err) {
         console.error('❌ Error fetching bunk logs:', err);
