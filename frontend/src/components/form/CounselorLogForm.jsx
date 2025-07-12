@@ -36,9 +36,18 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
       // Check if there's an existing log
       if (existingCounselorLog) {
         // Must be the original counselor AND editing on the day it was created
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const today = now.getFullYear() + '-' + 
+                     String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(now.getDate()).padStart(2, '0');
+        
         const logCreatedDate = existingCounselorLog.created_at ? 
-          new Date(existingCounselorLog.created_at).toISOString().split('T')[0] : 
+          (() => {
+            const createdAt = new Date(existingCounselorLog.created_at);
+            return createdAt.getFullYear() + '-' + 
+                   String(createdAt.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(createdAt.getDate()).padStart(2, '0');
+          })() : 
           dateToUse;
         
         const canEditExisting = String(existingCounselorLog.counselor) === String(currentUser.id) && today === logCreatedDate;
@@ -46,7 +55,10 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
       }
       
       // For new logs, counselors can only create logs for today or past dates (no future dates)
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = now.getFullYear() + '-' + 
+                   String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(now.getDate()).padStart(2, '0');
       const logDate = dateToUse;
       
       if (logDate > today) {
@@ -62,7 +74,10 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
   
   // Check if the selected date is in the future
   const isDateInFuture = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.getFullYear() + '-' + 
+                 String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                 String(now.getDate()).padStart(2, '0');
     return dateToUse > today;
   };
   
@@ -215,23 +230,34 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
   const validateCounselorForm = () => {
     const errors = [];
     
-    // Validate date constraints for counselors
-    const today = new Date().toISOString().split('T')[0];
+    // Validate date constraints for counselors - use local timezone to avoid UTC conversion issues
+    const now = new Date();
+    const today = now.getFullYear() + '-' + 
+                  String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                  String(now.getDate()).padStart(2, '0');
+    
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgoStr = thirtyDaysAgo.getFullYear() + '-' + 
+                            String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(thirtyDaysAgo.getDate()).padStart(2, '0');
     
-    // Counselors can only submit logs for today's date
+    // Counselors can submit logs for today and past dates (up to 30 days back), but not future dates
     if (auth?.user?.role === 'Counselor') {
       if (formData.date > today) {
         errors.push('Cannot create logs for future dates');
       }
       
-      if (formData.date < today) {
-        errors.push('⚠️ You can only submit bunklogs for today\'s date. To submit a bunklog, please navigate to today\'s date.');
+      if (formData.date < thirtyDaysAgoStr) {
+        errors.push('⚠️ You can only submit counselor logs for today\'s date or up to 30 days back. Please select a more recent date.');
       }
     } else {
       // Admin/staff can submit for any reasonable date range
+      const now = new Date();
+      const today = now.getFullYear() + '-' + 
+                   String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(now.getDate()).padStart(2, '0');
+      
       if (formData.date > today) {
         errors.push('Cannot create logs for future dates');
       }
