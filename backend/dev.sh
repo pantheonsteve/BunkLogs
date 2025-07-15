@@ -40,16 +40,57 @@ check_venv() {
 # Setup Podman environment
 setup_podman_env() {
     if command -v podman &> /dev/null; then
-        # Check if Podman machine is running
-        if ! podman machine list | grep -q "Currently running"; then
+        # Check if Podman machine is running using a more reliable method
+        MACHINE_LINE=$(podman machine list 2>/dev/null | grep "podman-machine-default" || echo "")
+        
+        if echo "$MACHINE_LINE" | grep -q "Currently running"; then
+            print_status "Podman machine is already running"
+        elif echo "$MACHINE_LINE" | grep -q "Currently starting"; then
+            print_status "Podman machine is currently starting, waiting..."
+            # Wait for the machine to finish starting
+            local attempts=0
+            while [ $attempts -lt 30 ]; do
+                sleep 2
+                MACHINE_LINE=$(podman machine list 2>/dev/null | grep "podman-machine-default" || echo "")
+                if echo "$MACHINE_LINE" | grep -q "Currently running"; then
+                    print_status "Podman machine started successfully"
+                    break
+                elif echo "$MACHINE_LINE" | grep -q "Last up"; then
+                    # Machine finished starting but shows "Last up" instead of "Currently running"
+                    print_status "Podman machine started successfully"
+                    break
+                fi
+                attempts=$((attempts + 1))
+                print_status "Still waiting... (attempt $attempts/30)"
+            done
+            
+            if [ $attempts -eq 30 ]; then
+                print_error "Timeout waiting for Podman machine to start"
+                print_error "Current status: $MACHINE_LINE"
+                exit 1
+            fi
+        elif echo "$MACHINE_LINE" | grep -q -E "(Running|Last up)"; then
+            print_status "Podman machine is running"
+        else
             print_status "Starting Podman machine..."
-            podman machine start
+            # Capture both stdout and stderr to handle "already running" messages
+            START_OUTPUT=$(podman machine start 2>&1)
+            START_EXIT_CODE=$?
+            
+            if [ $START_EXIT_CODE -eq 0 ]; then
+                print_status "Podman machine started successfully"
+            elif echo "$START_OUTPUT" | grep -q "already running"; then
+                print_status "Podman machine was already running"
+            else
+                print_error "Failed to start Podman machine: $START_OUTPUT"
+                exit 1
+            fi
         fi
         
-        # The machine start should set up the environment automatically
-        # but let's verify podman is accessible
+        # Verify podman is accessible
         if ! podman info &> /dev/null; then
             print_error "Podman is not accessible. Please check your Podman installation."
+            print_error "Try running: podman machine stop && podman machine start"
             exit 1
         fi
     fi
@@ -97,6 +138,7 @@ show_help() {
     echo "  restore-db      - Restore local database"
     echo "  sync-prod-db    - Sync production database to local (DESTRUCTIVE)"
     echo "  import-prod-db  - Import production database using backup script (RECOMMENDED)"
+    echo "  sync-prod-users - Sync production users and data to local (DESTRUCTIVE)"
     echo "  analyze-date-conflicts - Analyze unique constraint conflicts preventing date fixes"
     echo "  smart-date-fix  - Intelligently fix date conflicts by handling duplicates"
     echo "  fix-july-6-7-dates - Fix BunkLog date fields to match created_at timezone"
@@ -202,8 +244,33 @@ case "$1" in
         COMPOSE_CMD=$(get_compose_command)
         $COMPOSE_CMD -f docker-compose.local.yml down -v
         $COMPOSE_CMD -f docker-compose.local.yml up -d
-        sleep 5
+        
+        print_status "Waiting for database to be ready..."
+        sleep 10
+        
+        # Wait for PostgreSQL to be ready
+        db_attempts=0
+        while [ $db_attempts -lt 30 ]; do
+            if $COMPOSE_CMD -f docker-compose.local.yml exec postgres pg_isready -U postgres >/dev/null 2>&1; then
+                print_status "Database is ready"
+                break
+            fi
+            sleep 2
+            db_attempts=$((db_attempts + 1))
+            print_status "Waiting for database... (attempt $db_attempts/30)"
+        done
+        
+        if [ $db_attempts -eq 30 ]; then
+            print_error "Timeout waiting for database to be ready"
+            exit 1
+        fi
+        
+        # Create the database if it doesn't exist
+        print_status "Creating database if needed..."
+        podman exec bunk_logs_local_postgres createdb -U postgres bunk_logs_local 2>/dev/null || true
+        
         check_venv
+        export DJANGO_READ_DOT_ENV_FILE=True
         python manage.py migrate
         print_success "Podman services reset!"
         ;;
@@ -392,6 +459,105 @@ case "$1" in
             print_error "Database import failed. Check the output above for details."
             exit 1
         fi
+        ;;
+    
+    sync-prod-users)
+        print_warning "⚠️  This will COMPLETELY REPLACE your local database with production data!"
+        print_warning "⚠️  This includes ALL user accounts, BunkLogs, and other data!"
+        echo ""
+        read -p "Are you sure you want to continue? (type 'yes' to confirm): " confirm
+        
+        if [ "$confirm" != "yes" ]; then
+            print_status "Operation cancelled."
+            exit 0
+        fi
+        
+        print_status "Syncing production database (including users) to local..."
+        
+        # Ensure local containers are running
+        setup_podman_env
+        COMPOSE_CMD=$(get_compose_command)
+        print_status "Starting local database services..."
+        $COMPOSE_CMD -f docker-compose.local.yml up -d postgres
+        sleep 5
+        
+        # Wait for PostgreSQL to be ready
+        db_attempts=0
+        while [ $db_attempts -lt 30 ]; do
+            if $COMPOSE_CMD -f docker-compose.local.yml exec postgres pg_isready -U postgres >/dev/null 2>&1; then
+                print_status "Database is ready"
+                break
+            fi
+            sleep 2
+            db_attempts=$((db_attempts + 1))
+            print_status "Waiting for database... (attempt $db_attempts/30)"
+        done
+        
+        if [ $db_attempts -eq 30 ]; then
+            print_error "Timeout waiting for database to be ready"
+            exit 1
+        fi
+        
+        # Create timestamp for backup file
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        BACKUP_FILE="/tmp/prod_sync_with_users_${TIMESTAMP}.sql"
+        
+        print_status "Creating production backup (including users)..."
+        if ! podman run --rm -e PGPASSWORD="bpiFWVkn3Ku89g7A67WjpRsWitc6K0Hw" postgres:16 pg_dump -h "dpg-d16o5v95pdvs73fifljg-a.virginia-postgres.render.com" -U "stevebresnick" -d "bunk_logs" --verbose --no-owner --no-privileges --clean --if-exists > "$BACKUP_FILE"; then
+            print_error "Failed to create production backup"
+            rm -f "$BACKUP_FILE"
+            exit 1
+        fi
+        
+        BACKUP_SIZE=$(ls -lh "$BACKUP_FILE" | awk '{print $5}')
+        print_success "Production backup created: ${BACKUP_FILE} (${BACKUP_SIZE})"
+        
+        print_status "Terminating active database connections..."
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bunk_logs' AND pid <> pg_backend_pid();" > /dev/null 2>&1 || true
+        
+        print_status "Dropping and recreating local database..."
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres dropdb -U postgres bunk_logs --if-exists || true
+        $COMPOSE_CMD -f docker-compose.local.yml exec postgres createdb -U postgres bunk_logs
+        
+        print_status "Copying backup file to container..."
+        podman cp "$BACKUP_FILE" bunk_logs_local_postgres:/tmp/backup.sql
+        
+        print_status "Restoring production data (including users) to local database..."
+        if ! $COMPOSE_CMD -f docker-compose.local.yml exec postgres psql -U postgres -d bunk_logs -f /tmp/backup.sql > /dev/null 2>&1; then
+            print_error "Failed to restore database"
+            rm -f "$BACKUP_FILE"
+            exit 1
+        fi
+        
+        # Verify the sync worked
+        print_status "Verifying user sync..."
+        PROD_USER_COUNT=$(podman run --rm -e PGPASSWORD="bpiFWVkn3Ku89g7A67WjpRsWitc6K0Hw" postgres:16 psql -h "dpg-d16o5v95pdvs73fifljg-a.virginia-postgres.render.com" -U "stevebresnick" -d "bunk_logs" -t -c "SELECT COUNT(*) FROM users_user;" 2>/dev/null | tr -d ' ')
+        
+        LOCAL_USER_COUNT=$($COMPOSE_CMD -f docker-compose.local.yml exec postgres psql -U postgres -d bunk_logs -t -c "SELECT COUNT(*) FROM users_user;" 2>/dev/null | tr -d ' ')
+        
+        ADMIN_COUNT=$($COMPOSE_CMD -f docker-compose.local.yml exec postgres psql -U postgres -d bunk_logs -t -c "SELECT COUNT(*) FROM users_user WHERE is_superuser = true;" 2>/dev/null | tr -d ' ')
+        
+        # Clean up
+        rm -f "$BACKUP_FILE"
+        
+        if [ "${PROD_USER_COUNT}" = "${LOCAL_USER_COUNT}" ] && [ "${ADMIN_COUNT}" -gt 0 ]; then
+            print_success "User sync verified: ${LOCAL_USER_COUNT} users synced (${ADMIN_COUNT} admin users)"
+            print_success "You can now log in with production user accounts!"
+            print_success "Admin user: stevebresnick@gmail.com"
+        else
+            print_warning "User sync verification failed:"
+            print_warning "  Production users: ${PROD_USER_COUNT}"
+            print_warning "  Local users: ${LOCAL_USER_COUNT}"
+            print_warning "  Admin users: ${ADMIN_COUNT}"
+        fi
+        
+        # Run migrations in case there are local schema differences
+        check_venv
+        export DJANGO_READ_DOT_ENV_FILE=True
+        print_status "Running any pending migrations..."
+        python manage.py migrate
+        
+        print_success "Production database (including users) successfully synced to local!"
         ;;
     
     analyze-date-conflicts)

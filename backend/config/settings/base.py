@@ -102,6 +102,7 @@ LOCAL_APPS = [
     "bunk_logs.bunklogs",
     "bunk_logs.api",
     "bunk_logs.orders",  # Orders app
+    "bunk_logs.messaging",  # Messaging app for email workflows
     "bunk_logs.utils",   # Utils app for test data management
     # Your stuff: custom apps go here
 ]
@@ -266,6 +267,17 @@ EMAIL_BACKEND = env(
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
 EMAIL_TIMEOUT = 5
+
+# MAILGUN SETTINGS
+# ------------------------------------------------------------------------------
+MAILGUN_API_KEY = env("MAILGUN_API_KEY", default="")
+MAILGUN_DOMAIN = env("MAILGUN_DOMAIN", default="")
+MAILGUN_FROM_EMAIL = env("MAILGUN_FROM_EMAIL", default=f"reports@{env('MAILGUN_DOMAIN', default='localhost')}")
+
+# MESSAGING SETTINGS
+# ------------------------------------------------------------------------------
+SITE_NAME = env("SITE_NAME", default="BunkLogs")
+SITE_URL = env("SITE_URL", default="https://bunklogs.com")
 
 # ADMIN
 # ------------------------------------------------------------------------------

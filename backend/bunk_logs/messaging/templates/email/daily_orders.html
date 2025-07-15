@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Daily Orders Report</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header { 
+            background-color: #2c3e50; 
+            color: white;
+            padding: 30px; 
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        .summary { 
+            background-color: #ecf0f1; 
+            padding: 20px; 
+            margin: 0;
+            border-bottom: 1px solid #bdc3c7;
+        }
+        .summary h2 {
+            margin: 0 0 15px 0;
+            color: #2c3e50;
+            font-size: 20px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .summary-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border-left: 4px solid #3498db;
+        }
+        .summary-item .number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 0;
+        }
+        .summary-item .label {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin: 5px 0 0 0;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin: 30px 0;
+        }
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 20px 0;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td { 
+            border: 1px solid #ecf0f1; 
+            padding: 12px; 
+            text-align: left; 
+            vertical-align: top;
+        }
+        th { 
+            background-color: #34495e; 
+            color: white; 
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #e8f4f8;
+        }
+        .status-submitted { color: #f39c12; font-weight: bold; }
+        .status-pending { color: #3498db; font-weight: bold; }
+        .status-completed { color: #27ae60; font-weight: bold; }
+        .status-cancelled { color: #e74c3c; font-weight: bold; }
+        .no-orders {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        .no-orders-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        .footer {
+            background-color: #ecf0f1;
+            padding: 20px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .order-items {
+            font-size: 14px;
+        }
+        .order-item {
+            background: #f8f9fa;
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .bunk-name {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .user-name {
+            color: #34495e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Daily Orders Report</h1>
+            <p><strong>{{ date|date:"l, F j, Y" }}</strong></p>
+        </div>
+        
+        <div class="summary">
+            <h2>📊 Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="number">{{ total_orders }}</div>
+                    <div class="label">Total Orders</div>
+                </div>
+                <div class="summary-item">
+                    <div class="number">{{ maintenance_count }}</div>
+                    <div class="label">Maintenance Requests</div>
+                </div>
+                <div class="summary-item">
+                    <div class="number">{{ camper_care_count }}</div>
+                    <div class="label">Camper Care Requests</div>
+                </div>
+                <div class="summary-item">
+                    <div class="number">{{ bunks_with_orders_count }}</div>
+                    <div class="label">Bunks with Orders</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content">
+            {% if has_orders %}
+                {% if maintenance_requests %}
+                <div class="section">
+                    <h2>🔧 Maintenance Requests</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Bunk</th>
+                                <th>Submitted By</th>
+                                <th>Status</th>
+                                <th>Items Requested</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in maintenance_requests %}
+                            <tr>
+                                <td><strong>#{{ order.id }}</strong></td>
+                                <td class="bunk-name">{{ order.order_bunk.name }}</td>
+                                <td class="user-name">{{ order.user.get_full_name|default:order.user.username }}</td>
+                                <td class="status-{{ order.order_status }}">{{ order.get_order_status_display }}</td>
+                                <td class="order-items">
+                                    {% for order_item in order.order_items.all %}
+                                        <div class="order-item">
+                                            {{ order_item.item.item_name|default:"Unknown Item" }} 
+                                            <strong>({{ order_item.item_quantity }})</strong>
+                                        </div>
+                                    {% empty %}
+                                        <em>No items specified</em>
+                                    {% endfor %}
+                                </td>
+                                <td>{{ order.additional_notes|default:"No additional notes"|truncatewords:20 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                
+                {% if camper_care_requests %}
+                <div class="section">
+                    <h2>🏕️ Camper Care Requests</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Bunk</th>
+                                <th>Submitted By</th>
+                                <th>Status</th>
+                                <th>Items Requested</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in camper_care_requests %}
+                            <tr>
+                                <td><strong>#{{ order.id }}</strong></td>
+                                <td class="bunk-name">{{ order.order_bunk.name }}</td>
+                                <td class="user-name">{{ order.user.get_full_name|default:order.user.username }}</td>
+                                <td class="status-{{ order.order_status }}">{{ order.get_order_status_display }}</td>
+                                <td class="order-items">
+                                    {% for order_item in order.order_items.all %}
+                                        <div class="order-item">
+                                            {{ order_item.item.item_name|default:"Unknown Item" }} 
+                                            <strong>({{ order_item.item_quantity }})</strong>
+                                        </div>
+                                    {% empty %}
+                                        <em>No items specified</em>
+                                    {% endfor %}
+                                </td>
+                                <td>{{ order.additional_notes|default:"No additional notes"|truncatewords:20 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="no-orders">
+                    <div class="no-orders-icon">😴</div>
+                    <h3>No orders found for {{ date|date:"F j, Y" }}</h3>
+                    <p>It was a quiet day with no maintenance requests or camper care orders.</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="footer">
+            <p>Generated by {{ site_name|default:"BunkLogs" }} on {{ "now"|date:"F j, Y \a\\t g:i A" }}</p>
+            {% if site_url %}
+            <p><a href="{{ site_url }}" style="color: #3498db;">Visit {{ site_name|default:"BunkLogs" }}</a></p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

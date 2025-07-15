@@ -39,6 +39,9 @@ router.register("order-types", OrderTypeViewSet, basename='order-type')
 
 # Custom URL patterns for additional endpoints
 custom_urlpatterns = [
+    # Messaging system
+    path('messaging/', include('bunk_logs.messaging.urls')),
+    
     # Ordering system endpoints
     path('order-types/<int:order_type_id>/items/', get_items_for_order_type, name='order-type-items'),
     path('orders/statistics/', get_order_statistics, name='order-statistics'),
