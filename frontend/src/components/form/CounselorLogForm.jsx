@@ -329,7 +329,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
     
     try {
       const submissionData = { ...formData };
-         // Convert scores to integers (they come from range inputs as strings)
+         // Convert scores to integers (they come from button values as numbers)
     submissionData.day_quality_score = parseInt(submissionData.day_quality_score, 10);
     submissionData.support_level_score = parseInt(submissionData.support_level_score, 10);
     
@@ -631,30 +631,41 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
         {/* Conditional Fields - Only show if not on day off */}
         {!formData.day_off && (
           <>
-            {/* Score Sliders */}
+            {/* Score Buttons */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-800 dark:text-white">Daily Reflection Scores</h3>
               
               {/* Day Quality Score */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="day_quality_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    How was your day? {formData.day_quality_score}
+                <div className="flex items-center mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    How was your day?
                   </label>
-                  <span className="text-sm text-gray-500">1-5</span>
                 </div>
-                <input
-                  id="day_quality_score"
-                  name="day_quality_score"
-                  type="range"
-                  min="1"
-                  max="5"
-                  className={`w-full h-2 bg-gray-200 rounded-lg appearance-none ${isViewMode ? 'cursor-not-allowed' : 'cursor-pointer'} dark:bg-gray-700`}
-                  value={formData.day_quality_score}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex space-x-2">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => !isViewMode && handleChange({ target: { name: 'day_quality_score', value: score } })}
+                      disabled={isViewMode}
+                      className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                        formData.day_quality_score === score
+                          ? score === 1 ? 'bg-[#e86946] text-white border-[#e86946] shadow-md'
+                          : score === 2 ? 'bg-[#de8d6f] text-white border-[#de8d6f] shadow-md'
+                          : score === 3 ? 'bg-[#e5e825] text-gray-800 border-[#e5e825] shadow-md'
+                          : score === 4 ? 'bg-[#90d258] text-gray-800 border-[#90d258] shadow-md'
+                          : 'bg-[#18d128] text-white border-[#18d128] shadow-md'
+                          : isViewMode 
+                          ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                      }`}
+                    >
+                      {score}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>Terrible</span>
                   <span>Best day ever</span>
                 </div>
@@ -662,24 +673,35 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
               
               {/* Support Level Score */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="support_level_score" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    How supported did you feel today? {formData.support_level_score}
+                <div className="flex items-center mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    How supported did you feel today?
                   </label>
-                  <span className="text-sm text-gray-500">1-5</span>
                 </div>
-                <input
-                  id="support_level_score"
-                  name="support_level_score"
-                  type="range"
-                  min="1"
-                  max="5"
-                  className={`w-full h-2 bg-gray-200 rounded-lg appearance-none ${isViewMode ? 'cursor-not-allowed' : 'cursor-pointer'} dark:bg-gray-700`}
-                  value={formData.support_level_score}
-                  onChange={handleChange}
-                  disabled={isViewMode}
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex space-x-2">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => !isViewMode && handleChange({ target: { name: 'support_level_score', value: score } })}
+                      disabled={isViewMode}
+                      className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                        formData.support_level_score === score
+                          ? score === 1 ? 'bg-[#e86946] text-white border-[#e86946] shadow-md'
+                          : score === 2 ? 'bg-[#de8d6f] text-white border-[#de8d6f] shadow-md'
+                          : score === 3 ? 'bg-[#e5e825] text-gray-800 border-[#e5e825] shadow-md'
+                          : score === 4 ? 'bg-[#90d258] text-gray-800 border-[#90d258] shadow-md'
+                          : 'bg-[#18d128] text-white border-[#18d128] shadow-md'
+                          : isViewMode 
+                          ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                          : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 hover:border-gray-400'
+                      }`}
+                    >
+                      {score}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>Unsupported</span>
                   <span>Fully supported</span>
                 </div>

@@ -3,9 +3,17 @@ import { Calendar, Users, FileText, Eye, ChevronLeft, ChevronRight, Download } f
 
 // Helper function for score color
 function getScoreColor(score) {
-    if (score >= 4) return 'text-green-600 bg-green-50';
-    if (score >= 2) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (!score) return 'bg-gray-100 text-gray-800';
+    
+    const scoreNum = parseInt(score);
+    switch (scoreNum) {
+        case 1: return 'bg-[#e86946] text-white';
+        case 2: return 'bg-[#de8d6f] text-white';
+        case 3: return 'bg-[#e5e825] text-gray-900';
+        case 4: return 'bg-[#90d258] text-gray-900';
+        case 5: return 'bg-[#18d128] text-white';
+        default: return 'bg-gray-100 text-gray-800';
+    }
 }
 
 // Helper function for date formatting
@@ -98,7 +106,7 @@ const CounselorLogsGrid = ({
                                 Submitted
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Actions
+                                View
                             </th>
                         </tr>
                     </thead>
@@ -111,7 +119,11 @@ const CounselorLogsGrid = ({
                             }
                             
                             return (
-                            <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <tr 
+                                key={log.id} 
+                                className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                                onClick={() => viewLogDetails && viewLogDetails(log)}
+                            >
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center">
                                         <div className="flex-shrink-0 h-10 w-10">
@@ -139,7 +151,7 @@ const CounselorLogsGrid = ({
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
                                             {log.bunk_assignments.map((assignment, index) => (
                                                 <div key={assignment.id}>
-                                                    {assignment.unit_name && `${assignment.unit_name} Unit`}
+                                                    {assignment.unit_name && `${assignment.unit_name}`}
                                                     {assignment.cabin_name && ` • ${assignment.cabin_name}`}
                                                 </div>
                                             ))}
@@ -178,12 +190,7 @@ const CounselorLogsGrid = ({
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     {viewLogDetails ? (
-                                        <button
-                                            onClick={() => viewLogDetails(log)}
-                                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                        >
-                                            <Eye className="w-4 h-4" />
-                                        </button>
+                                        <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                                     ) : (
                                         <span className="text-gray-400">-</span>
                                     )}

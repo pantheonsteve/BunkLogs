@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, FileText, Plus, User, Clock, CheckCircle, Eye, Table } from 'lucide-react';
+import { Calendar, FileText, Plus, User, Clock, CheckCircle, Eye } from 'lucide-react';
 
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
 import SingleDatePicker from '../components/ui/SingleDatePicker';
 import CounselorLogFormModal from '../components/modals/CounselorLogFormModal';
 import CounselorLogForm from '../components/form/CounselorLogForm';
+import CounselorReflectionsGrid from '../components/CounselorReflectionsGrid';
 import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 
@@ -28,7 +29,6 @@ function CounselorDashboard() {
     today.setHours(12, 0, 0, 0);
     return today;
   });
-  const [showTableView, setShowTableView] = useState(false);
 
   // Debug modal state changes
   useEffect(() => {
@@ -184,21 +184,6 @@ function CounselorDashboard() {
     setSelectedLogForView(null);
   };
 
-  // Helper function to strip HTML tags for table display
-  const stripHtml = (html) => {
-    if (!html) return '';
-    const tmp = document.createElement("DIV");
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || "";
-  };
-
-  // Helper function to truncate text
-  const truncateText = (text, maxLength = 50) => {
-    if (!text) return '';
-    const stripped = stripHtml(text);
-    return stripped.length > maxLength ? stripped.substring(0, maxLength) + '...' : stripped;
-  };
-
   // Score color coding (matching bunk logs color scheme)
   const getScoreColor = (score) => {
     if (!score) return 'bg-gray-100 text-gray-800';
@@ -211,22 +196,6 @@ function CounselorDashboard() {
       case 4: return 'bg-[#90d258] text-gray-900';
       case 5: return 'bg-[#18d128] text-white';
       default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Format date to human readable format (e.g., "Mon June 23, 2025")
-  const formatHumanDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch (error) {
-      return dateString;
     }
   };
 
@@ -456,189 +425,13 @@ function CounselorDashboard() {
                 )}
               </div>
 
-              {/* Table View Toggle and Recent Logs */}
-              <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-                    All Reflections
-                  </h2>
-                  <button
-                    onClick={() => setShowTableView(!showTableView)}
-                    className="flex items-center space-x-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                  >
-                    <Table className="w-4 h-4" />
-                    <span className="text-sm">{showTableView ? 'Show Cards' : 'Show Table'}</span>
-                  </button>
-                </div>
-                
-                {loading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="animate-pulse">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : error ? (
-                  <div className="text-red-500 dark:text-red-400 text-sm">
-                    {error}
-                  </div>
-                ) : counselorLogs.length === 0 ? (
-                  <div className="text-gray-500 dark:text-gray-400 text-sm">
-                    No reflections recorded yet.
-                  </div>
-                ) : showTableView ? (
-                  // Table View
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-700">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Date
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Day Off
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Day Quality
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Support Level
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Support Needed
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Elaboration
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Values Reflection
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        {counselorLogs.map(log => (
-                          <tr 
-                            key={log.id} 
-                            className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                            onClick={() => handleViewLogClick(log)}
-                          >
-                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                              {formatHumanDate(log.date)}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {log.day_off ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                  Yes
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">No</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {log.day_off ? (
-                                <span className="text-gray-400">-</span>
-                              ) : (
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getScoreColor(log.day_quality_score)}`}>
-                                  {log.day_quality_score}/5
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {log.day_off ? (
-                                <span className="text-gray-400">-</span>
-                              ) : (
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getScoreColor(log.support_level_score)}`}>
-                                  {log.support_level_score}/5
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {log.staff_care_support_needed ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                  Yes
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">No</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-                              <div className="truncate" title={stripHtml(log.elaboration)}>
-                                {truncateText(log.elaboration, 40)}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-                              <div className="truncate" title={stripHtml(log.values_reflection)}>
-                                {truncateText(log.values_reflection, 40)}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewLogClick(log);
-                                }}
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  // Card View
-                  <div className="space-y-3">
-                    {counselorLogs.map(log => (
-                      <div
-                        key={log.id}
-                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                        onClick={() => handleViewLogClick(log)}
-                      >
-                        <div className="flex justify-between items-start mb-1">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatHumanDate(log.date)}
-                          </div>
-                          <div className="flex space-x-1">
-                            {!log.day_off && (
-                              <>
-                                <span className={`text-xs px-2 py-1 rounded ${getScoreColor(log.day_quality_score)}`}>
-                                  {log.day_quality_score}/5
-                                </span>
-                                <span className={`text-xs px-2 py-1 rounded ${getScoreColor(log.support_level_score)}`}>
-                                  {log.support_level_score}/5
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {log.day_off && (
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">
-                            Day off
-                          </div>
-                        )}
-                        
-                        {log.staff_care_support_needed && (
-                          <div className="text-xs text-yellow-600 dark:text-yellow-400 mb-1">
-                            Support requested
-                          </div>
-                        )}
-                        
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(log.created_at).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* Counselor Reflections Table */}
+              <CounselorReflectionsGrid
+                counselorLogs={counselorLogs}
+                loading={loading}
+                error={error}
+                onViewLogClick={handleViewLogClick}
+              />
             </div>
           </div>
         </main>
