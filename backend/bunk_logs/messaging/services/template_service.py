@@ -37,8 +37,8 @@ class EmailTemplateService:
         # Add additional context for the template
         context = {
             **report_data,
-            'site_name': getattr(settings, 'SITE_NAME', 'BunkLogs'),
-            'site_url': getattr(settings, 'SITE_URL', 'https://bunklogs.com'),
+            'site_name': getattr(settings, 'SITE_NAME', 'CLC BunkLogs'),
+            'site_url': getattr(settings, 'SITE_URL', 'https://clc.bunklogs.net'),
         }
         
         # Render templates
