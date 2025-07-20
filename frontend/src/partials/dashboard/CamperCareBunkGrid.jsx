@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
 import CamperCareBunkLogItem from '../../components/bunklogs/CamperCareBunkLogItem';
 import CamperCareFilters from '../../components/CamperCareFilters';
-import { Loader2, AlertTriangle, Users, Home, Heart, UserCheck, Clock, Baby, AlertCircle, UserX, Filter } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, Home, Heart, UserCheck, Clock, Baby, AlertCircle, UserX, Filter, Search, X } from 'lucide-react';
 import GenericAvatar from '../../images/avatar-generic.png';
 
 function CamperCareBunkGrid({ selectedDate }) {
@@ -12,14 +12,190 @@ function CamperCareBunkGrid({ selectedDate }) {
   const [loading, setLoading] = useState(true);
   const [unitData, setUnitData] = useState(null);
   const [allCampers, setAllCampers] = useState([]);
+  const [filteredCampers, setFilteredCampers] = useState([]);
   const [campersNeedingAttention, setCampersNeedingAttention] = useState([]);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'logs', 'attention'
   const [filters, setFilters] = useState({});
   const [showFilters, setShowFilters] = useState(false);
   const { user, isAuthenticated } = useAuth();
 
+  // Search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const searchInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
   // Memoize filters to prevent unnecessary re-renders
   const memoizedFilters = useMemo(() => filters, [JSON.stringify(filters)]);
+
+  // Apply search and filters when campers or filters change
+  useEffect(() => {
+    let filtered = [...allCampers];
+
+    // Apply search filter first if there's a search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(camper => 
+        camper.first_name.toLowerCase().includes(query) ||
+        camper.last_name.toLowerCase().includes(query) ||
+        `${camper.first_name} ${camper.last_name}`.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply other filters (this logic would depend on what filters are available in CamperCareFilters)
+    // For now, I'll add basic filtering structure that can be expanded
+    Object.entries(memoizedFilters).forEach(([key, value]) => {
+      if (value !== '' && value != null && value !== undefined) {
+        // Add specific filter logic here based on the filter keys
+        // This would need to be customized based on what filters are available
+      }
+    });
+
+    setFilteredCampers(filtered);
+
+    // Update campers needing attention based on filtered results
+    const needingAttention = filtered.filter(camper => {
+      if (camper.bunk_log) {
+        return camper.bunk_log.request_camper_care_help ||
+               camper.bunk_log.request_unit_head_help ||
+               camper.bunk_log.not_on_camp;
+      }
+      return false;
+    });
+    setCampersNeedingAttention(needingAttention);
+  }, [allCampers, memoizedFilters, searchQuery]);
+
+  // Generate search suggestions based on input
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const suggestions = [];
+    const seen = new Set();
+
+    // Get unique camper names from all campers
+    allCampers.forEach(camper => {
+      const fullName = `${camper.first_name} ${camper.last_name}`;
+      const key = `${camper.first_name.toLowerCase()}_${camper.last_name.toLowerCase()}`;
+      
+      if (!seen.has(key) && (
+        camper.first_name.toLowerCase().includes(query) ||
+        camper.last_name.toLowerCase().includes(query) ||
+        fullName.toLowerCase().includes(query)
+      )) {
+        suggestions.push({
+          fullName,
+          firstName: camper.first_name,
+          lastName: camper.last_name,
+          camperId: camper.id,
+          bunkName: camper.bunk_name,
+          unitName: camper.unit_name
+        });
+        seen.add(key);
+      }
+    });
+
+    // Sort suggestions by relevance (exact match first, then starts with, then contains)
+    suggestions.sort((a, b) => {
+      const aFull = a.fullName.toLowerCase();
+      const bFull = b.fullName.toLowerCase();
+      const aFirst = a.firstName.toLowerCase();
+      const bFirst = b.firstName.toLowerCase();
+      const aLast = a.lastName.toLowerCase();
+      const bLast = b.lastName.toLowerCase();
+      
+      // Exact matches first
+      if (aFull === query) return -1;
+      if (bFull === query) return 1;
+      if (aFirst === query || aLast === query) return -1;
+      if (bFirst === query || bLast === query) return 1;
+      
+      // Starts with matches
+      if (aFull.startsWith(query) && !bFull.startsWith(query)) return -1;
+      if (bFull.startsWith(query) && !aFull.startsWith(query)) return 1;
+      if (aFirst.startsWith(query) && !bFirst.startsWith(query)) return -1;
+      if (bFirst.startsWith(query) && !aFirst.startsWith(query)) return 1;
+      if (aLast.startsWith(query) && !bLast.startsWith(query)) return -1;
+      if (bLast.startsWith(query) && !aLast.startsWith(query)) return 1;
+      
+      // Alphabetical order for remaining
+      return aFull.localeCompare(bFull);
+    });
+
+    setSearchSuggestions(suggestions.slice(0, 10)); // Limit to 10 suggestions
+    setShowSuggestions(suggestions.length > 0);
+    setSelectedSuggestionIndex(-1);
+  }, [searchQuery, allCampers]);
+
+  // Handle search input changes
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
+  // Handle search input key events
+  const handleSearchKeyDown = (e) => {
+    if (!showSuggestions || searchSuggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev < searchSuggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : searchSuggestions.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          selectSuggestion(searchSuggestions[selectedSuggestionIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        setSelectedSuggestionIndex(-1);
+        break;
+    }
+  };
+
+  // Select a suggestion
+  const selectSuggestion = (suggestion) => {
+    setSearchQuery(suggestion.fullName);
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+    searchInputRef.current?.blur();
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+  };
+
+  // Handle clicking outside search suggestions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
+          searchInputRef.current && !searchInputRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+        setSelectedSuggestionIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Handle filter changes - MUST be declared before any conditional returns
   const handleFiltersChange = useCallback((newFilters) => {
@@ -113,6 +289,7 @@ function CamperCareBunkGrid({ selectedDate }) {
           });
           
           setAllCampers(allCampersArray);
+          setFilteredCampers(allCampersArray); // Initialize filtered campers
           setCampersNeedingAttention(campersNeedingAttentionArray);
           
           // If there are multiple units, combine their bunks
@@ -136,6 +313,7 @@ function CamperCareBunkGrid({ selectedDate }) {
         } else {
           setUnitData({ name: 'No Units', bunks: [] });
           setAllCampers([]);
+          setFilteredCampers([]); // Initialize filtered campers
           setCampersNeedingAttention([]);
         }
         setError(null);
@@ -177,19 +355,19 @@ function CamperCareBunkGrid({ selectedDate }) {
   };
 
   const getCampersWithLogs = () => {
-    return allCampers.filter(camper => camper.bunk_log);
+    return filteredCampers.filter(camper => camper.bunk_log);
   };
 
   const getCampersNotOnCamp = () => {
-    return allCampers.filter(camper => camper.bunk_log?.not_on_camp);
+    return filteredCampers.filter(camper => camper.bunk_log?.not_on_camp);
   };
 
   const getCampersRequestingCamperCare = () => {
-    return allCampers.filter(camper => camper.bunk_log?.request_camper_care_help);
+    return filteredCampers.filter(camper => camper.bunk_log?.request_camper_care_help);
   };
 
   const getCampersRequestingUnitHeadHelp = () => {
-    return allCampers.filter(camper => camper.bunk_log?.request_unit_head_help);
+    return filteredCampers.filter(camper => camper.bunk_log?.request_unit_head_help);
   };
 
   // Loading state
@@ -276,6 +454,73 @@ function CamperCareBunkGrid({ selectedDate }) {
         </div>
       </div>
 
+      {/* Search Bar */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <div className="relative">
+          <div className="flex items-center">
+            <div className="relative flex-1 max-w-md">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search campers by name..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => searchQuery && setShowSuggestions(searchSuggestions.length > 0)}
+                className="block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+              />
+              {searchQuery && (
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                  <button
+                    onClick={clearSearch}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            {searchQuery && (
+              <div className="ml-4 text-sm text-gray-600 dark:text-gray-400">
+                {filteredCampers.length} result{filteredCampers.length !== 1 ? 's' : ''} found
+              </div>
+            )}
+          </div>
+
+          {/* Search Suggestions Dropdown */}
+          {showSuggestions && searchSuggestions.length > 0 && (
+            <div 
+              ref={suggestionsRef}
+              className="absolute z-10 mt-1 w-full max-w-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+            >
+              {searchSuggestions.map((suggestion, index) => (
+                <div
+                  key={`${suggestion.camperId}-${suggestion.fullName}`}
+                  onClick={() => selectSuggestion(suggestion)}
+                  className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-b-0 ${
+                    index === selectedSuggestionIndex
+                      ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-900 dark:text-rose-100'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">{suggestion.fullName}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {suggestion.bunkName} • {suggestion.unitName} • ID: {suggestion.camperId}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Filters Panel */}
       <CamperCareFilters
         onFiltersChange={handleFiltersChange}
@@ -358,9 +603,12 @@ function CamperCareBunkGrid({ selectedDate }) {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {allCampers.length}
+                {filteredCampers.length}
               </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Campers</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {searchQuery ? 'Filtered' : 'Total'} Campers
+                {searchQuery && ` (${allCampers.length} total)`}
+              </p>
             </div>
           </div>
         </div>
@@ -437,6 +685,7 @@ function CamperCareBunkGrid({ selectedDate }) {
                       camper_first_name={camper.first_name}
                       camper_last_name={camper.last_name}
                       bunk_name={camper.bunk_name}
+                      unit_name={camper.unit_name}
                       date={camper.bunk_log.date}
                       social_score={camper.bunk_log.social_score}
                       behavior_score={camper.bunk_log.behavior_score}

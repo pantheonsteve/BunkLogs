@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, Users, FileText, Eye, ChevronLeft, ChevronRight, Download, Filter, X } from 'lucide-react';
+import { Calendar, Users, FileText, Eye, ChevronLeft, ChevronRight, Download, Filter, X, Search } from 'lucide-react';
 
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
@@ -29,6 +29,14 @@ function AdminBunkLogs() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [viewingDetails, setViewingDetails] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const searchInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -114,6 +122,16 @@ function AdminBunkLogs() {
   useEffect(() => {
     let filtered = [...bunkLogs];
 
+    // Apply search filter first if there's a search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(log => 
+        log.camper_first_name.toLowerCase().includes(query) ||
+        log.camper_last_name.toLowerCase().includes(query) ||
+        `${log.camper_first_name} ${log.camper_last_name}`.toLowerCase().includes(query)
+      );
+    }
+
     if (filters.bunk) {
       filtered = filtered.filter(log => 
         log.bunk_name.toLowerCase().includes(filters.bunk.toLowerCase())
@@ -154,7 +172,136 @@ function AdminBunkLogs() {
     }
 
     setFilteredLogs(filtered);
-  }, [bunkLogs, filters]);
+  }, [bunkLogs, filters, searchQuery]);
+
+  // Generate search suggestions based on input
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const suggestions = [];
+    const seen = new Set();
+
+    // Get unique camper names from bunk logs
+    bunkLogs.forEach(log => {
+      const fullName = `${log.camper_first_name} ${log.camper_last_name}`;
+      const key = `${log.camper_first_name.toLowerCase()}_${log.camper_last_name.toLowerCase()}`;
+      
+      if (!seen.has(key) && (
+        log.camper_first_name.toLowerCase().includes(query) ||
+        log.camper_last_name.toLowerCase().includes(query) ||
+        fullName.toLowerCase().includes(query)
+      )) {
+        suggestions.push({
+          fullName,
+          firstName: log.camper_first_name,
+          lastName: log.camper_last_name,
+          camperId: log.camper_id,
+          bunkName: log.bunk_name
+        });
+        seen.add(key);
+      }
+    });
+
+    // Sort suggestions by relevance (exact match first, then starts with, then contains)
+    suggestions.sort((a, b) => {
+      const aFull = a.fullName.toLowerCase();
+      const bFull = b.fullName.toLowerCase();
+      const aFirst = a.firstName.toLowerCase();
+      const bFirst = b.firstName.toLowerCase();
+      const aLast = a.lastName.toLowerCase();
+      const bLast = b.lastName.toLowerCase();
+      
+      // Exact matches first
+      if (aFull === query) return -1;
+      if (bFull === query) return 1;
+      if (aFirst === query || aLast === query) return -1;
+      if (bFirst === query || bLast === query) return 1;
+      
+      // Starts with matches
+      if (aFull.startsWith(query) && !bFull.startsWith(query)) return -1;
+      if (bFull.startsWith(query) && !aFull.startsWith(query)) return 1;
+      if (aFirst.startsWith(query) && !bFirst.startsWith(query)) return -1;
+      if (bFirst.startsWith(query) && !aFirst.startsWith(query)) return 1;
+      if (aLast.startsWith(query) && !bLast.startsWith(query)) return -1;
+      if (bLast.startsWith(query) && !aLast.startsWith(query)) return 1;
+      
+      // Alphabetical order for remaining
+      return aFull.localeCompare(bFull);
+    });
+
+    setSearchSuggestions(suggestions.slice(0, 10)); // Limit to 10 suggestions
+    setShowSuggestions(suggestions.length > 0);
+    setSelectedSuggestionIndex(-1);
+  }, [searchQuery, bunkLogs]);
+
+  // Handle search input changes
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
+  // Handle search input key events
+  const handleSearchKeyDown = (e) => {
+    if (!showSuggestions || searchSuggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev < searchSuggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : searchSuggestions.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          selectSuggestion(searchSuggestions[selectedSuggestionIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        setSelectedSuggestionIndex(-1);
+        break;
+    }
+  };
+
+  // Select a suggestion
+  const selectSuggestion = (suggestion) => {
+    setSearchQuery(suggestion.fullName);
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+    searchInputRef.current?.blur();
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+  };
+
+  // Handle clicking outside search suggestions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
+          searchInputRef.current && !searchInputRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+        setSelectedSuggestionIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Handle date change
   const handleDateChange = (newDate) => {
@@ -192,6 +339,7 @@ function AdminBunkLogs() {
       participationScore: '',
       behavioralScore: ''
     });
+    clearSearch();
   };
 
   // Export to CSV
@@ -406,6 +554,73 @@ function AdminBunkLogs() {
                   <Download className="w-4 h-4 mr-2" />
                   Export CSV
                 </button>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+              <div className="relative">
+                <div className="flex items-center">
+                  <div className="relative flex-1 max-w-md">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Search campers by name..."
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                      onKeyDown={handleSearchKeyDown}
+                      onFocus={() => searchQuery && setShowSuggestions(searchSuggestions.length > 0)}
+                      className="block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {searchQuery && (
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                        <button
+                          onClick={clearSearch}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {searchQuery && (
+                    <div className="ml-4 text-sm text-gray-600 dark:text-gray-400">
+                      {filteredLogs.length} result{filteredLogs.length !== 1 ? 's' : ''} found
+                    </div>
+                  )}
+                </div>
+
+                {/* Search Suggestions Dropdown */}
+                {showSuggestions && searchSuggestions.length > 0 && (
+                  <div 
+                    ref={suggestionsRef}
+                    className="absolute z-10 mt-1 w-full max-w-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                  >
+                    {searchSuggestions.map((suggestion, index) => (
+                      <div
+                        key={`${suggestion.camperId}-${suggestion.fullName}`}
+                        onClick={() => selectSuggestion(suggestion)}
+                        className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-b-0 ${
+                          index === selectedSuggestionIndex
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className="font-medium">{suggestion.fullName}</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {suggestion.bunkName} • ID: {suggestion.camperId}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

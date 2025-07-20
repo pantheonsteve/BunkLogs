@@ -179,12 +179,12 @@ export const getDateRangeForUser = (user) => {
   const day = String(today.getDate()).padStart(2, '0');
   const todayStr = `${year}-${month}-${day}`;
   
-  // For admin users, allow a broader range
-  if (user?.role === 'Admin' || user?.is_staff === true || user?.is_superuser === true) {
+  // For admin users and camper care team, allow a broader range
+  if (user?.role === 'Admin' || user?.role === 'Camper Care' || user?.is_staff === true || user?.is_superuser === true) {
     const startOfYearStr = `${year}-01-01`;
     return {
       start_date: startOfYearStr,
-      end_date: todayStr
+      end_date: null // Allow all dates including future for full access
     };
   }
   

@@ -126,13 +126,13 @@ export default function SingleDatePicker({ className, date, setDate }) {
           return;
         }
 
-        // Check if user is admin - if so, set a reasonable date range without API call
-        if (user?.role === 'Admin' || user?.is_staff === true || user?.is_superuser === true) {
-          console.log('User is admin, setting broad date range without API call');
+        // Check if user is admin or camper care - if so, set a reasonable date range without API call
+        if (user?.role === 'Admin' || user?.role === 'Camper Care' || user?.is_staff === true || user?.is_superuser === true) {
+          console.log('User is admin or camper care, setting broad date range without API call');
           const adminRange = getDateRangeForUser(user);
           setAllowedRange(adminRange);
           
-          console.log('Set admin date range:', adminRange);
+          console.log('Set admin/camper care date range:', adminRange);
           return;
         }
 
@@ -274,6 +274,12 @@ export default function SingleDatePicker({ className, date, setDate }) {
         today: `${todayYear}-${todayMonth + 1}-${todayDay}`,
         isFuture: false
       });
+      return false;
+    }
+    
+    // For camper care team members, allow all dates (like admins)
+    if (user?.role === 'Camper Care') {
+      console.log('✅ Camper Care role - allowing all dates');
       return false;
     }
     
