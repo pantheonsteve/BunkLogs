@@ -110,17 +110,9 @@ function BunkLogsTableViewCard({ bunkData }) {
                     <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
                       <div className="font-semibold text-center">Participation</div>
                     </th>
-                    {/* Column width: 3/12 */}
-                    <th className="w-64 p-2 border-b border-gray-200 dark:border-gray-700">
-                      <div className="font-semibold text-left">Camper Care Help</div>
-                    </th>
-                    {/* Column width: 2/12 */}
-                    <th className="w-64 p-2 border-b border-gray-200 dark:border-gray-700">
-                      <div className="font-semibold text-center">Unit Head Help</div>
-                    </th>
-                    {/* Expand button column */}
-                    <th className="w-px p-2 border-b border-gray-200 dark:border-gray-700">
-                      <div className="font-semibold text-center"></div>
+                    {/* Description column - wider now */}
+                    <th className="p-2 border-b border-gray-200 dark:border-gray-700" style={{ minWidth: '400px' }}>
+                      <div className="font-semibold text-left">Description</div>
                     </th>
                   </tr>
                 </thead>
@@ -158,7 +150,7 @@ function BunkLogsTableViewCard({ bunkData }) {
                 ) : (
                   <tbody className="text-sm font-medium divide-y divide-gray-100 dark:divide-gray-700/60">
                     <tr>
-                      <td colSpan="8" className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan="6" className="p-4 text-center text-gray-500 dark:text-gray-400">
                         {loading ? 'Loading camper logs...' : 'No camper logs found'}
                       </td>
                     </tr>

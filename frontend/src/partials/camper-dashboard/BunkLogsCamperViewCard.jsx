@@ -74,11 +74,8 @@ function BunkLogsCamperViewCard({camperData}) {
                             <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
                                 <div className="font-semibold text-left">Participation Score</div>
                             </th>
-                            <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-left">Camper Care Help</div>
-                            </th>
-                            <th className="w-2/12 p-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="font-semibold text-left">Unit Head Help</div>
+                            <th className="p-2 border-b border-gray-200 dark:border-gray-700" style={{ minWidth: '400px' }}>
+                                <div className="font-semibold text-left">Description</div>
                             </th>
                         </tr>
                     </thead>
