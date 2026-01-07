@@ -126,13 +126,20 @@ export default function SingleDatePicker({ className, date, setDate }) {
           return;
         }
 
-        // Check if user is admin or camper care - if so, set a reasonable date range without API call
-        if (user?.role === 'Admin' || user?.role === 'Camper Care' || user?.is_staff === true || user?.is_superuser === true) {
-          console.log('User is admin or camper care, setting broad date range without API call');
+        // Admin users should have unrestricted access to all dates
+        if (user?.role === 'Admin') {
+          console.log('Admin user detected - allowing all dates');
+          setAllowedRange(null);
+          return;
+        }
+
+        // Check if user is camper care - if so, set a reasonable date range without API call
+        if (user?.role === 'Camper Care' || user?.is_staff === true || user?.is_superuser === true) {
+          console.log('User is camper care, setting broad date range without API call');
           const adminRange = getDateRangeForUser(user);
           setAllowedRange(adminRange);
-          
-          console.log('Set admin/camper care date range:', adminRange);
+
+          console.log('Set camper care date range:', adminRange);
           return;
         }
 
