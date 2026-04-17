@@ -3,10 +3,12 @@
 import os
 import sys
 from pathlib import Path
-from ddtrace import patch_all
 
-# Patch all supported libraries for distributed tracing
-patch_all()
+try:
+    from ddtrace import patch_all
+    patch_all()
+except ImportError:
+    pass
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")

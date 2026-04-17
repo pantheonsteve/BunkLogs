@@ -56,11 +56,10 @@ services:
       - key: MAILGUN_FROM_EMAIL
         fromSecret: MAILGUN_FROM_EMAIL
 
-databases:
-  - name: bunklogs-db
-    plan: starter  # or higher plan as needed
-
-services:
   - type: redis
     name: bunklogs-redis
-    plan: starter  # for caching and sessions
+    plan: starter
+
+databases:
+  - name: bunklogs-db
+    plan: starter
