@@ -59,14 +59,15 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements/local.txt
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev postgresql-server-dev-all
-
       - name: Install dependencies
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements/local.txt
+          # Use pre-built binary wheel for psycopg in CI to avoid needing
+          # PostgreSQL server-dev headers to compile the C extension.
+          sed 's/psycopg\[c\]/psycopg[binary]/g' requirements/production.txt > /tmp/production_ci.txt
+          sed 's/psycopg\[c\]/psycopg[binary]/g; s|-r production.txt|-r /tmp/production_ci.txt|' requirements/local.txt > /tmp/local_ci.txt
+          pip install -r /tmp/local_ci.txt
 
       - name: Lint with ruff
         working-directory: backend
