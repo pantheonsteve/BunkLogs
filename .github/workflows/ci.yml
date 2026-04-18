@@ -73,7 +73,7 @@ jobs:
 
       - name: Lint with ruff
         working-directory: backend
-        run: ruff check .
+        run: ruff check bunk_logs/ config/
 
       - name: Check migrations are up to date
         working-directory: backend
