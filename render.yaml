@@ -1,7 +1,13 @@
+previews:
+  generation: automatic
+  expireAfterDays: 7
+
 services:
   - type: web
     name: bunklogs-backend
     runtime: python3
+    previews:
+      generation: automatic
     buildCommand: "./build.sh"
     startCommand: "gunicorn --config gunicorn.conf.py config.wsgi:application"
     healthCheckPath: "/health/"
@@ -63,3 +69,4 @@ services:
 databases:
   - name: bunklogs-db
     plan: starter
+    previewPlan: free

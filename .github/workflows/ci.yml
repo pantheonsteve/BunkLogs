@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest + ruff)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bunk_logs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/bunk_logs
+      REDIS_URL: redis://localhost:6379/0
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SECRET_KEY: ci-test-secret-key-not-used-anywhere-else
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      DJANGO_ADMIN_URL: admin/
+      MAILGUN_API_KEY: dummy
+      MAILGUN_DOMAIN: dummy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements/local.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/local.txt
+
+      - name: Lint with ruff
+        working-directory: backend
+        run: ruff check .
+
+      - name: Check migrations are up to date
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run migrations
+        working-directory: backend
+        run: python manage.py migrate --noinput
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest -v
+
+  frontend:
+    name: Frontend (vitest + build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build
+        env:
+          VITE_API_URL: http://localhost:8000
+          VITE_GOOGLE_CLIENT_ID: ci-placeholder
+        run: npm run build

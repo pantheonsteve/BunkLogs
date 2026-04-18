@@ -123,6 +123,11 @@ Thumbs.db
 
 # Project specific
 backend/.env
+backend/.envs/**/.django
+backend/.envs/**/.postgres
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
 backend/github-actions-key.json
 backend/staticfiles/
 backend/media/
