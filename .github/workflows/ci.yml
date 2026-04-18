@@ -65,7 +65,9 @@ jobs:
           python -m pip install --upgrade pip
           # Use pre-built binary wheel for psycopg in CI to avoid needing
           # PostgreSQL server-dev headers to compile the C extension.
-          sed 's/psycopg\[c\]/psycopg[binary]/g' requirements/production.txt > /tmp/production_ci.txt
+          # Must rewrite all three files so relative -r references resolve correctly.
+          cp requirements/base.txt /tmp/base.txt
+          sed 's/psycopg\[c\]/psycopg[binary]/g; s|-r base.txt|-r /tmp/base.txt|' requirements/production.txt > /tmp/production_ci.txt
           sed 's/psycopg\[c\]/psycopg[binary]/g; s|-r production.txt|-r /tmp/production_ci.txt|' requirements/local.txt > /tmp/local_ci.txt
           pip install -r /tmp/local_ci.txt
 
