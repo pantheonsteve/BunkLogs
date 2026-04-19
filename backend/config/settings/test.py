@@ -32,8 +32,17 @@ TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 
 # STATIC FILES
 # ------------------------------------------------------------------------------
-# Use plain storage in tests — no collectstatic required.
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+# Use plain storage in tests — no collectstatic required, avoids missing
+# staticfiles manifest errors. Must override STORAGES (not the deprecated
+# STATICFILES_STORAGE) since base.py already uses STORAGES.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 # ALLAUTH
 # ------------------------------------------------------------------------------
