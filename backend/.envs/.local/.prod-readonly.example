@@ -1,0 +1,17 @@
+# backend/.envs/.local/.prod-readonly
+#
+# Template for the credentials used by scripts/sync-prod-db.sh.
+# Copy this file to .prod-readonly (no extension) in the same directory and
+# fill in the real values. The real file is gitignored.
+#
+# Use a DEDICATED READ-ONLY Postgres role on Render -- never the app's
+# owner role. See docs/dev-data.md for the one-time SQL setup.
+
+# Full libpq connection string for the read-only role.
+# Render exposes this as the "External Database URL" (for the role you create).
+# Format:
+#   postgresql://USER:PASSWORD@HOST:PORT/DBNAME
+#
+# Example:
+#   PROD_READONLY_DATABASE_URL=postgresql://bunklogs_readonly:CHANGEME@dpg-xxxx.virginia-postgres.render.com:5432/bunk_logs
+PROD_READONLY_DATABASE_URL=
