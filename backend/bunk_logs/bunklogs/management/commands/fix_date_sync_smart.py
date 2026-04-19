@@ -161,9 +161,9 @@ class Command(BaseCommand):
 
                 if dry_run:
                     self.stdout.write(f"  Conflict for {camper_name} on {target_date}:")
-                    self.stdout.write(f"    KEEP: ID {keeper['id']} (score: {self.calculate_record_score(keeper['log']):.1f}, created {keeper['created_at'].strftime('%Y-%m-%d %H:%M')})")
+                    self.stdout.write(f"    KEEP: ID {keeper['id']} (score: {self.calculate_record_score(keeper['log']):.1f}, created {keeper['created_at'].strftime('%Y-%m-%d %H:%M')})")  # noqa: E501
                     for record in to_remove:
-                        self.stdout.write(f"    DELETE: ID {record['id']} (score: {self.calculate_record_score(record['log']):.1f}, created {record['created_at'].strftime('%Y-%m-%d %H:%M')})")
+                        self.stdout.write(f"    DELETE: ID {record['id']} (score: {self.calculate_record_score(record['log']):.1f}, created {record['created_at'].strftime('%Y-%m-%d %H:%M')})")  # noqa: E501
                 else:
                     try:
                         with transaction.atomic():

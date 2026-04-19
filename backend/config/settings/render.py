@@ -4,7 +4,7 @@ Render.com production settings for BunkLogs backend.
 This file contains settings specifically for deployment on Render.com.
 """
 
-from .base import *  # noqa
+from .base import *
 from .base import env
 
 # GENERAL
@@ -28,9 +28,9 @@ ALLOWED_HOSTS = env.list(
 
 # DATABASES
 # ------------------------------------------------------------------------------
-DATABASES["default"] = env.db("DATABASE_URL")  # noqa: F405
-DATABASES["default"]["ATOMIC_REQUESTS"] = True  # noqa: F405
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)  # noqa: F405
+DATABASES["default"] = env.db("DATABASE_URL")
+DATABASES["default"]["ATOMIC_REQUESTS"] = True
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -280,7 +280,7 @@ if os.getenv("DD_TRACE_ENABLED", "false").lower() == "true":
                 "style": "{",
             },
             "datadog": {
-                "format": "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] %(levelname)s %(asctime)s %(module)s %(message)s",
+                "format": "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] %(levelname)s %(asctime)s %(module)s %(message)s",  # noqa: E501
             },
         },
         "handlers": {

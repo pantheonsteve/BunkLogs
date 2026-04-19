@@ -49,8 +49,8 @@ class TestDataAdminMixin:
         """Add custom actions for test data management."""
         actions = super().get_actions(request)
         # Manually add the actions from the mixin - use the class methods, not self methods
-        actions["mark_as_test_data"] = (TestDataAdminMixin.mark_as_test_data, "mark_as_test_data", TestDataAdminMixin.mark_as_test_data.short_description)
-        actions["mark_as_production_data"] = (TestDataAdminMixin.mark_as_production_data, "mark_as_production_data", TestDataAdminMixin.mark_as_production_data.short_description)
+        actions["mark_as_test_data"] = (TestDataAdminMixin.mark_as_test_data, "mark_as_test_data", TestDataAdminMixin.mark_as_test_data.short_description)  # noqa: E501
+        actions["mark_as_production_data"] = (TestDataAdminMixin.mark_as_production_data, "mark_as_production_data", TestDataAdminMixin.mark_as_production_data.short_description)  # noqa: E501
         actions["delete_test_data"] = (TestDataAdminMixin.delete_test_data, "delete_test_data", TestDataAdminMixin.delete_test_data.short_description)
         return actions
 

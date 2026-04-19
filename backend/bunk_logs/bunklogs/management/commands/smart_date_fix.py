@@ -84,9 +84,12 @@ class Command(BaseCommand):
                     # Keep the one with the most data, or latest if tied
                     def score_record(r):
                         score = 0
-                        if r.present is not None: score += 1
-                        if r.behavior: score += 1
-                        if r.notes: score += 1
+                        if r.present is not None:
+                            score += 1
+                        if r.behavior:
+                            score += 1
+                        if r.notes:
+                            score += 1
                         return (score, r.created_at)
 
                     keeper = max(unique_records, key=score_record)

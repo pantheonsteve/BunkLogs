@@ -3,7 +3,7 @@ Minimal admin-only settings for local development
 This bypasses AllAuth entirely for admin access
 """
 
-from .base import *  # noqa: F403
+from .base import *
 
 # Override problematic AllAuth settings completely
 INSTALLED_APPS = [app for app in INSTALLED_APPS if not app.startswith("allauth")]

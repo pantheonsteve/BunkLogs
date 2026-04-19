@@ -76,7 +76,7 @@ class Command(BaseCommand):
                         "conflicting_log": conflicting_log,
                         "conflicting_camper": conflicting_camper,
                         "description": log.description[:100] + "..." if len(log.description) > 100 else log.description,
-                        "conflicting_description": conflicting_log.description[:100] + "..." if len(conflicting_log.description) > 100 else conflicting_log.description,
+                        "conflicting_description": conflicting_log.description[:100] + "..." if len(conflicting_log.description) > 100 else conflicting_log.description,  # noqa: E501
                     })
 
         self.stdout.write(f"Found {len(potential_issues)} BunkLog records that would create duplicates")
@@ -138,7 +138,7 @@ class Command(BaseCommand):
                         "target_date": created_date,
                         "conflicting_log": conflicting_log,
                         "elaboration": log.elaboration[:100] + "..." if len(log.elaboration) > 100 else log.elaboration,
-                        "conflicting_elaboration": conflicting_log.elaboration[:100] + "..." if len(conflicting_log.elaboration) > 100 else conflicting_log.elaboration,
+                        "conflicting_elaboration": conflicting_log.elaboration[:100] + "..." if len(conflicting_log.elaboration) > 100 else conflicting_log.elaboration,  # noqa: E501
                     })
 
         self.stdout.write(f"Found {len(potential_issues)} CounselorLog records that would create duplicates")

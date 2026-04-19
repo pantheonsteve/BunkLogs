@@ -165,7 +165,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                     # Clean up the temporary file
                     temp_path.unlink(missing_ok=True)
 
-                    return redirect("admin:bunklogs_bunklog_changelist")
+                return redirect("admin:bunklogs_bunklog_changelist")
         else:
             form = BunkLogCsvImportForm()
 

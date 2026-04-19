@@ -9,7 +9,6 @@ from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.models import SocialToken
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.db.models import Q
 from django.http import Http404
 from django.http import JsonResponse
@@ -381,7 +380,8 @@ def get_user_by_email(request, email):
                 # Populate 'unit_bunks' field to match ApiUserSerializer.get_unit_bunks() format
                 unit_bunks = Bunk.objects.filter(unit=first_unit).select_related("cabin", "session", "unit")
                 unit_bunks_data = []
-                for bunk in unit_bunks:                unit_bunks_data.append({
+                for bunk in unit_bunks:
+                    unit_bunks_data.append({
                     "id": str(bunk.id),  # Convert to string for consistency
                     "name": bunk.name,   # Add missing name field - CRITICAL FIX
                     "counselors": [],  # Simplified for performance
@@ -443,7 +443,7 @@ class BunkViewSet(viewsets.ModelViewSet):
 
 @extend_schema(
     summary="Get bunk logs by date",
-    description="API view to get bunk logs info by date. The endpoint searches for all of the bunk assignments for the bunk on that date, then searches for all of the bunk logs for those assignments.",
+    description="API view to get bunk logs info by date. The endpoint searches for all of the bunk assignments for the bunk on that date, then searches for all of the bunk logs for those assignments.",  # noqa: E501
     parameters=[
         OpenApiParameter(
             name="bunk_id",
@@ -1246,58 +1246,6 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         return CounselorLog.objects.none()
 
     def perform_create(self, serializer):
-        # Remove any date from validated_data to let the model's save method handle it
-        if "date" in serializer.validated_data:
-            del serializer.validated_data["date"]
-
-        if self.request.user.role != "Counselor":
-            serializer.save()
-        else:
-            # Set the counselor automatically to the current user
-            serializer.save(counselor=self.request.user)
-
-    def perform_update(self, serializer):
-        instance = serializer.instance
-        user = self.request.user
-
-        # Admin/staff can update any log
-        if user.is_staff or user.role == "Admin":
-            serializer.save()
-            return
-
-        # Unit heads and camper care cannot update counselor logs (view-only)
-        if user.role in ["Unit Head", "Camper Care"]:
-            msg = "You can view but not edit counselor logs."
-            raise PermissionDenied(msg)
-
-        # Counselors have specific restrictions
-        if user.role == "Counselor":
-            # Check if user is the counselor who created the log
-            if instance.counselor.id != user.id:
-                msg = "You can only update your own counselor logs."
-                raise PermissionDenied(msg)
-
-            # Check if the update is happening on the same day the log was created
-            from django.utils import timezone
-            today = timezone.now().date()
-            log_created_date = instance.created_at.date() if instance.created_at else instance.date
-
-            if today != log_created_date:
-                msg = "You can only update counselor logs on the day they were created."
-                raise PermissionDenied(msg)
-
-            # Don't allow changing the counselor field during update
-            if "counselor" in serializer.validated_data:
-                serializer.validated_data["counselor"] = instance.counselor
-
-            serializer.save()
-            return
-
-        # Default: deny access
-        msg = "You are not authorized to update this counselor log."
-        raise PermissionDenied(msg)
-
-    def perform_create(self, serializer):
         # Ensure the date is always a date object in the server's timezone
         import datetime
         validated_data = serializer.validated_data
@@ -1896,7 +1844,7 @@ class FixSocialAppsView(APIView):
 
     @extend_schema(
         summary="Fix social authentication apps",
-        description="Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth. GET: List all SocialApp entries for Google. POST: Keep only the most recent app and delete duplicates",
+        description="Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth. GET: List all SocialApp entries for Google. POST: Keep only the most recent app and delete duplicates",  # noqa: E501
         methods=["GET", "POST"],
         responses={
             200: OpenApiResponse(
@@ -1929,7 +1877,7 @@ class FixSocialAppsView(APIView):
 
     @extend_schema(
         summary="Fix social authentication apps",
-        description="Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth. POST: Keep only the most recent app and delete duplicates",
+        description="Diagnostic endpoint to fix MultipleObjectsReturned error with Google OAuth. POST: Keep only the most recent app and delete duplicates",  # noqa: E501
         responses={
             200: OpenApiResponse(
                 response=SocialAppDiagnosticResponseSerializer,
@@ -2349,7 +2297,7 @@ class BunkLogsAllByDateViewSet(APIView):
 
 @extend_schema(
     summary="Get all bunk logs by date",
-    description="API view to get all bunk logs for a specific date. Returns comprehensive information including camper details, bunk assignment, scores, reporting counselor, and support requests.",
+    description="API view to get all bunk logs for a specific date. Returns comprehensive information including camper details, bunk assignment, scores, reporting counselor, and support requests.",  # noqa: E501
     parameters=[
         OpenApiParameter(
             name="date",
@@ -2371,7 +2319,7 @@ class BunkLogsAllByDateViewSet(APIView):
         ),
     },
 )
-class BunkLogsAllByDateViewSet(APIView):
+class BunkLogsAllByDateViewSet(APIView):  # noqa: F811
     """
     API view to get all bunk logs for a specific date.
     The endpoint will be '/api/v1/bunklogs/all/<str:date>/''
@@ -2505,7 +2453,7 @@ class UnitStaffAssignmentCSVImportView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
-    def post(self, request, format=None):
+    def post(self, request, fmt=None):
         if not request.user.is_staff:
             return Response({"error": "Only staff can import assignments."}, status=403)
         file_obj = request.FILES.get("file")

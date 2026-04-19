@@ -429,7 +429,7 @@ class CounselorLogSerializer(serializers.ModelSerializer):
 
                 if log_date > today:
                     raise serializers.ValidationError({
-                        "date": f"Counselors cannot create logs for future dates. Today is {today}, but you're trying to create a log for {log_date}.",
+                        "date": f"Counselors cannot create logs for future dates. Today is {today}, but you're trying to create a log for {log_date}.",  # noqa: E501
                     })
 
         # Check for duplicate counselor logs (same counselor on same date)

@@ -6,5 +6,5 @@ User = get_user_model()
 class CustomUserDetailsSerializer(UserDetailsSerializer):
     class Meta(UserDetailsSerializer.Meta):
         model = User
-        fields = (*UserDetailsSerializer.Meta.fields, "is_staff", "is_superuser", "date_joined", "role", "first_name", "last_name", "username", "last_login")
+        fields = (*UserDetailsSerializer.Meta.fields, "is_staff", "is_superuser", "date_joined", "role", "first_name", "last_name", "username", "last_login")  # noqa: E501
         read_only_fields = (*UserDetailsSerializer.Meta.read_only_fields, "is_staff", "is_superuser", "date_joined", "role", "last_login")

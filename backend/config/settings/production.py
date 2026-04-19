@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 import os
 
-from .base import *  # noqa: F403
+from .base import *
 from .base import DATABASES
 from .base import INSTALLED_APPS
 from .base import REDIS_URL

@@ -13,7 +13,7 @@ os.environ.setdefault("MAILGUN_API_KEY", "dummy")
 os.environ.setdefault("MAILGUN_DOMAIN", "dummy.mailgun.org")
 os.environ.setdefault("DJANGO_ADMIN_URL", "admin/")
 
-from .production import *  # noqa: F403
+from .production import *
 
 # Override allowed hosts for Cloud Run
 ALLOWED_HOSTS = [
@@ -63,7 +63,7 @@ INSTALLED_APPS = [app for app in INSTALLED_APPS if app != "collectfasta"]
 # Disable Collectfasta by not setting any strategy
 # Remove COLLECTFASTA_STRATEGY entirely so it doesn't interfere
 if "COLLECTFASTA_STRATEGY" in globals():
-    del COLLECTFASTA_STRATEGY
+    del COLLECTFASTA_STRATEGY  # noqa: F821
 
 # Add this to the end of backend/config/settings/cloudrun.py
 

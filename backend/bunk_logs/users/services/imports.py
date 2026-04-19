@@ -70,7 +70,7 @@ def import_users_from_csv(file_path, *, dry_run=False, batch_size=25, use_fast_h
     if use_fast_hashing and not dry_run:
         original_hashers = settings.PASSWORD_HASHERS
         # Use PBKDF2 which is faster than Argon2 for bulk operations
-        settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.PBKDF2PasswordHasher", "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher", *settings.PASSWORD_HASHERS]
+        settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.PBKDF2PasswordHasher", "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher", *settings.PASSWORD_HASHERS]  # noqa: E501
 
     try:
         with file_path.open() as csv_file:

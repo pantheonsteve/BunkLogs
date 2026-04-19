@@ -69,7 +69,7 @@ class Command(BaseCommand):
         daily_orders_template, created = EmailTemplate.objects.get_or_create(
             name="daily-orders-report",
             defaults={
-                "subject_template": 'Daily Orders Report - {{ date|date:"F j, Y" }}{% if total_orders == 0 %} (No Orders){% else %} ({{ total_orders }} Orders){% endif %}',
+                "subject_template": 'Daily Orders Report - {{ date|date:"F j, Y" }}{% if total_orders == 0 %} (No Orders){% else %} ({{ total_orders }} Orders){% endif %}',  # noqa: E501
                 "html_template": """<!DOCTYPE html>
 <html>
 <head>

@@ -133,10 +133,14 @@ def import_bunk_logs_from_csv(file_path: str | Path, *, dry_run: bool = False, d
                 # Validate required fields
                 if not all([date, camper_first_name, camper_last_name, bunk_full_name]):
                     missing = []
-                    if not date: missing.append("date")
-                    if not camper_first_name: missing.append("camper_first_name")
-                    if not camper_last_name: missing.append("camper_last_name")
-                    if not bunk_full_name: missing.append("bunk")
+                    if not date:
+                        missing.append("date")
+                    if not camper_first_name:
+                        missing.append("camper_first_name")
+                    if not camper_last_name:
+                        missing.append("camper_last_name")
+                    if not bunk_full_name:
+                        missing.append("bunk")
                     msg = f"Missing required data: {', '.join(missing)}"
                     raise BunkLogImportError(msg)
 

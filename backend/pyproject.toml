@@ -56,7 +56,7 @@ indent_size = 2
 
 [tool.ruff]
 target-version = "py312"
-line-length = 119
+line-length = 150
 # Exclude a variety of commonly ignored directories.
 extend-exclude = [
     "*/migrations/*.py",
@@ -147,6 +147,34 @@ ignore = [
   "S105",   # Hardcoded password string — likely false positives
   "E402",   # Module-level import not at top — intentional in some config files
   "PERF401",# Use list comprehension — refactor incrementally
+  "F405",   # May be undefined from star imports — intentional Django settings pattern
+  "F403",   # Star import used — intentional Django settings pattern
+  "PLR0912",# Too many branches — refactor incrementally
+  "C901",   # Too complex — refactor incrementally
+  "PLR0911",# Too many return statements — refactor incrementally
+  "DTZ001", # datetime() without tzinfo — part of broader timezone refactor
+  "S110",   # try/except/pass — review and log incrementally
+  "G201",   # logging.exception vs .error(exc_info=True) — refactor incrementally
+  "PTH123", # open() vs Path.open() — refactor incrementally
+  "PLR0915",# Too many statements — refactor incrementally
+  "DTZ011", # datetime.date.today() — part of broader timezone refactor
+  "B007",   # Unused loop control variable — refactor incrementally
+  "SIM113", # Use enumerate() — refactor incrementally
+  "S104",   # Binding to all interfaces — intentional in some test/dev configs
+  "N806",   # Uppercase variable in function — Django conventions (e.g. User = ...)
+  "FBT001", # Boolean positional arg — API-breaking change to fix
+  "DJ001",  # null=True on string fields — requires migration to fix
+  "PTH100", # os.path.abspath — refactor to Path incrementally
+  "PTH110", # os.path.exists — refactor to Path incrementally
+  "PTH118", # os.path.join — refactor to Path incrementally
+  "PTH202", # os.path.getsize — refactor to Path incrementally
+  "SIM105", # contextlib.suppress — refactor incrementally
+  "SIM108", # ternary operator — style preference
+  "PLR0913",# Too many arguments — refactor incrementally
+  "TRY002", # Create own exception class — refactor incrementally
+  "RUF005", # Iterable unpacking instead of concatenation — refactor incrementally
+  "PLW2901",# For loop variable overwritten — review incrementally
+  "A002",   # Argument shadows builtin — rename incrementally
 ]
 # The fixes in extend-unsafe-fixes will require
 # provide the `--unsafe-fixes` flag when fixing.

@@ -21,10 +21,16 @@ class Command(BaseCommand):
             default=100,
             help="Number of records to process in each batch (default: 100)",
         )
+        parser.add_argument(
+            "--delete-duplicates",
+            action="store_true",
+            help="Handle conflicts by keeping the earliest record and deleting duplicates",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         batch_size = options["batch_size"]
+        delete_duplicates = options["delete_duplicates"]
 
         mode = "DRY RUN" if dry_run else "LIVE"
         self.stdout.write(self.style.WARNING(f"🔧 Advanced date sync fix - {mode} MODE"))
@@ -168,7 +174,7 @@ class Command(BaseCommand):
                     to_keep = all_records[0]
                     to_delete = all_records[1:]
 
-                    self.stdout.write(f"For {to_keep['log'].bunk_assignment.camper.first_name} {to_keep['log'].bunk_assignment.camper.last_name} on {target_date}:")
+                    self.stdout.write(f"For {to_keep['log'].bunk_assignment.camper.first_name} {to_keep['log'].bunk_assignment.camper.last_name} on {target_date}:")  # noqa: E501
                     self.stdout.write(f"  Keeping ID {to_keep['log'].id} (created {timezone.localtime(to_keep['log'].created_at)})")
 
                     for item in to_delete:
