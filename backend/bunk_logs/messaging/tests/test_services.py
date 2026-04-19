@@ -4,6 +4,8 @@ from django.test import TestCase
 from django.utils import timezone
 
 from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import Cabin
+from bunk_logs.bunks.models import Session
 from bunk_logs.messaging.models import EmailLog
 from bunk_logs.messaging.models import EmailRecipient
 from bunk_logs.messaging.models import EmailRecipientGroup
@@ -24,7 +26,13 @@ class DailyReportServiceTest(TestCase):
     def setUp(self):
         # Create test data
         self.user = User.objects.create_user(email="test@example.com")
-        self.bunk = Bunk.objects.create(name="Test Bunk")
+        cabin = Cabin.objects.create(name="Test Cabin", capacity=10)
+        session = Session.objects.create(
+            name="Test Session",
+            start_date=timezone.now().date(),
+            end_date=timezone.now().date() + timezone.timedelta(days=60),
+        )
+        self.bunk = Bunk.objects.create(cabin=cabin, session=session)
         self.order_type = OrderType.objects.create(
             type_name="Maintenance Request",
             type_description="Test maintenance requests",

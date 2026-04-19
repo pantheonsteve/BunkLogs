@@ -38,9 +38,9 @@ class CounselorPermissionsTest(TestCase):
         # Create test data: cabins, sessions, bunks
         self.cabin = Cabin.objects.create(name="Cabin 1", capacity=10)
         self.session = Session.objects.create(
-            name="Summer 2025",
-            start_date="2025-06-01",
-            end_date="2025-08-31",
+            name="Summer Session",
+            start_date=date.today() - timedelta(days=30),
+            end_date=date.today() + timedelta(days=60),
         )
 
         # Create bunk and assign counselor1 to it
