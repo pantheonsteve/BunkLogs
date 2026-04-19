@@ -10,6 +10,8 @@ from datetime import datetime
 from datetime import timedelta
 from unittest.mock import patch
 
+import pytest
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
@@ -100,8 +102,9 @@ class BunkLogDateSyncTestCase(TestCase):
     @patch("django.utils.timezone.localtime")
     def test_bunklog_date_sync_just_before_midnight(self, mock_localtime):
         """Test BunkLog created at 11:59 PM gets correct date."""
-        # Mock time to be 11:59 PM on July 14, 2025
-        mock_date = datetime(2025, 7, 14, 23, 59, 0)
+        # Mock time to be 11:59 PM yesterday (recent enough to pass validation)
+        yesterday = date.today() - timedelta(days=1)
+        mock_date = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 0)
         mock_localtime.return_value = mock_date
 
         # Create BunkLog
@@ -114,14 +117,15 @@ class BunkLogDateSyncTestCase(TestCase):
             description="Test log created at 11:59 PM",
         )
 
-        # Should have July 14 as the date, not July 15
-        assert log.date == date(2025, 7, 14)
+        # Should have yesterday's date, not today's
+        assert log.date == yesterday
 
     @patch("django.utils.timezone.localtime")
     def test_bunklog_date_sync_just_after_midnight(self, mock_localtime):
         """Test BunkLog created at 12:01 AM gets correct date."""
-        # Mock time to be 12:01 AM on July 15, 2025
-        mock_date = datetime(2025, 7, 15, 0, 1, 0)
+        # Mock time to be 12:01 AM today (recent enough to pass validation)
+        today = date.today()
+        mock_date = datetime(today.year, today.month, today.day, 0, 1, 0)
         mock_localtime.return_value = mock_date
 
         # Create BunkLog
@@ -134,28 +138,25 @@ class BunkLogDateSyncTestCase(TestCase):
             description="Test log created at 12:01 AM",
         )
 
-        # Should have July 15 as the date
-        assert log.date == date(2025, 7, 15)
+        # Should have today's date
+        assert log.date == today
 
-    def test_bunklog_with_explicit_date_gets_overridden(self):
-        """Test that explicitly setting a date gets overridden by save method."""
-        # Try to create a BunkLog with an explicit wrong date
-        wrong_date = date(2020, 1, 1)
+    def test_bunklog_with_old_explicit_date_raises_validation_error(self):
+        """Test that saving a BunkLog with a date older than 30 days raises ValidationError."""
+        from django.core.exceptions import ValidationError
+
+        old_date = date.today() - timedelta(days=60)
         log = BunkLog(
             bunk_assignment=self.assignment,
             counselor=self.counselor,
-            date=wrong_date,  # This should be overridden
+            date=old_date,
             social_score=2,
             behavior_score=2,
             participation_score=2,
-            description="Test log with wrong explicit date",
+            description="Test log with old explicit date",
         )
-        log.save()
-
-        # Date should be today, not the wrong date we set
-        expected_date = timezone.localtime().date()
-        assert log.date == expected_date
-        assert log.date != wrong_date
+        with pytest.raises(ValidationError):
+            log.save()
 
     def test_bunklog_update_preserves_correct_date(self):
         """Test that updating a BunkLog preserves the correct date."""
@@ -178,8 +179,8 @@ class BunkLogDateSyncTestCase(TestCase):
         # Date should remain the same
         assert log.date == original_date
 
-    def test_bunklog_date_matches_created_at_after_save(self):
-        """Test that date field always matches created_at date after save."""
+    def test_bunklog_date_matches_created_at_after_create(self):
+        """Test that date field matches the local date when the log is created."""
         log = BunkLog.objects.create(
             bunk_assignment=self.assignment,
             counselor=self.counselor,
@@ -189,16 +190,10 @@ class BunkLogDateSyncTestCase(TestCase):
             description="Test date matching",
         )
 
-        # Force a mismatch scenario and call save again
-        BunkLog.objects.filter(pk=log.pk).update(date=date(2020, 1, 1))
-        log.refresh_from_db()
-
-        # Now call save - it should fix the mismatch
-        log.save()
-
-        # Date should now match created_at
+        # Date should match the local date of created_at
         expected_date = timezone.localtime(log.created_at).date()
         assert log.date == expected_date
+        assert log.date == date.today()
 
 
 class CounselorLogDateSyncTestCase(TestCase):
@@ -246,23 +241,21 @@ class CounselorLogDateSyncTestCase(TestCase):
         # Should have July 14 as the date
         assert log.date == date(2025, 7, 14)
 
-    def test_counselorlog_with_explicit_date_gets_overridden(self):
-        """Test that explicitly setting a date gets overridden."""
-        wrong_date = date(2019, 12, 25)
+    def test_counselorlog_with_old_explicit_date_raises_validation_error(self):
+        """Test that saving a CounselorLog with a date older than 30 days raises ValidationError."""
+        from django.core.exceptions import ValidationError
+
+        old_date = date.today() - timedelta(days=60)
         log = CounselorLog(
             counselor=self.counselor,
-            date=wrong_date,  # This should be overridden
+            date=old_date,
             day_quality_score=4,
             support_level_score=3,
-            elaboration="Test with wrong date",
-            values_reflection="Testing date override",
+            elaboration="Test with old date",
+            values_reflection="Testing old date raises error",
         )
-        log.save()
-
-        # Date should be today, not the wrong date
-        expected_date = timezone.localtime().date()
-        assert log.date == expected_date
-        assert log.date != wrong_date
+        with pytest.raises(ValidationError):
+            log.save()
 
 
 class DateSyncIntegrationTestCase(TestCase):
@@ -365,8 +358,9 @@ class DateSyncIntegrationTestCase(TestCase):
     @patch("django.utils.timezone.localtime")
     def test_timezone_consistency_across_log_types(self, mock_localtime):
         """Test that both BunkLog and CounselorLog handle timezones consistently."""
-        # Mock a specific time
-        mock_date = datetime(2025, 7, 20, 14, 30, 0)
+        # Mock a specific time today (recent enough to pass validation)
+        today = date.today()
+        mock_date = datetime(today.year, today.month, today.day, 14, 30, 0)
         mock_localtime.return_value = mock_date
 
         # Create both types of logs
@@ -385,8 +379,8 @@ class DateSyncIntegrationTestCase(TestCase):
             values_reflection="Both logs should have same date",
         )
 
-        # Both should have the same date
-        expected_date = date(2025, 7, 20)
+        # Both should have the same date (today, from the mock)
+        expected_date = today
         assert bunk_log.date == expected_date
         assert counselor_log.date == expected_date
         assert bunk_log.date == counselor_log.date

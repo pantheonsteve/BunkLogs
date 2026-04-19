@@ -30,6 +30,17 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 # ------------------------------------------------------------------------------
 TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 
+# STATIC FILES
+# ------------------------------------------------------------------------------
+# Use plain storage in tests — no collectstatic required.
+STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+
+# ALLAUTH
+# ------------------------------------------------------------------------------
+# Disable headless-only mode so traditional allauth URLs (e.g. account_login)
+# are registered and tests that call reverse("account_login") can resolve them.
+HEADLESS_ONLY = False
+
 # MEDIA
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url

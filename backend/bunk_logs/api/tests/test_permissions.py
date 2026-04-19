@@ -1,3 +1,6 @@
+from datetime import date
+from datetime import timedelta
+
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -58,6 +61,7 @@ class CounselorPermissionsTest(TestCase):
         self.assignment = CamperBunkAssignment.objects.create(
             camper=self.camper,
             bunk=self.bunk,
+            start_date=date.today() - timedelta(days=7),
             is_active=True,
         )
 
@@ -90,7 +94,7 @@ class CounselorPermissionsTest(TestCase):
         self.client.force_authenticate(user=self.counselor1)
         url = reverse("bunklog-list")  # Assuming you have a named URL pattern
         data = {
-            "date": "2025-06-15",
+            "date": date.today().isoformat(),
             "bunk_assignment": self.assignment.id,
             "not_on_camp": False,
             "social_score": 4,
@@ -108,7 +112,7 @@ class CounselorPermissionsTest(TestCase):
         self.client.force_authenticate(user=self.counselor2)
         url = reverse("bunklog-list")
         data = {
-            "date": "2025-06-15",
+            "date": date.today().isoformat(),
             "bunk_assignment": self.assignment.id,
             "not_on_camp": False,
             "social_score": 4,

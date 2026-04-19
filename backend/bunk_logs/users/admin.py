@@ -50,7 +50,7 @@ class UserAdmin(TestDataAdminMixin, auth_admin.UserAdmin):
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
     list_display = ["email", "first_name", "last_name", "role", "is_superuser"]
-    search_fields = ["name"]
+    search_fields = ["email", "first_name", "last_name"]
     ordering = ["id"]
     add_fieldsets = (
         (

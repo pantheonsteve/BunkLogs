@@ -23,7 +23,7 @@ User = get_user_model()
 class DailyReportServiceTest(TestCase):
     def setUp(self):
         # Create test data
-        self.user = User.objects.create_user(username="testuser", email="test@example.com")
+        self.user = User.objects.create_user(email="test@example.com")
         self.bunk = Bunk.objects.create(name="Test Bunk")
         self.order_type = OrderType.objects.create(
             type_name="Maintenance Request",
