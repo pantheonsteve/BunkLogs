@@ -2,22 +2,23 @@ from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from bunk_logs.utils.models import TestDataMixin, TimestampedTestDataMixin
+from bunk_logs.utils.models import TestDataMixin
+
 
 class BunkLogsOrderTypeItemCategory(TestDataMixin):
     """
     Explicit through model for the many-to-many relationship between OrderType and ItemCategory.
     Using a unique name to avoid conflicts with any potential 'orders' app outside of bunk_logs.
     """
-    order_type = models.ForeignKey('orders.OrderType', on_delete=models.CASCADE)
-    item_category = models.ForeignKey('orders.ItemCategory', on_delete=models.CASCADE)
-    
+    order_type = models.ForeignKey("orders.OrderType", on_delete=models.CASCADE)
+    item_category = models.ForeignKey("orders.ItemCategory", on_delete=models.CASCADE)
+
     class Meta:
-        unique_together = ('order_type', 'item_category')
+        unique_together = ("order_type", "item_category")
         app_label = "orders"
         verbose_name = _("Order Type Item Category")
         verbose_name_plural = _("Order Type Item Categories")
-        db_table = 'bunk_logs_orders_ordertype_itemcategory'
+        db_table = "bunk_logs_orders_ordertype_itemcategory"
 
 class OrderType(TestDataMixin):
     """OrderType model for categorizing orders."""
@@ -26,16 +27,16 @@ class OrderType(TestDataMixin):
     item_categories = models.ManyToManyField(
         "orders.ItemCategory",
         through=BunkLogsOrderTypeItemCategory,
-        through_fields=('order_type', 'item_category'),
+        through_fields=("order_type", "item_category"),
         related_name="order_types",
-        help_text="Categories of items that can be included in this order type"
+        help_text="Categories of items that can be included in this order type",
     )
 
     class Meta:
         verbose_name = _("Order Type")
         verbose_name_plural = _("Order Types")
         app_label = "orders"
-        db_table = 'bunk_logs_orders_ordertype'  # Custom table name to avoid conflicts
+        db_table = "bunk_logs_orders_ordertype"  # Custom table name to avoid conflicts
 
     def __str__(self):
         return self.type_name
@@ -56,7 +57,7 @@ class Order(TestDataMixin):
             ("completed", _("Completed")),
             ("cancelled", _("Cancelled")),
         ],
-        default="submitted"
+        default="submitted",
     )
     order_bunk = models.ForeignKey(
         "bunks.Bunk",
@@ -68,19 +69,19 @@ class Order(TestDataMixin):
         on_delete=models.CASCADE,
         related_name="orders",
     )
-    additional_notes = models.TextField(blank=True, null=True, help_text='Additional notes for this order')
-    narrative_description = models.TextField(blank=True, null=True, help_text='Narrative description of the order')
+    additional_notes = models.TextField(blank=True, null=True, help_text="Additional notes for this order")
+    narrative_description = models.TextField(blank=True, null=True, help_text="Narrative description of the order")
 
     class Meta:
         verbose_name = _("Order")
         verbose_name_plural = _("Orders")
         ordering = ["-order_date"]
         app_label = "orders"
-        db_table = 'bunk_logs_orders_order'  # Custom table name to avoid conflicts
+        db_table = "bunk_logs_orders_order"  # Custom table name to avoid conflicts
 
     def __str__(self):
         return f"Order {self.id} by {self.user.username} for {self.order_bunk.name}"
-        
+
     def get_absolute_url(self):
         return f"/orders/{self.id}/"
     def get_order_status_display(self):
@@ -91,7 +92,7 @@ class Order(TestDataMixin):
         return self.order_date.strftime("%Y-%m-%d %H:%M:%S")
     def get_order_bunk(self):
         return self.order_bunk
-    
+
 class OrderItem(TestDataMixin):
     """OrderItem model for tracking individual items within an order."""
     item = models.ForeignKey(
@@ -99,7 +100,7 @@ class OrderItem(TestDataMixin):
         on_delete=models.CASCADE,
         related_name="order_items",
         null=True,  # Allow null temporarily to handle existing records
-        blank=True,  # Corresponding form validation 
+        blank=True,  # Corresponding form validation
     )
     item_quantity = models.PositiveIntegerField()
     order = models.ForeignKey(
@@ -112,11 +113,11 @@ class OrderItem(TestDataMixin):
         verbose_name = _("Order Item")
         verbose_name_plural = _("Order Items")
         app_label = "orders"
-        db_table = 'bunk_logs_orders_orderitem'  # Custom table name to avoid conflicts
+        db_table = "bunk_logs_orders_orderitem"  # Custom table name to avoid conflicts
 
     def __str__(self):
         return f"{self.item.item_name if self.item else 'Unknown Item'} (x{self.item_quantity})"
-    
+
 class Item(TestDataMixin):
     """Item model for tracking individual items available for order."""
     item_name = models.CharField(max_length=100)
@@ -132,11 +133,11 @@ class Item(TestDataMixin):
         verbose_name = _("Item")
         verbose_name_plural = _("Items")
         app_label = "orders"
-        db_table = 'bunk_logs_orders_item'  # Custom table name to avoid conflicts
+        db_table = "bunk_logs_orders_item"  # Custom table name to avoid conflicts
 
     def __str__(self):
         return self.item_name
-    
+
 class ItemCategory(TestDataMixin):
     """ItemCategory model for categorizing items available for order."""
     category_name = models.CharField(max_length=100)
@@ -146,7 +147,7 @@ class ItemCategory(TestDataMixin):
         verbose_name = _("Item Category")
         verbose_name_plural = _("Item Categories")
         app_label = "orders"
-        db_table = 'bunk_logs_orders_itemcategory'  # Custom table name to avoid conflicts
+        db_table = "bunk_logs_orders_itemcategory"  # Custom table name to avoid conflicts
 
     def __str__(self):
         return self.category_name

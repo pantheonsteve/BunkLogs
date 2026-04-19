@@ -1,13 +1,12 @@
 # ruff: noqa: E501
+import os
+
 from .base import *  # noqa: F403
 from .base import DATABASES
 from .base import INSTALLED_APPS
 from .base import REDIS_URL
 from .base import SPECTACULAR_SETTINGS
 from .base import env
-
-
-import os
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -46,16 +45,16 @@ SESSION_COOKIE_SECURE = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-name
 SESSION_COOKIE_NAME = "__Secure-sessionid"
 # CRITICAL: Enable cross-origin sessions for production - share across subdomains
-SESSION_COOKIE_SAMESITE = 'Lax'  # Changed from 'None' to 'Lax' for better subdomain sharing
-SESSION_COOKIE_DOMAIN = '.bunklogs.net'  # Share sessions across all bunklogs.net subdomains
+SESSION_COOKIE_SAMESITE = "Lax"  # Changed from 'None' to 'Lax' for better subdomain sharing
+SESSION_COOKIE_DOMAIN = ".bunklogs.net"  # Share sessions across all bunklogs.net subdomains
 SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-secure
 CSRF_COOKIE_SECURE = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-name
 CSRF_COOKIE_NAME = "__Secure-csrftoken"
 # CRITICAL: Enable cross-origin cookies for production - match session settings
-CSRF_COOKIE_SAMESITE = 'Lax'  # Match session cookie setting
-CSRF_COOKIE_DOMAIN = '.bunklogs.net'  # Share CSRF tokens across all bunklogs.net subdomains
+CSRF_COOKIE_SAMESITE = "Lax"  # Match session cookie setting
+CSRF_COOKIE_DOMAIN = ".bunklogs.net"  # Share CSRF tokens across all bunklogs.net subdomains
 # CRITICAL: Allow JavaScript access to CSRF token for AllAuth headless mode
 CSRF_COOKIE_HTTPONLY = False
 # https://docs.djangoproject.com/en/dev/topics/security/#ssl-https
@@ -244,52 +243,52 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 # ------------------------------------------------------------------------------
 
 # Datadog configuration - simplified to avoid formatting issues
-if os.getenv('DD_LOGS_INJECTION') == 'true':
+if os.getenv("DD_LOGS_INJECTION") == "true":
     LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'verbose': {
-                'format': '[{levelname}] {asctime} {name} {message}',
-                'style': '{',
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "[{levelname}] {asctime} {name} {message}",
+                "style": "{",
             },
         },
-        'handlers': {
-            'console': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'formatter': 'verbose',
+        "handlers": {
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+                "formatter": "verbose",
             },
         },
-        'loggers': {
-            'django': {
-                'handlers': ['console'],
-                'level': 'INFO',
-                'propagate': True,
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
             },
-            'ddtrace': {
-                'handlers': ['console'],
-                'level': 'WARNING',
+            "ddtrace": {
+                "handlers": ["console"],
+                "level": "WARNING",
             },
         },
-        'root': {
-            'handlers': ['console'],
-            'level': 'INFO',
+        "root": {
+            "handlers": ["console"],
+            "level": "INFO",
         },
     }
 
     # If using sidecar, also log to file
-    if os.getenv('DD_SERVERLESS_LOG_PATH'):
-        LOGGING['handlers']['file'] = {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': '/shared-volume/logs/django.log',
-            'formatter': 'verbose',
+    if os.getenv("DD_SERVERLESS_LOG_PATH"):
+        LOGGING["handlers"]["file"] = {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": "/shared-volume/logs/django.log",
+            "formatter": "verbose",
         }
         # Add file handler to all loggers
-        for logger_config in LOGGING['loggers'].values():
-            if 'handlers' in logger_config:
-                logger_config['handlers'].append('file')
+        for logger_config in LOGGING["loggers"].values():
+            if "handlers" in logger_config:
+                logger_config["handlers"].append("file")
 
 # Frontend URLs - Production overrides
 # ------------------------------------------------------------------------------
@@ -297,8 +296,8 @@ FRONTEND_URL = env("FRONTEND_URL", default="https://clc.bunklogs.net")
 SPA_URL = FRONTEND_URL
 
 # Override redirect URLs for production
-LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f"{FRONTEND_URL}/dashboard")
-ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRONTEND_URL}/signin")
+LOGIN_REDIRECT_URL = env("LOGIN_REDIRECT_URL", default=f"{FRONTEND_URL}/dashboard")
+ACCOUNT_LOGOUT_REDIRECT_URL = env("ACCOUNT_LOGOUT_REDIRECT_URL", default=f"{FRONTEND_URL}/signin")
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -312,9 +311,9 @@ CORS_ALLOWED_ORIGINS = [
 
 # Update CSRF trusted origins
 CSRF_TRUSTED_ORIGINS = [
-    'https://bunklogs.net',
-    'https://www.bunklogs.net',
-    'https://clc.bunklogs.net',  # Frontend domain
+    "https://bunklogs.net",
+    "https://www.bunklogs.net",
+    "https://clc.bunklogs.net",  # Frontend domain
     "https://admin.bunklogs.net", # Custom domain for Cloudflare
 ]
 

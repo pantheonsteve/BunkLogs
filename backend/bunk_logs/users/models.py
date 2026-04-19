@@ -1,13 +1,15 @@
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.db.models import CharField, BooleanField, EmailField
+from django.db.models import CharField
+from django.db.models import EmailField
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from .managers import UserManager
 from bunk_logs.utils.models import TestDataMixin
+
+from .managers import UserManager
 
 
 class User(AbstractUser, TestDataMixin):
@@ -31,13 +33,13 @@ class User(AbstractUser, TestDataMixin):
         if self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.first_name or self.last_name or ""
-    
+
     @name.setter
-    def name(self, value: Optional[str]) -> None:
+    def name(self, value: str | None) -> None:
         """Set the user's name by splitting into first and last name."""
         if not value:
             return
-        
+
         parts = value.strip().split(maxsplit=1)
         self.first_name = parts[0]
         self.last_name = parts[1] if len(parts) > 1 else ""
@@ -62,7 +64,6 @@ class User(AbstractUser, TestDataMixin):
     )
 
     # Adding a field to track if user profile is complete
-    profile_complete = BooleanField(_("Profile Complete"), default=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

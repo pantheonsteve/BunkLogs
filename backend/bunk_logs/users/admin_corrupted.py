@@ -12,12 +12,13 @@ from django.urls import path
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.admin import TestDataAdminMixin
+
 from .forms import UserAdminChangeForm
 from .forms import UserAdminCreationForm
 from .forms import UserCsvImportForm
 from .models import User
 from .services.imports import import_users_from_csv
-from bunk_logs.utils.admin import TestDataAdminMixin
 
 if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
     # Force the `admin` sign in process to go through the `django-allauth` workflow:

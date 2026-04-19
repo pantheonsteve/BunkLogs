@@ -1,4 +1,3 @@
-from bunk_logs.campers.models import CamperBunkAssignment
 import tempfile
 from pathlib import Path
 
@@ -6,15 +5,20 @@ from django.contrib import admin
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.urls import path, reverse
+from django.urls import path
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from .forms import BunkLogAdminForm
-from .forms import BunkSelectionForm
-from .forms import BunkLogCsvImportForm
-from .models import BunkLog, CounselorLog
-from .services.imports import import_bunk_logs_from_csv, generate_sample_csv
+from bunk_logs.campers.models import CamperBunkAssignment
 from bunk_logs.utils.admin import TestDataAdminMixin
+
+from .forms import BunkLogAdminForm
+from .forms import BunkLogCsvImportForm
+from .forms import BunkSelectionForm
+from .models import BunkLog
+from .models import CounselorLog
+from .services.imports import generate_sample_csv
+from .services.imports import import_bunk_logs_from_csv
 
 
 @admin.register(BunkLog)
@@ -54,13 +58,12 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
             if "unique constraint" in str(e).lower() and "bunk_assignment_id_date" in str(e):
                 from django.contrib import messages
                 messages.error(
-                    request, 
+                    request,
                     f"A log already exists for {obj.bunk_assignment.camper} on {obj.date}. "
-                    f"Please choose a different date or edit the existing log."
+                    f"Please choose a different date or edit the existing log.",
                 )
                 raise
-            else:
-                raise
+            raise
 
     @admin.display(
         description=_("Created (Local)"),
@@ -110,7 +113,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
             "form": form,
             "title": _("Select Bunk"),
             "opts": self.opts,  # Changed from self.model._meta to self.opts
-            'list_url': 'admin:bunklogs_bunklog_changelist',
+            "list_url": "admin:bunklogs_bunklog_changelist",
         }
         return render(request, "admin/bunklogs/select_bunk.html", context)
 
@@ -131,13 +134,13 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                 try:
                     # Get the current user as default counselor if they're staff
                     default_counselor_email = request.user.email if request.user.is_staff else None
-                
+
                     result = import_bunk_logs_from_csv(
-                        temp_path, 
+                        temp_path,
                         dry_run=dry_run,
-                        default_counselor_email=default_counselor_email
+                        default_counselor_email=default_counselor_email,
                     )
-                
+
                     if dry_run:
                         messages.info(
                             request,
@@ -157,7 +160,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                                 f"Error in row {error['row']}: {error['error']}",
                             )
                 except Exception as e:
-                    messages.error(request, f"Import failed: {str(e)}")
+                    messages.error(request, f"Import failed: {e!s}")
                 finally:
                     # Clean up the temporary file
                     temp_path.unlink(missing_ok=True)
@@ -216,127 +219,128 @@ class CounselorLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
     list_display_links = ("counselor",)  # Make counselor the clickable link instead of date
     search_fields = (
         "counselor__first_name",
-        "counselor__last_name", 
+        "counselor__last_name",
         "counselor__email",
         "elaboration",
         "values_reflection",
     )
     readonly_fields = ("created_at", "updated_at")
-    
+
     fieldsets = (
         (None, {
-            'fields': ('counselor', 'date')
+            "fields": ("counselor", "date"),
         }),
-        ('Scores', {
-            'fields': ('day_quality_score', 'support_level_score'),
-            'description': 'Rate your day and support level on a scale of 1-5'
+        ("Scores", {
+            "fields": ("day_quality_score", "support_level_score"),
+            "description": "Rate your day and support level on a scale of 1-5",
         }),
-        ('Status', {
-            'fields': ('day_off', 'staff_care_support_needed')
+        ("Status", {
+            "fields": ("day_off", "staff_care_support_needed"),
         }),
-        ('Reflections', {
-            'fields': ('elaboration', 'values_reflection'),
-            'classes': ('wide',)
+        ("Reflections", {
+            "fields": ("elaboration", "values_reflection"),
+            "classes": ("wide",),
         }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        })
+        ("Timestamps", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",),
+        }),
     )
-    
+
     def get_queryset(self, request):
         """Filter queryset based on user permissions."""
         qs = super().get_queryset(request)
-        
+
         # Admin and staff can see all logs
-        if request.user.is_staff or request.user.role == 'Admin':
+        if request.user.is_staff or request.user.role == "Admin":
             return qs
-            
+
         # Unit heads and camper care can see logs for counselors in their units
-        if request.user.role in ['Unit Head', 'Camper Care']:
+        if request.user.role in ["Unit Head", "Camper Care"]:
             from django.utils import timezone
+
             from bunk_logs.bunks.models import UnitStaffAssignment
             from bunk_logs.users.models import User
-            
+
             unit_ids = []
-            
+
             # For Unit Head role
-            if request.user.role == 'Unit Head':
+            if request.user.role == "Unit Head":
                 # Get units where user is assigned as unit_head
                 unit_assignments = UnitStaffAssignment.objects.filter(
                     staff_member=request.user,
-                    role='unit_head',
+                    role="unit_head",
                     start_date__lte=timezone.now().date(),
-                    end_date__isnull=True
-                ).values_list('unit_id', flat=True)
+                    end_date__isnull=True,
+                ).values_list("unit_id", flat=True)
                 unit_ids.extend(unit_assignments)
                 # Also include legacy unit_head field
-                unit_ids.extend(request.user.managed_units.values_list('id', flat=True))
-                
-            # For Camper Care role  
-            if request.user.role == 'Camper Care':
+                unit_ids.extend(request.user.managed_units.values_list("id", flat=True))
+
+            # For Camper Care role
+            if request.user.role == "Camper Care":
                 # Get units where user is assigned as camper_care
                 unit_assignments = UnitStaffAssignment.objects.filter(
                     staff_member=request.user,
-                    role='camper_care',
+                    role="camper_care",
                     start_date__lte=timezone.now().date(),
-                    end_date__isnull=True
-                ).values_list('unit_id', flat=True)
+                    end_date__isnull=True,
+                ).values_list("unit_id", flat=True)
                 unit_ids.extend(unit_assignments)
                 # Also include legacy camper_care field
-                unit_ids.extend(request.user.camper_care_units.values_list('id', flat=True))
-            
+                unit_ids.extend(request.user.camper_care_units.values_list("id", flat=True))
+
             # Get counselors assigned to bunks in these units
             counselor_ids = User.objects.filter(
-                role='Counselor',
-                assigned_bunks__unit_id__in=set(unit_ids)
-            ).values_list('id', flat=True)
-            
+                role="Counselor",
+                assigned_bunks__unit_id__in=set(unit_ids),
+            ).values_list("id", flat=True)
+
             return qs.filter(counselor_id__in=counselor_ids)
-            
+
         # Counselors can only see their own logs
-        if request.user.role == 'Counselor':
+        if request.user.role == "Counselor":
             return qs.filter(counselor=request.user)
-            
+
         # Default: see nothing
         return qs.none()
-    
+
     def has_change_permission(self, request, obj=None):
         """Check if user has permission to change counselor logs."""
         if not super().has_change_permission(request, obj):
             return False
-            
+
         # Admin and staff can change any log
-        if request.user.is_staff or request.user.role == 'Admin':
+        if request.user.is_staff or request.user.role == "Admin":
             return True
-            
+
         # Unit heads and camper care can view but not edit
-        if request.user.role in ['Unit Head', 'Camper Care']:
+        if request.user.role in ["Unit Head", "Camper Care"]:
             return False
-            
+
         # Counselors can only edit their own logs
-        if request.user.role == 'Counselor' and obj:
+        if request.user.role == "Counselor" and obj:
             # Check if it's their log and within edit window
             from django.utils import timezone
             today = timezone.now().date()
             log_created_date = obj.created_at.date() if obj.created_at else obj.date
-            
+
             return (obj.counselor == request.user and today == log_created_date)
-            
+
         return False
-    
+
     def has_add_permission(self, request):
         """Check if user has permission to add counselor logs."""
         if not super().has_add_permission(request):
             return False
-            
+
         # Only counselors and admin/staff can add counselor logs
-        return request.user.role in ['Counselor', 'Admin'] or request.user.is_staff
-    
+        return request.user.role in ["Counselor", "Admin"] or request.user.is_staff
+
     def has_delete_permission(self, request, obj=None):
         """Check if user has permission to delete counselor logs."""
         if not super().has_delete_permission(request, obj):
             return False
-            
+
         # Only admin and staff can delete counselor logs
-        return request.user.is_staff or request.user.role == 'Admin'
+        return request.user.is_staff or request.user.role == "Admin"

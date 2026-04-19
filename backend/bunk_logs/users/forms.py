@@ -1,8 +1,8 @@
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from django import forms
 from django.contrib.auth import forms as admin_forms
 from django.forms import EmailField
-from django import forms
 from django.utils.translation import gettext_lazy as _
 
 from .models import User
@@ -45,15 +45,15 @@ class UserSocialSignupForm(SocialSignupForm):
     """
     Form for social signup in case auto-signup is disabled.
     """
-    
+
     def save(self, request):
         # Initialize the user
         user = super().save(request)
-        
+
         # Set default role for social signups
-        user.role = 'Counselor'
+        user.role = "Counselor"
         user.save()
-        
+
         return user
 
 
@@ -82,8 +82,9 @@ class UserCsvImportForm(forms.Form):
     )
 
     def clean_csv_file(self):
-        csv_file = self.cleaned_data.get('csv_file')
+        csv_file = self.cleaned_data.get("csv_file")
         if csv_file:
-            if not csv_file.name.endswith('.csv'):
-                raise forms.ValidationError("File must be a CSV file (.csv)")
+            if not csv_file.name.endswith(".csv"):
+                msg = "File must be a CSV file (.csv)"
+                raise forms.ValidationError(msg)
         return csv_file

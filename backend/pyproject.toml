@@ -56,6 +56,7 @@ indent_size = 2
 
 [tool.ruff]
 target-version = "py312"
+line-length = 119
 # Exclude a variety of commonly ignored directories.
 extend-exclude = [
     "*/migrations/*.py",
@@ -120,13 +121,32 @@ select = [
   "RUF",
 ]
 ignore = [
-  "S101", # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
+  "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
   "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
   "SIM102", # sometimes it's better to nest
-  "UP038", # Checks for uses of isinstance/issubclass that take a tuple
-          # of types for comparison.
-          # Deactivated because it can make the code slow:
-          # https://github.com/astral-sh/ruff/issues/7871
+  "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
+            # of types for comparison.
+            # Deactivated because it can make the code slow:
+            # https://github.com/astral-sh/ruff/issues/7871
+
+  # --- Baseline suppressions: address incrementally in dedicated PRs ---
+  "ERA001", # Commented-out code — clean up intentionally
+  "G004",   # Logging f-strings — acceptable in this codebase
+  "BLE001", # Blind exception catches — audit and tighten incrementally
+  "SLF001", # `_meta` access — standard Django ORM pattern
+  "PLR2004",# Magic value comparisons — widespread; extract constants over time
+  "TRY300", # try/else block style — refactor incrementally
+  "TRY301", # Abstract raise to inner function — style preference
+  "TRY401", # Redundant exception in logging.exception — clean up incrementally
+  "B904",   # raise-without-from-inside-except — requires per-case review
+  "DTZ007", # Naive datetime from strptime — timezone refactor needed
+  "S113",   # requests call without timeout — add timeouts per endpoint
+  "FBT002", # Boolean default positional arg — API-breaking change
+  "E722",   # Bare except — replace with specific exception types
+  "S106",   # Hardcoded password — likely false positives in fixtures/tests
+  "S105",   # Hardcoded password string — likely false positives
+  "E402",   # Module-level import not at top — intentional in some config files
+  "PERF401",# Use list comprehension — refactor incrementally
 ]
 # The fixes in extend-unsafe-fixes will require
 # provide the `--unsafe-fixes` flag when fixing.

@@ -1,8 +1,7 @@
-from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from bunk_logs.utils.models import TestDataMixin, TimestampedTestDataMixin
+from bunk_logs.utils.models import TimestampedTestDataMixin
 
 
 class EmailTemplate(TimestampedTestDataMixin):
@@ -18,7 +17,7 @@ class EmailTemplate(TimestampedTestDataMixin):
         verbose_name = _("Email Template")
         verbose_name_plural = _("Email Templates")
         app_label = "messaging"
-        db_table = 'bunk_logs_messaging_emailtemplate'
+        db_table = "bunk_logs_messaging_emailtemplate"
 
     def __str__(self):
         return self.name
@@ -34,7 +33,7 @@ class EmailRecipientGroup(TimestampedTestDataMixin):
         verbose_name = _("Email Recipient Group")
         verbose_name_plural = _("Email Recipient Groups")
         app_label = "messaging"
-        db_table = 'bunk_logs_messaging_emailrecipientgroup'
+        db_table = "bunk_logs_messaging_emailrecipientgroup"
 
     def __str__(self):
         return self.name
@@ -47,16 +46,16 @@ class EmailRecipient(TimestampedTestDataMixin):
     group = models.ForeignKey(
         EmailRecipientGroup,
         on_delete=models.CASCADE,
-        related_name="recipients"
+        related_name="recipients",
     )
     is_active = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = _("Email Recipient")
         verbose_name_plural = _("Email Recipients")
-        unique_together = ('email', 'group')
+        unique_together = ("email", "group")
         app_label = "messaging"
-        db_table = 'bunk_logs_messaging_emailrecipient'
+        db_table = "bunk_logs_messaging_emailrecipient"
 
     def __str__(self):
         return f"{self.name} <{self.email}>" if self.name else self.email
@@ -68,16 +67,16 @@ class EmailSchedule(TimestampedTestDataMixin):
     template = models.ForeignKey(
         EmailTemplate,
         on_delete=models.CASCADE,
-        related_name="schedules"
+        related_name="schedules",
     )
     recipient_group = models.ForeignKey(
         EmailRecipientGroup,
         on_delete=models.CASCADE,
-        related_name="schedules"
+        related_name="schedules",
     )
     cron_expression = models.CharField(
         max_length=100,
-        help_text="Cron expression for scheduling (e.g., '0 8 * * *' for daily at 8 AM)"
+        help_text="Cron expression for scheduling (e.g., '0 8 * * *' for daily at 8 AM)",
     )
     is_active = models.BooleanField(default=True)
     last_sent = models.DateTimeField(null=True, blank=True)
@@ -86,7 +85,7 @@ class EmailSchedule(TimestampedTestDataMixin):
         verbose_name = _("Email Schedule")
         verbose_name_plural = _("Email Schedules")
         app_label = "messaging"
-        db_table = 'bunk_logs_messaging_emailschedule'
+        db_table = "bunk_logs_messaging_emailschedule"
 
     def __str__(self):
         return self.name
@@ -99,7 +98,7 @@ class EmailLog(TimestampedTestDataMixin):
         on_delete=models.CASCADE,
         related_name="logs",
         null=True,
-        blank=True
+        blank=True,
     )
     recipient_email = models.EmailField()
     subject = models.CharField(max_length=200)
@@ -113,7 +112,7 @@ class EmailLog(TimestampedTestDataMixin):
         verbose_name_plural = _("Email Logs")
         ordering = ["-sent_at"]
         app_label = "messaging"
-        db_table = 'bunk_logs_messaging_emaillog'
+        db_table = "bunk_logs_messaging_emaillog"
 
     def __str__(self):
         status = "✓" if self.success else "✗"

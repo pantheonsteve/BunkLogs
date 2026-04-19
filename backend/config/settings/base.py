@@ -1,11 +1,11 @@
 # ruff: noqa: ERA001, E501
 """Base settings to build other settings files upon."""
 
-from pathlib import Path
+import os
 from datetime import timedelta
+from pathlib import Path
 
 import environ
-import os
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # bunk_logs/
@@ -82,16 +82,16 @@ THIRD_PARTY_APPS = [
     "allauth.mfa",
     "allauth.headless",
     "allauth.socialaccount",
-    'allauth.socialaccount.providers.google',
-    'allauth.socialaccount.providers.facebook',
-    'allauth.usersessions',
+    "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.facebook",
+    "allauth.usersessions",
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
-    'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
-    'dj_rest_auth',
-    'dj_rest_auth.registration',
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "dj_rest_auth",
+    "dj_rest_auth.registration",
     "drf_spectacular",
 ]
 
@@ -119,15 +119,15 @@ MIGRATION_MODULES = {"sites": "bunk_logs.contrib.sites.migrations"}
 # https://docs.djangoproject.com/en/dev/ref/settings/#authentication-backends
 AUTHENTICATION_BACKENDS = [
     # Needed to login by username in Django admin
-    'django.contrib.auth.backends.ModelBackend',
+    "django.contrib.auth.backends.ModelBackend",
     # `allauth` specific authentication methods
-    'allauth.account.auth_backends.AuthenticationBackend',
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
 AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
 #LOGIN_REDIRECT_URL = "users:redirect"
-LOGIN_REDIRECT_URL = '/callback/'
+LOGIN_REDIRECT_URL = "/callback/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-url
 LOGIN_URL = "account_login"
 
@@ -181,7 +181,7 @@ STATIC_URL = "/static/"
 # Updates made for render.com https://render.com/docs/deploy-django
 if not DEBUG:
     # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
-    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
     # Use the new STORAGES setting instead of STATICFILES_STORAGE
     STORAGES = {
@@ -231,7 +231,7 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "bunk_logs.users.context_processors.allauth_settings",
-                'django.template.context_processors.request',
+                "django.template.context_processors.request",
             ],
         },
     },
@@ -311,10 +311,10 @@ LOGGING = {
             "formatter": "verbose",
         },
     },
-    'loggers': {
-        'bunk_logs.api.permissions': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
+    "loggers": {
+        "bunk_logs.api.permissions": {
+            "handlers": ["console"],
+            "level": "DEBUG",
         },
     },
     "root": {"level": "INFO", "handlers": ["console"]},
@@ -327,8 +327,8 @@ REDIS_SSL = REDIS_URL.startswith("rediss://")
 # django-allauth
 # ------------------------------------------------------------------------------
 # Social authentication settings - very important!
-ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
@@ -337,25 +337,25 @@ ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 # Social account settings
 ACCOUNT_LOGIN_METHODS = {"email"}
 SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'SCOPE': [
-            'profile',
-            'email',
+    "google": {
+        "SCOPE": [
+            "profile",
+            "email",
         ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
+        "AUTH_PARAMS": {
+            "access_type": "online",
         },
-        'OAUTH_PKCE_ENABLED': True,
-    }
+        "OAUTH_PKCE_ENABLED": True,
+    },
 }
 
 SOCIALACCOUNT_STORE_TOKENS = True
 
 SOCIALACCOUNT_AUTO_SIGNUP = True
-SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 # Use our custom adapter for proper frontend URL handling
-SOCIALACCOUNT_ADAPTER = 'bunk_logs.users.adapters.SocialAccountAdapter'
+SOCIALACCOUNT_ADAPTER = "bunk_logs.users.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSocialSignupForm"}
 
 
@@ -425,17 +425,17 @@ if IS_PRODUCTION:
         "https://admin.bunklogs.net",
     ]
     CSRF_TRUSTED_ORIGINS = [
-        'https://storage.googleapis.com',
-        'https://storage.cloud.google.com', 
-        'https://clc.bunklogs.net',  # Your actual frontend URL
-        'https://clc.bunklogs.net',
-        'https://www.bunklogs.net',
+        "https://storage.googleapis.com",
+        "https://storage.cloud.google.com",
+        "https://clc.bunklogs.net",  # Your actual frontend URL
+        "https://clc.bunklogs.net",
+        "https://www.bunklogs.net",
         "https://admin.bunklogs.net",
     ]
     # Updated for Render.com deployment
     ALLOWED_HOSTS = [
         "bunklogs.net",
-        "www.bunklogs.net", 
+        "www.bunklogs.net",
         "*.onrender.com",  # For Render.com deployments
         "*.run.app",  # Keep for any remaining GCP services
         "bunk-logs-backend-461994890254.us-central1.run.app",
@@ -449,8 +449,8 @@ else:
         "https://clc.bunklogs.net",  # Keep this for testing
     ]
     CSRF_TRUSTED_ORIGINS = [
-        'http://localhost:5173', 
-        'https://clc.bunklogs.net'
+        "http://localhost:5173",
+        "https://clc.bunklogs.net",
     ]
     ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1"]
 
@@ -478,8 +478,8 @@ CORS_ALLOW_METHODS = [
 ]
 
 # Set redirect URLs based on environment
-LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f"{FRONTEND_URL}/dashboard")
-ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRONTEND_URL}/signin")
+LOGIN_REDIRECT_URL = env("LOGIN_REDIRECT_URL", default=f"{FRONTEND_URL}/dashboard")
+ACCOUNT_LOGOUT_REDIRECT_URL = env("ACCOUNT_LOGOUT_REDIRECT_URL", default=f"{FRONTEND_URL}/signin")
 
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
@@ -504,8 +504,8 @@ SPECTACULAR_SETTINGS = {
 # ------------------------------------------------------------------------------
 
 # Django AllAuth settings
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' in production
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Change to 'mandatory' in production
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]  # Replaces EMAIL_REQUIRED and USERNAME_REQUIRED
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGOUT_ON_GET = True
@@ -515,39 +515,39 @@ ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
 
 # dj-rest-auth settings
 REST_USE_JWT = True
-JWT_AUTH_COOKIE = 'auth-token'
-JWT_AUTH_REFRESH_COOKIE = 'refresh-token'
+JWT_AUTH_COOKIE = "auth-token"
+JWT_AUTH_REFRESH_COOKIE = "refresh-token"
 JWT_AUTH_SECURE = True  # Set to False during development if needed
-JWT_AUTH_SAMESITE = 'Lax'  # Consider 'None' for cross-site authentication
+JWT_AUTH_SAMESITE = "Lax"  # Consider 'None' for cross-site authentication
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=3),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=3),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "VERIFYING_KEY": None,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
 }
 
 # dj-rest-auth settings
 REST_AUTH = {
-    'USE_JWT': True,
-    'JWT_AUTH_COOKIE': 'bunklogs-auth',
-    'JWT_AUTH_REFRESH_COOKIE': 'bunklogs-refresh',
-    'JWT_AUTH_SECURE': not DEBUG,  # True in production
-    'JWT_AUTH_HTTPONLY': True,
-    'JWT_AUTH_SAMESITE': 'Lax',
-    'USER_DETAILS_SERIALIZER': 'bunk_logs.users.serializers.UserSerializer',
+    "USE_JWT": True,
+    "JWT_AUTH_COOKIE": "bunklogs-auth",
+    "JWT_AUTH_REFRESH_COOKIE": "bunklogs-refresh",
+    "JWT_AUTH_SECURE": not DEBUG,  # True in production
+    "JWT_AUTH_HTTPONLY": True,
+    "JWT_AUTH_SAMESITE": "Lax",
+    "USER_DETAILS_SERIALIZER": "bunk_logs.users.serializers.UserSerializer",
 }
 
 INTERNAL_IPS = [
-    '127.0.0.1',
+    "127.0.0.1",
 ]
 

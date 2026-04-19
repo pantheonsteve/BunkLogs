@@ -1,14 +1,14 @@
 import csv
+from datetime import datetime
 from pathlib import Path
 from typing import Any
-from datetime import datetime
 
-from bunk_logs.users.models import User  # Adjust based on your actual model
 from bunk_logs.bunks.models import Bunk  # Adjust based on your actual model
 from bunk_logs.bunks.models import Cabin  # Adjust based on your actual model
+from bunk_logs.bunks.models import CounselorBunkAssignment
 from bunk_logs.bunks.models import Session  # Adjust based on your actual model
 from bunk_logs.bunks.models import Unit  # Adjust based on your actual model
-from bunk_logs.bunks.models import CounselorBunkAssignment
+from bunk_logs.users.models import User  # Adjust based on your actual model
 
 
 class UnitImportError(ValueError):
@@ -322,12 +322,11 @@ def _parse_boolean(value: str) -> bool:
         return False
 
     value = value.strip().lower()
-    if value in ('true', '1', 'yes', 'y'):
+    if value in ("true", "1", "yes", "y"):
         return True
-    elif value in ('false', '0', 'no', 'n'):
+    if value in ("false", "0", "no", "n"):
         return False
-    else:
-        raise CounselorBunkAssignmentImportError(CounselorBunkAssignmentImportError.INVALID_PRIMARY_VALUE)
+    raise CounselorBunkAssignmentImportError(CounselorBunkAssignmentImportError.INVALID_PRIMARY_VALUE)
 
 
 def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
@@ -354,7 +353,7 @@ def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
     try:
         file_path = Path(file_path)
 
-        with file_path.open(encoding='utf-8') as csv_file:
+        with file_path.open(encoding="utf-8") as csv_file:
             reader = csv.DictReader(csv_file)
 
             for row_num, row in enumerate(reader, start=2):  # Start at 2 because row 1 is headers
@@ -367,8 +366,9 @@ def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
                     try:
                         counselor = User.objects.get(email=counselor_email, role="Counselor")
                     except User.DoesNotExist:
+                        msg = f"{CounselorBunkAssignmentImportError.COUNSELOR_NOT_FOUND}: {counselor_email}"
                         raise CounselorBunkAssignmentImportError(
-                            f"{CounselorBunkAssignmentImportError.COUNSELOR_NOT_FOUND}: {counselor_email}"
+                            msg,
                         )
 
                     # Find bunk
@@ -377,11 +377,12 @@ def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
                     try:
                         bunk = Bunk.objects.get(
                             cabin__name=cabin_name,
-                            session__name=session_name
+                            session__name=session_name,
                         )
                     except Bunk.DoesNotExist:
+                        msg = f"{CounselorBunkAssignmentImportError.BUNK_NOT_FOUND}: {cabin_name} - {session_name}"
                         raise CounselorBunkAssignmentImportError(
-                            f"{CounselorBunkAssignmentImportError.BUNK_NOT_FOUND}: {cabin_name} - {session_name}"
+                            msg,
                         )
 
                     # Parse dates
@@ -442,15 +443,17 @@ def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
 def import_unit_staff_assignments_from_csv(file_path, *, dry_run=False):
     """Import unit staff assignments from CSV file."""
     import csv
-    from bunk_logs.users.models import User
-    from bunk_logs.bunks.models import Unit, UnitStaffAssignment
     from datetime import datetime
+
+    from bunk_logs.bunks.models import Unit
+    from bunk_logs.bunks.models import UnitStaffAssignment
+    from bunk_logs.users.models import User
 
     success_count = 0
     error_records = []
     file_path = Path(file_path)
 
-    with file_path.open(encoding='utf-8') as csv_file:
+    with file_path.open(encoding="utf-8") as csv_file:
         reader = csv.DictReader(csv_file)
         for row_num, row in enumerate(reader, start=2):
             try:
@@ -462,17 +465,20 @@ def import_unit_staff_assignments_from_csv(file_path, *, dry_run=False):
                 end_date = row.get("end_date", "").strip()
 
                 if not staff_email or not unit_name or not role or not start_date:
-                    raise ValueError("Missing required fields: staff_email, unit_name, role, start_date")
+                    msg = "Missing required fields: staff_email, unit_name, role, start_date"
+                    raise ValueError(msg)
 
                 try:
                     staff_member = User.objects.get(email=staff_email)
                 except User.DoesNotExist:
-                    raise ValueError(f"Staff member with email '{staff_email}' not found")
+                    msg = f"Staff member with email '{staff_email}' not found"
+                    raise ValueError(msg)
 
                 try:
                     unit = Unit.objects.get(name=unit_name)
                 except Unit.DoesNotExist:
-                    raise ValueError(f"Unit with name '{unit_name}' not found")
+                    msg = f"Unit with name '{unit_name}' not found"
+                    raise ValueError(msg)
 
                 # Parse dates
                 start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()

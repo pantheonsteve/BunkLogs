@@ -1,8 +1,6 @@
 # your_app/forms.py
 from django import forms
 
-from bunk_logs.users.models import User  # Use the fully qualified import path
-
 from .models import Unit
 
 
@@ -62,7 +60,7 @@ class BunkCsvImportForm(forms.Form):
 class CounselorBunkAssignmentCsvImportForm(forms.Form):
     csv_file = forms.FileField(
         label="CSV File",
-        help_text="""Upload a CSV file with columns: counselor_email, cabin_name, session_name, 
+        help_text="""Upload a CSV file with columns: counselor_email, cabin_name, session_name,
                      start_date (YYYY-MM-DD), end_date (YYYY-MM-DD, optional), is_primary (true/false, optional)""",
     )
     dry_run = forms.BooleanField(

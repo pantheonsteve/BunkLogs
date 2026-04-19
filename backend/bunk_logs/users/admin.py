@@ -12,12 +12,13 @@ from django.urls import path
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.admin import TestDataAdminMixin
+
 from .forms import UserAdminChangeForm
 from .forms import UserAdminCreationForm
 from .forms import UserCsvImportForm
 from .models import User
 from .services.imports import import_users_from_csv
-from bunk_logs.utils.admin import TestDataAdminMixin
 
 if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
     # Force the `admin` sign in process to go through the `django-allauth` workflow:
@@ -86,10 +87,10 @@ class UserAdmin(TestDataAdminMixin, auth_admin.UserAdmin):
                 try:
                     # Process the CSV file with optimizations
                     result = import_users_from_csv(
-                        temp_path, 
+                        temp_path,
                         dry_run=dry_run,
                         batch_size=batch_size,
-                        use_fast_hashing=use_fast_hashing
+                        use_fast_hashing=use_fast_hashing,
                     )
 
                     if dry_run:
@@ -114,7 +115,7 @@ class UserAdmin(TestDataAdminMixin, auth_admin.UserAdmin):
                 except Exception as e:
                     messages.error(
                         request,
-                        f"Import failed: {str(e)}. Try reducing the batch size or using fast hashing.",
+                        f"Import failed: {e!s}. Try reducing the batch size or using fast hashing.",
                     )
                 finally:
                     # Clean up the temporary file

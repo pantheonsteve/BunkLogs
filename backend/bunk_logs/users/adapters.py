@@ -5,10 +5,12 @@ import typing
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
-from django.http import HttpRequest, HttpResponseRedirect
+from django.http import HttpRequest
+from django.http import HttpResponseRedirect
 
 if typing.TYPE_CHECKING:
     from allauth.socialaccount.models import SocialLogin
+
     from bunk_logs.users.models import User
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -19,7 +21,7 @@ class AccountAdapter(DefaultAccountAdapter):
         """Constructs the email confirmation (activation) url."""
         # Use dynamic FRONTEND_URL from settings
         return f"{settings.FRONTEND_URL}/verify-email/{emailconfirmation.key}"
-    
+
     def get_password_reset_url(self, request, passwordreset):
         """Constructs the password reset url."""
         # Use dynamic FRONTEND_URL from settings
@@ -35,12 +37,12 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def is_open_for_signup(self, request: HttpRequest, sociallogin: SocialLogin) -> bool:
         """Allow social account signup even if regular registration is closed"""
         return True
-    
+
     def get_login_error_url(self, request, provider, error=None, exception=None, extra_context=None):
         """Override to redirect to the configured frontend URL for errors"""
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://clc.bunklogs.net')
+        frontend_url = getattr(settings, "FRONTEND_URL", "https://clc.bunklogs.net")
         return f"{frontend_url}/signin?auth_error={error or 'unknown'}"
-    
+
     def pre_social_login(self, request, sociallogin):
         """
         Invoked just after a user successfully authenticates via a
@@ -49,10 +51,10 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         # Check if this social account is already connected to a user
         if sociallogin.is_existing:
             # Social account already connected, continue with the login flow
-            return
-        
+            return None
+
         # Check if we have a user with the same email
-        email = sociallogin.account.extra_data.get('email')
+        email = sociallogin.account.extra_data.get("email")
         if email:
             User = sociallogin.user.__class__
             try:
@@ -65,11 +67,12 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             except User.DoesNotExist:
                 # No existing user, continue with normal flow
                 pass
-                
+        return None
+
     def populate_user(self, request: HttpRequest, sociallogin: SocialLogin, data: dict) -> User:
         """Populate user instance with data from social provider"""
         user = super().populate_user(request, sociallogin, data)
-        
+
         # Extract name data
         if not user.first_name or not user.last_name:
             if name := data.get("name"):
@@ -83,33 +86,33 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 user.first_name = first_name
                 if last_name := data.get("last_name"):
                     user.last_name = last_name
-        
+
         # Set role for new social users
-        if not getattr(user, 'pk', None):  # Only for new users
-            user.role = 'Counselor'  # Default role
-            
+        if not getattr(user, "pk", None):  # Only for new users
+            user.role = "Counselor"  # Default role
+
         return user
-    
+
     def get_login_redirect_url(self, request, user):
         """
         Return the URL to redirect to after a successful social login.
         """
         return settings.LOGIN_REDIRECT_URL
-        
+
     def save_user(self, request, sociallogin, form=None):
         """
         Saves a newly created user instance using information provided by the social provider.
         """
         user = super().save_user(request, sociallogin, form)
-        
+
         # Generate JWT tokens for headless mode
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
-        
+
         # Store tokens in session for callback handling
-        request.session['auth_tokens'] = {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+        request.session["auth_tokens"] = {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
         }
-        
+
         return user

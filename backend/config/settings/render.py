@@ -17,20 +17,20 @@ SECRET_KEY = env("DJANGO_SECRET_KEY")
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = env.list(
-    "DJANGO_ALLOWED_HOSTS", 
+    "DJANGO_ALLOWED_HOSTS",
     default=[
         "bunklogs.net",
         "www.bunklogs.net",
         "admin.bunklogs.net",  # Admin subdomain
         "*.onrender.com",  # Render.com domain pattern
-    ]
+    ],
 )
 
 # DATABASES
 # ------------------------------------------------------------------------------
-DATABASES["default"] = env.db("DATABASE_URL")  # noqa F405
-DATABASES["default"]["ATOMIC_REQUESTS"] = True  # noqa F405
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)  # noqa F405
+DATABASES["default"] = env.db("DATABASE_URL")  # noqa: F405
+DATABASES["default"]["ATOMIC_REQUESTS"] = True  # noqa: F405
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)  # noqa: F405
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -57,15 +57,15 @@ SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
 SESSION_COOKIE_SECURE = True
 # CRITICAL: Enable cross-origin sessions for production - share across subdomains
 SESSION_COOKIE_NAME = "__Secure-sessionid"
-SESSION_COOKIE_SAMESITE = 'Lax'  # Better subdomain sharing than 'None'
-SESSION_COOKIE_DOMAIN = '.bunklogs.net'  # Share sessions across all bunklogs.net subdomains
+SESSION_COOKIE_SAMESITE = "Lax"  # Better subdomain sharing than 'None'
+SESSION_COOKIE_DOMAIN = ".bunklogs.net"  # Share sessions across all bunklogs.net subdomains
 SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-secure
 CSRF_COOKIE_SECURE = True
-# CRITICAL: Enable cross-origin cookies for production - match session settings  
+# CRITICAL: Enable cross-origin cookies for production - match session settings
 CSRF_COOKIE_NAME = "__Secure-csrftoken"
-CSRF_COOKIE_SAMESITE = 'Lax'  # Match session cookie setting
-CSRF_COOKIE_DOMAIN = '.bunklogs.net'  # Share CSRF tokens across all bunklogs.net subdomains
+CSRF_COOKIE_SAMESITE = "Lax"  # Match session cookie setting
+CSRF_COOKIE_DOMAIN = ".bunklogs.net"  # Share CSRF tokens across all bunklogs.net subdomains
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access to CSRF token for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/topics/security/#ssl-https
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-seconds
@@ -101,7 +101,7 @@ if USE_S3:
     _AWS_EXPIRY = 60 * 60 * 24 * 7
     # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
     AWS_S3_OBJECT_PARAMETERS = {
-        "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}, must-revalidate"
+        "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}, must-revalidate",
     }
     # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
     AWS_S3_REGION_NAME = env("DJANGO_AWS_S3_REGION_NAME", default=None)
@@ -188,7 +188,7 @@ from corsheaders.defaults import default_headers
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-session-token",
-    "x-email-verification-key", 
+    "x-email-verification-key",
     "x-password-reset-key",
     "x-datadog-origin",  # Allow Datadog headers
     "x-datadog-parent-id",
@@ -211,32 +211,31 @@ CORS_ALLOW_ALL_ORIGINS = False  # Explicitly set to False for security
 # Additional CORS configuration for debugging
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 
 # Enable CORS debugging in production temporarily
 import os
-if os.getenv('CORS_DEBUG', 'false').lower() == 'true':
+
+if os.getenv("CORS_DEBUG", "false").lower() == "true":
     CORS_REPLACE_HTTPS_REFERER = True
 
 # Debug CORS configuration
-print(f"🔍 CORS_ALLOW_HEADERS: {CORS_ALLOW_HEADERS}")
-print(f"🔍 CORS_ALLOWED_ORIGINS: {CORS_ALLOWED_ORIGINS}")
 
 # JWT Settings for dj-rest-auth
 REST_AUTH = {
-    'USE_JWT': True,
-    'JWT_AUTH_COOKIE': 'bunklogs-auth',
-    'JWT_AUTH_REFRESH_COOKIE': 'bunklogs-refresh',
-    'JWT_AUTH_SECURE': True,  # Always True in production
-    'JWT_AUTH_HTTPONLY': True,
-    'JWT_AUTH_SAMESITE': 'Lax',
-    'USER_DETAILS_SERIALIZER': 'bunk_logs.users.serializers.UserSerializer',
+    "USE_JWT": True,
+    "JWT_AUTH_COOKIE": "bunklogs-auth",
+    "JWT_AUTH_REFRESH_COOKIE": "bunklogs-refresh",
+    "JWT_AUTH_SECURE": True,  # Always True in production
+    "JWT_AUTH_HTTPONLY": True,
+    "JWT_AUTH_SAMESITE": "Lax",
+    "USER_DETAILS_SERIALIZER": "bunk_logs.users.serializers.UserSerializer",
 }
 
 # Update redirect URLs to use the correct frontend URL
@@ -244,15 +243,15 @@ LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/dashboard"
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
 
 # Django AllAuth settings for production
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Consider 'mandatory' for production
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Consider 'mandatory' for production
 ACCOUNT_LOGOUT_ON_GET = True
 
 # Social authentication
 SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
-    }
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    },
 }
 
 # django-rest-framework
@@ -264,68 +263,66 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 
 # Datadog APM Configuration for Render
 # ------------------------------------------------------------------------------
-if os.getenv('DD_TRACE_ENABLED', 'false').lower() == 'true':
+if os.getenv("DD_TRACE_ENABLED", "false").lower() == "true":
     # Datadog APM settings
-    DD_TRACE_AGENT_URL = os.getenv('DD_TRACE_AGENT_URL', 'http://datadog-agent:8126')
-    
+    DD_TRACE_AGENT_URL = os.getenv("DD_TRACE_AGENT_URL", "http://datadog-agent:8126")
+
     # Ensure ddtrace patches Django components
-    INSTALLED_APPS += ['ddtrace.contrib.django']
-    
+    INSTALLED_APPS += ["ddtrace.contrib.django"]
+
     # Enhanced logging for Datadog
     LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'verbose': {
-                'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-                'style': '{',
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+                "style": "{",
             },
-            'datadog': {
-                'format': '[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] %(levelname)s %(asctime)s %(module)s %(message)s',
-            },
-        },
-        'handlers': {
-            'console': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'formatter': 'datadog' if os.getenv('DD_LOGS_INJECTION') == 'true' else 'verbose',
+            "datadog": {
+                "format": "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] %(levelname)s %(asctime)s %(module)s %(message)s",
             },
         },
-        'loggers': {
-            'django': {
-                'handlers': ['console'],
-                'level': 'INFO',
-                'propagate': True,
-            },
-            'ddtrace': {
-                'handlers': ['console'],
-                'level': 'WARNING',
-            },
-            'bunk_logs': {  # Your app-specific logging
-                'handlers': ['console'],
-                'level': 'INFO',
-                'propagate': True,
+        "handlers": {
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+                "formatter": "datadog" if os.getenv("DD_LOGS_INJECTION") == "true" else "verbose",
             },
         },
-        'root': {
-            'handlers': ['console'],
-            'level': 'INFO',
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            "ddtrace": {
+                "handlers": ["console"],
+                "level": "WARNING",
+            },
+            "bunk_logs": {  # Your app-specific logging
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": True,
+            },
+        },
+        "root": {
+            "handlers": ["console"],
+            "level": "INFO",
         },
     }
 
 # Database instrumentation settings
-DATABASES['default']['OPTIONS'] = DATABASES['default'].get('OPTIONS', {})
-DATABASES['default']['OPTIONS'].update({
-    'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-    'charset': 'utf8mb4',
-}) if 'mysql' in DATABASES['default'].get('ENGINE', '') else None
+DATABASES["default"]["OPTIONS"] = DATABASES["default"].get("OPTIONS", {})
+DATABASES["default"]["OPTIONS"].update({
+    "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+    "charset": "utf8mb4",
+}) if "mysql" in DATABASES["default"].get("ENGINE", "") else None
 
 # Cache instrumentation
-if 'django_redis' in CACHES.get('default', {}).get('BACKEND', ''):
-    CACHES['default']['OPTIONS'] = CACHES['default'].get('OPTIONS', {})
+if "django_redis" in CACHES.get("default", {}).get("BACKEND", ""):
+    CACHES["default"]["OPTIONS"] = CACHES["default"].get("OPTIONS", {})
 
 # Custom middleware for additional tracing (optional)
-MIDDLEWARE = [
-    'ddtrace.contrib.django.TraceMiddleware',
-] + MIDDLEWARE
+MIDDLEWARE = ["ddtrace.contrib.django.TraceMiddleware", *MIDDLEWARE]
 # Force deployment timestamp: 2025-07-08 04:45 UTC

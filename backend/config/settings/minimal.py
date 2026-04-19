@@ -2,7 +2,6 @@
 # This file bypasses AllAuth to test basic admin authentication
 
 # Import minimal base settings
-import os
 from pathlib import Path
 
 # Basic Django settings
@@ -18,11 +17,11 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": "bunk_logs_local",
-        "USER": "postgres", 
+        "USER": "postgres",
         "PASSWORD": "postgres",
         "HOST": "postgres",
         "PORT": "5432",
-    }
+    },
 }
 
 # Essential Django apps only
@@ -54,16 +53,16 @@ DJANGO_ADMIN_FORCE_ALLAUTH = False
 
 # CSRF settings for local development
 CSRF_COOKIE_SECURE = False
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'http://0.0.0.0:8000',
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://0.0.0.0:8000",
 ]
 
 # Session settings
 SESSION_COOKIE_SECURE = False
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = "Lax"
 
 # Static files
 STATIC_URL = "/static/"
