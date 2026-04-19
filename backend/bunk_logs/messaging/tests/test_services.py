@@ -59,7 +59,9 @@ class DailyReportServiceTest(TestCase):
         OrderItem.objects.create(order=order, item=self.item, item_quantity=2)
 
         service = DailyReportService()
-        report_data = service.generate_daily_report_data(timezone.now().date())
+        # Use the same local date that DailyReportService uses internally
+        # (order_date__date filter extracts the date in the active timezone, not UTC)
+        report_data = service.generate_daily_report_data(timezone.localdate())
 
         assert report_data["total_orders"] == 1
         assert report_data["has_orders"]
