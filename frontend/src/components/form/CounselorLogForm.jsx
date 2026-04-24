@@ -4,6 +4,9 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
 import { useAuth } from '../../auth/AuthContext';
 
+// Roles that are allowed to author staff reflections
+const STAFF_LOG_ROLES = ['Counselor', 'Leadership', 'Kitchen Staff', 'Unit Head', 'Camper Care'];
+
 function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewOnly = false }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -26,16 +29,16 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
       return false;
     }
     
-    // Admin and staff can always edit
+    // Admin and Django staff can always edit
     if (currentUser.is_staff || currentUser.role === 'Admin') {
       return true;
     }
     
-    // Only counselors can create/edit counselor logs
-    if (currentUser.role === 'Counselor') {
-      // Check if there's an existing log
+    // Any staff log role (Counselor, Leadership, Kitchen Staff, Unit Head, Camper Care)
+    // can create and edit their own reflections
+    if (STAFF_LOG_ROLES.includes(currentUser.role)) {
       if (existingCounselorLog) {
-        // Must be the original counselor AND editing on the day it was created
+        // Must be the original author AND editing on the day it was created
         const now = new Date();
         const today = now.getFullYear() + '-' + 
                      String(now.getMonth() + 1).padStart(2, '0') + '-' + 
@@ -50,22 +53,21 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
           })() : 
           dateToUse;
         
-        const canEditExisting = String(existingCounselorLog.counselor) === String(currentUser.id) && today === logCreatedDate;
+        const authorId = existingCounselorLog.staff_member;
+        const canEditExisting = String(authorId) === String(currentUser.id) && today === logCreatedDate;
         return canEditExisting;
       }
       
-      // For new logs, counselors can only create logs for today or past dates (no future dates)
+      // For new logs, staff can only create logs for today or past dates (no future dates)
       const now = new Date();
       const today = now.getFullYear() + '-' + 
                    String(now.getMonth() + 1).padStart(2, '0') + '-' + 
                    String(now.getDate()).padStart(2, '0');
-      const logDate = dateToUse;
       
-      if (logDate > today) {
-        return false; // Cannot create logs for future dates
+      if (dateToUse > today) {
+        return false;
       }
       
-      // If there's no existing log and date is valid, counselors can create new logs
       return true;
     }
     
@@ -296,7 +298,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
     
     // Check permissions before submission
     if (!canEdit()) {
-      setError('You do not have permission to submit this counselor log.');
+      setError('You do not have permission to submit this reflection.');
       setLoading(false);
       return;
     }
@@ -491,7 +493,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
     <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-          Counselor Daily Reflection
+          Daily Reflection
         </h1>
         
         {/* View/Edit Mode Toggle - Only show if there's an existing log */}
@@ -539,11 +541,11 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
             <div>
-              <h3 className="text-sm font-medium">Cannot Create Counselor Log</h3>
+              <h3 className="text-sm font-medium">Cannot Create Reflection</h3>
               <p className="text-sm mt-1">
                 {isDateInFuture() 
-                  ? "You cannot create logs for future dates. Please select today's date or a past date."
-                  : "You do not have permission to create counselor logs."
+                  ? "You cannot create reflections for future dates. Please select today's date or a past date."
+                  : "You do not have permission to create reflections."
                 }
               </p>
             </div>
@@ -553,7 +555,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
       
       {success && (
         <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-          Counselor log successfully submitted!
+          Reflection successfully submitted!
         </div>
       )}
       
@@ -581,8 +583,8 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
           </div>
 
           <div>
-            <label htmlFor="counselor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Counselor
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Staff Member
             </label>
             <div className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
               {getCounselorName()}
@@ -797,7 +799,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
             >
               {loading 
                 ? 'Saving...' 
-                : (existingCounselorLog && existingCounselorLog.id ? 'Save Changes' : 'Submit Counselor Log')
+                : (existingCounselorLog && existingCounselorLog.id ? 'Save Changes' : 'Submit Reflection')
               }
             </button>
           </div>

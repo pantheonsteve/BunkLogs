@@ -48,19 +48,33 @@ class User(AbstractUser, TestDataMixin):
     CAMPER_CARE = "Camper Care"
     UNIT_HEAD = "Unit Head"
     COUNSELOR = "Counselor"
+    LEADERSHIP = "Leadership"
+    KITCHEN_STAFF = "Kitchen Staff"
 
     ROLE_CHOICES = [
         (ADMIN, "Admin"),
         (CAMPER_CARE, "Camper Care"),
         (UNIT_HEAD, "Unit Head"),
         (COUNSELOR, "Counselor"),
+        (LEADERSHIP, "Leadership"),
+        (KITCHEN_STAFF, "Kitchen Staff"),
     ]
+
+    # Roles that are permitted to author StaffLog reflections
+    STAFF_LOG_ROLES = [COUNSELOR, LEADERSHIP, KITCHEN_STAFF, UNIT_HEAD, CAMPER_CARE]
 
     role = models.CharField(
         max_length=255,
         choices=ROLE_CHOICES,
         blank=True,
         default="",
+    )
+
+    title = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Job title displayed in admin views (e.g. 'Associate Director').",
     )
 
     # Adding a field to track if user profile is complete

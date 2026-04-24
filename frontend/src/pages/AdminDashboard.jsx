@@ -9,6 +9,8 @@ import CounselorLogsGrid from '../partials/admin-dashboard/CounselorLogsGrid';
 import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 
+const ROLE_OPTIONS = ['All', 'Counselor', 'Unit Head', 'Camper Care', 'Leadership', 'Kitchen Staff'];
+
 function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, loading: authLoading, isAuthenticating } = useAuth();
@@ -19,6 +21,11 @@ function AdminDashboard() {
   const [counselorLogs, setCounselorLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Filter state
+  const [filterRole, setFilterRole] = useState('All');
+  const [filterSupport, setFilterSupport] = useState('All');
+  const [filterMinScore, setFilterMinScore] = useState(0);
   const [selectedDate, setSelectedDate] = useState(() => {
     // Initialize with today's date at noon local time
     const today = new Date();
@@ -115,6 +122,20 @@ function AdminDashboard() {
     newDate.setDate(currentDate.getDate() + (direction === 'next' ? 1 : -1));
     handleDateChange(newDate);
   };
+
+  // Filtered logs derived from raw counselorLogs + active filters
+  const filteredLogs = counselorLogs
+    .filter(log => filterRole === 'All' || log.staff_member_role === filterRole)
+    .filter(log =>
+      filterSupport === 'All'
+        || (filterSupport === 'Yes' && log.staff_care_support_needed)
+        || (filterSupport === 'No' && !log.staff_care_support_needed)
+    )
+    .filter(log => {
+      if (filterMinScore === 0) return true;
+      const avg = (log.day_quality_score + log.support_level_score) / 2;
+      return avg >= filterMinScore;
+    });
 
   // View log details
   const viewLogDetails = (log) => {
@@ -224,7 +245,7 @@ function AdminDashboard() {
                   Admin Dashboard
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
-                  View and manage counselor logs across all staff
+                  View and manage staff reflections across all roles
                 </p>
               </div>
               
@@ -270,6 +291,81 @@ function AdminDashboard() {
               </div>
             </div>
 
+            {/* Filter Bar */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 mb-6">
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Role filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    Role
+                  </label>
+                  <select
+                    value={filterRole}
+                    onChange={e => setFilterRole(e.target.value)}
+                    className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {ROLE_OPTIONS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Support Needed filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    Support Needed
+                  </label>
+                  <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                    {['All', 'Yes', 'No'].map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => setFilterSupport(opt)}
+                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                          filterSupport === opt
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Min Average Score filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    Min Avg Score
+                  </label>
+                  <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                    {[{ label: 'Any', val: 0 }, { label: '≥2', val: 2 }, { label: '≥3', val: 3 }, { label: '≥4', val: 4 }].map(({ label, val }) => (
+                      <button
+                        key={val}
+                        onClick={() => setFilterMinScore(val)}
+                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                          filterMinScore === val
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Active filter count / reset */}
+                {(filterRole !== 'All' || filterSupport !== 'All' || filterMinScore !== 0) && (
+                  <button
+                    onClick={() => { setFilterRole('All'); setFilterSupport('All'); setFilterMinScore(0); }}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline ml-auto"
+                  >
+                    Reset filters
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
@@ -280,7 +376,10 @@ function AdminDashboard() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Logs</p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {counselorLogs.length}
+                      {filteredLogs.length}
+                      {filteredLogs.length !== counselorLogs.length && (
+                        <span className="text-sm text-gray-400 ml-1">/ {counselorLogs.length}</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -294,8 +393,8 @@ function AdminDashboard() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg. Quality Score</p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {counselorLogs.length > 0 
-                        ? (counselorLogs.reduce((sum, log) => sum + log.day_quality_score, 0) / counselorLogs.length).toFixed(1)
+                      {filteredLogs.length > 0 
+                        ? (filteredLogs.reduce((sum, log) => sum + log.day_quality_score, 0) / filteredLogs.length).toFixed(1)
                         : '--'
                       }
                     </p>
@@ -311,19 +410,19 @@ function AdminDashboard() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Support Needed</p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {counselorLogs.filter(log => log.staff_care_support_needed).length}
+                      {filteredLogs.filter(log => log.staff_care_support_needed).length}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Counselor Logs Table */}
+            {/* Staff Reflections Table */}
             <CounselorLogsGrid
               date={date}
               loading={loading}
               error={error}
-              counselorLogs={counselorLogs}
+              counselorLogs={filteredLogs}
               viewLogDetails={viewLogDetails}
             />
 
@@ -334,7 +433,7 @@ function AdminDashboard() {
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Counselor Log Details
+                        Staff Reflection Details
                       </h3>
                       <button
                         onClick={() => setViewingDetails(false)}
@@ -345,12 +444,17 @@ function AdminDashboard() {
                     </div>
                     
                     <div className="space-y-6">
-                      {/* Counselor Info */}
+                      {/* Staff Member Info */}
                       <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Counselor</h4>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Staff Member</h4>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {selectedLog.counselor_first_name} {selectedLog.counselor_last_name} ({selectedLog.counselor_email})
+                          {selectedLog.staff_member_first_name} {selectedLog.staff_member_last_name} ({selectedLog.staff_member_email})
                         </p>
+                        {selectedLog.staff_member_role && (
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            {selectedLog.staff_member_role}{selectedLog.staff_member_title ? ` — ${selectedLog.staff_member_title}` : ''}
+                          </p>
+                        )}
                       </div>
                       
                       {/* Scores */}

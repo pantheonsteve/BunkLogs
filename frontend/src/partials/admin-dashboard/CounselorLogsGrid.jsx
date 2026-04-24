@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, Users, FileText, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 // Helper function for score color
@@ -14,6 +15,21 @@ function getScoreColor(score) {
         case 5: return 'bg-[#18d128] text-white';
         default: return 'bg-gray-100 text-gray-800';
     }
+}
+
+// Helper function for role-aware assignment/title display
+function getAssignmentDisplay(log) {
+    const role = log.staff_member_role;
+    if (role === 'Counselor') {
+        return { primary: log.bunk_names || 'No bunk assignment', secondary: null };
+    }
+    if (role === 'Unit Head' || role === 'Camper Care') {
+        return { primary: log.unit_assignment_name || 'No unit assignment', secondary: null };
+    }
+    if (role === 'Leadership' || role === 'Kitchen Staff') {
+        return { primary: log.staff_member_title || '—', secondary: null };
+    }
+    return { primary: '—', secondary: null };
 }
 
 // Helper function for date formatting
@@ -36,6 +52,8 @@ const CounselorLogsGrid = ({
     counselorLogs = [],
     viewLogDetails,
 }) => {
+    const navigate = useNavigate();
+
     console.log('📊 CounselorLogsGrid received:', {
         date,
         loading,
@@ -55,7 +73,7 @@ const CounselorLogsGrid = ({
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Counselor Logs for {date && formatDisplayDate(date)}
+                Staff Reflections for {date && formatDisplayDate(date)}
             </h2>
         </div>
         <div className="overflow-x-auto">
@@ -76,7 +94,7 @@ const CounselorLogsGrid = ({
                             No logs found
                         </h3>
                         <p className="text-gray-600 dark:text-gray-400">
-                            No counselor logs were submitted for this date.
+                            No staff reflections were submitted for this date.
                         </p>
                     </div>
                 </div>
@@ -85,10 +103,13 @@ const CounselorLogsGrid = ({
                     <thead className="bg-gray-50 dark:bg-gray-900">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Counselor
+                                Staff Member
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Bunk Assignment
+                                Role
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Bunk / Assignment
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Quality Score
@@ -124,32 +145,48 @@ const CounselorLogsGrid = ({
                                 className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                                 onClick={() => viewLogDetails && viewLogDetails(log)}
                             >
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="flex items-center">
+                                <td
+                                    className="px-6 py-4 whitespace-nowrap"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <button
+                                        onClick={() => navigate(`/admin-staff/${log.staff_member}`)}
+                                        className="flex items-center text-left group"
+                                    >
                                         <div className="flex-shrink-0 h-10 w-10">
-                                            <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    {(log.counselor_first_name || '?')[0]}{(log.counselor_last_name || '?')[0]}
+                                            <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900 transition-colors">
+                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                                                    {(log.staff_member_first_name || log.counselor_first_name || '?')[0]}
+                                                    {(log.staff_member_last_name  || log.counselor_last_name  || '?')[0]}
                                                 </span>
                                             </div>
                                         </div>
                                         <div className="ml-4">
-                                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                {log.counselor_first_name || 'Unknown'} {log.counselor_last_name || 'User'}
+                                            <div className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:underline">
+                                                {log.staff_member_first_name || log.counselor_first_name || 'Unknown'}{' '}
+                                                {log.staff_member_last_name  || log.counselor_last_name  || 'User'}
                                             </div>
                                             <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                {log.counselor_email || 'No email'}
+                                                {log.staff_member_email || log.counselor_email || 'No email'}
                                             </div>
                                         </div>
-                                    </div>
+                                    </button>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-900 dark:text-white">
-                                        {log.bunk_names || 'No bunk assignment'}
-                                    </div>
-                                    {log.bunk_assignments && log.bunk_assignments.length > 0 && (
+                                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                                        {log.staff_member_role || 'Staff'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {(() => {
+                                        const { primary } = getAssignmentDisplay(log);
+                                        return (
+                                            <div className="text-sm text-gray-900 dark:text-white">{primary}</div>
+                                        );
+                                    })()}
+                                    {log.staff_member_role === 'Counselor' && log.bunk_assignments && log.bunk_assignments.length > 0 && (
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            {log.bunk_assignments.map((assignment, index) => (
+                                            {log.bunk_assignments.map((assignment) => (
                                                 <div key={assignment.id}>
                                                     {assignment.unit_name && `${assignment.unit_name}`}
                                                     {assignment.cabin_name && ` • ${assignment.cabin_name}`}

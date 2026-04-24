@@ -31,7 +31,7 @@ from django.db import transaction
 from faker import Faker
 
 from bunk_logs.bunklogs.models import BunkLog
-from bunk_logs.bunklogs.models import CounselorLog
+from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Cabin
 from bunk_logs.campers.models import Camper
 from bunk_logs.messaging.models import EmailLog
@@ -100,7 +100,7 @@ class Command(BaseCommand):
             counts["campers"] = self._scrub_campers(fake)
             counts["cabins"] = self._scrub_cabins(fake)
             counts["bunk_logs"] = self._scrub_bunk_logs()
-            counts["counselor_logs"] = self._scrub_counselor_logs()
+            counts["staff_logs"] = self._scrub_staff_logs()
             counts["orders"] = self._scrub_orders()
             counts["email_recipients"] = self._scrub_email_recipients(fake)
             counts["email_logs_truncated"] = self._truncate_email_logs()
@@ -232,8 +232,8 @@ class Command(BaseCommand):
         # Preserve scores so the UI looks real; only the free-text leaks PII.
         return BunkLog.objects.exclude(description="").update(description=SCRUB_PLACEHOLDER)
 
-    def _scrub_counselor_logs(self) -> int:
-        return CounselorLog.objects.update(
+    def _scrub_staff_logs(self) -> int:
+        return StaffLog.objects.update(
             elaboration=SCRUB_PLACEHOLDER,
             values_reflection=SCRUB_PLACEHOLDER,
         )
