@@ -99,29 +99,8 @@ function Sidebar({
               </span>
             </h3>
             <ul className="mt-3">
-              <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
-                <NavLink 
-                  end 
-                  to="/" 
-                  className={({ isActive }) => 
-                    `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
-                      isActive ? "text-blue-600 dark:text-blue-400" : "hover:text-gray-900 dark:hover:text-white"
-                    }`
-                  }
-                >
-                  <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                    </svg>
-                    <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
-                      Dashboard
-                    </span>
-                  </div>
-                </NavLink>
-              </li>
-              
               {/* Role-specific dashboard links */}
-              
+
               {user && user.role === 'Counselor' && (
                 <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                   <NavLink 
@@ -148,25 +127,6 @@ function Sidebar({
                 <>
                   <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                     <NavLink 
-                      to="/admin-dashboard" 
-                      className={({ isActive }) => 
-                        `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
-                          isActive ? "text-purple-600 dark:text-purple-400" : "hover:text-gray-900 dark:hover:text-white"
-                        }`
-                      }
-                    >
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                        </svg>
-                        <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
-                          Counselor Logs
-                        </span>
-                      </div>
-                    </NavLink>
-                  </li>
-                  <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
-                    <NavLink 
                       to="/admin-bunk-logs" 
                       className={({ isActive }) => 
                         `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
@@ -180,6 +140,25 @@ function Sidebar({
                         </svg>
                         <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
                           Bunk Logs
+                        </span>
+                      </div>
+                    </NavLink>
+                  </li>
+                  <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                    <NavLink 
+                      to="/admin-dashboard" 
+                      className={({ isActive }) => 
+                        `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                          isActive ? "text-purple-600 dark:text-purple-400" : "hover:text-gray-900 dark:hover:text-white"
+                        }`
+                      }
+                    >
+                      <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                        </svg>
+                        <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                          Counselor Logs
                         </span>
                       </div>
                     </NavLink>
