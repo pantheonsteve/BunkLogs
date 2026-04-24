@@ -8,24 +8,24 @@ from django.shortcuts import render
 from django.urls import path
 from django.urls import reverse
 
+from bunk_logs.utils.admin import TestDataAdminMixin
+
 from .forms import BunkCsvImportForm
 from .forms import CabinCsvImportForm
-from .forms import UnitCsvImportForm
-from .forms import UnitForm
 from .forms import CounselorBunkAssignmentCsvImportForm
+from .forms import UnitCsvImportForm
 from .forms import UnitStaffAssignmentCsvImportForm
 from .models import Bunk
 from .models import Cabin
+from .models import CounselorBunkAssignment
 from .models import Session
 from .models import Unit
 from .models import UnitStaffAssignment
-from .models import CounselorBunkAssignment
 from .services.imports import import_bunks_from_csv
 from .services.imports import import_cabins_from_csv
-from .services.imports import import_units_from_csv
 from .services.imports import import_counselor_bunk_assignments_from_csv
 from .services.imports import import_unit_staff_assignments_from_csv
-from bunk_logs.utils.admin import TestDataAdminMixin
+from .services.imports import import_units_from_csv
 
 
 @admin.register(Unit)
@@ -40,7 +40,7 @@ class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
     search_fields = ("name",)
     list_filter = ("created_at", "updated_at")
     date_hierarchy = "created_at"
-    
+
     def get_primary_unit_head(self, obj):
         """Display the primary unit head."""
         unit_head = obj.primary_unit_head
@@ -48,7 +48,7 @@ class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
             return f"{unit_head.get_full_name()} ({unit_head.email})"
         return "None"
     get_primary_unit_head.short_description = "Primary Unit Head"
-    
+
     def get_primary_camper_care(self, obj):
         """Display the primary camper care."""
         camper_care = obj.primary_camper_care
@@ -138,18 +138,18 @@ class UnitStaffAssignmentAdmin(admin.ModelAdmin):
     search_fields = ("unit__name", "staff_member__first_name", "staff_member__last_name", "staff_member__email")
     autocomplete_fields = ["unit", "staff_member"]
     date_hierarchy = "start_date"
-    
+
     fieldsets = (
         (None, {
-            "fields": ("unit", "staff_member", "role", "is_primary")
+            "fields": ("unit", "staff_member", "role", "is_primary"),
         }),
         ("Dates", {
-            "fields": ("start_date", "end_date")
+            "fields": ("start_date", "end_date"),
         }),
     )
-    
+
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('unit', 'staff_member')
+        return super().get_queryset(request).select_related("unit", "staff_member")
 
     def get_urls(self):
         urls = super().get_urls()
@@ -308,7 +308,7 @@ class BunkAdmin(TestDataAdminMixin, admin.ModelAdmin):
     search_fields = ("cabin__name", "session__name")
     actions = ["activate_bunks", "deactivate_bunks"]
     inlines = [CounselorBunkAssignmentInline]
-    
+
     def get_current_counselors_display(self, obj):
         """Display current counselors"""
         counselors = obj.get_current_counselors()
@@ -419,7 +419,7 @@ class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
     )
     date_hierarchy = "start_date"
     autocomplete_fields = ["counselor", "bunk"]
-    
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -433,7 +433,7 @@ class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
             if form.is_valid():
                 csv_file = form.cleaned_data["csv_file"]
                 dry_run = form.cleaned_data["dry_run"]
-                
+
                 # Save the uploaded file to a secure temporary file
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     temp_path = Path(temp_file.name)
@@ -447,13 +447,13 @@ class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
                     messages.info(
                         request,
                         f"Dry run completed. {result['success_count']} counselor assignments would be processed. "
-                        f"Created: {result['created']}, Updated: {result['updated']}"
+                        f"Created: {result['created']}, Updated: {result['updated']}",
                     )
                 else:
                     messages.success(
                         request,
                         f"Successfully processed {result['success_count']} counselor assignments. "
-                        f"Created: {result['created']}, Updated: {result['updated']}"
+                        f"Created: {result['created']}, Updated: {result['updated']}",
                     )
 
                 # Display any errors
@@ -480,7 +480,7 @@ class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
                 "subtitle": "Upload a CSV file with counselor assignment data",
                 "expected_headers": [
                     "counselor_email (required): Email of the counselor",
-                    "cabin_name (required): Name of the cabin", 
+                    "cabin_name (required): Name of the cabin",
                     "session_name (required): Name of the session",
                     "start_date (required): Start date in YYYY-MM-DD format",
                     "end_date (optional): End date in YYYY-MM-DD format (blank for ongoing)",
@@ -498,14 +498,14 @@ class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context["import_counselor_assignments"] = reverse("admin:counselor_assignment_import_csv")
         return super().changelist_view(request, extra_context=extra_context)
-    
+
     def is_active(self, obj):
         """Display if the assignment is currently active"""
         return obj.is_active
     is_active.boolean = True
     is_active.short_description = "Currently Active"
-    
+
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
-            "counselor", "bunk", "bunk__cabin", "bunk__session", "bunk__unit"
+            "counselor", "bunk", "bunk__cabin", "bunk__session", "bunk__unit",
         )

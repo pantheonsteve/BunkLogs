@@ -8,6 +8,7 @@ from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
+
 from config import views
 
 urlpatterns = [
@@ -45,15 +46,15 @@ urlpatterns += [
     ),
     path("_allauth/", include("allauth.headless.urls")),
     path("api/v1/", include("bunk_logs.api.urls")),
-    
+
     # JWT Authentication
     path("api/auth/", include("config.auth_urls")),
 
     # Google OAuth
-    path('api/auth/google/', views.google_login, name='google_login'),
-    path('api/auth/google/callback/', views.google_callback, name='google_callback'),
-    path('api/auth/google/callback/token/', views.google_login_callback, name='google_login_callback'),
-    path('api/get-csrf-token/', views.get_csrf_token, name='get-csrf-token'),
+    path("api/auth/google/", views.google_login, name="google_login"),
+    path("api/auth/google/callback/", views.google_callback, name="google_callback"),
+    path("api/auth/google/callback/token/", views.google_login_callback, name="google_login_callback"),
+    path("api/get-csrf-token/", views.get_csrf_token, name="get-csrf-token"),
 ]
 
 if settings.DEBUG:

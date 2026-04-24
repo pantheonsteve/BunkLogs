@@ -87,36 +87,38 @@ class CamperBunkAssignment(TestDataMixin):
     def clean(self):
         # Validate that dates are logical
         if self.start_date and self.end_date and self.start_date > self.end_date:
-            raise ValidationError("End date cannot be before start date.")
-            
+            msg = "End date cannot be before start date."
+            raise ValidationError(msg)
+
         # Check for overlapping assignments
         if self.is_active or (self.start_date and self.end_date):
             overlapping_assignments = CamperBunkAssignment.objects.filter(
                 camper=self.camper,
                 is_active=True,
             )
-            
+
             # Exclude current instance if it exists (for updates)
             if self.pk:
                 overlapping_assignments = overlapping_assignments.exclude(pk=self.pk)
-                
+
             # Check date-based overlaps if dates are provided
             if self.start_date and self.end_date:
                 date_overlaps = CamperBunkAssignment.objects.filter(
                     camper=self.camper,
                     start_date__lte=self.end_date,
-                    end_date__gte=self.start_date
+                    end_date__gte=self.start_date,
                 )
-                
+
                 if self.pk:
                     date_overlaps = date_overlaps.exclude(pk=self.pk)
-                    
+
                 if date_overlaps.exists():
                     raise ValidationError(self.OVERLAPPING_ASSIGNMENT_ERROR)
-                    
+
             # If we're setting this as active, ensure no other active assignments exist
             if self.is_active and overlapping_assignments.exists():
-                raise ValidationError("Camper already has an active bunk assignment.")
+                msg = "Camper already has an active bunk assignment."
+                raise ValidationError(msg)
 
     def save(self, *args, **kwargs):
         # Automatically set start and end dates based on the session of the bunk
@@ -124,10 +126,10 @@ class CamperBunkAssignment(TestDataMixin):
             self.start_date = self.bunk.session.start_date
         if not self.end_date and self.bunk and self.bunk.session:
             self.end_date = self.bunk.session.end_date
-            
+
         # Run validation
         self.clean()
-        
+
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

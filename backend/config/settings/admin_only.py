@@ -3,10 +3,10 @@ Minimal admin-only settings for local development
 This bypasses AllAuth entirely for admin access
 """
 
-from .base import *  # noqa: F403
+from .base import *
 
 # Override problematic AllAuth settings completely
-INSTALLED_APPS = [app for app in INSTALLED_APPS if not app.startswith('allauth')]
+INSTALLED_APPS = [app for app in INSTALLED_APPS if not app.startswith("allauth")]
 
 # Add back only essential apps
 INSTALLED_APPS += [
@@ -34,19 +34,19 @@ MIDDLEWARE = [
 ]
 
 # Simple session settings
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = False
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = "Lax"
 
 # Simple CSRF settings
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # Force Django admin login

@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from bunk_logs.utils.models import TestDataMixin
 
@@ -50,10 +50,10 @@ class UnitStaffAssignment(models.Model):
     ]
 
     unit = models.ForeignKey(
-        "Unit", on_delete=models.CASCADE, related_name="staff_assignments"
+        "Unit", on_delete=models.CASCADE, related_name="staff_assignments",
     )
     staff_member = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="unit_assignments"
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="unit_assignments",
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     is_primary = models.BooleanField(default=False)
@@ -93,7 +93,7 @@ class CounselorBunkAssignment(TestDataMixin):
     end_date = models.DateField(null=True, blank=True)
     is_primary = models.BooleanField(
         default=False,
-        help_text="Is this counselor the primary counselor for this bunk?"
+        help_text="Is this counselor the primary counselor for this bunk?",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -105,8 +105,8 @@ class CounselorBunkAssignment(TestDataMixin):
         constraints = [
             models.CheckConstraint(
                 check=models.Q(end_date__isnull=True) | models.Q(end_date__gte=models.F("start_date")),
-                name="valid_date_range_counselor_bunk"
-            )
+                name="valid_date_range_counselor_bunk",
+            ),
         ]
         app_label = "bunks"
 
@@ -125,7 +125,8 @@ class CounselorBunkAssignment(TestDataMixin):
         """Validate the assignment"""
         # Validate that dates are logical
         if self.start_date and self.end_date and self.start_date > self.end_date:
-            raise ValidationError("End date cannot be before start date.")
+            msg = "End date cannot be before start date."
+            raise ValidationError(msg)
 
         # Check for overlapping assignments if we're setting this as primary
         if self.is_primary:
@@ -144,9 +145,10 @@ class CounselorBunkAssignment(TestDataMixin):
                     # Check if our date range overlaps with this active assignment
                     their_end = assignment.end_date or timezone.now().date()
                     our_end = self.end_date or timezone.now().date()
-                    
+
                     if (self.start_date <= their_end and our_end >= assignment.start_date):
-                        raise ValidationError("Another counselor is already the primary for this bunk during this period.")
+                        msg = "Another counselor is already the primary for this bunk during this period."
+                        raise ValidationError(msg)
 
     def save(self, *args, **kwargs):
         # Run validation
@@ -265,45 +267,45 @@ class Bunk(TestDataMixin):
         """Get all currently assigned counselors"""
         today = timezone.now().date()
         return [
-            assignment.counselor 
+            assignment.counselor
             for assignment in self.counselor_assignments.filter(
-                start_date__lte=today
+                start_date__lte=today,
             ).filter(
-                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=today),
             ).order_by("-is_primary", "-start_date")
         ]
-    
+
     def get_primary_counselor(self):
         """Get the primary counselor for this bunk"""
         today = timezone.now().date()
         primary_assignment = self.counselor_assignments.filter(
             start_date__lte=today,
-            is_primary=True
+            is_primary=True,
         ).filter(
-            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today),
         ).first()
-        
+
         return primary_assignment.counselor if primary_assignment else None
-    
+
     def assign_counselor(self, counselor, start_date=None, end_date=None, is_primary=False):
         """Assign a counselor to this bunk"""
         if start_date is None:
             start_date = timezone.now().date()
-        
+
         return CounselorBunkAssignment.objects.create(
             counselor=counselor,
             bunk=self,
             start_date=start_date,
             end_date=end_date,
-            is_primary=is_primary
+            is_primary=is_primary,
         )
-    
+
     @property
     def counselor(self):
         """Backward compatibility property - returns primary counselor"""
         return self.get_primary_counselor()
 
-    @property  
+    @property
     def current_counselors(self):
         """Property for current counselors list"""
         return self.get_current_counselors()

@@ -1,11 +1,12 @@
 # Production settings with Google Cloud Storage instead of AWS S3
 import os
+
 import environ
 
 env = environ.Env()
 
 # Import base production settings
-from .base import *  # noqa: F403, F401
+from .base import *
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -16,7 +17,7 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = [
     "*.run.app",
-    "bunklogs.net", 
+    "bunklogs.net",
     "bunk-logs-backend-koumwfa74a-uc.a.run.app",
     "bunk-logs-backend-461994890254.us-central1.run.app",
     "localhost",
@@ -30,11 +31,11 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB"),
         "USER": os.environ.get("POSTGRES_USER"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"), 
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
         "HOST": os.environ.get("POSTGRES_HOST"),
         "PORT": os.environ.get("POSTGRES_PORT"),
         "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=60),
-    }
+    },
 }
 
 # CACHES
@@ -62,15 +63,15 @@ SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
 SESSION_COOKIE_SECURE = True
 # CRITICAL: Enable cross-origin sessions for production - share across subdomains
 SESSION_COOKIE_NAME = "__Secure-sessionid"
-SESSION_COOKIE_SAMESITE = 'Lax'  # Better subdomain sharing than 'None'
-SESSION_COOKIE_DOMAIN = '.bunklogs.net'  # Share sessions across all bunklogs.net subdomains
+SESSION_COOKIE_SAMESITE = "Lax"  # Better subdomain sharing than 'None'
+SESSION_COOKIE_DOMAIN = ".bunklogs.net"  # Share sessions across all bunklogs.net subdomains
 SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-secure
 CSRF_COOKIE_SECURE = True
-# CRITICAL: Enable cross-origin cookies for production - match session settings  
+# CRITICAL: Enable cross-origin cookies for production - match session settings
 CSRF_COOKIE_NAME = "__Secure-csrftoken"
-CSRF_COOKIE_SAMESITE = 'Lax'  # Match session cookie setting
-CSRF_COOKIE_DOMAIN = '.bunklogs.net'  # Share CSRF tokens across all bunklogs.net subdomains
+CSRF_COOKIE_SAMESITE = "Lax"  # Match session cookie setting
+CSRF_COOKIE_DOMAIN = ".bunklogs.net"  # Share CSRF tokens across all bunklogs.net subdomains
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access to CSRF token for AllAuth headless mode
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-seconds
 # TODO: set this to 60 seconds first and then to 518400 once you prove the former works
@@ -149,7 +150,7 @@ ADMIN_URL = env("DJANGO_ADMIN_URL")
 # Anymail
 # ------------------------------------------------------------------------------
 # https://anymail.readthedocs.io/en/stable/installation/#installing-anymail
-INSTALLED_APPS += ["anymail"]  # noqa: F405
+INSTALLED_APPS += ["anymail"]
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 # https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
 # https://anymail.readthedocs.io/en/stable/esps/mailgun/
@@ -167,36 +168,36 @@ ANYMAIL = {
 # See https://docs.djangoproject.com/en/dev/topics/logging for
 # more details on how to customize your logging configuration.
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '[{levelname}] {asctime} {name} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{levelname}] {asctime} {name} {message}",
+            "style": "{",
         },
     },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
         },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
     },
-    'loggers': {
-        'django.db.backends': {
-            'level': 'ERROR',
-            'handlers': ['console'],
-            'propagate': False,
+    "loggers": {
+        "django.db.backends": {
+            "level": "ERROR",
+            "handlers": ["console"],
+            "propagate": False,
         },
         # Errors logged by the SDK itself
-        'sentry_sdk': {'level': 'ERROR', 'handlers': ['console'], 'propagate': False},
-        'django.security.DisallowedHost': {
-            'level': 'ERROR',
-            'handlers': ['console'],
-            'propagate': False,
+        "sentry_sdk": {"level": "ERROR", "handlers": ["console"], "propagate": False},
+        "django.security.DisallowedHost": {
+            "level": "ERROR",
+            "handlers": ["console"],
+            "propagate": False,
         },
     },
 }
@@ -209,8 +210,8 @@ FRONTEND_URL = env("FRONTEND_URL", default="https://clc.bunklogs.net")
 SPA_URL = FRONTEND_URL
 
 # Override redirect URLs for production
-LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default=f"{FRONTEND_URL}/dashboard")
-ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default=f"{FRONTEND_URL}/signin")
+LOGIN_REDIRECT_URL = env("LOGIN_REDIRECT_URL", default=f"{FRONTEND_URL}/dashboard")
+ACCOUNT_LOGOUT_REDIRECT_URL = env("ACCOUNT_LOGOUT_REDIRECT_URL", default=f"{FRONTEND_URL}/signin")
 
 # Update CORS settings for production
 CORS_ALLOWED_ORIGINS = [
@@ -221,14 +222,14 @@ CORS_ALLOWED_ORIGINS = [
 
 # Update CSRF trusted origins
 CSRF_TRUSTED_ORIGINS = [
-    'https://clc.bunklogs.net', 
-    'https://www.bunklogs.net',
+    "https://clc.bunklogs.net",
+    "https://www.bunklogs.net",
 ]
 
 # Update allowed hosts for production (remove localhost)
 ALLOWED_HOSTS = [
     "*.run.app",
-    "bunklogs.net", 
+    "bunklogs.net",
     "bunk-logs-backend-koumwfa74a-uc.a.run.app",
     "bunk-logs-backend-461994890254.us-central1.run.app",
     "localhost",

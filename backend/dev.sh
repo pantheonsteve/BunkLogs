@@ -136,9 +136,12 @@ show_help() {
     echo "  logs            - Show application logs"
     echo "  backup-db       - Backup local database"
     echo "  restore-db      - Restore local database"
-    echo "  sync-prod-db    - Sync production database to local (DESTRUCTIVE)"
-    echo "  import-prod-db  - Import production database using backup script (RECOMMENDED)"
-    echo "  sync-prod-users - Sync production users and data to local (DESTRUCTIVE)"
+    echo "  sync-prod       - Pull prod -> local DB and SCRUB PII (recommended)"
+    echo "  scrub-pii       - Re-run PII scrub against the current local DB"
+    echo "  seed-dev        - Wipe local DB and seed synthetic dev data (Phase 2; placeholder)"
+    echo "  sync-prod-db    - [legacy] Raw prod sync, NO scrub. Avoid."
+    echo "  import-prod-db  - [legacy] Raw prod import via backup script. Avoid."
+    echo "  sync-prod-users - [legacy] Raw prod sync incl. users, NO scrub. Avoid."
     echo "  analyze-date-conflicts - Analyze unique constraint conflicts preventing date fixes"
     echo "  smart-date-fix  - Intelligently fix date conflicts by handling duplicates"
     echo "  fix-july-6-7-dates - Fix BunkLog date fields to match created_at timezone"
@@ -560,6 +563,42 @@ case "$1" in
         print_success "Production database (including users) successfully synced to local!"
         ;;
     
+    sync-prod)
+        print_warning "About to pull prod -> local DB and run PII scrub."
+        print_warning "Local DB will be wiped. Raw dump is removed after scrub."
+        echo ""
+        read -p "Continue? (type 'yes' to confirm): " confirm
+        if [ "$confirm" != "yes" ]; then
+            print_status "Cancelled."
+            exit 0
+        fi
+        setup_podman_env
+        "$(dirname "$0")/../scripts/sync-prod-db.sh" "${@:2}"
+        ;;
+
+    scrub-pii)
+        setup_podman_env
+        COMPOSE_CMD=$(get_compose_command)
+        print_status "Re-running scrub_pii against the current local DB..."
+        $COMPOSE_CMD -f docker-compose.local.yml exec django \
+            python manage.py scrub_pii --confirm "${@:2}"
+        ;;
+
+    seed-dev)
+        setup_podman_env
+        COMPOSE_CMD=$(get_compose_command)
+        print_status "Seeding synthetic dev data..."
+        if $COMPOSE_CMD -f docker-compose.local.yml exec django \
+            python manage.py seed_dev_data "${@:2}"; then
+            print_success "Dev data seeded."
+        else
+            print_warning "seed_dev_data not yet available (Phase 2). See docs/dev-data.md."
+            print_status "Falling back to create_sample_test_data..."
+            $COMPOSE_CMD -f docker-compose.local.yml exec django \
+                python manage.py create_sample_test_data --delete-existing
+        fi
+        ;;
+
     analyze-date-conflicts)
         check_venv
         print_status "Analyzing date fix conflicts..."

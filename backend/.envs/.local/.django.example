@@ -1,15 +1,15 @@
 USE_DOCKER=yes
-DATABASE_URL=postgres://postgres:postgres@postgres:5432/bunk_logs_local
+DATABASE_URL=postgres://postgres:postgres@postgres:5432/bunk_logs
 DJANGO_DEBUG=True
 DJANGO_SETTINGS_MODULE=config.settings.local
-DJANGO_SECRET_KEY=2xk-a!okkm8yany_2$c48l%jq-2v!&+6gqm_an7(+)84z##i^#&&do2*x-%
+DJANGO_SECRET_KEY=replace-me-with-a-long-random-string
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 DJANGO_ADMIN_URL=admin/
 
 # Redis
 REDIS_URL=redis://redis:6379/0
 
-# Email
+# Email (local dev uses Mailpit)
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=mailpit
 EMAIL_PORT=1025
@@ -22,3 +22,6 @@ DJANGO_AWS_STORAGE_BUCKET_NAME=dummy
 # Mailgun (dummy values for local development)
 MAILGUN_API_KEY=dummy
 MAILGUN_DOMAIN=dummy
+
+# Anthropic AI (optional - add your key for AI log assistant)
+# ANTHROPIC_API_KEY=sk-ant-...

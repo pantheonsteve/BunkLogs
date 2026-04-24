@@ -1,12 +1,11 @@
 # ruff: noqa: E501
-from .base import *  # noqa: F403
+# Load local environment variables
+from pathlib import Path
+
+from .base import *
 from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
 from .base import env
-
-# Load local environment variables
-import os
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 
@@ -25,7 +24,7 @@ SECRET_KEY = env(
     default="UwQ4Bqm56JIeEszbx3merf4E5Pcl5Ih9IVOdDjeOsZEDWJ52uovXQTmOuNApPyIm",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1", "testserver"]  # noqa: S104
+ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1", "testserver"]
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -44,10 +43,10 @@ CACHES = {
 CSRF_COOKIE_SECURE = False  # Allow CSRF cookies over HTTP for local development
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access for AllAuth headless mode
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 # CORS Configuration for Local Development
@@ -56,31 +55,31 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
-    "http://127.0.0.1:5174"
+    "http://127.0.0.1:5174",
 ]
 
 # CORS_ALLOW_ALL_ORIGINS = True  # Don't use this with credentials
 
 # If you need to support older browsers:
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
 
 

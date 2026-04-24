@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,8 +26,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         """
         if self.request.user.is_staff:
             return User.objects.all()
-        else:
-            return User.objects.filter(pk=self.request.user.pk)
+        return User.objects.filter(pk=self.request.user.pk)
 
     @action(detail=False, methods=["get"])
     def me(self, request):

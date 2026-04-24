@@ -2,7 +2,7 @@
 With these settings, tests run faster.
 """
 
-from .base import *  # noqa: F403
+from .base import *
 from .base import TEMPLATES
 from .base import env
 
@@ -29,6 +29,26 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 # DEBUGGING FOR TEMPLATES
 # ------------------------------------------------------------------------------
 TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
+
+# STATIC FILES
+# ------------------------------------------------------------------------------
+# Use plain storage in tests — no collectstatic required, avoids missing
+# staticfiles manifest errors. Must override STORAGES (not the deprecated
+# STATICFILES_STORAGE) since base.py already uses STORAGES.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+# ALLAUTH
+# ------------------------------------------------------------------------------
+# Disable headless-only mode so traditional allauth URLs (e.g. account_login)
+# are registered and tests that call reverse("account_login") can resolve them.
+HEADLESS_ONLY = False
 
 # MEDIA
 # ------------------------------------------------------------------------------

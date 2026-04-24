@@ -39,12 +39,12 @@ class Command(BaseCommand):
 
             # Get all the apps for this provider
             apps = SocialApp.objects.filter(provider=provider).order_by("id")
-            
+
             # Display app details
             for i, app in enumerate(apps):
                 self.stdout.write(
                     f"  {i+1}. ID={app.id}, Name={app.name}, Client ID={app.client_id[:10]}..., "
-                    f"Created: {getattr(app, 'created_at', 'N/A')}"
+                    f"Created: {getattr(app, 'created_at', 'N/A')}",
                 )
 
             # Keep the first one, delete the rest
@@ -52,34 +52,34 @@ class Command(BaseCommand):
                 # Get the first app (we'll keep this one)
                 keep_app = apps.first()
                 self.stdout.write(
-                    self.style.SUCCESS(f"  Keeping: {keep_app.id} - {keep_app.name}")
+                    self.style.SUCCESS(f"  Keeping: {keep_app.id} - {keep_app.name}"),
                 )
-                
+
                 # Delete the rest
                 for app in apps[1:]:
                     self.stdout.write(
-                        self.style.WARNING(f"  Deleting: {app.id} - {app.name}")
+                        self.style.WARNING(f"  Deleting: {app.id} - {app.name}"),
                     )
                     app.delete()
-                
+
                 self.stdout.write(
-                    self.style.SUCCESS(f"Cleaned up duplicate entries for {provider}")
+                    self.style.SUCCESS(f"Cleaned up duplicate entries for {provider}"),
                 )
             else:
                 self.stdout.write(
                     self.style.WARNING(
-                        f"  [DRY RUN] Would keep {apps[0].id} and delete {len(apps)-1} duplicates"
-                    )
+                        f"  [DRY RUN] Would keep {apps[0].id} and delete {len(apps)-1} duplicates",
+                    ),
                 )
 
         if dry_run:
             self.stdout.write(
                 self.style.WARNING(
                     "This was a dry run. No changes were made. "
-                    "Run without --dry-run to apply changes."
-                )
+                    "Run without --dry-run to apply changes.",
+                ),
             )
         else:
             self.stdout.write(
-                self.style.SUCCESS("Successfully cleaned up duplicate social apps")
+                self.style.SUCCESS("Successfully cleaned up duplicate social apps"),
             )
