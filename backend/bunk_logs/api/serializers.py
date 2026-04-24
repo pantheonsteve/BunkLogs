@@ -372,10 +372,14 @@ class StaffLogSerializer(serializers.ModelSerializer):
     staff_member_last_name = serializers.CharField(source="staff_member.last_name", read_only=True)
     staff_member_email = serializers.CharField(source="staff_member.email", read_only=True)
     staff_member_role = serializers.CharField(source="staff_member.role", read_only=True)
+    staff_member_title = serializers.CharField(source="staff_member.title", read_only=True)
 
     # Counselor-specific fields — populated only for CounselorLog instances
     bunk_assignments = serializers.SerializerMethodField()
     bunk_names = serializers.SerializerMethodField()
+
+    # Unit Head / Camper Care — current unit name
+    unit_assignment_name = serializers.SerializerMethodField()
 
     # Legacy aliases kept for backward compatibility with existing frontend consumers
     counselor = serializers.PrimaryKeyRelatedField(source="staff_member", read_only=True)
@@ -388,21 +392,21 @@ class StaffLogSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "staff_member", "staff_member_first_name", "staff_member_last_name",
-            "staff_member_email", "staff_member_role",
+            "staff_member_email", "staff_member_role", "staff_member_title",
             # Legacy aliases
             "counselor", "counselor_first_name", "counselor_last_name", "counselor_email",
             "date", "day_quality_score", "support_level_score",
             "elaboration", "day_off", "staff_care_support_needed", "values_reflection",
-            "bunk_assignments", "bunk_names",
+            "bunk_assignments", "bunk_names", "unit_assignment_name",
             "created_at", "updated_at",
         ]
         read_only_fields = [
             "id", "created_at", "updated_at",
             "staff_member",
             "staff_member_first_name", "staff_member_last_name",
-            "staff_member_email", "staff_member_role",
+            "staff_member_email", "staff_member_role", "staff_member_title",
             "counselor", "counselor_first_name", "counselor_last_name", "counselor_email",
-            "bunk_assignments", "bunk_names",
+            "bunk_assignments", "bunk_names", "unit_assignment_name",
         ]
 
     @extend_schema_field(OpenApiTypes.OBJECT)
@@ -435,6 +439,19 @@ class StaffLogSerializer(serializers.ModelSerializer):
         if not hasattr(obj, "bunk_names"):
             return ""
         return obj.bunk_names
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_unit_assignment_name(self, obj):
+        """Return the current unit name for Unit Head / Camper Care; None for other roles."""
+        if obj.staff_member.role not in ("Unit Head", "Camper Care"):
+            return None
+        assignment = (
+            obj.staff_member.unit_assignments
+            .filter(end_date__isnull=True)
+            .select_related("unit")
+            .first()
+        )
+        return assignment.unit.name if assignment else None
 
     def validate(self, data):
         from bunk_logs.users.models import User

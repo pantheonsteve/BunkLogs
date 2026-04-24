@@ -106,8 +106,22 @@ class Command(BaseCommand):
             unit_heads = self._create_users(fake, count=4, role=User.UNIT_HEAD, label="unit-head")
             camper_care = self._create_users(fake, count=2, role=User.CAMPER_CARE, label="camper-care")
             counselors = self._create_users(fake, count=32, role=User.COUNSELOR, label="counselor")
-            leadership = self._create_users(fake, count=2, role=User.LEADERSHIP, label="leadership")
-            kitchen_staff = self._create_users(fake, count=2, role=User.KITCHEN_STAFF, label="kitchen-staff")
+            leadership = self._create_titled_users(
+                fake,
+                role=User.LEADERSHIP,
+                specs=[
+                    ("leadership-1", "Program Director"),
+                    ("leadership-2", "Associate Director"),
+                ],
+            )
+            kitchen_staff = self._create_titled_users(
+                fake,
+                role=User.KITCHEN_STAFF,
+                specs=[
+                    ("kitchen-staff-1", "Executive Chef"),
+                    ("kitchen-staff-2", "Sous Chef"),
+                ],
+            )
 
             sessions = self._create_sessions()
             units = self._create_units(unit_heads, camper_care)
@@ -177,6 +191,16 @@ class Command(BaseCommand):
 
     def _reset_test_data(self) -> None:
         self.stdout.write(self.style.WARNING("--reset: deleting existing is_test_data=True rows..."))
+        # Delete any BunkLog rows linked to test CamperBunkAssignments, regardless of is_test_data,
+        # to avoid ProtectedError when the assignments are deleted below.
+        orphaned_bunk_logs = BunkLog.objects.filter(
+            bunk_assignment__bunk__is_test_data=True,
+        )
+        n_orphaned = orphaned_bunk_logs.count()
+        if n_orphaned:
+            orphaned_bunk_logs.delete()
+            self.stdout.write(f"  deleted {n_orphaned} BunkLog (orphaned, linked to test assignments)")
+
         # Order matters: delete leaf rows first.
         for model in (
             BunkLog, StaffLog,
@@ -244,6 +268,37 @@ class Command(BaseCommand):
                     "is_active": True,
                 },
             )
+            if created:
+                user.set_password(DEV_PASSWORD)
+                user.save(update_fields=["password"])
+            users.append(user)
+        return users
+
+    def _create_titled_users(
+        self,
+        fake: Faker,
+        *,
+        role: str,
+        specs: list[tuple[str, str]],
+    ) -> list[User]:
+        """Create users with specific labels and job titles."""
+        users: list[User] = []
+        for label, title in specs:
+            email = f"{label}@example.test"
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    "first_name": fake.first_name(),
+                    "last_name": fake.last_name(),
+                    "role": role,
+                    "title": title,
+                    "is_test_data": True,
+                    "is_active": True,
+                },
+            )
+            if not created and user.title != title:
+                user.title = title
+                user.save(update_fields=["title"])
             if created:
                 user.set_password(DEV_PASSWORD)
                 user.save(update_fields=["password"])

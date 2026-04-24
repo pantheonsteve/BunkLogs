@@ -1207,7 +1207,11 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if user.is_staff or user.role == "Admin":
-            return StaffLog.objects.all().select_related("staff_member")
+            return (
+                StaffLog.objects.all()
+                .select_related("staff_member")
+                .prefetch_related("staff_member__unit_assignments__unit")
+            )
 
         if user.role == "Unit Head":
             unit_assignments = UnitStaffAssignment.objects.filter(
@@ -1263,6 +1267,7 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         serializer.save(staff_member=self.request.user)
 
     def list(self, request, *args, **kwargs):
+        user = request.user
         queryset = self.get_queryset()
 
         date_param = request.query_params.get("date", None)
@@ -1273,6 +1278,10 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(date=parsed_date)
             except ValueError:
                 pass
+
+        staff_member_id = request.query_params.get("staff_member")
+        if staff_member_id and (user.is_staff or user.role == "Admin"):
+            queryset = queryset.filter(staff_member_id=staff_member_id).order_by("-date")
 
         serializer = self.get_serializer(queryset, many=True)
         return Response({"results": serializer.data})
@@ -1314,27 +1323,15 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         """
         try:
             from datetime import datetime
-            from zoneinfo import ZoneInfo
 
             query_date = datetime.strptime(date, "%Y-%m-%d").date()
         except ValueError:
             return Response({"error": "Invalid date format. Use YYYY-MM-DD format."}, status=400)
 
         timezone_str = request.query_params.get("timezone", "UTC")
-        try:
-            user_timezone = ZoneInfo(timezone_str)
-        except Exception:
-            return Response({"error": f"Invalid timezone: {timezone_str}"}, status=400)
-
-        local_start = datetime.combine(query_date, datetime.min.time()).replace(tzinfo=user_timezone)
-        local_end = datetime.combine(query_date, datetime.max.time()).replace(tzinfo=user_timezone)
-
-        utc_start = local_start.astimezone(ZoneInfo("UTC"))
-        utc_end = local_end.astimezone(ZoneInfo("UTC"))
 
         queryset = self.get_queryset().filter(
-            created_at__gte=utc_start,
-            created_at__lte=utc_end,
+            date=query_date,
         ).order_by("staff_member__first_name", "staff_member__last_name")
 
         serializer = self.get_serializer(queryset, many=True)
@@ -1342,8 +1339,6 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
         return Response({
             "date": date,
             "timezone": timezone_str,
-            "local_day_start": local_start.isoformat(),
-            "local_day_end": local_end.isoformat(),
             "total_logs": queryset.count(),
             "results": serializer.data,
         })

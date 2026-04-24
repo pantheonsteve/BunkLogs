@@ -70,6 +70,13 @@ class User(AbstractUser, TestDataMixin):
         default="",
     )
 
+    title = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Job title displayed in admin views (e.g. 'Associate Director').",
+    )
+
     # Adding a field to track if user profile is complete
 
     USERNAME_FIELD = "email"
