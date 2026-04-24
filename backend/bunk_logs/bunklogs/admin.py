@@ -17,6 +17,9 @@ from .forms import BunkLogCsvImportForm
 from .forms import BunkSelectionForm
 from .models import BunkLog
 from .models import CounselorLog
+from .models import KitchenStaffLog
+from .models import LeadershipLog
+from .models import StaffLog
 from .services.imports import generate_sample_csv
 from .services.imports import import_bunk_logs_from_csv
 
@@ -104,7 +107,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
             form = BunkSelectionForm(request.POST)
             if form.is_valid():
                 bunk_id = form.cleaned_data["bunk"].id
-                add_url = reverse("admin:bunklogs_bunklog_add")  # Assuming 'bunklogs_bunklog_add' is the correct name
+                add_url = reverse("admin:bunklogs_bunklog_add")
                 return redirect(f"{add_url}?bunk={bunk_id}")
         else:
             form = BunkSelectionForm()
@@ -112,7 +115,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
         context = {
             "form": form,
             "title": _("Select Bunk"),
-            "opts": self.opts,  # Changed from self.model._meta to self.opts
+            "opts": self.opts,
             "list_url": "admin:bunklogs_bunklog_changelist",
         }
         return render(request, "admin/bunklogs/select_bunk.html", context)
@@ -124,15 +127,12 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                 csv_file = form.cleaned_data["csv_file"]
                 dry_run = form.cleaned_data["dry_run"]
 
-                # Save the uploaded file to a secure temporary file
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     temp_path = Path(temp_file.name)
                     for chunk in csv_file.chunks():
                         temp_file.write(chunk)
 
-                # Process the CSV file
                 try:
-                    # Get the current user as default counselor if they're staff
                     default_counselor_email = request.user.email if request.user.is_staff else None
 
                     result = import_bunk_logs_from_csv(
@@ -162,7 +162,6 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
                 except Exception as e:
                     messages.error(request, f"Import failed: {e!s}")
                 finally:
-                    # Clean up the temporary file
                     temp_path.unlink(missing_ok=True)
 
                 return redirect("admin:bunklogs_bunklog_changelist")
@@ -175,7 +174,7 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
             "opts": self.model._meta,
             "app_label": self.model._meta.app_label,
             "model_name": self.model._meta.model_name,
-            "sample_csv": generate_sample_csv(),  # Add sample CSV content
+            "sample_csv": generate_sample_csv(),
         }
         return render(request, "admin/csv_form.html", context)
 
@@ -188,7 +187,6 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
         """Override add view to check for bunk parameter and filter assignments."""
         bunk_id = request.GET.get("bunk")
         if not bunk_id:
-            # If no bunk is selected, redirect to bunk selection
             return redirect("../select-bunk/")
         return super().add_view(request, form_url, extra_context)
 
@@ -199,11 +197,10 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
             if bunk_id:
                 kwargs["queryset"] = CamperBunkAssignment.objects.filter(
                     bunk_id=bunk_id,
-                    is_active=True,  # Only show active assignments
-                    bunk__is_active=True,  # Only from active bunks
+                    is_active=True,
+                    bunk__is_active=True,
                 ).select_related("camper")
             else:
-                # Even without a specific bunk selected, only show active assignments
                 kwargs["queryset"] = CamperBunkAssignment.objects.filter(
                     is_active=True,
                     bunk__is_active=True,
@@ -211,16 +208,38 @@ class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
-@admin.register(CounselorLog)
-class CounselorLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
-    list_display = ("date", "counselor", "day_quality_score", "support_level_score", "day_off", "staff_care_support_needed")
-    list_filter = ("date", "counselor", "day_off", "staff_care_support_needed", "day_quality_score", "support_level_score")
-    list_editable = ("date",)  # Allow quick editing of dates in list view
-    list_display_links = ("counselor",)  # Make counselor the clickable link instead of date
+# Roles allowed to view their own staff logs in the admin
+_SELF_VIEW_ROLES = ["Counselor", "Leadership", "Kitchen Staff"]
+_ADMIN_WRITE_ROLES = ["Counselor", "Leadership", "Kitchen Staff", "Admin"]
+
+
+class StaffLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
+    """Base admin for StaffLog and its proxy models."""
+
+    list_display = (
+        "date",
+        "get_local_creation_date",
+        "staff_member",
+        "get_staff_role",
+        "day_quality_score",
+        "support_level_score",
+        "day_off",
+        "staff_care_support_needed",
+    )
+    list_filter = (
+        "date",
+        "staff_member__role",
+        "day_off",
+        "staff_care_support_needed",
+        "day_quality_score",
+        "support_level_score",
+    )
+    list_editable = ("date",)
+    list_display_links = ("staff_member",)
     search_fields = (
-        "counselor__first_name",
-        "counselor__last_name",
-        "counselor__email",
+        "staff_member__first_name",
+        "staff_member__last_name",
+        "staff_member__email",
         "elaboration",
         "values_reflection",
     )
@@ -228,7 +247,7 @@ class CounselorLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            "fields": ("counselor", "date"),
+            "fields": ("staff_member", "date"),
         }),
         ("Scores", {
             "fields": ("day_quality_score", "support_level_score"),
@@ -247,100 +266,102 @@ class CounselorLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
         }),
     )
 
+    @admin.display(description=_("Created (Local)"))
+    def get_local_creation_date(self, obj):
+        from django.utils import timezone
+        local_created = timezone.localtime(obj.created_at)
+        return local_created.strftime("%Y-%m-%d %H:%M")
+
+    @admin.display(description=_("Role"))
+    def get_staff_role(self, obj):
+        return obj.staff_member.role
+
     def get_queryset(self, request):
-        """Filter queryset based on user permissions."""
         qs = super().get_queryset(request)
 
-        # Admin and staff can see all logs
         if request.user.is_staff or request.user.role == "Admin":
             return qs
 
-        # Unit heads and camper care can see logs for counselors in their units
         if request.user.role in ["Unit Head", "Camper Care"]:
             from django.utils import timezone
 
             from bunk_logs.bunks.models import UnitStaffAssignment
             from bunk_logs.users.models import User
 
-            unit_ids = []
+            role_map = {"Unit Head": "unit_head", "Camper Care": "camper_care"}
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=request.user,
+                role=role_map[request.user.role],
+                start_date__lte=timezone.now().date(),
+                end_date__isnull=True,
+            ).values_list("unit_id", flat=True)
 
-            # For Unit Head role
-            if request.user.role == "Unit Head":
-                # Get units where user is assigned as unit_head
-                unit_assignments = UnitStaffAssignment.objects.filter(
-                    staff_member=request.user,
-                    role="unit_head",
-                    start_date__lte=timezone.now().date(),
-                    end_date__isnull=True,
-                ).values_list("unit_id", flat=True)
-                unit_ids.extend(unit_assignments)
-                # Also include legacy unit_head field
-                unit_ids.extend(request.user.managed_units.values_list("id", flat=True))
-
-            # For Camper Care role
-            if request.user.role == "Camper Care":
-                # Get units where user is assigned as camper_care
-                unit_assignments = UnitStaffAssignment.objects.filter(
-                    staff_member=request.user,
-                    role="camper_care",
-                    start_date__lte=timezone.now().date(),
-                    end_date__isnull=True,
-                ).values_list("unit_id", flat=True)
-                unit_ids.extend(unit_assignments)
-                # Also include legacy camper_care field
-                unit_ids.extend(request.user.camper_care_units.values_list("id", flat=True))
-
-            # Get counselors assigned to bunks in these units
             counselor_ids = User.objects.filter(
                 role="Counselor",
-                assigned_bunks__unit_id__in=set(unit_ids),
+                assigned_bunks__unit_id__in=set(unit_assignments),
             ).values_list("id", flat=True)
 
-            return qs.filter(counselor_id__in=counselor_ids)
+            return qs.filter(staff_member_id__in=counselor_ids)
 
-        # Counselors can only see their own logs
-        if request.user.role == "Counselor":
-            return qs.filter(counselor=request.user)
+        if request.user.role in _SELF_VIEW_ROLES:
+            return qs.filter(staff_member=request.user)
 
-        # Default: see nothing
         return qs.none()
 
     def has_change_permission(self, request, obj=None):
-        """Check if user has permission to change counselor logs."""
         if not super().has_change_permission(request, obj):
             return False
 
-        # Admin and staff can change any log
         if request.user.is_staff or request.user.role == "Admin":
             return True
 
-        # Unit heads and camper care can view but not edit
         if request.user.role in ["Unit Head", "Camper Care"]:
             return False
 
-        # Counselors can only edit their own logs
-        if request.user.role == "Counselor" and obj:
-            # Check if it's their log and within edit window
+        if request.user.role in _SELF_VIEW_ROLES and obj:
             from django.utils import timezone
             today = timezone.now().date()
             log_created_date = obj.created_at.date() if obj.created_at else obj.date
-
-            return (obj.counselor == request.user and today == log_created_date)
+            return obj.staff_member == request.user and today == log_created_date
 
         return False
 
     def has_add_permission(self, request):
-        """Check if user has permission to add counselor logs."""
         if not super().has_add_permission(request):
             return False
-
-        # Only counselors and admin/staff can add counselor logs
-        return request.user.role in ["Counselor", "Admin"] or request.user.is_staff
+        return request.user.role in _ADMIN_WRITE_ROLES or request.user.is_staff
 
     def has_delete_permission(self, request, obj=None):
-        """Check if user has permission to delete counselor logs."""
         if not super().has_delete_permission(request, obj):
             return False
-
-        # Only admin and staff can delete counselor logs
         return request.user.is_staff or request.user.role == "Admin"
+
+
+@admin.register(StaffLog)
+class StaffLogMainAdmin(StaffLogAdmin):
+    """Admin for all staff logs (combined view)."""
+    pass
+
+
+@admin.register(CounselorLog)
+class CounselorLogAdmin(StaffLogAdmin):
+    """Admin for Counselor logs only."""
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(staff_member__role="Counselor")
+
+
+@admin.register(LeadershipLog)
+class LeadershipLogAdmin(StaffLogAdmin):
+    """Admin for Leadership Team logs only."""
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(staff_member__role="Leadership")
+
+
+@admin.register(KitchenStaffLog)
+class KitchenStaffLogAdmin(StaffLogAdmin):
+    """Admin for Kitchen Staff logs only."""
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(staff_member__role="Kitchen Staff")

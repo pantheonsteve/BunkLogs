@@ -61,6 +61,15 @@ function Dashboard() {
           // They can navigate to CounselorDashboard via "My Reflections" link
           console.log('📍 Counselor staying on main dashboard');
           break;
+        case 'Leadership':
+        case 'Kitchen Staff': {
+          const todayStaff = new Date();
+          const yearStaff = todayStaff.getFullYear();
+          const monthStaff = String(todayStaff.getMonth() + 1).padStart(2, '0');
+          const dayStaff = String(todayStaff.getDate()).padStart(2, '0');
+          navigate(`/counselor-dashboard/${yearStaff}-${monthStaff}-${dayStaff}`, { replace: true });
+          return;
+        }
         default:
           // Stay on general dashboard for other roles
           console.log('📍 Staying on general dashboard for role:', user.role);

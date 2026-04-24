@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import CounselorLog
+from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Cabin
 from bunk_logs.bunks.models import Session
@@ -351,10 +352,10 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
         return SimpleBunkSerializer(obj.bunk_assignment.bunk).data  # Use SimpleBunkSerializer
 
 
-class CounselorLogSerializer(serializers.ModelSerializer):
-    """
-    Serializer for CounselorLog model.
-    For POST requests, you need to provide:
+class StaffLogSerializer(serializers.ModelSerializer):
+    """Serializer for StaffLog and its proxy subclasses (CounselorLog, LeadershipLog, KitchenStaffLog).
+
+    For POST requests provide:
     - date
     - day_quality_score (1-5)
     - support_level_score (1-5)
@@ -362,31 +363,53 @@ class CounselorLogSerializer(serializers.ModelSerializer):
     - day_off (boolean)
     - staff_care_support_needed (boolean)
     - values_reflection
-    Note: counselor is automatically set to the current user.
-    Include Bunk assignments as a nested field.
+
+    staff_member is automatically set to the authenticated user.
+    bunk_assignments and bunk_names are only populated for Counselor-role users.
     """
-    counselor_first_name = serializers.CharField(source="counselor.first_name", read_only=True)
-    counselor_last_name = serializers.CharField(source="counselor.last_name", read_only=True)
-    counselor_email = serializers.CharField(source="counselor.email", read_only=True)
+
+    staff_member_first_name = serializers.CharField(source="staff_member.first_name", read_only=True)
+    staff_member_last_name = serializers.CharField(source="staff_member.last_name", read_only=True)
+    staff_member_email = serializers.CharField(source="staff_member.email", read_only=True)
+    staff_member_role = serializers.CharField(source="staff_member.role", read_only=True)
+
+    # Counselor-specific fields — populated only for CounselorLog instances
     bunk_assignments = serializers.SerializerMethodField()
-    bunk_names = serializers.CharField(read_only=True)
+    bunk_names = serializers.SerializerMethodField()
+
+    # Legacy aliases kept for backward compatibility with existing frontend consumers
+    counselor = serializers.PrimaryKeyRelatedField(source="staff_member", read_only=True)
+    counselor_first_name = serializers.CharField(source="staff_member.first_name", read_only=True)
+    counselor_last_name = serializers.CharField(source="staff_member.last_name", read_only=True)
+    counselor_email = serializers.CharField(source="staff_member.email", read_only=True)
 
     class Meta:
-        model = CounselorLog
+        model = StaffLog
         fields = [
-            "id", "counselor", "counselor_first_name", "counselor_last_name",
-            "counselor_email", "date", "day_quality_score", "support_level_score",
+            "id",
+            "staff_member", "staff_member_first_name", "staff_member_last_name",
+            "staff_member_email", "staff_member_role",
+            # Legacy aliases
+            "counselor", "counselor_first_name", "counselor_last_name", "counselor_email",
+            "date", "day_quality_score", "support_level_score",
             "elaboration", "day_off", "staff_care_support_needed", "values_reflection",
-            "bunk_assignments", "bunk_names", "created_at", "updated_at",
+            "bunk_assignments", "bunk_names",
+            "created_at", "updated_at",
         ]
         read_only_fields = [
-            "id", "created_at", "updated_at", "counselor_first_name",
-            "counselor_last_name", "counselor_email", "counselor", "bunk_assignments", "bunk_names",
+            "id", "created_at", "updated_at",
+            "staff_member",
+            "staff_member_first_name", "staff_member_last_name",
+            "staff_member_email", "staff_member_role",
+            "counselor", "counselor_first_name", "counselor_last_name", "counselor_email",
+            "bunk_assignments", "bunk_names",
         ]
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunk_assignments(self, obj):
-        """Get detailed bunk assignment information for the counselor on the log date."""
+        """Return bunk assignment details for Counselors; empty list for other roles."""
+        if not hasattr(obj, "current_bunk_assignments"):
+            return []
         assignments = obj.current_bunk_assignments
         if not assignments:
             return []
@@ -406,47 +429,51 @@ class CounselorLogSerializer(serializers.ModelSerializer):
             })
         return result
 
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_bunk_names(self, obj):
+        """Return bunk names for Counselors; empty string for other roles."""
+        if not hasattr(obj, "bunk_names"):
+            return ""
+        return obj.bunk_names
+
     def validate(self, data):
-        """
-        Validate the CounselorLog data.
-        """
-        # Validate scores are between 1 and 5
+        from bunk_logs.users.models import User
+
         for score_field in ["day_quality_score", "support_level_score"]:
             if score_field in data and data[score_field] is not None:
                 score = data[score_field]
                 if score < 1 or score > 5:
                     raise serializers.ValidationError({score_field: "Score must be between 1 and 5"})
 
-        # Prevent counselors from creating logs for future dates
         if hasattr(self, "context") and "request" in self.context:
             user = self.context["request"].user
             log_date = data.get("date")
 
-            # Only apply this restriction to counselors (admins/staff can create logs for any date)
-            if user.role == "Counselor" and log_date:
+            # Staff (non-admin) cannot create logs for future dates
+            if user.role in User.STAFF_LOG_ROLES and log_date:
                 from django.utils import timezone
                 today = timezone.now().date()
-
                 if log_date > today:
                     raise serializers.ValidationError({
-                        "date": f"Counselors cannot create logs for future dates. Today is {today}, but you're trying to create a log for {log_date}.",  # noqa: E501
+                        "date": f"Cannot create logs for future dates. Today is {today}.",
                     })
 
-        # Check for duplicate counselor logs (same counselor on same date)
-        # Only perform this check if we have a request context (i.e., in DRF views)
-        if self.instance is None and hasattr(self, "context") and "request" in self.context:  # Only for creation, not updates
-            existing = CounselorLog.objects.filter(
-                counselor=self.context["request"].user,
-                date=data["date"],
+        # Prevent duplicate logs for the same staff member on the same date
+        if self.instance is None and hasattr(self, "context") and "request" in self.context:
+            existing = StaffLog.objects.filter(
+                staff_member=self.context["request"].user,
+                date=data.get("date"),
             ).exists()
-
             if existing:
-                msg = "A counselor log already exists for this date."
                 raise serializers.ValidationError(
-                    msg,
+                    "A staff log already exists for this date.",
                 )
 
         return data
+
+
+# Backward-compatibility alias — existing frontend consumers reference CounselorLogSerializer
+CounselorLogSerializer = StaffLogSerializer
 
 
 class SimpleCamperBunkAssignmentSerializer(serializers.ModelSerializer):

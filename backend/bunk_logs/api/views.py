@@ -37,6 +37,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import CounselorLog
+from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
@@ -1190,203 +1191,162 @@ class BunkLogViewSet(viewsets.ModelViewSet):
 
 
 class CounselorLogViewSet(viewsets.ModelViewSet):
+    """ViewSet for StaffLog reflections.
+
+    Serves /api/v1/counselorlogs/ — the URL is kept for backward compatibility.
+    Handles all staff roles: Counselor, Leadership, Kitchen Staff, Unit Head, Camper Care.
+    """
+
     permission_classes = [IsAuthenticated]
-    queryset = CounselorLog.objects.all()
+    queryset = StaffLog.objects.all()
     serializer_class = CounselorLogSerializer
 
     def get_queryset(self):
+        from bunk_logs.users.models import User
+
         user = self.request.user
-        # Admin/staff can see all counselor logs
+
         if user.is_staff or user.role == "Admin":
-            return CounselorLog.objects.all()
-        # Unit heads can see logs for counselors in their units
+            return StaffLog.objects.all().select_related("staff_member")
+
         if user.role == "Unit Head":
-            # Get units where user is assigned as unit_head
-            from django.utils import timezone
-            unit_ids = []
-            # Get units via UnitStaffAssignment - get units where user is assigned as unit_head
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role="unit_head",
                 start_date__lte=timezone.now().date(),
                 end_date__isnull=True,
             ).values_list("unit_id", flat=True)
-            unit_ids.extend(unit_assignments)
 
-            # Get counselors assigned to bunks in these units
             counselor_ids = Bunk.objects.filter(
                 unit_id__in=unit_assignments,
             ).values_list("counselor_assignments__counselor", flat=True).distinct()
 
-            return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
-        # Camper care can see logs for counselors in their assigned units
+            return StaffLog.objects.filter(
+                staff_member_id__in=counselor_ids,
+            ).select_related("staff_member")
+
         if user.role == "Camper Care":
-            # Get units where user is assigned as camper_care
-            from django.utils import timezone
-            unit_ids = []
-            # Get units via UnitStaffAssignment - get units where user is assigned as camper_care
             unit_assignments = UnitStaffAssignment.objects.filter(
                 staff_member=user,
                 role="camper_care",
                 start_date__lte=timezone.now().date(),
                 end_date__isnull=True,
             ).values_list("unit_id", flat=True)
-            unit_ids.extend(unit_assignments)
 
-            # Get counselors assigned to bunks in these units
             counselor_ids = Bunk.objects.filter(
                 unit_id__in=unit_assignments,
             ).values_list("counselor_assignments__counselor", flat=True).distinct()
 
-            return CounselorLog.objects.filter(counselor_id__in=counselor_ids)
-        # Counselors can only see their own logs
-        if user.role == "Counselor":
-            return CounselorLog.objects.filter(counselor=user)
-        # Default: see nothing
-        return CounselorLog.objects.none()
+            return StaffLog.objects.filter(
+                staff_member_id__in=counselor_ids,
+            ).select_related("staff_member")
+
+        # All other staff roles (Counselor, Leadership, Kitchen Staff) see only their own logs
+        if user.role in User.STAFF_LOG_ROLES:
+            return StaffLog.objects.filter(staff_member=user).select_related("staff_member")
+
+        return StaffLog.objects.none()
 
     def perform_create(self, serializer):
-        # Ensure the date is always a date object in the server's timezone
         import datetime
         validated_data = serializer.validated_data
         log_date = validated_data.get("date")
         if isinstance(log_date, datetime.datetime):
-            # Convert to local date
             log_date = timezone.localtime(log_date).date()
             serializer.validated_data["date"] = log_date
         elif isinstance(log_date, str):
-            # Parse string to date
             try:
                 log_date = datetime.datetime.strptime(log_date, "%Y-%m-%d").date()
                 serializer.validated_data["date"] = log_date
             except Exception:
                 pass
-        if self.request.user.role != "Counselor":
-            serializer.save()
-        else:
-            # Set the counselor automatically to the current user
-            serializer.save(counselor=self.request.user)
+        serializer.save(staff_member=self.request.user)
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
 
-        # Filter by date if provided
         date_param = request.query_params.get("date", None)
         if date_param:
             try:
-                # Parse the date parameter and filter the queryset
                 from datetime import datetime
                 parsed_date = datetime.strptime(date_param, "%Y-%m-%d").date()
                 queryset = queryset.filter(date=parsed_date)
             except ValueError:
-                # Invalid date format, ignore the filter
                 pass
 
         serializer = self.get_serializer(queryset, many=True)
         return Response({"results": serializer.data})
 
     def perform_update(self, serializer):
+        from bunk_logs.users.models import User
+
         instance = serializer.instance
         user = self.request.user
 
-        # Admin and staff can update any log
         if user.is_staff or user.role == "Admin":
             serializer.save()
             return
 
-        # Unit heads and camper care can view but not edit
         if user.role in ["Unit Head", "Camper Care"]:
-            msg = "You can view but not edit counselor logs."
-            raise PermissionDenied(msg)
+            raise PermissionDenied("You can view but not edit staff logs.")
 
-        # Counselors can only update their own logs
-        if user.role == "Counselor":
-            if instance.counselor.id != user.id:
-                msg = "You can only update your own counselor logs."
-                raise PermissionDenied(msg)
+        if user.role in User.STAFF_LOG_ROLES:
+            if instance.staff_member_id != user.id:
+                raise PermissionDenied("You can only update your own staff logs.")
 
-            # Check if the update is happening on the same day the log was created
-            from django.utils import timezone
             today = timezone.now().date()
             log_created_date = instance.created_at.date() if instance.created_at else instance.date
-
             if today != log_created_date:
-                msg = "You can only update counselor logs on the day they were created."
-                raise PermissionDenied(msg)
+                raise PermissionDenied("You can only update staff logs on the day they were created.")
 
-            # Don't allow changing the counselor field during update
-            if "counselor" in serializer.validated_data:
-                serializer.validated_data["counselor"] = instance.counselor
-
+            # Prevent reassigning to a different staff member
+            serializer.validated_data.pop("staff_member", None)
             serializer.save()
             return
 
-        # Default: deny access
-        msg = "You are not authorized to update this counselor log."
-        raise PermissionDenied(msg)
+        raise PermissionDenied("You are not authorized to update this staff log.")
 
     @action(detail=False, methods=["get"], url_path=r"(?P<date>\d{4}-\d{2}-\d{2})")
     def by_date(self, request, date=None):
-        """
-        Custom action to get counselor logs by date with timezone support.
+        """Get staff logs by date with timezone support.
+
         URL: /api/v1/counselorlogs/2025-06-25/?timezone=America/New_York
         """
-        # Validate date format
         try:
             from datetime import datetime
             from zoneinfo import ZoneInfo
-
 
             query_date = datetime.strptime(date, "%Y-%m-%d").date()
         except ValueError:
             return Response({"error": "Invalid date format. Use YYYY-MM-DD format."}, status=400)
 
-        # Get timezone from query parameter, default to UTC
         timezone_str = request.query_params.get("timezone", "UTC")
-
         try:
-            # Validate timezone
             user_timezone = ZoneInfo(timezone_str)
         except Exception:
             return Response({"error": f"Invalid timezone: {timezone_str}"}, status=400)
 
-        # Create start and end of the local day in the user's timezone
         local_start = datetime.combine(query_date, datetime.min.time()).replace(tzinfo=user_timezone)
         local_end = datetime.combine(query_date, datetime.max.time()).replace(tzinfo=user_timezone)
 
-        # Convert to UTC for database filtering
         utc_start = local_start.astimezone(ZoneInfo("UTC"))
         utc_end = local_end.astimezone(ZoneInfo("UTC"))
 
-        # Get the filtered queryset based on user permissions
-        queryset = self.get_queryset()
-
-        # Filter by created_at timestamp within the local day boundaries
-        queryset = queryset.filter(
+        queryset = self.get_queryset().filter(
             created_at__gte=utc_start,
             created_at__lte=utc_end,
-        )
+        ).order_by("staff_member__first_name", "staff_member__last_name")
 
-        # Order logs by counselor name for consistent output
-        queryset = queryset.select_related("counselor").order_by(
-            "counselor__first_name",
-            "counselor__last_name",
-        )
-
-        # Serialize the logs
         serializer = self.get_serializer(queryset, many=True)
 
-        # Return response in the same format as the list view but with date info
-        response_data = {
+        return Response({
             "date": date,
             "timezone": timezone_str,
             "local_day_start": local_start.isoformat(),
             "local_day_end": local_end.isoformat(),
             "total_logs": queryset.count(),
             "results": serializer.data,
-        }
-
-        return Response(response_data)
+        })
 
 class CamperBunkLogViewSet(APIView):
     renderer_classes = [JSONRenderer]
