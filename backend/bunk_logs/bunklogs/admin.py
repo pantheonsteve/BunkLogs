@@ -340,7 +340,6 @@ class StaffLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
 @admin.register(StaffLog)
 class StaffLogMainAdmin(StaffLogAdmin):
     """Admin for all staff logs (combined view)."""
-    pass
 
 
 @admin.register(CounselorLog)

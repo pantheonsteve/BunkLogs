@@ -36,7 +36,6 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from bunk_logs.bunklogs.models import BunkLog
-from bunk_logs.bunklogs.models import CounselorLog
 from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Unit
@@ -1297,23 +1296,27 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
             return
 
         if user.role in ["Unit Head", "Camper Care"]:
-            raise PermissionDenied("You can view but not edit staff logs.")
+            msg = "You can view but not edit staff logs."
+            raise PermissionDenied(msg)
 
         if user.role in User.STAFF_LOG_ROLES:
             if instance.staff_member_id != user.id:
-                raise PermissionDenied("You can only update your own staff logs.")
+                msg = "You can only update your own staff logs."
+                raise PermissionDenied(msg)
 
             today = timezone.now().date()
             log_created_date = instance.created_at.date() if instance.created_at else instance.date
             if today != log_created_date:
-                raise PermissionDenied("You can only update staff logs on the day they were created.")
+                msg = "You can only update staff logs on the day they were created."
+                raise PermissionDenied(msg)
 
             # Prevent reassigning to a different staff member
             serializer.validated_data.pop("staff_member", None)
             serializer.save()
             return
 
-        raise PermissionDenied("You are not authorized to update this staff log.")
+        msg = "You are not authorized to update this staff log."
+        raise PermissionDenied(msg)
 
     @action(detail=False, methods=["get"], url_path=r"(?P<date>\d{4}-\d{2}-\d{2})")
     def by_date(self, request, date=None):

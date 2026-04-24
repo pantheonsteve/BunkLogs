@@ -7,10 +7,10 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from bunk_logs.bunklogs.models import BunkLog
-from bunk_logs.bunklogs.models import CounselorLog
 from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Cabin
+from bunk_logs.bunks.models import CounselorBunkAssignment
 from bunk_logs.bunks.models import Session
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
@@ -414,16 +414,13 @@ class StaffLogSerializer(serializers.ModelSerializer):
         """Return bunk assignment details for Counselors; empty list for other roles."""
         if obj.staff_member.role != "Counselor":
             return []
-        from django.db import models as db_models
-        from bunk_logs.bunks.models import CounselorBunkAssignment
-
         assignments = (
             CounselorBunkAssignment.objects.filter(
                 counselor=obj.staff_member,
                 start_date__lte=obj.date,
             )
             .filter(
-                db_models.Q(end_date__isnull=True) | db_models.Q(end_date__gte=obj.date),
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=obj.date),
             )
             .select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session")
             .order_by("-is_primary", "-start_date")
@@ -502,9 +499,8 @@ class StaffLogSerializer(serializers.ModelSerializer):
                 date=data.get("date"),
             ).exists()
             if existing:
-                raise serializers.ValidationError(
-                    "A staff log already exists for this date.",
-                )
+                msg = "A staff log already exists for this date."
+                raise serializers.ValidationError(msg)
 
         return data
 

@@ -6,34 +6,25 @@ Covers:
   - API permission rules for all staff roles
 """
 
-from datetime import date, timedelta
+from datetime import date
+from datetime import timedelta
 
 import pytest
-from django.contrib.auth import get_user_model
-from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from bunk_logs.bunklogs.models import (
-    CounselorLog,
-    KitchenStaffLog,
-    LeadershipLog,
-    StaffLog,
-)
-from bunk_logs.bunklogs.tests.factories import (
-    CounselorLogFactory,
-    KitchenStaffLogFactory,
-    LeadershipLogFactory,
-    StaffLogFactory,
-)
-from bunk_logs.bunks.models import Bunk, Cabin, CounselorBunkAssignment, Session, Unit
-from bunk_logs.users.models import User
+from bunk_logs.bunklogs.models import CounselorLog
+from bunk_logs.bunklogs.models import KitchenStaffLog
+from bunk_logs.bunklogs.models import LeadershipLog
+from bunk_logs.bunklogs.models import StaffLog
+from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import Cabin
+from bunk_logs.bunks.models import CounselorBunkAssignment
+from bunk_logs.bunks.models import Session
+from bunk_logs.bunks.models import Unit
 from bunk_logs.users.tests.factories import UserFactory
-
-User = get_user_model()
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -41,14 +32,14 @@ User = get_user_model()
 
 def _make_staff_log(user, **kwargs):
     """Create a StaffLog directly for the given user without going through the factory."""
-    defaults = dict(
-        staff_member=user,
-        date=date.today(),
-        day_quality_score=4,
-        support_level_score=4,
-        elaboration="Test elaboration text.",
-        values_reflection="Test values reflection.",
-    )
+    defaults = {
+        "staff_member": user,
+        "date": date.today(),
+        "day_quality_score": 4,
+        "support_level_score": 4,
+        "elaboration": "Test elaboration text.",
+        "values_reflection": "Test values reflection.",
+    }
     defaults.update(kwargs)
     return StaffLog.objects.create(**defaults)
 
@@ -87,37 +78,38 @@ class TestStaffLogModel(TestCase):
         assert log.pk is not None
 
     def test_unique_together_enforced(self):
+        from django.core.exceptions import ValidationError
         user = UserFactory(counselor=True)
         _make_staff_log(user)
-        with self.assertRaises(Exception):  # IntegrityError or ValidationError from clean()
+        with pytest.raises((ValidationError, Exception)):
             _make_staff_log(user)
 
     def test_future_date_raises_validation_error(self):
         from django.core.exceptions import ValidationError
         user = UserFactory(counselor=True)
+        log = StaffLog(
+            staff_member=user,
+            date=date.today() + timedelta(days=1),
+            day_quality_score=4,
+            support_level_score=4,
+            elaboration="Test.",
+            values_reflection="Test.",
+        )
         with pytest.raises(ValidationError):
-            log = StaffLog(
-                staff_member=user,
-                date=date.today() + timedelta(days=1),
-                day_quality_score=4,
-                support_level_score=4,
-                elaboration="Test.",
-                values_reflection="Test.",
-            )
             log.save()
 
     def test_old_date_raises_validation_error(self):
         from django.core.exceptions import ValidationError
         user = UserFactory(counselor=True)
+        log = StaffLog(
+            staff_member=user,
+            date=date.today() - timedelta(days=60),
+            day_quality_score=4,
+            support_level_score=4,
+            elaboration="Test.",
+            values_reflection="Test.",
+        )
         with pytest.raises(ValidationError):
-            log = StaffLog(
-                staff_member=user,
-                date=date.today() - timedelta(days=60),
-                day_quality_score=4,
-                support_level_score=4,
-                elaboration="Test.",
-                values_reflection="Test.",
-            )
             log.save()
 
     def test_needs_support_true_on_low_day_quality(self):
