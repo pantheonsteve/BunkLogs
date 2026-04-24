@@ -53,8 +53,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
           })() : 
           dateToUse;
         
-        // Support both staff_member_id (new field name) and counselor (legacy alias)
-        const authorId = existingCounselorLog.staff_member_id ?? existingCounselorLog.counselor;
+        const authorId = existingCounselorLog.staff_member ?? existingCounselorLog.counselor;
         const canEditExisting = String(authorId) === String(currentUser.id) && today === logCreatedDate;
         return canEditExisting;
       }

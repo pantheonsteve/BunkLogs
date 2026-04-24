@@ -412,11 +412,22 @@ class StaffLogSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunk_assignments(self, obj):
         """Return bunk assignment details for Counselors; empty list for other roles."""
-        if not hasattr(obj, "current_bunk_assignments"):
+        if obj.staff_member.role != "Counselor":
             return []
-        assignments = obj.current_bunk_assignments
-        if not assignments:
-            return []
+        from django.db import models as db_models
+        from bunk_logs.bunks.models import CounselorBunkAssignment
+
+        assignments = (
+            CounselorBunkAssignment.objects.filter(
+                counselor=obj.staff_member,
+                start_date__lte=obj.date,
+            )
+            .filter(
+                db_models.Q(end_date__isnull=True) | db_models.Q(end_date__gte=obj.date),
+            )
+            .select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session")
+            .order_by("-is_primary", "-start_date")
+        )
 
         result = []
         for assignment in assignments:
@@ -436,9 +447,18 @@ class StaffLogSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.STR)
     def get_bunk_names(self, obj):
         """Return bunk names for Counselors; empty string for other roles."""
-        if not hasattr(obj, "bunk_names"):
+        if obj.staff_member.role != "Counselor":
             return ""
-        return obj.bunk_names
+        assignments = self.get_bunk_assignments(obj)
+        if not assignments:
+            return "No bunk assignment"
+        parts = []
+        for a in assignments:
+            name = a["bunk_name"]
+            if a["is_primary"]:
+                name += " (Primary)"
+            parts.append(name)
+        return ", ".join(parts)
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_unit_assignment_name(self, obj):
