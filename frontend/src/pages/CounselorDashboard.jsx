@@ -11,6 +11,18 @@ import CounselorReflectionsGrid from '../components/CounselorReflectionsGrid';
 import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 
+// Roles that can author StaffLog reflections
+const STAFF_LOG_ROLES = ['Counselor', 'Leadership', 'Kitchen Staff', 'Unit Head', 'Camper Care'];
+
+// Role-specific display labels for the dashboard header
+const ROLE_LABELS = {
+  'Counselor':    { title: 'Counselor Dashboard',        subtitle: 'Track your daily reflections and experiences' },
+  'Leadership':   { title: 'Leadership Reflection',      subtitle: 'Record your daily leadership reflections' },
+  'Kitchen Staff':{ title: 'Kitchen Staff Reflection',   subtitle: 'Record your daily reflections' },
+  'Unit Head':    { title: 'Unit Head Reflection',       subtitle: 'Record your daily reflections' },
+  'Camper Care':  { title: 'Camper Care Reflection',     subtitle: 'Record your daily reflections' },
+};
+
 function CounselorDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, loading: authLoading, isAuthenticating } = useAuth();
@@ -85,9 +97,9 @@ function CounselorDashboard() {
     }
   }, [date, navigate]);
 
-  // For counselors, redirect future dates to today
+  // For staff members, redirect future dates to today
   useEffect(() => {
-    if (user?.role === 'Counselor' && date && date !== 'undefined') {
+    if (STAFF_LOG_ROLES.includes(user?.role) && date && date !== 'undefined') {
       const today = new Date();
       const selectedDate = new Date(date);
       
@@ -199,8 +211,10 @@ function CounselorDashboard() {
     }
   };
 
-  // Check user roles
+  const isStaffMember = STAFF_LOG_ROLES.includes(user?.role);
   const isCounselor = user?.role === 'Counselor';
+  const { title: dashboardTitle, subtitle: dashboardSubtitle } =
+    ROLE_LABELS[user?.role] ?? { title: 'My Reflection', subtitle: 'Record your daily reflection' };
 
   // Show loading while authentication is completing
   if (authLoading || isAuthenticating) {
@@ -233,8 +247,8 @@ function CounselorDashboard() {
   // Find existing log for selected date
   const existingLogForDate = counselorLogs.find(log => log.date === selected_date);
 
-  // Only allow counselors to access this page
-  if (!isCounselor) {
+  // Only staff members can access this page
+  if (!isStaffMember) {
     return (
       <div className="flex h-screen overflow-hidden">
         <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -247,7 +261,7 @@ function CounselorDashboard() {
                   Access Denied
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
-                  Only counselors can access the counselor dashboard.
+                  You do not have access to this page.
                 </p>
               </div>
             </div>
@@ -274,10 +288,10 @@ function CounselorDashboard() {
             <div className="sm:flex sm:justify-between sm:items-center mb-8">
               <div className="mb-4 sm:mb-0">
                 <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-                  Counselor Dashboard
+                  {dashboardTitle}
                 </h1>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Track your daily reflections and experiences
+                  {dashboardSubtitle}
                 </p>
               </div>
 

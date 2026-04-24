@@ -20,6 +20,7 @@ import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import OrderEdit from './pages/OrderEdit';
 import AdminBunkLogs from './pages/AdminBunkLogs';
+import StaffMemberHistory from './pages/StaffMemberHistory';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -234,6 +235,15 @@ function Router() {
               <OrderEdit />
             </ProtectedRoute>
           } 
+        />
+
+        <Route
+          path="/admin-staff/:staffId"
+          element={
+            <ProtectedRoute>
+              <StaffMemberHistory />
+            </ProtectedRoute>
+          }
         />
 
         <Route path="/test-datepicker" element={<DatePickerTest />} />

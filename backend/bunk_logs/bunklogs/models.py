@@ -200,14 +200,19 @@ class BunkLog(TestDataMixin):
         super().save(*args, **kwargs)
 
 
-class CounselorLog(TestDataMixin):
-    """Daily personal reflection log for counselors."""
+class StaffLog(TestDataMixin):
+    """Daily personal reflection log for any staff member.
 
-    counselor = models.ForeignKey(
+    This is the concrete base model shared by all staff reflection types.
+    Counselors, Leadership Team, and Kitchen Staff all write to this single table.
+    Use the proxy subclasses (CounselorLog, LeadershipLog, KitchenStaffLog) for
+    role-specific behaviour and querysets.
+    """
+
+    staff_member = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="counselor_logs",
-        limit_choices_to={"role": "Counselor"},
+        related_name="staff_logs",
     )
     date = models.DateField()
 
@@ -242,7 +247,7 @@ class CounselorLog(TestDataMixin):
 
     # Values reflection
     values_reflection = models.TextField(
-        help_text="How did the bunk exemplify our values today?",
+        help_text="How did you/your team exemplify our values today?",
     )
 
     # Timestamps
@@ -250,14 +255,14 @@ class CounselorLog(TestDataMixin):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = _("counselor log")
-        verbose_name_plural = _("counselor logs")
-        unique_together = ("counselor", "date")
+        verbose_name = _("staff log")
+        verbose_name_plural = _("staff logs")
+        unique_together = ("staff_member", "date")
         ordering = ["-date"]
         app_label = "bunklogs"
 
     def __str__(self):
-        return f"Counselor log for {self.counselor.get_full_name()} on {self.date}"
+        return f"Staff log for {self.staff_member.get_full_name()} on {self.date}"
 
     @property
     def overall_wellbeing_score(self):
@@ -266,48 +271,15 @@ class CounselorLog(TestDataMixin):
 
     @property
     def needs_support(self):
-        """Returns True if counselor seems to need support based on scores or explicit request."""
+        """Returns True if the staff member seems to need support."""
         low_scores = self.day_quality_score <= 2 or self.support_level_score <= 2
         return low_scores or self.staff_care_support_needed
 
-    @property
-    def current_bunk_assignments(self):
-        """Get the counselor's current bunk assignments for the log date."""
-        from bunk_logs.bunks.models import CounselorBunkAssignment
-
-        # Get all bunk assignments that were active on the log date
-        return CounselorBunkAssignment.objects.filter(
-            counselor=self.counselor,
-            start_date__lte=self.date,
-        ).filter(
-            models.Q(end_date__isnull=True) | models.Q(end_date__gte=self.date),
-        ).select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session").order_by("-is_primary", "-start_date")
-
-
-    @property
-    def bunk_names(self):
-        """Get comma-separated string of bunk names for this counselor on the log date."""
-        assignments = self.current_bunk_assignments
-        if not assignments:
-            return "No bunk assignment"
-
-        bunk_names = []
-        for assignment in assignments:
-            name = assignment.bunk.name
-            if assignment.is_primary:
-                name += " (Primary)"
-            bunk_names.append(name)
-
-        return ", ".join(bunk_names)
-
     def can_edit(self, user):
-        """Business rule: who can edit this counselor log."""
-        # Original counselor can edit their own log
-        if self.counselor == user:
+        """Business rule: who can edit this staff log."""
+        if self.staff_member == user:
             return True
-
-        # Users with change permission can edit (admins, camp directors)
-        return bool(user.has_perm("bunklogs.change_counselorlog"))
+        return bool(user.has_perm("bunklogs.change_stafflog"))
 
     def get_wellbeing_summary(self):
         """Get a human-readable summary of wellbeing."""
@@ -323,7 +295,7 @@ class CounselorLog(TestDataMixin):
         return f"Day: {day_desc}, Support: {support_desc} (Avg: {self.overall_wellbeing_score})"
 
     def clean(self):
-        """Validate the counselor log data."""
+        """Validate the staff log data."""
         from datetime import timedelta
 
         from django.core.exceptions import ValidationError
@@ -333,26 +305,20 @@ class CounselorLog(TestDataMixin):
         if self.date:
             today = timezone.localtime().date()
 
-            # Prevent future dates (unless admin override)
             if self.date > today:
                 raise ValidationError({
                     "date": "Cannot create logs for future dates.",
                 })
 
-            # Prevent very old dates (business rule - adjust as needed)
             max_days_back = 30
             if self.date < (today - timedelta(days=max_days_back)):
                 raise ValidationError({
                     "date": f"Cannot create logs older than {max_days_back} days.",
                 })
 
-        # If on day off, certain fields should be handled differently
         if self.day_off:
-            # Day off logs might have different validation rules
-            # For example, values_reflection might not be required on day off
             pass
         else:
-            # If not on day off, ensure all reflection fields are filled
             if not self.elaboration.strip():
                 raise ValidationError({
                     "elaboration": "Elaboration is required for work days.",
@@ -363,20 +329,88 @@ class CounselorLog(TestDataMixin):
                     "values_reflection": "Values reflection is required for work days.",
                 })
 
-        # If requesting staff care support, elaboration should explain why
         if self.staff_care_support_needed and not self.elaboration.strip():
             raise ValidationError({
                 "elaboration": "Please explain why you need staff care support in the elaboration field.",
             })
 
     def save(self, *args, **kwargs):
-        """Override save method to set default date for new records."""
-        # For new records without a date, use today's date
+        """Override save to set default date for new records."""
         if not self.pk and not self.date:
             self.date = timezone.localtime().date()
 
-        # Run validation
         self.full_clean()
-
-        # Call parent save - let unique constraint handle duplicates
         super().save(*args, **kwargs)
+
+
+class CounselorLog(StaffLog):
+    """Proxy of StaffLog providing counselor-specific behaviour and backward compatibility.
+
+    Counselor logs are identical in storage to StaffLog rows but expose
+    bunk-assignment context and maintain the legacy `counselor` attribute alias.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = _("counselor log")
+        verbose_name_plural = _("counselor logs")
+
+    def __str__(self):
+        return f"Counselor log for {self.staff_member.get_full_name()} on {self.date}"
+
+    @property
+    def counselor(self):
+        """Backward-compatibility alias for staff_member."""
+        return self.staff_member
+
+    @property
+    def current_bunk_assignments(self):
+        """Get the counselor's bunk assignments active on the log date."""
+        from bunk_logs.bunks.models import CounselorBunkAssignment
+
+        return CounselorBunkAssignment.objects.filter(
+            counselor=self.staff_member,
+            start_date__lte=self.date,
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=self.date),
+        ).select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session").order_by("-is_primary", "-start_date")
+
+    @property
+    def bunk_names(self):
+        """Get comma-separated bunk names for this counselor on the log date."""
+        assignments = self.current_bunk_assignments
+        if not assignments:
+            return "No bunk assignment"
+
+        bunk_names = []
+        for assignment in assignments:
+            name = assignment.bunk.name
+            if assignment.is_primary:
+                name += " (Primary)"
+            bunk_names.append(name)
+
+        return ", ".join(bunk_names)
+
+
+class LeadershipLog(StaffLog):
+    """Proxy of StaffLog for Leadership Team members."""
+
+    class Meta:
+        proxy = True
+        verbose_name = _("leadership log")
+        verbose_name_plural = _("leadership logs")
+
+    def __str__(self):
+        return f"Leadership log for {self.staff_member.get_full_name()} on {self.date}"
+
+
+class KitchenStaffLog(StaffLog):
+    """Proxy of StaffLog for Kitchen Staff members."""
+
+    class Meta:
+        proxy = True
+        verbose_name = _("kitchen staff log")
+        verbose_name_plural = _("kitchen staff logs")
+
+    def __str__(self):
+        return f"Kitchen staff log for {self.staff_member.get_full_name()} on {self.date}"

@@ -210,7 +210,7 @@ class CounselorLogDateSyncTestCase(TestCase):
     def test_counselorlog_date_sync_normal_time(self):
         """Test CounselorLog date sync during normal hours."""
         log = CounselorLog.objects.create(
-            counselor=self.counselor,
+            staff_member=self.counselor,
             day_quality_score=5,
             support_level_score=5,
             elaboration="Great day!",
@@ -230,7 +230,7 @@ class CounselorLogDateSyncTestCase(TestCase):
         mock_localtime.return_value = mock_date
 
         log = CounselorLog.objects.create(
-            counselor=self.counselor,
+            staff_member=self.counselor,
             day_quality_score=3,
             support_level_score=4,
             elaboration="Long day, but good.",
@@ -246,7 +246,7 @@ class CounselorLogDateSyncTestCase(TestCase):
 
         old_date = date.today() - timedelta(days=60)
         log = CounselorLog(
-            counselor=self.counselor,
+            staff_member=self.counselor,
             date=old_date,
             day_quality_score=4,
             support_level_score=3,
@@ -371,7 +371,7 @@ class DateSyncIntegrationTestCase(TestCase):
         )
 
         counselor_log = CounselorLog.objects.create(
-            counselor=self.counselor,
+            staff_member=self.counselor,
             day_quality_score=4,
             support_level_score=4,
             elaboration="Counselor log test",

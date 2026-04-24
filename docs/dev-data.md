@@ -146,7 +146,7 @@ for the source.
 | `campers.Camper`                  | names → Faker, DOB → same year/month, random day; emergency contact → Faker; all `*_notes` / `status_note` → `[scrubbed]` |
 | `bunks.Cabin`                     | `location`, `notes` → blank / `[scrubbed]` (capacity preserved)         |
 | `bunklogs.BunkLog`                | `description` → `[scrubbed]` (scores preserved so the UI looks real)   |
-| `bunklogs.CounselorLog`           | `elaboration`, `values_reflection` → `[scrubbed]` (scores preserved)   |
+| `bunklogs.StaffLog`               | `elaboration`, `values_reflection` → `[scrubbed]` (scores preserved for all staff roles) |
 | `orders.Order`                    | `additional_notes`, `narrative_description` → `[scrubbed]`             |
 | `messaging.EmailRecipient`        | `email`, `name` → Faker                                                 |
 | `messaging.EmailLog`              | TRUNCATE                                                                |

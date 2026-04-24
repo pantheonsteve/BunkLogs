@@ -5,8 +5,8 @@ Designed to populate the UI well enough to develop against:
 - 4 units, 8 cabins, 16 bunks (8 per session)
 - ~120 campers (60 per session)
 - 32 counselors (one primary + one floater per bunk in current session)
-- 4 unit heads, 2 camper-care, 1 superuser
-- 21 days of BunkLogs and CounselorLogs for the current session
+- 4 unit heads, 2 camper-care, 2 leadership, 2 kitchen staff, 1 superuser
+- 21 days of BunkLogs and StaffLogs for the current session
 - A handful of orders across both order types
 
 Everything is created with ``is_test_data=True`` so the existing
@@ -33,6 +33,7 @@ from faker import Faker
 
 from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import CounselorLog
+from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Cabin
 from bunk_logs.bunks.models import CounselorBunkAssignment
@@ -105,6 +106,22 @@ class Command(BaseCommand):
             unit_heads = self._create_users(fake, count=4, role=User.UNIT_HEAD, label="unit-head")
             camper_care = self._create_users(fake, count=2, role=User.CAMPER_CARE, label="camper-care")
             counselors = self._create_users(fake, count=32, role=User.COUNSELOR, label="counselor")
+            leadership = self._create_titled_users(
+                fake,
+                role=User.LEADERSHIP,
+                specs=[
+                    ("leadership-1", "Program Director"),
+                    ("leadership-2", "Associate Director"),
+                ],
+            )
+            kitchen_staff = self._create_titled_users(
+                fake,
+                role=User.KITCHEN_STAFF,
+                specs=[
+                    ("kitchen-staff-1", "Executive Chef"),
+                    ("kitchen-staff-2", "Sous Chef"),
+                ],
+            )
 
             sessions = self._create_sessions()
             units = self._create_units(unit_heads, camper_care)
@@ -129,6 +146,8 @@ class Command(BaseCommand):
             counselor_log_count = self._create_counselor_logs(
                 fake, current_counselor_assignments, days,
             )
+            leadership_log_count = self._create_staff_logs(fake, leadership, days)
+            kitchen_staff_log_count = self._create_staff_logs(fake, kitchen_staff, days)
 
             order_setup = self._ensure_order_catalog()
             order_count = self._create_orders(
@@ -142,6 +161,8 @@ class Command(BaseCommand):
             "unit_heads": len(unit_heads),
             "camper_care": len(camper_care),
             "counselors": len(counselors),
+            "leadership": len(leadership),
+            "kitchen_staff": len(kitchen_staff),
             "sessions": len(sessions),
             "units": len(units),
             "cabins": len(cabins),
@@ -150,6 +171,8 @@ class Command(BaseCommand):
             "camper_bunk_assignments": len(assignments),
             "bunk_logs": log_count,
             "counselor_logs": counselor_log_count,
+            "leadership_logs": leadership_log_count,
+            "kitchen_staff_logs": kitchen_staff_log_count,
             "orders": order_count,
         })
 
@@ -168,9 +191,19 @@ class Command(BaseCommand):
 
     def _reset_test_data(self) -> None:
         self.stdout.write(self.style.WARNING("--reset: deleting existing is_test_data=True rows..."))
+        # Delete any BunkLog rows linked to test CamperBunkAssignments, regardless of is_test_data,
+        # to avoid ProtectedError when the assignments are deleted below.
+        orphaned_bunk_logs = BunkLog.objects.filter(
+            bunk_assignment__bunk__is_test_data=True,
+        )
+        n_orphaned = orphaned_bunk_logs.count()
+        if n_orphaned:
+            orphaned_bunk_logs.delete()
+            self.stdout.write(f"  deleted {n_orphaned} BunkLog (orphaned, linked to test assignments)")
+
         # Order matters: delete leaf rows first.
         for model in (
-            BunkLog, CounselorLog,
+            BunkLog, StaffLog,
             OrderItem, Order,
             CamperBunkAssignment, CounselorBunkAssignment,
             Camper,
@@ -235,6 +268,37 @@ class Command(BaseCommand):
                     "is_active": True,
                 },
             )
+            if created:
+                user.set_password(DEV_PASSWORD)
+                user.save(update_fields=["password"])
+            users.append(user)
+        return users
+
+    def _create_titled_users(
+        self,
+        fake: Faker,
+        *,
+        role: str,
+        specs: list[tuple[str, str]],
+    ) -> list[User]:
+        """Create users with specific labels and job titles."""
+        users: list[User] = []
+        for label, title in specs:
+            email = f"{label}@example.test"
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    "first_name": fake.first_name(),
+                    "last_name": fake.last_name(),
+                    "role": role,
+                    "title": title,
+                    "is_test_data": True,
+                    "is_active": True,
+                },
+            )
+            if not created and user.title != title:
+                user.title = title
+                user.save(update_fields=["title"])
             if created:
                 user.set_password(DEV_PASSWORD)
                 user.save(update_fields=["password"])
@@ -495,13 +559,13 @@ class Command(BaseCommand):
                     continue
                 seen.add(key)
                 if CounselorLog.objects.filter(
-                    counselor=ca.counselor, date=log_date,
+                    staff_member=ca.counselor, date=log_date,
                 ).exists():
                     continue
                 day_off = random.random() < 0.1  # noqa: S311
                 try:
                     CounselorLog.objects.create(
-                        counselor=ca.counselor,
+                        staff_member=ca.counselor,
                         date=log_date,
                         day_quality_score=random.randint(2, 5),  # noqa: S311
                         support_level_score=random.randint(2, 5),  # noqa: S311
@@ -514,6 +578,35 @@ class Command(BaseCommand):
                 except Exception as exc:
                     self.stderr.write(
                         f"  skipped counselor log ({ca.counselor_id}, {log_date}): {exc}",
+                    )
+                    continue
+        return created
+
+    def _create_staff_logs(self, fake: Faker, users: list[User], days: int) -> int:
+        """Generate StaffLog rows for non-counselor staff (Leadership, Kitchen Staff)."""
+        today = timezone.localdate()
+        created = 0
+        for user in users:
+            for d in range(1, days + 1):
+                log_date = today - dt.timedelta(days=d)
+                if StaffLog.objects.filter(staff_member=user, date=log_date).exists():
+                    continue
+                day_off = random.random() < 0.1  # noqa: S311
+                try:
+                    StaffLog.objects.create(
+                        staff_member=user,
+                        date=log_date,
+                        day_quality_score=random.randint(2, 5),  # noqa: S311
+                        support_level_score=random.randint(2, 5),  # noqa: S311
+                        elaboration=fake.sentence(nb_words=12),
+                        values_reflection=fake.sentence(nb_words=12),
+                        day_off=day_off,
+                        is_test_data=True,
+                    )
+                    created += 1
+                except Exception as exc:
+                    self.stderr.write(
+                        f"  skipped staff log ({user.id}, {log_date}): {exc}",
                     )
                     continue
         return created

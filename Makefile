@@ -1,5 +1,5 @@
 .PHONY: help up down restart logs shell ps \
-        migrate makemigrations superuser \
+        migrate makemigrations superuser seed \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
         frontend-install frontend-dev \
@@ -22,6 +22,7 @@ help:
 	@echo "  make migrate         Run pending migrations"
 	@echo "  make makemigrations  Generate new migrations"
 	@echo "  make superuser       Create Django superuser"
+	@echo "  make seed            Seed local DB with synthetic test data (--reset)"
 	@echo "  make shell           Open Django shell (shell_plus if available)"
 	@echo ""
 	@echo "Frontend:"
@@ -64,6 +65,9 @@ makemigrations:
 
 superuser:
 	$(DJANGO_EXEC) python manage.py createsuperuser
+
+seed:
+	$(DJANGO_EXEC) python manage.py seed_dev_data --reset
 
 shell:
 	$(DJANGO_EXEC) python manage.py shell_plus 2>/dev/null || $(DJANGO_EXEC) python manage.py shell
