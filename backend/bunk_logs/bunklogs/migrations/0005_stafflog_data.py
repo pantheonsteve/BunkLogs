@@ -35,6 +35,16 @@ def copy_counselor_logs_to_staff_logs(apps, schema_editor):
 
     StaffLog.objects.bulk_create(staff_logs, ignore_conflicts=True)
 
+    # After inserting rows with explicit PKs the Postgres sequence is behind.
+    # Advance it so subsequent auto-increment inserts start after the current max.
+    schema_editor.execute(
+        "SELECT setval("
+        "pg_get_serial_sequence('bunklogs_stafflog', 'id'),"
+        "COALESCE((SELECT MAX(id) FROM bunklogs_stafflog), 0) + 1,"
+        "false"
+        ")"
+    )
+
 
 class Migration(migrations.Migration):
     """Copy CounselorLog rows into StaffLog before the old table is dropped."""
