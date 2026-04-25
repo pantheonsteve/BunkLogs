@@ -53,7 +53,7 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
           })() : 
           dateToUse;
         
-        const authorId = existingCounselorLog.staff_member ?? existingCounselorLog.counselor;
+        const authorId = existingCounselorLog.staff_member;
         const canEditExisting = String(authorId) === String(currentUser.id) && today === logCreatedDate;
         return canEditExisting;
       }
