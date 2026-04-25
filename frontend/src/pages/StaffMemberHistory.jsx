@@ -69,7 +69,12 @@ function StaffMemberHistory() {
         setLogs(response.data.results || []);
       } catch (err) {
         console.error('Error fetching staff history:', err);
-        setError('Failed to load staff reflection history.');
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.detail || err?.response?.data?.error || err?.message;
+        const msg = status
+          ? `Failed to load staff reflection history (${status}${detail ? ': ' + detail : ''}).`
+          : `Failed to load staff reflection history: ${detail || 'Network error'}`;
+        setError(msg);
       } finally {
         setLoading(false);
       }
