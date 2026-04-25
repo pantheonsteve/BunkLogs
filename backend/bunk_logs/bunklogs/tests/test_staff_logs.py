@@ -10,7 +10,9 @@ from datetime import date
 from datetime import timedelta
 
 import pytest
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -452,3 +454,81 @@ class TestStaffLogAPI(TestCase):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get(self.list_url, {"date": "not-a-date"})
         assert response.status_code == status.HTTP_200_OK
+
+
+# ---------------------------------------------------------------------------
+# Performance regression tests
+# ---------------------------------------------------------------------------
+
+class TestStaffLogQueryCount(TestCase):
+    """Guard against the N+1 in StaffLogSerializer that caused 502 timeouts.
+
+    Before the fix, ``get_bunk_assignments`` and ``get_unit_assignment_name``
+    each issued a fresh DB query per StaffLog row when the list endpoint
+    returned more than a handful of rows. With ~30+ logs that exceeded
+    Render's upstream timeout. These tests pin the query count so that
+    regressions are caught immediately.
+    """
+
+    def setUp(self):
+        from datetime import timedelta
+
+        self.client = APIClient()
+        self.list_url = reverse("counselorlog-list")
+        self.admin = UserFactory(admin=True, is_staff=True)
+        self.counselor = UserFactory(counselor=True)
+
+        # Set up a bunk assignment for the counselor so get_bunk_assignments
+        # has data to traverse on every row (worst case for the old N+1).
+        self.session = Session.objects.create(
+            name="Perf Session",
+            start_date=date.today() - timedelta(days=60),
+            end_date=date.today() + timedelta(days=60),
+        )
+        self.cabin = Cabin.objects.create(name="Perf Cabin", capacity=10)
+        self.unit = Unit.objects.create(name="Perf Unit")
+        self.bunk = Bunk.objects.create(
+            cabin=self.cabin, session=self.session, unit=self.unit, is_active=True,
+        )
+        CounselorBunkAssignment.objects.create(
+            counselor=self.counselor,
+            bunk=self.bunk,
+            start_date=date.today() - timedelta(days=30),
+            is_primary=True,
+        )
+
+        # Create 20 logs across different dates so a fresh per-row query
+        # would multiply visibly.
+        self.log_count = 20
+        for i in range(self.log_count):
+            _make_staff_log(self.counselor, date=date.today() - timedelta(days=i))
+
+    def test_staff_member_filter_query_count_is_bounded(self):
+        """Listing logs for a single staff member must not be O(N)."""
+        self.client.force_authenticate(user=self.admin)
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(self.list_url, {"staff_member": self.counselor.id})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == self.log_count
+        # Pre-fix this hovered around (2 * log_count + auth overhead) queries.
+        # With prefetches in place it should stay well under 20 regardless of
+        # log_count. Generous ceiling so unrelated middleware additions don't
+        # trip the test, but still tight enough to catch a regression.
+        assert len(ctx.captured_queries) < 20, (
+            f"Expected <20 queries, got {len(ctx.captured_queries)} "
+            f"for {self.log_count} logs. The serializer is likely issuing "
+            f"per-row queries again."
+        )
+
+    def test_admin_full_list_query_count_is_bounded(self):
+        """Listing all logs (no filter) must also be bounded, not O(N)."""
+        self.client.force_authenticate(user=self.admin)
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(self.list_url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(ctx.captured_queries) < 20, (
+            f"Expected <20 queries, got {len(ctx.captured_queries)} "
+            f"for full list. Serializer is issuing per-row queries."
+        )

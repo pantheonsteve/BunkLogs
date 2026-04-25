@@ -9,6 +9,7 @@ from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.models import SocialToken
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db.models import Prefetch
 from django.db.models import Q
 from django.http import Http404
 from django.http import JsonResponse
@@ -38,6 +39,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import CounselorBunkAssignment
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
 from bunk_logs.campers.models import Camper
@@ -1200,17 +1202,40 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
     queryset = StaffLog.objects.all()
     serializer_class = CounselorLogSerializer
 
+    @staticmethod
+    def _optimized_stafflog_queryset(base_qs):
+        """Apply select_related + prefetch_related needed by StaffLogSerializer.
+
+        Without these, the serializer's get_bunk_assignments and
+        get_unit_assignment_name fire one query per row, which is what caused
+        /api/v1/counselorlogs/ to upstream-timeout on Render.
+        """
+        return (
+            base_qs
+            .select_related("staff_member")
+            .prefetch_related(
+                Prefetch(
+                    "staff_member__unit_assignments",
+                    queryset=UnitStaffAssignment.objects.select_related("unit"),
+                ),
+                Prefetch(
+                    "staff_member__bunk_assignments",
+                    queryset=(
+                        CounselorBunkAssignment.objects
+                        .select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session")
+                        .order_by("-is_primary", "-start_date")
+                    ),
+                ),
+            )
+        )
+
     def get_queryset(self):
         from bunk_logs.users.models import User
 
         user = self.request.user
 
         if user.is_staff or user.role == "Admin":
-            return (
-                StaffLog.objects.all()
-                .select_related("staff_member")
-                .prefetch_related("staff_member__unit_assignments__unit")
-            )
+            return self._optimized_stafflog_queryset(StaffLog.objects.all())
 
         if user.role == "Unit Head":
             unit_assignments = UnitStaffAssignment.objects.filter(
@@ -1224,9 +1249,9 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 unit_id__in=unit_assignments,
             ).values_list("counselor_assignments__counselor", flat=True).distinct()
 
-            return StaffLog.objects.filter(
-                staff_member_id__in=counselor_ids,
-            ).select_related("staff_member")
+            return self._optimized_stafflog_queryset(
+                StaffLog.objects.filter(staff_member_id__in=counselor_ids),
+            )
 
         if user.role == "Camper Care":
             unit_assignments = UnitStaffAssignment.objects.filter(
@@ -1240,13 +1265,15 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 unit_id__in=unit_assignments,
             ).values_list("counselor_assignments__counselor", flat=True).distinct()
 
-            return StaffLog.objects.filter(
-                staff_member_id__in=counselor_ids,
-            ).select_related("staff_member")
+            return self._optimized_stafflog_queryset(
+                StaffLog.objects.filter(staff_member_id__in=counselor_ids),
+            )
 
         # All other staff roles (Counselor, Leadership, Kitchen Staff) see only their own logs
         if user.role in User.STAFF_LOG_ROLES:
-            return StaffLog.objects.filter(staff_member=user).select_related("staff_member")
+            return self._optimized_stafflog_queryset(
+                StaffLog.objects.filter(staff_member=user),
+            )
 
         return StaffLog.objects.none()
 

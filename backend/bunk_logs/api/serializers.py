@@ -10,7 +10,6 @@ from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
 from bunk_logs.bunks.models import Cabin
-from bunk_logs.bunks.models import CounselorBunkAssignment
 from bunk_logs.bunks.models import Session
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
@@ -411,30 +410,39 @@ class StaffLogSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunk_assignments(self, obj):
-        """Return bunk assignment details for Counselors; empty list for other roles."""
+        """Return bunk assignment details for Counselors; empty list for other roles.
+
+        Uses the prefetched ``staff_member.bunk_assignments`` collection (set up
+        by ``CounselorLogViewSet._optimized_stafflog_queryset``) and filters in
+        Python so we don't issue a fresh query per StaffLog row.
+        """
         if obj.staff_member.role != "Counselor":
             return []
-        assignments = (
-            CounselorBunkAssignment.objects.filter(
-                counselor=obj.staff_member,
-                start_date__lte=obj.date,
-            )
-            .filter(
-                models.Q(end_date__isnull=True) | models.Q(end_date__gte=obj.date),
-            )
-            .select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session")
-            .order_by("-is_primary", "-start_date")
-        )
+
+        log_date = obj.date
+        # ``bunk_assignments`` is the related_name on CounselorBunkAssignment.counselor
+        # and is prefetched with bunk/unit/cabin/session select_related.
+        assignments = list(obj.staff_member.bunk_assignments.all())
+        # Filter in Python: assignment is active for log_date if start_date <= log_date
+        # and (end_date is null or end_date >= log_date).
+        active = [
+            a for a in assignments
+            if a.start_date <= log_date
+            and (a.end_date is None or a.end_date >= log_date)
+        ]
+        # Match the original ordering: primary first, then most recent start_date first.
+        active.sort(key=lambda a: (not a.is_primary, -(a.start_date.toordinal())))
 
         result = []
-        for assignment in assignments:
+        for assignment in active:
+            bunk = assignment.bunk
             result.append({
                 "id": assignment.id,
-                "bunk_id": assignment.bunk.id,
-                "bunk_name": assignment.bunk.name,
-                "unit_name": assignment.bunk.unit.name if assignment.bunk.unit else None,
-                "cabin_name": assignment.bunk.cabin.name if assignment.bunk.cabin else None,
-                "session_name": assignment.bunk.session.name if assignment.bunk.session else None,
+                "bunk_id": bunk.id,
+                "bunk_name": bunk.name,
+                "unit_name": bunk.unit.name if bunk.unit else None,
+                "cabin_name": bunk.cabin.name if bunk.cabin else None,
+                "session_name": bunk.session.name if bunk.session else None,
                 "is_primary": assignment.is_primary,
                 "start_date": assignment.start_date,
                 "end_date": assignment.end_date,
@@ -459,16 +467,18 @@ class StaffLogSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_unit_assignment_name(self, obj):
-        """Return the current unit name for Unit Head / Camper Care; None for other roles."""
+        """Return the current unit name for Unit Head / Camper Care; None for other roles.
+
+        Iterates the prefetched ``staff_member.unit_assignments`` collection
+        rather than calling ``.filter()`` (which would defeat prefetching and
+        issue one query per row).
+        """
         if obj.staff_member.role not in ("Unit Head", "Camper Care"):
             return None
-        assignment = (
-            obj.staff_member.unit_assignments
-            .filter(end_date__isnull=True)
-            .select_related("unit")
-            .first()
-        )
-        return assignment.unit.name if assignment else None
+        for assignment in obj.staff_member.unit_assignments.all():
+            if assignment.end_date is None:
+                return assignment.unit.name if assignment.unit else None
+        return None
 
     def validate(self, data):
         from bunk_logs.users.models import User
