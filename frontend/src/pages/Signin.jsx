@@ -32,10 +32,15 @@ function Signin() {
     const error = urlParams.get('error');
     const authCancelled = urlParams.get('auth_cancelled');
     const errorProcess = urlParams.get('error_process');
-    
-    if (authError || error) {
+    const sessionExpired = urlParams.get('session_expired');
+
+    if (sessionExpired === '1') {
+      setError("Your session expired. Please sign in again.");
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    } else if (authError || error) {
       let errorMessage = "Social login failed. Please try again.";
-      
+
       if (authError === 'unknown' || error === 'unknown') {
         errorMessage = "An unknown error occurred during social login. Please try signing in manually or try again.";
       } else if (authCancelled === 'true') {
@@ -43,9 +48,9 @@ function Signin() {
       } else if (error) {
         errorMessage = `Social login error: ${error}`;
       }
-      
+
       setError(errorMessage);
-      
+
       // Clean up the URL to remove error parameters
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);

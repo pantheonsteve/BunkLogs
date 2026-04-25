@@ -105,39 +105,62 @@ api.interceptors.response.use(
       console.log('API Error:', error.response?.status, error.response?.data);
     }
     
-    // If the error is due to an expired token (401) and we haven't tried to refresh yet
+    // If the error is due to an expired/invalid token (401) and we haven't
+    // already retried, attempt one refresh + retry. If anything in this path
+    // fails (or there's no refresh token at all), clear local auth state and
+    // bounce the user to /signin so they aren't stuck on a broken page with a
+    // generic "failed to load" message.
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          // No refresh token available, just reject
-          return Promise.reject(error);
+
+      const redirectToSignin = () => {
+        try {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user_profile');
+        } catch (_) {
+          // Ignore localStorage failures (e.g. private browsing).
         }
-        
-        // Try to refresh the token
+        // Avoid redirect loops if we're already on the signin page.
+        if (typeof window !== 'undefined'
+            && window.location
+            && !window.location.pathname.startsWith('/signin')) {
+          window.location.href = '/signin?session_expired=1';
+        }
+      };
+
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) {
+        console.warn('🔒 401 with no refresh token — redirecting to /signin');
+        redirectToSignin();
+        return Promise.reject(error);
+      }
+
+      try {
         const response = await axios.post(`${apiUrl}/api/auth/token/refresh/`, {
-          refresh: refreshToken
+          refresh: refreshToken,
         });
-        
-        if (response.status === 200) {
-          // Update tokens
+
+        if (response.status === 200 && response.data?.access) {
           localStorage.setItem('access_token', response.data.access);
-          
-          // Retry the original request with the new token
+          if (response.data.refresh) {
+            localStorage.setItem('refresh_token', response.data.refresh);
+          }
           originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
           return axios(originalRequest);
         }
+
+        // Refresh returned 2xx but didn't include an access token — treat as failure.
+        console.warn('🔒 Token refresh returned no access token — redirecting to /signin');
+        redirectToSignin();
+        return Promise.reject(error);
       } catch (refreshError) {
-        // If refresh fails, redirect to login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/signin';
+        console.warn('🔒 Token refresh failed — redirecting to /signin', refreshError?.response?.status);
+        redirectToSignin();
         return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
