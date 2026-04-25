@@ -138,6 +138,9 @@ const CounselorLogsGrid = ({
                                 console.warn('⚠️ Invalid log data:', log);
                                 return null;
                             }
+                            if (!log.staff_member && !log.counselor) {
+                                console.warn('⚠️ Log missing staff_member and counselor IDs:', log);
+                            }
                             
                             return (
                             <tr 
@@ -150,7 +153,10 @@ const CounselorLogsGrid = ({
                                     onClick={e => e.stopPropagation()}
                                 >
                                     <button
-                                        onClick={() => navigate(`/admin-staff/${log.staff_member}`)}
+                                        onClick={() => {
+                                            const staffId = log.staff_member ?? log.counselor;
+                                            if (staffId) navigate(`/admin-staff/${staffId}`);
+                                        }}
                                         className="flex items-center text-left group"
                                     >
                                         <div className="flex-shrink-0 h-10 w-10">

@@ -53,6 +53,13 @@ function StaffMemberHistory() {
   useEffect(() => {
     async function fetchHistory() {
       if (authLoading || isAuthenticating || !user?.id) return;
+
+      if (!staffId || staffId === 'undefined') {
+        setError('Invalid staff member — no ID provided.');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
