@@ -532,3 +532,96 @@ class TestStaffLogQueryCount(TestCase):
             f"Expected <20 queries, got {len(ctx.captured_queries)} "
             f"for full list. Serializer is issuing per-row queries."
         )
+
+
+class TestStaffLogResultLimit(TestCase):
+    """Multi-day list responses must be capped, with metadata for the client."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        self.client = APIClient()
+        self.list_url = reverse("counselorlog-list")
+        self.admin = UserFactory(admin=True, is_staff=True)
+        self.counselor = UserFactory(counselor=True)
+
+        # Need > STAFF_LOG_DEFAULT_LIMIT (200) rows to test truncation.
+        # Use bulk_create to bypass StaffLog.clean()'s 30-day-old guard
+        # (we need historical dates beyond that window for this test).
+        self.total = 220
+        StaffLog.objects.bulk_create([
+            StaffLog(
+                staff_member=self.counselor,
+                date=date.today() - timedelta(days=i),
+                day_quality_score=4,
+                support_level_score=4,
+                elaboration="Test elaboration text.",
+                values_reflection="Test values reflection.",
+            )
+            for i in range(self.total)
+        ])
+
+    def test_default_limit_truncates_large_result_set(self):
+        """Without a date filter, response is capped to STAFF_LOG_DEFAULT_LIMIT."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.list_url, {"staff_member": self.counselor.id})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == self.total
+        assert response.data["returned"] == 200
+        assert response.data["limit"] == 200
+        assert response.data["truncated"] is True
+        assert len(response.data["results"]) == 200
+
+    def test_explicit_limit_param_is_honored(self):
+        """Caller can request a smaller page via ?limit=N."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(
+            self.list_url, {"staff_member": self.counselor.id, "limit": 25},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == self.total
+        assert response.data["returned"] == 25
+        assert response.data["limit"] == 25
+        assert response.data["truncated"] is True
+        assert len(response.data["results"]) == 25
+
+    def test_limit_is_clamped_to_max(self):
+        """?limit values above STAFF_LOG_MAX_LIMIT are clamped, not honored."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(
+            self.list_url, {"staff_member": self.counselor.id, "limit": 99999},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["limit"] == 500
+
+    def test_garbage_limit_falls_back_to_default(self):
+        """Non-integer ?limit values fall back to default rather than 500ing."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(
+            self.list_url, {"staff_member": self.counselor.id, "limit": "lots"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["limit"] == 200
+
+    def test_date_filter_is_exempt_from_truncation(self):
+        """Single-day filters are inherently bounded; do not apply the cap."""
+        self.client.force_authenticate(user=self.admin)
+        target = (date.today()).isoformat()
+        response = self.client.get(self.list_url, {"date": target})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["truncated"] is False
+        assert response.data["limit"] is None
+
+    def test_results_are_newest_first(self):
+        """Truncation slices the most recent N rows."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.list_url, {"staff_member": self.counselor.id})
+
+        dates = [r["date"] for r in response.data["results"]]
+        assert dates == sorted(dates, reverse=True)
+        assert dates[0] == date.today().isoformat()

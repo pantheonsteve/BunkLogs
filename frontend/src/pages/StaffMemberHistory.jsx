@@ -46,6 +46,7 @@ function StaffMemberHistory() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [meta, setMeta] = useState({ count: 0, returned: 0, truncated: false, limit: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedLog, setSelectedLog] = useState(null);
@@ -70,7 +71,14 @@ function StaffMemberHistory() {
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
-        setLogs(response.data.results || []);
+        const results = response.data?.results || [];
+        setLogs(results);
+        setMeta({
+          count: response.data?.count ?? results.length,
+          returned: response.data?.returned ?? results.length,
+          truncated: !!response.data?.truncated,
+          limit: response.data?.limit ?? null,
+        });
       } catch (err) {
         console.error('Error fetching staff history:', err);
         const isTimeout = err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED';
@@ -215,6 +223,16 @@ function StaffMemberHistory() {
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">{supportCount}</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Truncation banner */}
+            {!loading && !error && meta.truncated && (
+              <div className="mb-6 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  Showing the {meta.returned} most recent reflections of {meta.count} total.
+                  Older entries are not displayed.
+                </p>
               </div>
             )}
 

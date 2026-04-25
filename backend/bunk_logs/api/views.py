@@ -1292,25 +1292,65 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 pass
         serializer.save(staff_member=self.request.user)
 
+    # Cap multi-day list responses so a single request can never return an
+    # unbounded number of rows (the original cause of upstream timeouts and
+    # 502s, even after the N+1 fix). Single-date filters (?date=YYYY-MM-DD or
+    # the /<date>/ action) are exempt because they are inherently bounded.
+    STAFF_LOG_DEFAULT_LIMIT = 200
+    STAFF_LOG_MAX_LIMIT = 500
+
     def list(self, request, *args, **kwargs):
         user = request.user
         queryset = self.get_queryset()
 
+        date_filter_applied = False
         date_param = request.query_params.get("date", None)
         if date_param:
             try:
                 from datetime import datetime
                 parsed_date = datetime.strptime(date_param, "%Y-%m-%d").date()
                 queryset = queryset.filter(date=parsed_date)
+                date_filter_applied = True
             except ValueError:
                 pass
 
         staff_member_id = request.query_params.get("staff_member")
         if staff_member_id and (user.is_staff or user.role == "Admin"):
-            queryset = queryset.filter(staff_member_id=staff_member_id).order_by("-date")
+            queryset = queryset.filter(staff_member_id=staff_member_id)
 
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({"results": serializer.data})
+        # Stable, newest-first ordering with a secondary tiebreaker so the
+        # ?limit slice is deterministic.
+        queryset = queryset.order_by("-date", "-created_at")
+
+        if date_filter_applied:
+            # Single-day responses are bounded by definition; serialize as-is.
+            results = list(queryset)
+            serializer = self.get_serializer(results, many=True)
+            return Response({
+                "results": serializer.data,
+                "count": len(results),
+                "returned": len(results),
+                "truncated": False,
+                "limit": None,
+            })
+
+        # Multi-day responses get a hard cap.
+        try:
+            requested_limit = int(request.query_params.get("limit", self.STAFF_LOG_DEFAULT_LIMIT))
+        except (TypeError, ValueError):
+            requested_limit = self.STAFF_LOG_DEFAULT_LIMIT
+        limit = max(1, min(requested_limit, self.STAFF_LOG_MAX_LIMIT))
+
+        total = queryset.count()
+        results = list(queryset[:limit])
+        serializer = self.get_serializer(results, many=True)
+        return Response({
+            "results": serializer.data,
+            "count": total,
+            "returned": len(results),
+            "truncated": total > len(results),
+            "limit": limit,
+        })
 
     def perform_update(self, serializer):
         from bunk_logs.users.models import User
