@@ -63,17 +63,27 @@ function StaffMemberHistory() {
       try {
         setLoading(true);
         setError(null);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         const response = await api.get('/api/v1/counselorlogs/', {
           params: { staff_member: staffId },
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         setLogs(response.data.results || []);
       } catch (err) {
         console.error('Error fetching staff history:', err);
+        const isTimeout = err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED';
         const status = err?.response?.status;
         const detail = err?.response?.data?.detail || err?.response?.data?.error || err?.message;
-        const msg = status
-          ? `Failed to load staff reflection history (${status}${detail ? ': ' + detail : ''}).`
-          : `Failed to load staff reflection history: ${detail || 'Network error'}`;
+        let msg;
+        if (isTimeout) {
+          msg = 'Request timed out — the server is taking too long. Please try again.';
+        } else if (status) {
+          msg = `Failed to load staff reflection history (${status}${detail ? ': ' + detail : ''}).`;
+        } else {
+          msg = `Failed to load staff reflection history: ${detail || 'Network error'}`;
+        }
         setError(msg);
       } finally {
         setLoading(false);
