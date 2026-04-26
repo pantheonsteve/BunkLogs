@@ -1,6 +1,6 @@
 import time
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connections
 from django.db.utils import OperationalError
 
@@ -29,9 +29,8 @@ class Command(BaseCommand):
 
         while True:
             if time.monotonic() > deadline:
-                raise SystemExit(
-                    f"Database was not ready after {timeout} seconds — aborting."
-                )
+                msg = f"Database was not ready after {timeout} seconds — aborting."
+                raise CommandError(msg)
             try:
                 conn = connections["default"]
                 with conn.cursor() as cursor:
@@ -41,7 +40,7 @@ class Command(BaseCommand):
                 conn.close()
                 if in_recovery:
                     self.stdout.write(
-                        "Database is in recovery mode, retrying in 3s..."
+                        "Database is in recovery mode, retrying in 3s...",
                     )
                     time.sleep(3)
                     continue
