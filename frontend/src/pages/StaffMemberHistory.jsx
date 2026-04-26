@@ -46,6 +46,7 @@ function StaffMemberHistory() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [meta, setMeta] = useState({ count: 0, returned: 0, truncated: false, limit: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedLog, setSelectedLog] = useState(null);
@@ -63,13 +64,35 @@ function StaffMemberHistory() {
       try {
         setLoading(true);
         setError(null);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         const response = await api.get('/api/v1/counselorlogs/', {
           params: { staff_member: staffId },
+          signal: controller.signal,
         });
-        setLogs(response.data.results || []);
+        clearTimeout(timeoutId);
+        const results = response.data?.results || [];
+        setLogs(results);
+        setMeta({
+          count: response.data?.count ?? results.length,
+          returned: response.data?.returned ?? results.length,
+          truncated: !!response.data?.truncated,
+          limit: response.data?.limit ?? null,
+        });
       } catch (err) {
         console.error('Error fetching staff history:', err);
-        setError('Failed to load staff reflection history.');
+        const isTimeout = err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED';
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.detail || err?.response?.data?.error || err?.message;
+        let msg;
+        if (isTimeout) {
+          msg = 'Request timed out — the server is taking too long. Please try again.';
+        } else if (status) {
+          msg = `Failed to load staff reflection history (${status}${detail ? ': ' + detail : ''}).`;
+        } else {
+          msg = `Failed to load staff reflection history: ${detail || 'Network error'}`;
+        }
+        setError(msg);
       } finally {
         setLoading(false);
       }
@@ -200,6 +223,16 @@ function StaffMemberHistory() {
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">{supportCount}</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Truncation banner */}
+            {!loading && !error && meta.truncated && (
+              <div className="mb-6 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  Showing the {meta.returned} most recent reflections of {meta.count} total.
+                  Older entries are not displayed.
+                </p>
               </div>
             )}
 

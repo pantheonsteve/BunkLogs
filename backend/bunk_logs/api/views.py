@@ -9,6 +9,7 @@ from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.models import SocialToken
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db.models import Prefetch
 from django.db.models import Q
 from django.http import Http404
 from django.http import JsonResponse
@@ -38,6 +39,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Bunk
+from bunk_logs.bunks.models import CounselorBunkAssignment
 from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
 from bunk_logs.campers.models import Camper
@@ -1200,17 +1202,40 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
     queryset = StaffLog.objects.all()
     serializer_class = CounselorLogSerializer
 
+    @staticmethod
+    def _optimized_stafflog_queryset(base_qs):
+        """Apply select_related + prefetch_related needed by StaffLogSerializer.
+
+        Without these, the serializer's get_bunk_assignments and
+        get_unit_assignment_name fire one query per row, which is what caused
+        /api/v1/counselorlogs/ to upstream-timeout on Render.
+        """
+        return (
+            base_qs
+            .select_related("staff_member")
+            .prefetch_related(
+                Prefetch(
+                    "staff_member__unit_assignments",
+                    queryset=UnitStaffAssignment.objects.select_related("unit"),
+                ),
+                Prefetch(
+                    "staff_member__bunk_assignments",
+                    queryset=(
+                        CounselorBunkAssignment.objects
+                        .select_related("bunk", "bunk__unit", "bunk__cabin", "bunk__session")
+                        .order_by("-is_primary", "-start_date")
+                    ),
+                ),
+            )
+        )
+
     def get_queryset(self):
         from bunk_logs.users.models import User
 
         user = self.request.user
 
         if user.is_staff or user.role == "Admin":
-            return (
-                StaffLog.objects.all()
-                .select_related("staff_member")
-                .prefetch_related("staff_member__unit_assignments__unit")
-            )
+            return self._optimized_stafflog_queryset(StaffLog.objects.all())
 
         if user.role == "Unit Head":
             unit_assignments = UnitStaffAssignment.objects.filter(
@@ -1224,9 +1249,9 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 unit_id__in=unit_assignments,
             ).values_list("counselor_assignments__counselor", flat=True).distinct()
 
-            return StaffLog.objects.filter(
-                staff_member_id__in=counselor_ids,
-            ).select_related("staff_member")
+            return self._optimized_stafflog_queryset(
+                StaffLog.objects.filter(staff_member_id__in=counselor_ids),
+            )
 
         if user.role == "Camper Care":
             unit_assignments = UnitStaffAssignment.objects.filter(
@@ -1240,13 +1265,15 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 unit_id__in=unit_assignments,
             ).values_list("counselor_assignments__counselor", flat=True).distinct()
 
-            return StaffLog.objects.filter(
-                staff_member_id__in=counselor_ids,
-            ).select_related("staff_member")
+            return self._optimized_stafflog_queryset(
+                StaffLog.objects.filter(staff_member_id__in=counselor_ids),
+            )
 
         # All other staff roles (Counselor, Leadership, Kitchen Staff) see only their own logs
         if user.role in User.STAFF_LOG_ROLES:
-            return StaffLog.objects.filter(staff_member=user).select_related("staff_member")
+            return self._optimized_stafflog_queryset(
+                StaffLog.objects.filter(staff_member=user),
+            )
 
         return StaffLog.objects.none()
 
@@ -1265,25 +1292,65 @@ class CounselorLogViewSet(viewsets.ModelViewSet):
                 pass
         serializer.save(staff_member=self.request.user)
 
+    # Cap multi-day list responses so a single request can never return an
+    # unbounded number of rows (the original cause of upstream timeouts and
+    # 502s, even after the N+1 fix). Single-date filters (?date=YYYY-MM-DD or
+    # the /<date>/ action) are exempt because they are inherently bounded.
+    STAFF_LOG_DEFAULT_LIMIT = 200
+    STAFF_LOG_MAX_LIMIT = 500
+
     def list(self, request, *args, **kwargs):
         user = request.user
         queryset = self.get_queryset()
 
+        date_filter_applied = False
         date_param = request.query_params.get("date", None)
         if date_param:
             try:
                 from datetime import datetime
                 parsed_date = datetime.strptime(date_param, "%Y-%m-%d").date()
                 queryset = queryset.filter(date=parsed_date)
+                date_filter_applied = True
             except ValueError:
                 pass
 
         staff_member_id = request.query_params.get("staff_member")
         if staff_member_id and (user.is_staff or user.role == "Admin"):
-            queryset = queryset.filter(staff_member_id=staff_member_id).order_by("-date")
+            queryset = queryset.filter(staff_member_id=staff_member_id)
 
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({"results": serializer.data})
+        # Stable, newest-first ordering with a secondary tiebreaker so the
+        # ?limit slice is deterministic.
+        queryset = queryset.order_by("-date", "-created_at")
+
+        if date_filter_applied:
+            # Single-day responses are bounded by definition; serialize as-is.
+            results = list(queryset)
+            serializer = self.get_serializer(results, many=True)
+            return Response({
+                "results": serializer.data,
+                "count": len(results),
+                "returned": len(results),
+                "truncated": False,
+                "limit": None,
+            })
+
+        # Multi-day responses get a hard cap.
+        try:
+            requested_limit = int(request.query_params.get("limit", self.STAFF_LOG_DEFAULT_LIMIT))
+        except (TypeError, ValueError):
+            requested_limit = self.STAFF_LOG_DEFAULT_LIMIT
+        limit = max(1, min(requested_limit, self.STAFF_LOG_MAX_LIMIT))
+
+        total = queryset.count()
+        results = list(queryset[:limit])
+        serializer = self.get_serializer(results, many=True)
+        return Response({
+            "results": serializer.data,
+            "count": total,
+            "returned": len(results),
+            "truncated": total > len(results),
+            "limit": limit,
+        })
 
     def perform_update(self, serializer):
         from bunk_logs.users.models import User
