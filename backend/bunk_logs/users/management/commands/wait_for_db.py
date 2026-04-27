@@ -1,24 +1,53 @@
 import time
 
 from django.core.management.base import BaseCommand
+from django.core.management.base import CommandError
 from django.db import connections
 from django.db.utils import OperationalError
 
 
 class Command(BaseCommand):
-    """Django command to pause execution until database is available"""
+    """Pause execution until the database is accepting connections and is not in recovery mode.
+
+    A PostgreSQL standby or a primary mid-crash-recovery will accept connections
+    and respond to SELECT 1, but reject writes. Checking pg_is_in_recovery()
+    ensures we only proceed once the primary is fully writable before running
+    migrations.
+    """
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--timeout",
+            type=int,
+            default=120,
+            help="Maximum seconds to wait before aborting (default: 120)",
+        )
 
     def handle(self, *args, **options):
-        self.stdout.write("Waiting for database...")
-        db_conn = None
-        while not db_conn:
+        timeout = options["timeout"]
+        deadline = time.monotonic() + timeout
+        self.stdout.write(f"Waiting up to {timeout}s for database to be ready...")
+
+        while True:
+            if time.monotonic() > deadline:
+                msg = f"Database was not ready after {timeout} seconds — aborting."
+                raise CommandError(msg)
             try:
-                db_conn = connections["default"]
-                # Test the connection
-                with db_conn.cursor() as cursor:
-                    cursor.execute("SELECT 1;")
+                conn = connections["default"]
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT pg_is_in_recovery();")
+                    in_recovery = cursor.fetchone()[0]
+                # Explicitly close so migrate gets a fresh connection.
+                conn.close()
+                if in_recovery:
+                    self.stdout.write(
+                        "Database is in recovery mode, retrying in 3s...",
+                    )
+                    time.sleep(3)
+                    continue
+                break
             except OperationalError:
-                self.stdout.write("Database unavailable, waiting 1 second...")
+                self.stdout.write("Database unavailable, retrying in 1s...")
                 time.sleep(1)
 
-        self.stdout.write(self.style.SUCCESS("Database available!"))
+        self.stdout.write(self.style.SUCCESS("Database is ready (primary, not in recovery)."))

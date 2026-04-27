@@ -9,11 +9,17 @@ echo "📦 Collecting static files..."
 python manage.py collectstatic --no-input
 
 echo "🗄️ Running database migrations..."
-# Retry migrate up to 5 times with exponential back-off so that transient
-# Postgres states (recovery mode, brief failover) don't fail the build.
+# Before each migrate attempt, wait until Postgres is accepting connections AND
+# is not in recovery mode (pg_is_in_recovery() = false). A database in recovery
+# mode accepts reads but rejects writes, which causes migration cleanup to fail
+# mid-transaction even though the migration SQL already ran. Retrying migrate up
+# to 5 times with exponential back-off handles any transient re-entry into
+# recovery mode that occurs during the migration itself.
 MAX_RETRIES=5
 WAIT=5
 for attempt in $(seq 1 $MAX_RETRIES); do
+    echo "  ↳ Waiting for database to be ready (attempt $attempt)..."
+    python manage.py wait_for_db
     if python manage.py migrate; then
         echo "✅ Migration succeeded on attempt $attempt."
         break
