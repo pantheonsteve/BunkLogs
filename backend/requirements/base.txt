@@ -24,7 +24,6 @@ dj-rest-auth[with_social]==7.0.1  # https://dj-rest-auth.readthedocs.io/
 qrcode==8.2
 pyjwt==2.10.1
 djangorestframework-simplejwt==5.5.1
-django-ninja==1.5.2
 # MFA Authentication dependencies
 fido2==1.1.3  # pinned for django-allauth MFA compatibility
 # # ------------------------------------------------------------------------------
