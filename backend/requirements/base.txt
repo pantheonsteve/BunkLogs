@@ -26,5 +26,9 @@ pyjwt==2.10.1
 djangorestframework-simplejwt==5.5.1
 # MFA Authentication dependencies
 fido2==1.1.3  # pinned for django-allauth MFA compatibility
+
+# Datadog APM + tracing
+# ------------------------------------------------------------------------------
+ddtrace==4.7.1  # https://github.com/DataDog/dd-trace-py
 # # ------------------------------------------------------------------------------
 # pandas==2.1.4  # Required for CSV/Excel imports in orders app

@@ -1,6 +1,4 @@
 # ruff: noqa: E501
-import os
-
 from .base import *
 from .base import DATABASES
 from .base import INSTALLED_APPS
@@ -242,8 +240,15 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 # Your stuff...
 # ------------------------------------------------------------------------------
 
-# Datadog configuration - simplified to avoid formatting issues
-if os.getenv("DD_LOGS_INJECTION") == "true":
+# DATADOG APM - production overrides
+# ------------------------------------------------------------------------------
+# DD_TRACE_ENABLED and DD_LOGS_INJECTION default to True in production.
+# Set DD_TRACE_ENABLED=false in the Render dashboard to disable without redeploy.
+DD_TRACE_ENABLED = env.bool("DD_TRACE_ENABLED", default=True)
+DD_LOGS_INJECTION = env.bool("DD_LOGS_INJECTION", default=True)
+DD_ENV = env("DD_ENV", default="production")
+
+if DD_LOGS_INJECTION:
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -276,19 +281,6 @@ if os.getenv("DD_LOGS_INJECTION") == "true":
             "level": "INFO",
         },
     }
-
-    # If using sidecar, also log to file
-    if os.getenv("DD_SERVERLESS_LOG_PATH"):
-        LOGGING["handlers"]["file"] = {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "/shared-volume/logs/django.log",
-            "formatter": "verbose",
-        }
-        # Add file handler to all loggers
-        for logger_config in LOGGING["loggers"].values():
-            if "handlers" in logger_config:
-                logger_config["handlers"].append("file")
 
 # Frontend URLs - Production overrides
 # ------------------------------------------------------------------------------
