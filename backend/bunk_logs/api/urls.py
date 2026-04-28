@@ -2,11 +2,16 @@ from django.urls import include
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from bunk_logs.users.api.views import UserViewSet
+
 from . import views
 
 router = DefaultRouter()
-router.register(r"users", views.UserDetailsView, basename="user")
-# Add other viewsets to the router
+
+# Users
+router.register(r"users", UserViewSet, basename="user")
+
+# Core bunk logs
 router.register(r"bunks", views.BunkViewSet, basename="bunk")
 router.register(r"units", views.UnitViewSet, basename="unit")
 router.register(r"unit-staff-assignments", views.UnitStaffAssignmentViewSet, basename="unit-staff-assignment")
@@ -14,37 +19,43 @@ router.register(r"campers", views.CamperViewSet, basename="camper")
 router.register(r"camper-bunk-assignments", views.CamperBunkAssignmentViewSet, basename="camper-bunk-assignment")
 router.register(r"bunklogs", views.BunkLogViewSet, basename="bunklog")
 router.register(r"counselorlogs", views.CounselorLogViewSet, basename="counselorlog")
-# router.register(r'orders', views.OrderViewSet, basename='order')
-# router.register(r'items', views.ItemViewSet, basename='item')
+
+# Ordering system
+router.register(r"orders", views.OrderViewSet, basename="order")
+router.register(r"items", views.ItemViewSet, basename="item")
+router.register(r"item-categories", views.ItemCategoryViewSet, basename="item-category")
+router.register(r"order-types", views.OrderTypeViewSet, basename="order-type")
 
 urlpatterns = [
     path("", include(router.urls)),
-    # Add a URL pattern for an individual bunk
-    path("bunk/<str:id>/", views.BunkViewSet.as_view({"get": "retrieve"}), name="bunk-detail"),
 
-    # User registration endpoint
+    # Non-standard bunk detail path used by BunkCard.jsx — kept for compat while
+    # callers are migrated to the standard /bunks/{id}/ route
+    path("bunk/<str:id>/", views.BunkViewSet.as_view({"get": "retrieve"}), name="bunk-detail-compat"),
+
+    # User registration (public)
     path("users/create/", views.UserCreate.as_view(), name="user-create"),
 
-    # Add dedicated endpoint for email-based user retrieval
+    # User lookup by email (used by several frontend components)
     path("users/email/<str:email>/", views.get_user_by_email, name="user-by-email"),
-    # Add a URL pattern for the BunkLogsInfoByDateViewSet
-    path("users/<str:user_id>", views.get_user_by_id, name="user-by-id"),
 
-    # Bunklogs by date endpoint - returns all bunklogs for a specific date (must come before bunk-specific endpoint)
-    path("bunklogs/all/<str:date>/", views.BunkLogsAllByDateViewSet.as_view(), name="bunklogs-all-by-date"),
+    # Messaging system
+    path("messaging/", include("bunk_logs.messaging.urls")),
 
+    # Ordering system helpers
+    path("order-types/<int:order_type_id>/items/", views.get_items_for_order_type, name="order-type-items"),
+    path("orders/statistics/", views.get_order_statistics, name="order-statistics"),
+
+    # Bunk-log date-scoped views
+    path("bunklogs/all/<str:date>/", views.BunkLogsAllByDateViewSet.as_view(), name="all-bunk-logs-by-date"),
     path("bunklogs/<str:bunk_id>/logs/<str:date>/", views.BunkLogsInfoByDateViewSet.as_view(), name="bunklog-by-date"),
-    # URL for camper bunk logs
+
+    # Camper logs history
     path("campers/<str:camper_id>/logs/", views.CamperBunkLogViewSet.as_view(), name="camper-bunklogs"),
 
-    # Unit Head and Camper Care endpoints
+    # Unit head and camper care dashboard endpoints
     path("unithead/<str:unithead_id>/<str:date>/", views.get_unit_head_bunks, name="unit-head-bunks"),
     path("campercare/<str:camper_care_id>/<str:date>/", views.get_camper_care_bunks, name="camper-care-bunks"),
-
-    # Debug endpoints
-    path("debug/user-bunks/", views.debug_user_bunks, name="debug-user-bunks"),
-    path("debug/fix-social-apps/", views.FixSocialAppsView.as_view(), name="fix-social-apps"),
-    path("debug/auth/", views.auth_debug_view, name="auth-debug"),
 ]
 
-
+app_name = "api"

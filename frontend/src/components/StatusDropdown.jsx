@@ -30,7 +30,7 @@ function StatusDropdown({ orderId, currentStatus, onStatusUpdate, userRole, disa
     
     setIsUpdating(true);
     try {
-      const response = await api.patch(`/api/orders/${orderId}/`, {
+      const response = await api.patch(`/api/v1/orders/${orderId}/`, {
         order_status: newStatus
       });
       

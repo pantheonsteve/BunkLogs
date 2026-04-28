@@ -33,7 +33,7 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
   const fetchOrderTypes = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/order-types/');
+      const response = await api.get('/api/v1/order-types/');
       setOrderTypes(response.data);
     } catch (error) {
       console.error('Error fetching order types:', error);
@@ -46,7 +46,7 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
   const fetchAvailableItems = async (orderTypeId) => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/order-types/${orderTypeId}/items/`);
+      const response = await api.get(`/api/v1/order-types/${orderTypeId}/items/`);
       setAvailableItems(response.data);
       setSelectedItems([]);
     } catch (error) {
@@ -123,7 +123,7 @@ function CreateOrderModal({ isOpen, onClose, bunkId, date, onOrderCreated }) {
         narrative_description: narrativeDescription
       };
 
-      const response = await api.post('/api/orders/', orderData);
+      const response = await api.post('/api/v1/orders/', orderData);
       
       // Call the callback to refresh orders or notify parent
       if (onOrderCreated) {
