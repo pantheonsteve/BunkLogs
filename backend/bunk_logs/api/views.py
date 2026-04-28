@@ -427,16 +427,22 @@ def get_user_by_email(request, email):
         return Response({"error": "User not found"}, status=404)
 
 class BunkViewSet(viewsets.ModelViewSet):
+    """
+    CRUD viewset for Bunk records.
+
+    Requires authentication. AllowAny was previously set here but had no documented
+    rationale and was inconsistent with the rest of the API. Every frontend caller
+    (BunkCard, unit-head dashboard, camper-care dashboard) operates inside an
+    authenticated session, so unauthenticated access is not needed.
+    """
+
     renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     queryset = Bunk.objects.all()
     serializer_class = BunkSerializer
-    lookup_field = "id"  # Set lookup_field to match the URL parameter name
+    lookup_field = "id"
 
     def get_queryset(self):
-        """
-        Optionally filter bunks by ID.
-        """
         queryset = Bunk.objects.all()
         bunk_id = self.request.query_params.get("id", None)
         if bunk_id is not None:
