@@ -198,3 +198,20 @@ podman ps -a             # stop/remove old containers
 **ddtrace errors in local logs**: "failed to send traces to intake at localhost:8126" is harmless -- Datadog agent isn't running locally. Ignore.
 
 **Cache not working in production health check**: Redis on Render may need re-provisioning. See `render.yaml` for the declared Redis service.
+
+## Multi-tenant Migration
+
+BunkLogs is mid-way through a **Strangler Fig migration** from a single-tenant deployment (URJ Crane Lake Camp) to a multi-tenant SaaS platform.
+
+**Current state**: Old data model hierarchy `Session → Unit → Bunk → CamperBunkAssignment → BunkLog` still serves Crane Lake's existing data. New models (`Organization`, `Program`, `Person`, `Membership`, `ReflectionTemplate`, `Reflection`) coexist alongside the old ones and will serve:
+- Crane Lake Summer 2026 expansion (role-based reflection forms for Kitchen, Maintenance, Housekeeping, Wellness, JCs, Specialists, GCs, Leadership)
+- Temple Beth-El (new customer, launching Fall 2026)
+
+**Critical constraints**:
+- Do NOT modify old models or break Crane Lake's existing functionality unless explicitly asked
+- All new features must be built on the new multi-tenant architecture (never extend old models for new use cases)
+- `ReflectionTemplate.schema` must support localized prompts (English/Spanish) from day one
+
+**Canonical context document**: [`migration_prompts/0_0_context_prompt.md`](migration_prompts/0_0_context_prompt.md)
+
+**Ordered prompt sequence**: [`migration_prompts/`](migration_prompts/) — numbered files `1_1` through `6_3` define the full migration roadmap in execution order.
