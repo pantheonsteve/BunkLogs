@@ -182,17 +182,6 @@ export const fetchStaffAssignmentSafe = async (userId) => {
   }
 };
 
-// Check user role/permissions
-export const checkUserRole = async () => {
-  try {
-    const response = await api.get('/api/auth/user/');
-    return response.data;
-  } catch (error) {
-    console.error('Error checking user role:', error);
-    throw error;
-  }
-};
-
 // Get appropriate date range based on user role
 export const getDateRangeForUser = (user) => {
   // Use local timezone date to avoid off-by-one errors

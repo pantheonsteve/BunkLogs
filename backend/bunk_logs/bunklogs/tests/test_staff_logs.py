@@ -261,7 +261,7 @@ class TestStaffLogAPI(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.list_url = reverse("counselorlog-list")
+        self.list_url = reverse("api:counselorlog-list")
 
         self.admin = UserFactory(admin=True, is_staff=True)
         self.counselor1 = UserFactory(counselor=True)
@@ -367,7 +367,7 @@ class TestStaffLogAPI(TestCase):
 
     def test_counselor_can_retrieve_own_log(self):
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
 
@@ -375,19 +375,19 @@ class TestStaffLogAPI(TestCase):
 
     def test_counselor_can_update_own_log_same_day(self):
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.patch(url, {"elaboration": "Updated text."}, format="json")
         assert response.status_code == status.HTTP_200_OK
 
     def test_leadership_can_update_own_log_same_day(self):
         self.client.force_authenticate(user=self.leader)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.leader_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.leader_log.pk})
         response = self.client.patch(url, {"elaboration": "Updated leadership text."}, format="json")
         assert response.status_code == status.HTTP_200_OK
 
     def test_kitchen_staff_can_update_own_log_same_day(self):
         self.client.force_authenticate(user=self.kitchen)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.kitchen_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.kitchen_log.pk})
         response = self.client.patch(url, {"elaboration": "Updated kitchen text."}, format="json")
         assert response.status_code == status.HTTP_200_OK
 
@@ -398,26 +398,26 @@ class TestStaffLogAPI(TestCase):
             created_at=timezone.now() - timedelta(days=1),
         )
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.patch(url, {"elaboration": "Too late."}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_admin_can_update_any_log(self):
         self.client.force_authenticate(user=self.admin)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.patch(url, {"elaboration": "Admin update."}, format="json")
         assert response.status_code == status.HTTP_200_OK
 
     def test_counselor_cannot_update_another_counselors_log(self):
         self.client.force_authenticate(user=self.counselor2)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.patch(url, {"elaboration": "Sneaky edit."}, format="json")
         # counselor2 cannot see counselor1's log so should get 404
         assert response.status_code in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
 
     def test_unit_head_cannot_edit_staff_log(self):
         self.client.force_authenticate(user=self.unit_head)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.patch(url, {"elaboration": "Unit head edit attempt."}, format="json")
         assert response.status_code in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
 
@@ -425,7 +425,7 @@ class TestStaffLogAPI(TestCase):
 
     def test_response_includes_staff_member_fields(self):
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
         assert "staff_member" in response.data
@@ -435,7 +435,7 @@ class TestStaffLogAPI(TestCase):
     def test_response_includes_legacy_counselor_fields(self):
         """Backward-compat: frontend still expects counselor_* fields."""
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
+        url = reverse("api:counselorlog-detail", kwargs={"pk": self.counselor1_log.pk})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
         assert "counselor" in response.data
@@ -474,7 +474,7 @@ class TestStaffLogQueryCount(TestCase):
         from datetime import timedelta
 
         self.client = APIClient()
-        self.list_url = reverse("counselorlog-list")
+        self.list_url = reverse("api:counselorlog-list")
         self.admin = UserFactory(admin=True, is_staff=True)
         self.counselor = UserFactory(counselor=True)
 
@@ -541,7 +541,7 @@ class TestStaffLogResultLimit(TestCase):
         from datetime import timedelta
 
         self.client = APIClient()
-        self.list_url = reverse("counselorlog-list")
+        self.list_url = reverse("api:counselorlog-list")
         self.admin = UserFactory(admin=True, is_staff=True)
         self.counselor = UserFactory(counselor=True)
 

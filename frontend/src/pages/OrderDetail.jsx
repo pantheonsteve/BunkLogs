@@ -25,7 +25,7 @@ function OrderDetail() {
         setLoading(true);
         setError(null);
         
-        const response = await api.get(`/api/orders/${orderId}/`);
+        const response = await api.get(`/api/v1/orders/${orderId}/`);
         
         setOrder(response.data);
       } catch (error) {
