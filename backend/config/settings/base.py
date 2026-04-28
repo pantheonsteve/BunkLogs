@@ -551,3 +551,15 @@ INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
+# DATADOG APM
+# ------------------------------------------------------------------------------
+# All DD_* vars default to safe no-op values; real values are set via env/Render.
+DD_ENV = env("DD_ENV", default="development")
+DD_SERVICE = env("DD_SERVICE", default="bunklogs")
+DD_VERSION = env("DD_VERSION", default="")
+DD_AGENT_HOST = env("DD_AGENT_HOST", default="localhost")
+DD_DOGSTATSD_PORT = env.int("DD_DOGSTATSD_PORT", default=8125)
+# Tracing is opt-in so local dev doesn't require a running agent.
+DD_TRACE_ENABLED = env.bool("DD_TRACE_ENABLED", default=False)
+DD_LOGS_INJECTION = env.bool("DD_LOGS_INJECTION", default=False)
+

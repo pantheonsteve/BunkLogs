@@ -9,7 +9,7 @@ services:
     previews:
       generation: automatic
     buildCommand: "./build.sh"
-    startCommand: "gunicorn --config gunicorn.conf.py config.wsgi:application"
+    startCommand: "ddtrace-run gunicorn --config gunicorn.conf.py config.wsgi:application"
     healthCheckPath: "/health/"
     envVars:
       - key: PYTHON_VERSION
@@ -36,6 +36,21 @@ services:
         fromSecret: MAILGUN_DOMAIN
       - key: MAILGUN_FROM_EMAIL
         fromSecret: MAILGUN_FROM_EMAIL
+      # Datadog APM — set DD_API_KEY in Render dashboard (not committed to repo)
+      - key: DD_API_KEY
+        sync: false
+      - key: DD_ENV
+        value: production
+      - key: DD_SERVICE
+        value: bunklogs
+      - key: DD_VERSION
+        value: "1.0"
+      - key: DD_LOGS_INJECTION
+        value: "true"
+      - key: DD_TRACE_ENABLED
+        value: "true"
+      # DD_AGENT_HOST: only needed if running a Datadog Agent sidecar/service.
+      # Leave unset to let traces be dropped gracefully when no agent is present.
 
   # Cron job for daily email reports
   - type: cron

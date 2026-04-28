@@ -1,0 +1,100 @@
+# Datadog Synthetic Monitor Definitions
+# Import via Datadog API or Terraform datadog_synthetics_test resource.
+# https://docs.datadoghq.com/synthetics/
+
+synthetics:
+  - name: "BunkLogs - Health check"
+    type: api
+    subtype: http
+    status: live
+    config:
+      request:
+        method: GET
+        url: https://admin.bunklogs.net/health/
+      assertions:
+        - type: statusCode
+          operator: is
+          target: 200
+        - type: responseTime
+          operator: lessThan
+          target: 2000  # ms
+    options:
+      tick_every: 300  # every 5 minutes
+      min_failure_duration: 0
+      min_location_failed: 1
+      locations:
+        - aws:us-east-1
+        - aws:eu-west-1
+    tags:
+      - service:bunklogs
+      - env:production
+      - team:backend
+
+  - name: "BunkLogs - JWT token endpoint"
+    type: api
+    subtype: http
+    status: live
+    config:
+      request:
+        method: POST
+        url: https://admin.bunklogs.net/api/auth/login/
+        headers:
+          Content-Type: application/json
+        body: '{"email": "{{ synthetics.user.email }}", "password": "{{ synthetics.user.password }}"}'
+      assertions:
+        - type: statusCode
+          operator: is
+          target: 200
+        - type: responseTime
+          operator: lessThan
+          target: 3000
+        - type: body
+          operator: contains
+          target: "access"
+    options:
+      tick_every: 900  # every 15 minutes
+      min_failure_duration: 0
+      min_location_failed: 1
+      locations:
+        - aws:us-east-1
+    tags:
+      - service:bunklogs
+      - env:production
+      - team:backend
+    # Store synthetic credentials as Datadog global variables:
+    # synthetics.user.email / synthetics.user.password
+
+  - name: "BunkLogs - Reflection submission endpoint (authenticated)"
+    type: api
+    subtype: http
+    status: paused  # Enable once Reflection model is live (Phase 2)
+    config:
+      request:
+        method: POST
+        url: https://admin.bunklogs.net/api/v2/reflections/
+        headers:
+          Content-Type: application/json
+          Authorization: "Bearer {{ synthetics.jwt_token }}"
+        body: >
+          {
+            "template": "{{ synthetics.reflection_template_id }}",
+            "data": {"text": "Synthetic test submission"},
+            "submitted_at": "{{ date:iso8601 }}"
+          }
+      assertions:
+        - type: statusCode
+          operator: isNot
+          target: 500
+        - type: responseTime
+          operator: lessThan
+          target: 3000
+    options:
+      tick_every: 3600  # hourly
+      min_failure_duration: 0
+      min_location_failed: 1
+      locations:
+        - aws:us-east-1
+    tags:
+      - service:bunklogs
+      - env:production
+      - team:backend
