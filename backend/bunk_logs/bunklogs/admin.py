@@ -298,7 +298,7 @@ class StaffLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
             counselor_ids = User.objects.filter(
                 role="Counselor",
-                assigned_bunks__unit_id__in=set(unit_assignments),
+                bunk_assignments__bunk__unit_id__in=set(unit_assignments),
             ).values_list("id", flat=True)
 
             return qs.filter(staff_member_id__in=counselor_ids)

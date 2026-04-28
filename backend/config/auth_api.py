@@ -1,9 +1,14 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
+from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+
+from bunk_logs.bunks.models import CounselorBunkAssignment
+from bunk_logs.bunks.models import UnitStaffAssignment
 
 User = get_user_model()
 
@@ -71,25 +76,32 @@ def get_auth_status(request):
 
         # Add bunk information for counselors
         if request.user.role == "Counselor":
-            # Get assigned bunks for the counselor
-            bunks = list(request.user.assigned_bunks.filter(is_active=True).values(
-                "id", "cabin__name", "session__name",
-            ))
-
-            # Format the bunks for the response
-            formatted_bunks = []
-            for bunk in bunks:
-                formatted_bunks.append({
-                    "id": bunk["id"],
-                    "name": f"{bunk['cabin__name']} - {bunk['session__name']}",
-                })
-
-            response_data["user"]["bunks"] = formatted_bunks
+            today = timezone.now().date()
+            assignments = CounselorBunkAssignment.objects.filter(
+                counselor=request.user,
+                start_date__lte=today,
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today),
+            ).select_related("bunk__cabin", "bunk__session")
+            response_data["user"]["bunks"] = [{
+                "id": str(a.bunk.id),
+                "name": a.bunk.name,
+            } for a in assignments]
 
         # For Unit Heads, include their managed units
         elif request.user.role == "Unit Head":
-            units = list(request.user.managed_units.all().values("id", "name"))
-            response_data["user"]["units"] = units
+            today = timezone.now().date()
+            unit_assignments = UnitStaffAssignment.objects.filter(
+                staff_member=request.user,
+                role="unit_head",
+                start_date__lte=today,
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today),
+            ).select_related("unit")
+            response_data["user"]["units"] = [{
+                "id": str(a.unit.id),
+                "name": a.unit.name,
+            } for a in unit_assignments]
 
         return JsonResponse(response_data)
     return JsonResponse({

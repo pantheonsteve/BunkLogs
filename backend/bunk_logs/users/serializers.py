@@ -1,11 +1,17 @@
 from typing import Any
 
 from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from bunk_logs.bunks.models import CounselorBunkAssignment
+from bunk_logs.bunks.models import UnitStaffAssignment
+
 User = get_user_model()
+
 
 class UserSerializer(serializers.ModelSerializer):
     bunks = serializers.SerializerMethodField()
@@ -30,21 +36,34 @@ class UserSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunks(self, obj) -> list[dict[str, Any]]:
         if obj.role == "Counselor":
-            bunks = obj.assigned_bunks.filter(is_active=True)
+            today = timezone.now().date()
+            assignments = CounselorBunkAssignment.objects.filter(
+                counselor=obj,
+                start_date__lte=today,
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today),
+            ).select_related("bunk__cabin", "bunk__session")
             return [{
-                "id": str(bunk.id),
-                "name": bunk.name,
-                "cabin": bunk.cabin.name if bunk.cabin else None,
-                "session": bunk.session.name if bunk.session else None,
-            } for bunk in bunks]
+                "id": str(a.bunk.id),
+                "name": a.bunk.name,
+                "cabin": a.bunk.cabin.name if a.bunk.cabin else None,
+                "session": a.bunk.session.name if a.bunk.session else None,
+            } for a in assignments]
         return []
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_units(self, obj) -> list[dict[str, Any]]:
         if obj.role == "Unit Head":
-            units = obj.managed_units.all()
+            today = timezone.now().date()
+            assignments = UnitStaffAssignment.objects.filter(
+                staff_member=obj,
+                role="unit_head",
+                start_date__lte=today,
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today),
+            ).select_related("unit")
             return [{
-                "id": str(unit.id),
-                "name": unit.name,
-            } for unit in units]
+                "id": str(a.unit.id),
+                "name": a.unit.name,
+            } for a in assignments]
         return []
