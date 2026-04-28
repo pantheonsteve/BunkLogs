@@ -1,6 +1,4 @@
 # ruff: noqa: E501
-import os
-
 from .base import *
 from .base import DATABASES
 from .base import INSTALLED_APPS
