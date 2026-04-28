@@ -27,12 +27,13 @@ PROMPTS_DIR = _REPO_ROOT / "migration_prompts"
 
 def _run_git(args: list[str]) -> str:
     try:
-        result = subprocess.run(
-            ["git", *args],
+        result = subprocess.run(  # noqa: S603
+            ["git", *args],  # noqa: S607
             cwd=str(_REPO_ROOT),
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
         return result.stdout.strip()
     except Exception:
