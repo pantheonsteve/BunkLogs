@@ -104,7 +104,7 @@ LOCAL_APPS = [
     "bunk_logs.orders",  # Orders app
     "bunk_logs.messaging",  # Messaging app for email workflows
     "bunk_logs.utils",   # Utils app for test data management
-    # Your stuff: custom apps go here
+    "bunk_logs.core",   # Multi-tenant core models
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
