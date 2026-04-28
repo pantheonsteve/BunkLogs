@@ -31,7 +31,7 @@ function BunkOrderEdit({ orderId, bunk_id, date }) {
         setLoading(true);
         setError(null);
         
-        const response = await api.get(`/api/orders/${orderId}/`);
+        const response = await api.get(`/api/v1/orders/${orderId}/`);
         
         const orderData = response.data;
         setOrder(orderData);
@@ -45,7 +45,7 @@ function BunkOrderEdit({ orderId, bunk_id, date }) {
         // Fetch available items for this order type if it exists
         if (orderData.order_type) {
           try {
-            const itemsResponse = await api.get(`/api/order-types/${orderData.order_type}/items/`);
+            const itemsResponse = await api.get(`/api/v1/order-types/${orderData.order_type}/items/`);
             setAvailableItems(itemsResponse.data);
           } catch (itemsError) {
             console.error('Error fetching available items:', itemsError);
@@ -148,7 +148,7 @@ function BunkOrderEdit({ orderId, bunk_id, date }) {
 
       console.log('Sending update data:', updateData);
 
-      const response = await api.put(`/api/orders/${orderId}/`, updateData);
+      const response = await api.put(`/api/v1/orders/${orderId}/`, updateData);
 
       // Navigate back to order detail view
       navigate(`/bunk/${bunk_id}/${date}/orders/${orderId}`);

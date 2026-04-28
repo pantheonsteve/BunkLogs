@@ -1,77 +1,91 @@
-from django.conf import settings
-from django.urls import include
+"""
+config/api_router.py — redirect shim only.
+
+All data endpoints have been consolidated under /api/v1/ (bunk_logs/api/urls.py).
+This module keeps the old /api/<resource>/ paths alive as 302 redirects so that
+any bookmark or cached call still resolves, but the canonical URL is /api/v1/*.
+
+Once all callers (frontend + any external integrations) have been confirmed to
+use /api/v1/ exclusively, this file can be replaced with an empty urlpatterns=[].
+"""
+
+from django.http import HttpResponseRedirect
 from django.urls import path
-from rest_framework.routers import DefaultRouter
-from rest_framework.routers import SimpleRouter
+from django.urls import re_path
 
-from bunk_logs.api.views import BunkLogsAllByDateViewSet
-from bunk_logs.api.views import BunkLogsInfoByDateViewSet  # API views for specific endpoints
-from bunk_logs.api.views import BunkLogViewSet
-from bunk_logs.api.views import BunkViewSet
-from bunk_logs.api.views import CamperBunkAssignmentViewSet
-from bunk_logs.api.views import CamperBunkLogViewSet
-from bunk_logs.api.views import CamperViewSet
-from bunk_logs.api.views import CounselorLogViewSet
-from bunk_logs.api.views import FixSocialAppsView
-from bunk_logs.api.views import ItemCategoryViewSet
-from bunk_logs.api.views import ItemViewSet
-from bunk_logs.api.views import OrderTypeViewSet
-from bunk_logs.api.views import OrderViewSet  # Ordering system views
-from bunk_logs.api.views import UnitStaffAssignmentViewSet
-from bunk_logs.api.views import UnitViewSet  # Core bunk logs views
-from bunk_logs.api.views import UserDetailsView
-from bunk_logs.api.views import debug_user_bunks
-from bunk_logs.api.views import get_camper_care_bunks
-from bunk_logs.api.views import get_items_for_order_type
-from bunk_logs.api.views import get_order_statistics
-from bunk_logs.api.views import get_unit_head_bunks
-from bunk_logs.api.views import get_user_by_email
-from bunk_logs.users.api.views import UserViewSet
 
-router = DefaultRouter() if settings.DEBUG else SimpleRouter()
+def _r(v1_path):
+    """Return a redirect view function targeting /api/v1/<v1_path>."""
+    def view(request, **kwargs):
+        target = f"/api/v1/{v1_path.format(**kwargs)}"
+        qs = request.META.get("QUERY_STRING", "")
+        if qs:
+            target = f"{target}?{qs}"
+        return HttpResponseRedirect(target)
+    return view
 
-# User management
-router.register("users", UserViewSet, basename="user")
 
-# Core bunk logs functionality
-router.register("units", UnitViewSet, basename="unit")
-router.register("unit-staff-assignments", UnitStaffAssignmentViewSet, basename="unit-staff-assignment")
-router.register("bunks", BunkViewSet, basename="bunk")
-router.register("campers", CamperViewSet, basename="camper")
-router.register("camper-bunk-assignments", CamperBunkAssignmentViewSet, basename="camper-bunk-assignment")
-router.register("bunk-logs", BunkLogViewSet, basename="bunk-log")
-router.register("counselor-logs", CounselorLogViewSet, basename="counselor-log")
+urlpatterns = [
+    # --- Users ---
+    path("users/", _r("users/"), name="redirect-users-list"),
+    re_path(r"^users/(?P<pk>[^/]+)/$", _r("users/{pk}/"), name="redirect-users-detail"),
+    path("users/me/", _r("users/me/"), name="redirect-users-me"),
+    re_path(r"^users/email/(?P<email>[^/]+)/$", _r("users/email/{email}/"), name="redirect-users-by-email"),
 
-# Ordering system
-router.register("orders", OrderViewSet, basename="order")
-router.register("items", ItemViewSet, basename="item")
-router.register("item-categories", ItemCategoryViewSet, basename="item-category")
-router.register("order-types", OrderTypeViewSet, basename="order-type")
+    # --- Bunks ---
+    path("bunks/", _r("bunks/"), name="redirect-bunks-list"),
+    re_path(r"^bunks/(?P<pk>[^/]+)/$", _r("bunks/{pk}/"), name="redirect-bunks-detail"),
+    re_path(r"^bunk/(?P<id>[^/]+)/$", _r("bunk/{id}/"), name="redirect-bunk-detail-alt"),
 
-# Custom URL patterns for additional endpoints
-custom_urlpatterns = [
-    # Messaging system
-    path("messaging/", include("bunk_logs.messaging.urls")),
+    # --- Units ---
+    path("units/", _r("units/"), name="redirect-units-list"),
+    re_path(r"^units/(?P<pk>[^/]+)/$", _r("units/{pk}/"), name="redirect-units-detail"),
 
-    # Ordering system endpoints
-    path("order-types/<int:order_type_id>/items/", get_items_for_order_type, name="order-type-items"),
-    path("orders/statistics/", get_order_statistics, name="order-statistics"),
+    # --- Unit staff assignments ---
+    path("unit-staff-assignments/", _r("unit-staff-assignments/"), name="redirect-usa-list"),
+    re_path(r"^unit-staff-assignments/(?P<pk>[^/]+)/$", _r("unit-staff-assignments/{pk}/"), name="redirect-usa-detail"),
 
-    # Bunk logs specific endpoints
-    path("bunklogs/<str:bunk_id>/logs/<str:date>/", BunkLogsInfoByDateViewSet.as_view(), name="bunk-logs-by-date"),
-    path("bunklogs/all/<str:date>/", BunkLogsAllByDateViewSet.as_view(), name="all-bunk-logs-by-date"),
-    path("campers/<str:camper_id>/logs/", CamperBunkLogViewSet.as_view(), name="camper-bunk-logs"),
+    # --- Campers ---
+    path("campers/", _r("campers/"), name="redirect-campers-list"),
+    re_path(r"^campers/(?P<pk>[^/]+)/$", _r("campers/{pk}/"), name="redirect-campers-detail"),
+    re_path(r"^campers/(?P<camper_id>[^/]+)/logs/$", _r("campers/{camper_id}/logs/"), name="redirect-camper-logs"),
 
-    # User and staff management endpoints
-    path("users/email/<str:email>/", get_user_by_email, name="user-by-email"),
-    path("users/details/", UserDetailsView.as_view({"get": "list"}), name="user-details"),
-    path("debug/user-bunks/", debug_user_bunks, name="debug-user-bunks"),
-    path("debug/fix-social-apps/", FixSocialAppsView.as_view(), name="fix-social-apps"),
+    # --- Camper bunk assignments ---
+    path("camper-bunk-assignments/", _r("camper-bunk-assignments/"), name="redirect-cba-list"),
+    re_path(r"^camper-bunk-assignments/(?P<pk>[^/]+)/$", _r("camper-bunk-assignments/{pk}/"), name="redirect-cba-detail"),
 
-    # Unit and staff specific endpoints
-    path("unithead/<str:unithead_id>/<str:date>/", get_unit_head_bunks, name="unit-head-bunks"),
-    path("campercare/<str:camper_care_id>/<str:date>/", get_camper_care_bunks, name="camper-care-bunks"),
+    # --- Bunk logs ---
+    path("bunk-logs/", _r("bunklogs/"), name="redirect-bunk-logs-list"),
+    re_path(r"^bunk-logs/(?P<pk>[^/]+)/$", _r("bunklogs/{pk}/"), name="redirect-bunk-logs-detail"),
+    re_path(r"^bunklogs/all/(?P<date>[^/]+)/$", _r("bunklogs/all/{date}/"), name="redirect-bunklogs-all"),
+    re_path(r"^bunklogs/(?P<bunk_id>[^/]+)/logs/(?P<date>[^/]+)/$", _r("bunklogs/{bunk_id}/logs/{date}/"), name="redirect-bunklogs-by-date"),
+
+    # --- Counselor logs ---
+    path("counselor-logs/", _r("counselorlogs/"), name="redirect-counselor-logs-list"),
+    re_path(r"^counselor-logs/(?P<pk>[^/]+)/$", _r("counselorlogs/{pk}/"), name="redirect-counselor-logs-detail"),
+
+    # --- Orders (previously only on /api/, now on /api/v1/) ---
+    path("orders/", _r("orders/"), name="redirect-orders-list"),
+    path("orders/statistics/", _r("orders/statistics/"), name="redirect-orders-stats"),
+    re_path(r"^orders/(?P<pk>[^/]+)/$", _r("orders/{pk}/"), name="redirect-orders-detail"),
+
+    # --- Items ---
+    path("items/", _r("items/"), name="redirect-items-list"),
+    re_path(r"^items/(?P<pk>[^/]+)/$", _r("items/{pk}/"), name="redirect-items-detail"),
+
+    # --- Item categories ---
+    path("item-categories/", _r("item-categories/"), name="redirect-item-cats-list"),
+    re_path(r"^item-categories/(?P<pk>[^/]+)/$", _r("item-categories/{pk}/"), name="redirect-item-cats-detail"),
+
+    # --- Order types ---
+    path("order-types/", _r("order-types/"), name="redirect-order-types-list"),
+    re_path(r"^order-types/(?P<pk>[^/]+)/$", _r("order-types/{pk}/"), name="redirect-order-types-detail"),
+    re_path(r"^order-types/(?P<order_type_id>[^/]+)/items/$", _r("order-types/{order_type_id}/items/"), name="redirect-order-type-items"),
+
+    # --- Messaging ---
+    re_path(r"^messaging/(?P<rest>.*)$", _r("messaging/{rest}"), name="redirect-messaging"),
+
+    # --- Unit head / camper care dashboards ---
+    re_path(r"^unithead/(?P<unithead_id>[^/]+)/(?P<date>[^/]+)/$", _r("unithead/{unithead_id}/{date}/"), name="redirect-unithead"),
+    re_path(r"^campercare/(?P<camper_care_id>[^/]+)/(?P<date>[^/]+)/$", _r("campercare/{camper_care_id}/{date}/"), name="redirect-campercare"),
 ]
-
-app_name = "api"
-urlpatterns = router.urls + custom_urlpatterns

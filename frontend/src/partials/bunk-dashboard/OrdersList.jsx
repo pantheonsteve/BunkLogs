@@ -26,7 +26,7 @@ function OrdersList({ bunk_id, date, refreshTrigger }) {
         setError(null);
         
         // Fetch orders for the specific bunk
-        const response = await api.get(`/api/orders/?bunk=${bunk_id}`);
+        const response = await api.get(`/api/v1/orders/?bunk=${bunk_id}`);
         
         // Sort orders by date in descending order (newest first)
         const sortedOrders = response.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));

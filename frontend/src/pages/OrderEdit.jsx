@@ -37,7 +37,7 @@ function OrderEdit() {
         setError(null);
         
         // Fetch order details
-        const orderResponse = await api.get(`/api/orders/${orderId}/`);
+        const orderResponse = await api.get(`/api/v1/orders/${orderId}/`);
         
         const orderData = orderResponse.data;
         setOrder(orderData);
@@ -50,13 +50,13 @@ function OrderEdit() {
         }
         
         // Fetch order types
-        const orderTypesResponse = await api.get('/api/order-types/');
+        const orderTypesResponse = await api.get('/api/v1/order-types/');
         setOrderTypes(orderTypesResponse.data);
         console.log('Fetched order types:', orderTypesResponse.data);
         
         // Fetch items for the current order type
         if (orderData.order_type) {
-          const itemsResponse = await api.get(`/api/items/?order_type=${orderData.order_type}`);
+          const itemsResponse = await api.get(`/api/v1/items/?order_type=${orderData.order_type}`);
           setItems(itemsResponse.data);
           
           // Set form data with all items for this order type
@@ -169,7 +169,7 @@ function OrderEdit() {
         narrative_description: formData.narrative_description
       };
       
-      await api.patch(`/api/orders/${orderId}/`, updateData);
+      await api.patch(`/api/v1/orders/${orderId}/`, updateData);
       
       // Navigate back to order detail page
       navigate(`/orders/${orderId}`);

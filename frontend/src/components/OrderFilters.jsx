@@ -29,8 +29,8 @@ function OrderFilters({
         
         // Fetch orders and order types in parallel
         const [ordersResponse, orderTypesResponse] = await Promise.all([
-          api.get('/api/orders/'),
-          api.get('/api/order-types/')
+          api.get('/api/v1/orders/'),
+          api.get('/api/v1/order-types/')
         ]);
 
         // Extract unique bunks from orders data

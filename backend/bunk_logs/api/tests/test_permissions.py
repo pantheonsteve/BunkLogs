@@ -71,28 +71,28 @@ class CounselorPermissionsTest(TestCase):
     def test_counselor_can_access_own_bunk(self):
         """Test that a counselor can access their own bunk's data"""
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("bunklog-by-date", kwargs={"bunk_id": self.bunk.id, "date": "2025-06-15"})
+        url = reverse("api:bunklog-by-date", kwargs={"bunk_id": self.bunk.id, "date": "2025-06-15"})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
 
     def test_counselor_cannot_access_other_bunk(self):
         """Test that a counselor cannot access another bunk's data"""
         self.client.force_authenticate(user=self.counselor2)
-        url = reverse("bunklog-by-date", kwargs={"bunk_id": self.bunk.id, "date": "2025-06-15"})
+        url = reverse("api:bunklog-by-date", kwargs={"bunk_id": self.bunk.id, "date": "2025-06-15"})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_admin_can_access_any_bunk(self):
         """Test that an admin can access any bunk's data"""
         self.client.force_authenticate(user=self.admin)
-        url = reverse("bunklog-by-date", kwargs={"bunk_id": self.bunk.id, "date": "2025-06-15"})
+        url = reverse("api:bunklog-by-date", kwargs={"bunk_id": self.bunk.id, "date": "2025-06-15"})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
 
     def test_counselor_can_create_log_for_own_bunk(self):
         """Test that a counselor can create a log for their own bunk"""
         self.client.force_authenticate(user=self.counselor1)
-        url = reverse("bunklog-list")  # Assuming you have a named URL pattern
+        url = reverse("api:bunklog-list")
         data = {
             "date": date.today().isoformat(),
             "bunk_assignment": self.assignment.id,
@@ -110,7 +110,7 @@ class CounselorPermissionsTest(TestCase):
     def test_counselor_cannot_create_log_for_other_bunk(self):
         """Test that a counselor cannot create a log for another bunk"""
         self.client.force_authenticate(user=self.counselor2)
-        url = reverse("bunklog-list")
+        url = reverse("api:bunklog-list")
         data = {
             "date": date.today().isoformat(),
             "bunk_assignment": self.assignment.id,
