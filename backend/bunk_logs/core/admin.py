@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from .models import Membership
 from .models import Organization
 from .models import Person
 from .models import Program
@@ -40,6 +41,30 @@ class ProgramAdmin(admin.ModelAdmin):
         "is_active",
     ]
     list_filter = ["program_type", "is_active"]
-    search_fields = ["name"]
+    search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
     autocomplete_fields = ["organization"]
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = [
+        "person",
+        "program",
+        "role",
+        "grade_level",
+        "is_active",
+        "start_date",
+        "end_date",
+        "created_at",
+    ]
+    list_filter = ["role", "is_active", "program__organization"]
+    search_fields = [
+        "person__first_name",
+        "person__last_name",
+        "person__preferred_name",
+        "person__email",
+        "program__name",
+    ]
+    autocomplete_fields = ["program", "person"]
+    readonly_fields = ["created_at"]

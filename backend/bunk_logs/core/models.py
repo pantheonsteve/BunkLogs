@@ -92,3 +92,50 @@ class Person(models.Model):
     @property
     def full_name(self) -> str:
         return f"{self.preferred_name or self.first_name} {self.last_name}"
+
+
+class Membership(models.Model):
+    ROLES = [
+        ("camper", "Camper"),
+        ("counselor", "Counselor"),
+        ("junior_counselor", "Junior Counselor"),
+        ("specialist", "Specialist"),
+        ("general_counselor", "General Counselor"),
+        ("unit_head", "Unit Head"),
+        ("leadership_team", "Leadership Team"),
+        ("kitchen_staff", "Kitchen Staff"),
+        ("maintenance", "Maintenance"),
+        ("housekeeping", "Housekeeping"),
+        ("camper_care", "Camper Care"),
+        ("health_center", "Health Center"),
+        ("special_diets", "Special Diets"),
+        ("madrich", "Madrich"),
+        ("faculty", "Faculty"),
+        ("admin", "Admin"),
+    ]
+
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    role = models.CharField(max_length=32, choices=ROLES)
+    grade_level = models.IntegerField(null=True, blank=True)
+    tags = models.JSONField(default=list, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("program", "person", "role")]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.person} — {self.program} ({self.get_role_display()})"

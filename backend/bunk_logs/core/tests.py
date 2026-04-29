@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -200,3 +201,74 @@ class TestPerson:
         Person.objects.create(organization=org, first_name="Bob", last_name="Ayer")
         names = list(Person.objects.values_list("last_name", "first_name"))
         assert names == [("Ayer", "Bob"), ("Zed", "Ann")]
+
+
+@pytest.mark.django_db
+class TestMembership:
+    @pytest.fixture
+    def org(self):
+        return Organization.objects.create(name="Crane Lake", slug="crane-lake")
+
+    @pytest.fixture
+    def program(self, org):
+        return Program.objects.create(
+            organization=org,
+            name="Summer 2026",
+            slug="summer-2026",
+            program_type="summer_camp",
+            start_date=date(2026, 6, 15),
+            end_date=date(2026, 8, 15),
+        )
+
+    @pytest.fixture
+    def other_org_program(self):
+        other = Organization.objects.create(name="Other", slug="other-org")
+        return Program.objects.create(
+            organization=other,
+            name="Fall 2026",
+            slug="fall-2026",
+            program_type="religious_school",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 12, 15),
+        )
+
+    @pytest.fixture
+    def person(self, org):
+        return Person.objects.create(
+            organization=org,
+            first_name="Jamie",
+            last_name="Cohen",
+        )
+
+    def test_cannot_duplicate_program_person_role(self, program, person):
+        Membership.objects.create(program=program, person=person, role="counselor")
+        with pytest.raises(IntegrityError):
+            Membership.objects.create(program=program, person=person, role="counselor")
+
+    def test_same_person_multiple_programs(self, program, other_org_program, person):
+        Membership.objects.create(program=program, person=person, role="counselor")
+        Membership.objects.create(program=other_org_program, person=person, role="madrich")
+        assert Membership.objects.filter(person=person).count() == 2
+
+    def test_same_person_multiple_roles_one_program(self, program, person):
+        Membership.objects.create(program=program, person=person, role="counselor")
+        Membership.objects.create(program=program, person=person, role="admin")
+        rows = list(Membership.objects.filter(program=program, person=person).values_list("role", flat=True))
+        assert set(rows) == {"counselor", "admin"}
+
+    def test_tags_list_of_strings(self, program, person):
+        tags = ["international", "israeli", "specialist:waterfront"]
+        m = Membership.objects.create(
+            program=program,
+            person=person,
+            role="specialist",
+            tags=tags,
+        )
+        m.refresh_from_db()
+        assert m.tags == tags
+
+    def test_all_role_choices_queryable(self, program, person):
+        for value, _label in Membership.ROLES:
+            Membership.objects.create(program=program, person=person, role=value)
+        for value, _label in Membership.ROLES:
+            assert Membership.objects.filter(role=value).exists()
