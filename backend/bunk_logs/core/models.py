@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F
@@ -58,3 +59,36 @@ class Program(models.Model):
             raise ValidationError(
                 {"end_date": "End date must be on or after start date."},
             )
+
+
+class Person(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="persons",
+    )
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    preferred_name = models.CharField(max_length=100, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    email = models.EmailField(blank=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="person_record",
+    )
+    external_ids = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["last_name", "first_name"]
+
+    def __str__(self) -> str:
+        return self.full_name
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.preferred_name or self.first_name} {self.last_name}"

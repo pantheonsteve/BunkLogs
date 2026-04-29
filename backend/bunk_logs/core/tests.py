@@ -5,8 +5,13 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
+from django.contrib.auth import get_user_model
+
 from bunk_logs.core.models import Organization
+from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+
+User = get_user_model()
 
 
 @pytest.mark.django_db
@@ -130,3 +135,69 @@ class TestProgram:
                 start_date=start,
                 end_date=end,
             )
+
+
+@pytest.mark.django_db
+class TestPerson:
+    @pytest.fixture
+    def org(self):
+        return Organization.objects.create(name="Crane Lake", slug="crane-lake")
+
+    def test_create_without_user(self, org):
+        person = Person.objects.create(
+            organization=org,
+            first_name="Alex",
+            last_name="Rivera",
+        )
+        assert person.pk is not None
+        assert person.user_id is None
+
+    def test_create_linked_to_user(self, org):
+        user = User.objects.create_user(email="counselor@example.com", password="testpass123")
+        person = Person.objects.create(
+            organization=org,
+            first_name="Sam",
+            last_name="Lee",
+            user=user,
+        )
+        assert person.user_id == user.pk
+        assert user.person_record == person
+
+    def test_full_name_uses_preferred_when_set(self, org):
+        person = Person.objects.create(
+            organization=org,
+            first_name="Robert",
+            last_name="Smith",
+            preferred_name="Bob",
+        )
+        assert person.full_name == "Bob Smith"
+
+    def test_full_name_falls_back_to_first_name(self, org):
+        person = Person.objects.create(
+            organization=org,
+            first_name="Jane",
+            last_name="Doe",
+        )
+        assert person.full_name == "Jane Doe"
+
+    def test_external_ids_arbitrary_keys(self, org):
+        payload = {"campminder_id": "12345", "other_system": "abc"}
+        person = Person.objects.create(
+            organization=org,
+            first_name="Kid",
+            last_name="Camper",
+            external_ids=payload,
+        )
+        person.refresh_from_db()
+        assert person.external_ids == payload
+
+    def test_cannot_save_without_organization(self):
+        person = Person(first_name="Orphan", last_name="Person")
+        with pytest.raises(IntegrityError):
+            person.save()
+
+    def test_ordering_by_last_then_first_name(self, org):
+        Person.objects.create(organization=org, first_name="Ann", last_name="Zed")
+        Person.objects.create(organization=org, first_name="Bob", last_name="Ayer")
+        names = list(Person.objects.values_list("last_name", "first_name"))
+        assert names == [("Ayer", "Bob"), ("Zed", "Ann")]
