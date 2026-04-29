@@ -2,10 +2,9 @@ from datetime import date
 from datetime import timedelta
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
-
-from django.contrib.auth import get_user_model
 
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
