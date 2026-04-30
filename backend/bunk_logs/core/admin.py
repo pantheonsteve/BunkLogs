@@ -1,9 +1,13 @@
+from django import forms
 from django.contrib import admin
+from django.contrib.admin.widgets import AdminTextareaWidget
+from django.db import models
 
 from .models import Membership
 from .models import Organization
 from .models import Person
 from .models import Program
+from .models import ReflectionTemplate
 
 
 @admin.register(Organization)
@@ -44,6 +48,44 @@ class ProgramAdmin(admin.ModelAdmin):
     search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
     autocomplete_fields = ["organization"]
+
+
+class ReflectionTemplateAdminForm(forms.ModelForm):
+    class Meta:
+        model = ReflectionTemplate
+        fields = "__all__"
+
+
+@admin.register(ReflectionTemplate)
+class ReflectionTemplateAdmin(admin.ModelAdmin):
+    form = ReflectionTemplateAdminForm
+    formfield_overrides = {
+        models.JSONField: {
+            "widget": AdminTextareaWidget(
+                attrs={
+                    "rows": 22,
+                    "cols": 100,
+                    "style": "font-family: monospace; font-size: 12px;",
+                },
+            ),
+        },
+    }
+    list_display = [
+        "name",
+        "slug",
+        "version",
+        "organization",
+        "program_type",
+        "role",
+        "cadence",
+        "is_active",
+        "created_at",
+    ]
+    list_filter = ["cadence", "is_active", "program_type", "organization"]
+    search_fields = ["name", "slug", "description"]
+    prepopulated_fields = {"slug": ("name",)}
+    autocomplete_fields = ["organization", "parent_template"]
+    readonly_fields = ["created_at"]
 
 
 @admin.register(Membership)

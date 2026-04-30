@@ -10,6 +10,8 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import validate_reflection_template_schema
 
 User = get_user_model()
 
@@ -272,3 +274,132 @@ class TestMembership:
             Membership.objects.create(program=program, person=person, role=value)
         for value, _label in Membership.ROLES:
             assert Membership.objects.filter(role=value).exists()
+
+
+def _minimal_prompts_field(ftype: str, key: str) -> dict:
+    return {"key": key, "type": ftype, "prompts": {"en": f"Prompt for {key}"}}
+
+
+@pytest.mark.django_db
+class TestReflectionTemplate:
+    @pytest.fixture
+    def org(self):
+        return Organization.objects.create(name="Crane Lake", slug="crane-lake")
+
+    def _valid_rating_schema(self) -> dict:
+        return {
+            "fields": [
+                {
+                    "key": "ratings",
+                    "type": "rating_group",
+                    "scale_labels": {
+                        "en": ["Low", "Mid", "High"],
+                    },
+                    "categories": [
+                        {"key": "effort", "labels": {"en": "Effort"}},
+                    ],
+                },
+            ],
+        }
+
+    @pytest.mark.parametrize(
+        "ftype",
+        ["text", "textarea", "text_list", "multiple_choice", "single_choice"],
+    )
+    def test_create_with_each_prompt_field_type(self, org, ftype):
+        fields = [_minimal_prompts_field(ftype, "f1")]
+        t = ReflectionTemplate.objects.create(
+            organization=org,
+            name="Weekly",
+            slug=f"weekly-{ftype}",
+            cadence="weekly",
+            schema={"fields": fields},
+            languages=["en"],
+        )
+        t.full_clean()
+        assert t.pk is not None
+
+    def test_create_rating_group(self, org):
+        t = ReflectionTemplate.objects.create(
+            organization=org,
+            name="Ratings",
+            slug="ratings-weekly",
+            cadence="weekly",
+            schema=self._valid_rating_schema(),
+        )
+        t.full_clean()
+
+    def test_schema_rejects_non_object(self):
+        with pytest.raises(ValidationError):
+            validate_reflection_template_schema([])
+
+    def test_schema_rejects_missing_fields_array(self):
+        with pytest.raises(ValidationError):
+            validate_reflection_template_schema({})
+
+    def test_schema_rejects_empty_fields(self):
+        with pytest.raises(ValidationError):
+            validate_reflection_template_schema({"fields": []})
+
+    def test_schema_rejects_missing_prompts_language(self, org):
+        bad = {"fields": [{"key": "x", "type": "text", "prompts": {}}]}
+        t = ReflectionTemplate(
+            organization=org,
+            name="Bad",
+            slug="bad-prompts",
+            cadence="daily",
+            schema=bad,
+        )
+        with pytest.raises(ValidationError):
+            t.full_clean()
+
+    def test_parent_template_version_chain(self, org):
+        v1 = ReflectionTemplate.objects.create(
+            organization=org,
+            name="Same",
+            slug="same-template",
+            version=1,
+            cadence="weekly",
+            schema={"fields": [_minimal_prompts_field("text", "note")]},
+        )
+        v2 = ReflectionTemplate.objects.create(
+            organization=org,
+            name="Same",
+            slug="same-template",
+            version=2,
+            cadence="weekly",
+            parent_template=v1,
+            schema={"fields": [_minimal_prompts_field("textarea", "note")]},
+        )
+        v1.refresh_from_db()
+        assert list(v1.versions.all()) == [v2]
+        assert v2.parent_template_id == v1.pk
+
+    def test_unique_org_slug_version(self, org):
+        ReflectionTemplate.objects.create(
+            organization=org,
+            name="A",
+            slug="shared",
+            version=1,
+            cadence="daily",
+            schema={"fields": [_minimal_prompts_field("text", "a")]},
+        )
+        with pytest.raises(IntegrityError):
+            ReflectionTemplate.objects.create(
+                organization=org,
+                name="B",
+                slug="shared",
+                version=1,
+                cadence="daily",
+                schema={"fields": [_minimal_prompts_field("text", "b")]},
+            )
+
+    def test_global_template_str(self):
+        t = ReflectionTemplate.objects.create(
+            organization=None,
+            name="Global",
+            slug="global-daily",
+            cadence="daily",
+            schema={"fields": [_minimal_prompts_field("text", "t")]},
+        )
+        assert "global" in str(t).lower()
