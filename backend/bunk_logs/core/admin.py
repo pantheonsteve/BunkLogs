@@ -53,7 +53,20 @@ class ProgramAdmin(admin.ModelAdmin):
 class ReflectionTemplateAdminForm(forms.ModelForm):
     class Meta:
         model = ReflectionTemplate
-        fields = "__all__"
+        fields = (
+            "organization",
+            "program_type",
+            "role",
+            "name",
+            "slug",
+            "description",
+            "cadence",
+            "schema",
+            "languages",
+            "is_active",
+            "version",
+            "parent_template",
+        )
 
 
 @admin.register(ReflectionTemplate)
