@@ -17,7 +17,7 @@ ORG_SLUG = "clc"
 ORG_NAME = "URJ Crane Lake Camp"
 PROGRAM_SLUG = "summer-2026"
 PROGRAM_NAME = "Summer 2026"
-# Full summer grades 3–10 / 8–10: Sun Jun 28 – Sun Aug 16, 2026
+# Full summer grades 3-10 / 8-10: Sun Jun 28 - Sun Aug 16, 2026
 SUMMER_2026_START = date(2026, 6, 28)
 SUMMER_2026_END = date(2026, 8, 16)
 
@@ -67,7 +67,7 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"Organization {ORG_SLUG} already up to date")
 
-        program, prog_created = Program.all_objects.get_or_create(
+        _program, prog_created = Program.all_objects.get_or_create(
             organization=org,
             slug=PROGRAM_SLUG,
             defaults={
@@ -80,7 +80,7 @@ class Command(BaseCommand):
         if prog_created:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Created program {PROGRAM_NAME} ({SUMMER_2026_START} – {SUMMER_2026_END})",
+                    f"Created program {PROGRAM_NAME} ({SUMMER_2026_START} - {SUMMER_2026_END})",
                 ),
             )
         else:
