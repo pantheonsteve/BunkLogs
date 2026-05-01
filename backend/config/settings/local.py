@@ -1,28 +1,61 @@
-# ruff: noqa: E501
-# Load local environment variables
+# Load local env before importing base: base reads DJANGO_SECRET_KEY at import time.
+import os
+import socket
 from pathlib import Path
+
+import environ
+
+BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
+_env_file = BASE_DIR / ".envs" / ".local" / ".django"
+if _env_file.exists():
+    environ.Env.read_env(str(_env_file))
+_DEV_FALLBACK_SECRET_KEY = (
+    "UwQ4Bqm56JIeEszbx3merf4E5Pcl5Ih9IVOdDjeOsZEDWJ52uovXQTmOuNApPyIm"
+)
+os.environ.setdefault("DJANGO_SECRET_KEY", _DEV_FALLBACK_SECRET_KEY)
+
+
+def _rewrite_compose_network_hosts_for_local_shell() -> None:
+    """Compose .django uses service hostnames that only resolve on the compose network.
+
+    Podman often has no ``/.dockerenv``; resolve ``postgres``/``redis``/``mailpit`` and
+    fall back to loopback when ``manage.py`` runs on the host with published ports.
+    """
+    db_url = os.environ.get("DATABASE_URL", "")
+    if db_url and "@postgres:" in db_url:
+        try:
+            socket.getaddrinfo("postgres", 5432, type=socket.SOCK_STREAM)
+        except OSError:
+            os.environ["DATABASE_URL"] = db_url.replace("@postgres:", "@127.0.0.1:", 1)
+
+    redis_url = os.environ.get("REDIS_URL", "")
+    if redis_url and "://redis:" in redis_url:
+        try:
+            socket.getaddrinfo("redis", 6379, type=socket.SOCK_STREAM)
+        except OSError:
+            os.environ["REDIS_URL"] = redis_url.replace("://redis:", "://127.0.0.1:", 1)
+
+    email_host = os.environ.get("EMAIL_HOST")
+    if email_host is None or email_host == "mailpit":
+        try:
+            socket.getaddrinfo("mailpit", 1025, type=socket.SOCK_STREAM)
+        except OSError:
+            os.environ["EMAIL_HOST"] = "127.0.0.1"
+
+
+_rewrite_compose_network_hosts_for_local_shell()
 
 from .base import *
 from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
 from .base import env
 
-BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
-
-# Load environment variables from .envs/.local/.django
-env_file = BASE_DIR / ".envs" / ".local" / ".django"
-if env_file.exists():
-    env.read_env(str(env_file))
-
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#debug
 DEBUG = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
-SECRET_KEY = env(
-    "DJANGO_SECRET_KEY",
-    default="UwQ4Bqm56JIeEszbx3merf4E5Pcl5Ih9IVOdDjeOsZEDWJ52uovXQTmOuNApPyIm",
-)
+SECRET_KEY = env("DJANGO_SECRET_KEY", default=_DEV_FALLBACK_SECRET_KEY)
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1", "testserver", ".bunklogs.net"]
 
@@ -109,7 +142,6 @@ DEBUG_TOOLBAR_CONFIG = {
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#internal-ips
 INTERNAL_IPS = ["127.0.0.1", "10.0.2.2"]
 if env("USE_DOCKER") == "yes":
-    import socket
     try:
         hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
         INTERNAL_IPS += [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
