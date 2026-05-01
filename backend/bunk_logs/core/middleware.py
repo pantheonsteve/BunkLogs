@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import SuspiciousOperation
 
 from bunk_logs.core.context import clear_current_organization
 from bunk_logs.core.context import set_current_organization
@@ -18,9 +20,32 @@ _SUBDOMAIN_SKIP = frozenset({"", "www", "admin", "api", "localhost"})
 
 
 def _raw_request_host(request: HttpRequest) -> str:
-    """Host for tenant routing without triggering ALLOWED_HOSTS (see get_host())."""
+    """Host from META when get_host() rejects the client (e.g. tests, misconfigured ALLOWED_HOSTS)."""
     raw = request.META.get("HTTP_HOST", "")
     return raw.split(":")[0] if raw else ""
+
+
+def _request_host_for_tenant(request: HttpRequest) -> str:
+    try:
+        return request.get_host().split(":")[0].lower()
+    except SuspiciousOperation:
+        return _raw_request_host(request)
+
+
+def _dev_org_routing_overrides_enabled() -> bool:
+    return bool(settings.DEBUG) or bool(
+        getattr(settings, "ORGANIZATION_ROUTING_DEV_OVERRIDES", False),
+    )
+
+
+def _dev_org_slug_override(request: HttpRequest) -> str | None:
+    if not _dev_org_routing_overrides_enabled():
+        return None
+    header = (request.META.get("HTTP_X_ORGANIZATION_SLUG") or "").strip()
+    if header:
+        return header
+    q = (request.GET.get("org") or "").strip()
+    return q or None
 
 
 def _host_subdomain_label(host: str) -> str | None:
@@ -47,12 +72,20 @@ class OrganizationMiddleware:
 
         org: Organization | None = None
         try:
-            label = _host_subdomain_label(_raw_request_host(request))
+            label = _host_subdomain_label(_request_host_for_tenant(request))
             if label:
                 try:
                     org = Organization.objects.get(slug=label, is_active=True)
                 except ObjectDoesNotExist:
                     org = None
+
+            if org is None:
+                slug = _dev_org_slug_override(request)
+                if slug:
+                    try:
+                        org = Organization.objects.get(slug=slug, is_active=True)
+                    except ObjectDoesNotExist:
+                        org = None
 
             user = getattr(request, "user", None)
             if org is None and user is not None and user.is_authenticated:

@@ -18,6 +18,7 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 ALLOWED_HOSTS = [
     "*.run.app",
     "bunklogs.net",
+    ".bunklogs.net",
     "bunk-logs-backend-koumwfa74a-uc.a.run.app",
     "bunk-logs-backend-461994890254.us-central1.run.app",
     "localhost",
@@ -230,6 +231,7 @@ CSRF_TRUSTED_ORIGINS = [
 ALLOWED_HOSTS = [
     "*.run.app",
     "bunklogs.net",
+    ".bunklogs.net",
     "bunk-logs-backend-koumwfa74a-uc.a.run.app",
     "bunk-logs-backend-461994890254.us-central1.run.app",
     "localhost",

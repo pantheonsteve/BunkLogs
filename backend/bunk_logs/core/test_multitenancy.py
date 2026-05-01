@@ -180,6 +180,82 @@ def test_middleware_clears_thread_local_after_request():
 
 
 @pytest.mark.django_db
+def test_subdomain_clc_resolves_organization():
+    org = Organization.objects.create(name="Crane Lake", slug="clc")
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get("/", HTTP_HOST="clc.bunklogs.net")
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization == org
+
+
+@pytest.mark.django_db
+def test_subdomain_unknown_returns_no_organization():
+    Organization.objects.create(name="Real Org", slug="realorg")
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get("/", HTTP_HOST="notrealorg.bunklogs.net")
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization is None
+
+
+@pytest.mark.django_db
+def test_dev_header_resolves_organization(org_alpha, settings):
+    settings.ORGANIZATION_ROUTING_DEV_OVERRIDES = True
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get("/", HTTP_HOST="localhost", HTTP_X_ORGANIZATION_SLUG="alpha-mt")
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization == org_alpha
+
+
+@pytest.mark.django_db
+def test_dev_query_param_resolves_organization(org_alpha, settings):
+    settings.ORGANIZATION_ROUTING_DEV_OVERRIDES = True
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get("/?org=alpha-mt", HTTP_HOST="localhost")
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization == org_alpha
+
+
+@pytest.mark.django_db
+def test_dev_override_disabled_ignores_header(org_alpha, settings):
+    settings.DEBUG = False
+    settings.ORGANIZATION_ROUTING_DEV_OVERRIDES = False
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get("/", HTTP_HOST="localhost", HTTP_X_ORGANIZATION_SLUG="alpha-mt")
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization is None
+
+
+@pytest.mark.django_db
 def test_authenticated_fallback_when_host_has_no_tenant(org_alpha):
     user = User.objects.create_user(email="staff@example.com", password="pw")
     Person.all_objects.create(
