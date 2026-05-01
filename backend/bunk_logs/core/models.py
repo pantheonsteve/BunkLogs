@@ -66,6 +66,73 @@ def validate_reflection_template_schema(schema: Any) -> None:
                 )
 
 
+def validate_reflection_answers(schema: Any, answers: Any) -> None:
+    """Ensure answers object matches template.schema field keys and basic value shapes."""
+    if not isinstance(answers, dict):
+        raise ValidationError({"answers": "Answers must be a JSON object."})
+    if not isinstance(schema, dict):
+        raise ValidationError({"answers": "Template schema is invalid."})
+    fields = schema.get("fields")
+    if not isinstance(fields, list):
+        raise ValidationError({"answers": 'Template schema must include a "fields" array.'})
+
+    for i, field in enumerate(fields):
+        loc = f"(field index {i})"
+        if not isinstance(field, dict):
+            raise ValidationError({"answers": f"Invalid field definition in template {loc}."})
+        key = field.get("key")
+        if not isinstance(key, str) or not key.strip():
+            raise ValidationError({"answers": f"Invalid field key in template {loc}."})
+        ftype = field.get("type")
+        if ftype not in REFLECTION_FIELD_TYPES:
+            raise ValidationError({"answers": f"Unknown field type in template {loc}."})
+        required = field.get("required", True)
+        if key not in answers:
+            if required is False:
+                continue
+            raise ValidationError({"answers": f'Missing required answer for field "{key}".'})
+        value = answers[key]
+        if ftype in ("text", "textarea", "single_choice"):
+            if not isinstance(value, str):
+                raise ValidationError(
+                    {"answers": f'Field "{key}" must be a string.'},
+                )
+        elif ftype == "text_list":
+            if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+                raise ValidationError(
+                    {"answers": f'Field "{key}" must be a list of strings.'},
+                )
+        elif ftype == "multiple_choice":
+            if not isinstance(value, list):
+                raise ValidationError(
+                    {"answers": f'Field "{key}" must be a list.'},
+                )
+        elif ftype == "rating_group":
+            if not isinstance(value, dict):
+                raise ValidationError(
+                    {"answers": f'Field "{key}" must be an object mapping categories to ratings.'},
+                )
+            cats = field.get("categories")
+            if not isinstance(cats, list):
+                raise ValidationError({"answers": f'Field "{key}" template categories are invalid.'})
+            cat_keys = {c.get("key") for c in cats if isinstance(c, dict) and isinstance(c.get("key"), str)}
+            for ck, rating in value.items():
+                if ck not in cat_keys:
+                    raise ValidationError(
+                        {"answers": f'Field "{key}" contains unknown category "{ck}".'},
+                    )
+                if isinstance(rating, bool) or not isinstance(rating, (int, float)):
+                    raise ValidationError(
+                        {"answers": f'Field "{key}" category "{ck}" must be a numeric rating.'},
+                    )
+            if required is not False:
+                missing = cat_keys - set(value.keys())
+                if missing:
+                    raise ValidationError(
+                        {"answers": f'Field "{key}" is missing ratings for: {", ".join(sorted(missing))}.'},
+                    )
+
+
 class Organization(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=100, unique=True)
@@ -266,3 +333,82 @@ class ReflectionTemplate(models.Model):
     def clean(self) -> None:
         super().clean()
         validate_reflection_template_schema(self.schema)
+
+
+class Reflection(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="reflections",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="reflections",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="reflections",
+    )
+    template = models.ForeignKey(
+        ReflectionTemplate,
+        on_delete=models.PROTECT,
+        related_name="reflections",
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reflections_submitted",
+        help_text="Who actually submitted this reflection",
+    )
+    period_start = models.DateField(help_text="Start of period being reflected on")
+    period_end = models.DateField(help_text="End of period being reflected on")
+    answers = models.JSONField(help_text="Validated against template.schema")
+    language = models.CharField(
+        max_length=10,
+        default="en",
+        help_text="Language used to fill out this reflection",
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_complete = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-period_end"]
+        indexes = [
+            models.Index(fields=["organization", "program", "period_end"]),
+            models.Index(fields=["person", "period_end"]),
+            models.Index(fields=["template", "is_complete"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(period_end__gte=F("period_start")),
+                name="core_reflection_period_end_gte_period_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.person} — {self.template.slug} ({self.period_end})"
+
+    def validate_answers(self) -> None:
+        validate_reflection_answers(self.template.schema, self.answers)
+
+    def clean(self) -> None:
+        super().clean()
+        if self.period_start and self.period_end and self.period_end < self.period_start:
+            raise ValidationError(
+                {"period_end": "End of period must be on or after start of period."},
+            )
+        if self.program_id and self.organization_id and self.program.organization_id != self.organization_id:
+            raise ValidationError({"program": "Program must belong to the same organization."})
+        if self.person_id and self.organization_id and self.person.organization_id != self.organization_id:
+            raise ValidationError({"person": "Person must belong to the same organization."})
+        if self.template_id and self.organization_id:
+            to = self.template.organization_id
+            if to is not None and to != self.organization_id:
+                raise ValidationError({"template": "Template must be global or belong to the same organization."})
+        if self.template_id:
+            self.validate_answers()
