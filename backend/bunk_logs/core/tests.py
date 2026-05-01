@@ -60,7 +60,7 @@ class TestProgram:
     def test_create_program(self, org):
         start = date(2026, 6, 15)
         end = date(2026, 8, 15)
-        program = Program.objects.create(
+        program = Program.all_objects.create(
             organization=org,
             name="Summer 2026",
             slug="summer-2026",
@@ -75,7 +75,7 @@ class TestProgram:
     def test_cannot_duplicate_slug_within_org(self, org):
         start = date(2026, 6, 1)
         end = date(2026, 8, 1)
-        Program.objects.create(
+        Program.all_objects.create(
             organization=org,
             name="First",
             slug="shared-slug",
@@ -84,7 +84,7 @@ class TestProgram:
             end_date=end,
         )
         with pytest.raises(IntegrityError):
-            Program.objects.create(
+            Program.all_objects.create(
                 organization=org,
                 name="Second",
                 slug="shared-slug",
@@ -98,7 +98,7 @@ class TestProgram:
         org_b = Organization.objects.create(name="Camp B", slug="camp-b")
         start = date(2026, 6, 1)
         end = date(2026, 8, 1)
-        p_a = Program.objects.create(
+        p_a = Program.all_objects.create(
             organization=org_a,
             name="Program A",
             slug="fall",
@@ -106,7 +106,7 @@ class TestProgram:
             start_date=start,
             end_date=end,
         )
-        p_b = Program.objects.create(
+        p_b = Program.all_objects.create(
             organization=org_b,
             name="Program B",
             slug="fall",
@@ -131,7 +131,7 @@ class TestProgram:
         with pytest.raises(ValidationError):
             program.full_clean()
         with pytest.raises(IntegrityError):
-            Program.objects.create(
+            Program.all_objects.create(
                 organization=org,
                 name="Bad",
                 slug="bad-dates-orm",
@@ -148,7 +148,7 @@ class TestPerson:
         return Organization.objects.create(name="Crane Lake", slug="crane-lake")
 
     def test_create_without_user(self, org):
-        person = Person.objects.create(
+        person = Person.all_objects.create(
             organization=org,
             first_name="Alex",
             last_name="Rivera",
@@ -158,17 +158,17 @@ class TestPerson:
 
     def test_create_linked_to_user(self, org):
         user = User.objects.create_user(email="counselor@example.com", password="testpass123")
-        person = Person.objects.create(
+        person = Person.all_objects.create(
             organization=org,
             first_name="Sam",
             last_name="Lee",
             user=user,
         )
         assert person.user_id == user.pk
-        assert user.person_record == person
+        assert Person.all_objects.get(user=user) == person
 
     def test_full_name_uses_preferred_when_set(self, org):
-        person = Person.objects.create(
+        person = Person.all_objects.create(
             organization=org,
             first_name="Robert",
             last_name="Smith",
@@ -177,7 +177,7 @@ class TestPerson:
         assert person.full_name == "Bob Smith"
 
     def test_full_name_falls_back_to_first_name(self, org):
-        person = Person.objects.create(
+        person = Person.all_objects.create(
             organization=org,
             first_name="Jane",
             last_name="Doe",
@@ -186,7 +186,7 @@ class TestPerson:
 
     def test_external_ids_arbitrary_keys(self, org):
         payload = {"campminder_id": "12345", "other_system": "abc"}
-        person = Person.objects.create(
+        person = Person.all_objects.create(
             organization=org,
             first_name="Kid",
             last_name="Camper",
@@ -201,9 +201,9 @@ class TestPerson:
             person.save()
 
     def test_ordering_by_last_then_first_name(self, org):
-        Person.objects.create(organization=org, first_name="Ann", last_name="Zed")
-        Person.objects.create(organization=org, first_name="Bob", last_name="Ayer")
-        names = list(Person.objects.values_list("last_name", "first_name"))
+        Person.all_objects.create(organization=org, first_name="Ann", last_name="Zed")
+        Person.all_objects.create(organization=org, first_name="Bob", last_name="Ayer")
+        names = list(Person.all_objects.values_list("last_name", "first_name"))
         assert names == [("Ayer", "Bob"), ("Zed", "Ann")]
 
 
@@ -215,7 +215,7 @@ class TestMembership:
 
     @pytest.fixture
     def program(self, org):
-        return Program.objects.create(
+        return Program.all_objects.create(
             organization=org,
             name="Summer 2026",
             slug="summer-2026",
@@ -227,7 +227,7 @@ class TestMembership:
     @pytest.fixture
     def other_org_program(self):
         other = Organization.objects.create(name="Other", slug="other-org")
-        return Program.objects.create(
+        return Program.all_objects.create(
             organization=other,
             name="Fall 2026",
             slug="fall-2026",
@@ -238,31 +238,31 @@ class TestMembership:
 
     @pytest.fixture
     def person(self, org):
-        return Person.objects.create(
+        return Person.all_objects.create(
             organization=org,
             first_name="Jamie",
             last_name="Cohen",
         )
 
     def test_cannot_duplicate_program_person_role(self, program, person):
-        Membership.objects.create(program=program, person=person, role="counselor")
+        Membership.all_objects.create(program=program, person=person, role="counselor")
         with pytest.raises(IntegrityError):
-            Membership.objects.create(program=program, person=person, role="counselor")
+            Membership.all_objects.create(program=program, person=person, role="counselor")
 
     def test_same_person_multiple_programs(self, program, other_org_program, person):
-        Membership.objects.create(program=program, person=person, role="counselor")
-        Membership.objects.create(program=other_org_program, person=person, role="madrich")
-        assert Membership.objects.filter(person=person).count() == 2
+        Membership.all_objects.create(program=program, person=person, role="counselor")
+        Membership.all_objects.create(program=other_org_program, person=person, role="madrich")
+        assert Membership.all_objects.filter(person=person).count() == 2
 
     def test_same_person_multiple_roles_one_program(self, program, person):
-        Membership.objects.create(program=program, person=person, role="counselor")
-        Membership.objects.create(program=program, person=person, role="admin")
-        rows = list(Membership.objects.filter(program=program, person=person).values_list("role", flat=True))
+        Membership.all_objects.create(program=program, person=person, role="counselor")
+        Membership.all_objects.create(program=program, person=person, role="admin")
+        rows = list(Membership.all_objects.filter(program=program, person=person).values_list("role", flat=True))
         assert set(rows) == {"counselor", "admin"}
 
     def test_tags_list_of_strings(self, program, person):
         tags = ["international", "israeli", "specialist:waterfront"]
-        m = Membership.objects.create(
+        m = Membership.all_objects.create(
             program=program,
             person=person,
             role="specialist",
@@ -273,9 +273,9 @@ class TestMembership:
 
     def test_all_role_choices_queryable(self, program, person):
         for value, _label in Membership.ROLES:
-            Membership.objects.create(program=program, person=person, role=value)
+            Membership.all_objects.create(program=program, person=person, role=value)
         for value, _label in Membership.ROLES:
-            assert Membership.objects.filter(role=value).exists()
+            assert Membership.all_objects.filter(role=value).exists()
 
 
 def _minimal_prompts_field(ftype: str, key: str) -> dict:
@@ -310,7 +310,7 @@ class TestReflectionTemplate:
     )
     def test_create_with_each_prompt_field_type(self, org, ftype):
         fields = [_minimal_prompts_field(ftype, "f1")]
-        t = ReflectionTemplate.objects.create(
+        t = ReflectionTemplate.all_objects.create(
             organization=org,
             name="Weekly",
             slug=f"weekly-{ftype}",
@@ -322,7 +322,7 @@ class TestReflectionTemplate:
         assert t.pk is not None
 
     def test_create_rating_group(self, org):
-        t = ReflectionTemplate.objects.create(
+        t = ReflectionTemplate.all_objects.create(
             organization=org,
             name="Ratings",
             slug="ratings-weekly",
@@ -356,7 +356,7 @@ class TestReflectionTemplate:
             t.full_clean()
 
     def test_parent_template_version_chain(self, org):
-        v1 = ReflectionTemplate.objects.create(
+        v1 = ReflectionTemplate.all_objects.create(
             organization=org,
             name="Same",
             slug="same-template",
@@ -364,7 +364,7 @@ class TestReflectionTemplate:
             cadence="weekly",
             schema={"fields": [_minimal_prompts_field("text", "note")]},
         )
-        v2 = ReflectionTemplate.objects.create(
+        v2 = ReflectionTemplate.all_objects.create(
             organization=org,
             name="Same",
             slug="same-template",
@@ -374,11 +374,11 @@ class TestReflectionTemplate:
             schema={"fields": [_minimal_prompts_field("textarea", "note")]},
         )
         v1.refresh_from_db()
-        assert list(v1.versions.all()) == [v2]
+        assert list(ReflectionTemplate.all_objects.filter(parent_template=v1)) == [v2]
         assert v2.parent_template_id == v1.pk
 
     def test_unique_org_slug_version(self, org):
-        ReflectionTemplate.objects.create(
+        ReflectionTemplate.all_objects.create(
             organization=org,
             name="A",
             slug="shared",
@@ -387,7 +387,7 @@ class TestReflectionTemplate:
             schema={"fields": [_minimal_prompts_field("text", "a")]},
         )
         with pytest.raises(IntegrityError):
-            ReflectionTemplate.objects.create(
+            ReflectionTemplate.all_objects.create(
                 organization=org,
                 name="B",
                 slug="shared",
@@ -397,7 +397,7 @@ class TestReflectionTemplate:
             )
 
     def test_global_template_str(self):
-        t = ReflectionTemplate.objects.create(
+        t = ReflectionTemplate.all_objects.create(
             organization=None,
             name="Global",
             slug="global-daily",
@@ -415,7 +415,7 @@ class TestReflection:
 
     @pytest.fixture
     def program(self, org):
-        return Program.objects.create(
+        return Program.all_objects.create(
             organization=org,
             name="Summer 2026",
             slug="summer-2026",
@@ -426,7 +426,7 @@ class TestReflection:
 
     @pytest.fixture
     def person(self, org):
-        return Person.objects.create(
+        return Person.all_objects.create(
             organization=org,
             first_name="Jamie",
             last_name="Cohen",
@@ -434,7 +434,7 @@ class TestReflection:
 
     @pytest.fixture
     def template(self, org):
-        return ReflectionTemplate.objects.create(
+        return ReflectionTemplate.all_objects.create(
             organization=org,
             name="Weekly check-in",
             slug="weekly-checkin",
@@ -445,7 +445,7 @@ class TestReflection:
 
     @pytest.fixture
     def other_role_template(self, org):
-        return ReflectionTemplate.objects.create(
+        return ReflectionTemplate.all_objects.create(
             organization=org,
             name="Kitchen weekly",
             slug="kitchen-weekly",
@@ -519,7 +519,7 @@ class TestReflection:
             r.full_clean()
 
     def test_optional_field_may_be_omitted(self, org, program, person):
-        tmpl = ReflectionTemplate.objects.create(
+        tmpl = ReflectionTemplate.all_objects.create(
             organization=org,
             name="Optional extra",
             slug="optional-extra",
@@ -559,7 +559,7 @@ class TestReflection:
 
     def test_period_end_before_start_rejected_at_db(self, org, program, person, template):
         with pytest.raises(IntegrityError):
-            Reflection.objects.create(
+            Reflection.all_objects.create(
                 organization=org,
                 program=program,
                 person=person,
@@ -571,14 +571,14 @@ class TestReflection:
 
     def test_query_by_person(self, org, program, person, template):
         self._make_reflection(org, program, person, template)
-        other = Person.objects.create(organization=org, first_name="Other", last_name="Person")
+        other = Person.all_objects.create(organization=org, first_name="Other", last_name="Person")
         self._make_reflection(org, program, other, template, answers={"highlight": "other"})
-        qs = Reflection.objects.filter(person=person)
+        qs = Reflection.all_objects.filter(person=person)
         assert qs.count() == 1
         assert qs.get().person_id == person.pk
 
     def test_query_by_program(self, org, program, person, template):
-        p2 = Program.objects.create(
+        p2 = Program.all_objects.create(
             organization=org,
             name="Fall",
             slug="fall-2026",
@@ -588,7 +588,7 @@ class TestReflection:
         )
         self._make_reflection(org, program, person, template)
         self._make_reflection(org, p2, person, template, answers={"highlight": "fall"})
-        assert Reflection.objects.filter(program=program).count() == 1
+        assert Reflection.all_objects.filter(program=program).count() == 1
 
     def test_query_by_date_range(self, org, program, person, template):
         self._make_reflection(
@@ -609,9 +609,9 @@ class TestReflection:
             period_end=date(2026, 8, 7),
             answers={"highlight": "week2"},
         )
-        qs = Reflection.objects.filter(period_end__gte=date(2026, 7, 1), period_end__lte=date(2026, 7, 31))
+        qs = Reflection.all_objects.filter(period_end__gte=date(2026, 7, 1), period_end__lte=date(2026, 7, 31))
         assert qs.count() == 0
-        qs2 = Reflection.objects.filter(period_end__gte=date(2026, 6, 1), period_end__lte=date(2026, 6, 30))
+        qs2 = Reflection.all_objects.filter(period_end__gte=date(2026, 6, 1), period_end__lte=date(2026, 6, 30))
         assert qs2.count() == 1
 
     def test_query_by_template_role(self, org, program, person, template, other_role_template):
@@ -623,7 +623,7 @@ class TestReflection:
             other_role_template,
             answers={"shift": "ok"},
         )
-        counselor_only = Reflection.objects.filter(template__role="counselor")
+        counselor_only = Reflection.all_objects.filter(template__role="counselor")
         assert counselor_only.count() == 1
         assert counselor_only.get().template_id == template.pk
 
