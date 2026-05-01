@@ -56,3 +56,5 @@ HEADLESS_ONLY = False
 MEDIA_URL = "http://media.testserver/"
 # Your stuff...
 # ------------------------------------------------------------------------------
+# OrganizationMiddleware: allow X-Organization-Slug / ?org= in tests (DEBUG is False in CI).
+ORGANIZATION_ROUTING_DEV_OVERRIDES = True

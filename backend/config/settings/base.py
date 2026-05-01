@@ -437,6 +437,7 @@ if IS_PRODUCTION:
     ALLOWED_HOSTS = [
         "bunklogs.net",
         "www.bunklogs.net",
+        ".bunklogs.net",  # Any *.bunklogs.net tenant subdomain (Django leading-dot rule)
         "*.onrender.com",  # For Render.com deployments
         "*.run.app",  # Keep for any remaining GCP services
         "bunk-logs-backend-461994890254.us-central1.run.app",
@@ -453,7 +454,7 @@ else:
         "http://localhost:5173",
         "https://clc.bunklogs.net",
     ]
-    ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1"]
+    ALLOWED_HOSTS = ["localhost", "localhost:5173", "127.0.0.1", ".bunklogs.net"]
 
 from corsheaders.defaults import default_headers
 
@@ -462,6 +463,7 @@ CORS_ALLOW_HEADERS = (
     "x-session-token",
     "x-email-verification-key",
     "x-password-reset-key",
+    "x-organization-slug",
 )
 
 CORS_ALLOW_CREDENTIALS = True

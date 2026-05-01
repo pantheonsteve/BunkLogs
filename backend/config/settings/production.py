@@ -11,7 +11,10 @@ from .base import env
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["bunklogs.net"])
+ALLOWED_HOSTS = env.list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=["bunklogs.net", "www.bunklogs.net", ".bunklogs.net"],
+)
 
 # DATABASES
 # ------------------------------------------------------------------------------
@@ -310,9 +313,13 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Update allowed hosts to remove localhost in production
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[
-    "admin.bunklogs.net",      # Your custom domain
-    "bunklogs.onrender.com",   # Original Render URL
-    "bunklogs.net",
-    "www.bunklogs.net",
-])
+ALLOWED_HOSTS = env.list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=[
+        "admin.bunklogs.net",  # Your custom domain
+        "bunklogs.onrender.com",  # Original Render URL
+        "bunklogs.net",
+        "www.bunklogs.net",
+        ".bunklogs.net",  # Any *.bunklogs.net tenant subdomain
+    ],
+)
