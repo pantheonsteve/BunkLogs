@@ -21,6 +21,9 @@ class OrganizationAdmin(admin.ModelAdmin):
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return Person.all_objects.all()
+
     list_display = [
         "full_name",
         "organization",
@@ -36,6 +39,9 @@ class PersonAdmin(admin.ModelAdmin):
 
 @admin.register(Program)
 class ProgramAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return Program.all_objects.all()
+
     list_display = [
         "name",
         "slug",
@@ -72,6 +78,9 @@ class ReflectionTemplateAdminForm(forms.ModelForm):
 
 @admin.register(ReflectionTemplate)
 class ReflectionTemplateAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return ReflectionTemplate.all_objects.all()
+
     form = ReflectionTemplateAdminForm
     formfield_overrides = {
         models.JSONField: {
@@ -104,6 +113,9 @@ class ReflectionTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(Reflection)
 class ReflectionAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return Reflection.all_objects.all()
+
     list_display = [
         "person",
         "program",
@@ -137,6 +149,9 @@ class ReflectionAdmin(admin.ModelAdmin):
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return Membership.all_objects.all()
+
     list_display = [
         "person",
         "program",

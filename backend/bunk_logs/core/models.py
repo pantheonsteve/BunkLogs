@@ -6,6 +6,10 @@ from django.db import models
 from django.db.models import F
 from django.db.models import Q
 
+from bunk_logs.core.managers import MembershipScopedManager
+from bunk_logs.core.managers import OrgScopedManager
+from bunk_logs.core.managers import ReflectionTemplateScopedManager
+
 REFLECTION_FIELD_TYPES = frozenset(
     {"text", "textarea", "text_list", "rating_group", "multiple_choice", "single_choice"},
 )
@@ -168,6 +172,9 @@ class Program(models.Model):
     settings = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
     class Meta:
         unique_together = [("organization", "slug")]
         ordering = ["-start_date"]
@@ -210,6 +217,9 @@ class Person(models.Model):
     external_ids = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -260,6 +270,9 @@ class Membership(models.Model):
     is_active = models.BooleanField(default=True)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = MembershipScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
         unique_together = [("program", "person", "role")]
@@ -322,6 +335,9 @@ class ReflectionTemplate(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = ReflectionTemplateScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
     class Meta:
         unique_together = [("organization", "slug", "version")]
         ordering = ["organization_id", "slug", "-version"]
@@ -375,6 +391,9 @@ class Reflection(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_complete = models.BooleanField(default=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
         ordering = ["-period_end"]
