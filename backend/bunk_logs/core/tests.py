@@ -62,7 +62,7 @@ class TestProgram:
         end = date(2026, 8, 15)
         program = Program.all_objects.create(
             organization=org,
-            name="Summer 2026",
+            name="Crane Lake - Summer 2026",
             slug="summer-2026",
             program_type="summer_camp",
             start_date=start,
@@ -70,14 +70,14 @@ class TestProgram:
         )
         assert program.pk is not None
         assert program.organization_id == org.pk
-        assert str(program) == "Summer 2026"
+        assert str(program) == "[crane-lake] Crane Lake - Summer 2026"
 
     def test_cannot_duplicate_slug_within_org(self, org):
         start = date(2026, 6, 1)
         end = date(2026, 8, 1)
         Program.all_objects.create(
             organization=org,
-            name="First",
+            name="Crane Lake - First",
             slug="shared-slug",
             program_type="summer_camp",
             start_date=start,
@@ -86,7 +86,7 @@ class TestProgram:
         with pytest.raises(IntegrityError):
             Program.all_objects.create(
                 organization=org,
-                name="Second",
+                name="Crane Lake - Second",
                 slug="shared-slug",
                 program_type="religious_school",
                 start_date=start,
@@ -100,7 +100,7 @@ class TestProgram:
         end = date(2026, 8, 1)
         p_a = Program.all_objects.create(
             organization=org_a,
-            name="Program A",
+            name="Camp A - Program A",
             slug="fall",
             program_type="summer_camp",
             start_date=start,
@@ -108,7 +108,7 @@ class TestProgram:
         )
         p_b = Program.all_objects.create(
             organization=org_b,
-            name="Program B",
+            name="Camp B - Program B",
             slug="fall",
             program_type="religious_school",
             start_date=start,
@@ -122,7 +122,7 @@ class TestProgram:
         end = start - timedelta(days=1)
         program = Program(
             organization=org,
-            name="Bad",
+            name="Crane Lake - Bad",
             slug="bad-dates",
             program_type="summer_camp",
             start_date=start,
@@ -130,15 +130,30 @@ class TestProgram:
         )
         with pytest.raises(ValidationError):
             program.full_clean()
-        with pytest.raises(IntegrityError):
+        with pytest.raises(ValidationError):
             Program.all_objects.create(
                 organization=org,
-                name="Bad",
+                name="Crane Lake - Bad",
                 slug="bad-dates-orm",
                 program_type="summer_camp",
                 start_date=start,
                 end_date=end,
             )
+
+    def test_program_name_must_start_with_organization_name(self, org):
+        start = date(2026, 6, 1)
+        end = date(2026, 8, 1)
+        program = Program(
+            organization=org,
+            name="Wrong prefix - Summer",
+            slug="bad-name",
+            program_type="summer_camp",
+            start_date=start,
+            end_date=end,
+        )
+        with pytest.raises(ValidationError) as exc:
+            program.full_clean()
+        assert "organization name" in str(exc.value).lower()
 
 
 @pytest.mark.django_db
@@ -217,7 +232,7 @@ class TestMembership:
     def program(self, org):
         return Program.all_objects.create(
             organization=org,
-            name="Summer 2026",
+            name="Crane Lake - Summer 2026",
             slug="summer-2026",
             program_type="summer_camp",
             start_date=date(2026, 6, 15),
@@ -229,7 +244,7 @@ class TestMembership:
         other = Organization.objects.create(name="Other", slug="other-org")
         return Program.all_objects.create(
             organization=other,
-            name="Fall 2026",
+            name="Other - Fall 2026",
             slug="fall-2026",
             program_type="religious_school",
             start_date=date(2026, 9, 1),
@@ -417,7 +432,7 @@ class TestReflection:
     def program(self, org):
         return Program.all_objects.create(
             organization=org,
-            name="Summer 2026",
+            name="Crane Lake - Summer 2026",
             slug="summer-2026",
             program_type="summer_camp",
             start_date=date(2026, 6, 15),
@@ -580,7 +595,7 @@ class TestReflection:
     def test_query_by_program(self, org, program, person, template):
         p2 = Program.all_objects.create(
             organization=org,
-            name="Fall",
+            name="Crane Lake - Fall",
             slug="fall-2026",
             program_type="religious_school",
             start_date=date(2026, 9, 1),

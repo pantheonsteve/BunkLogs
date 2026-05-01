@@ -15,11 +15,16 @@ from bunk_logs.core.models import Program
 
 ORG_SLUG = "clc"
 ORG_NAME = "URJ Crane Lake Camp"
+# Slug is the stable id per org; name is org-scoped so admin lists stay distinct across tenants.
 PROGRAM_SLUG = "summer-2026"
-PROGRAM_NAME = "Summer 2026"
 # Full summer grades 3-10 / 8-10: Sun Jun 28 - Sun Aug 16, 2026
 SUMMER_2026_START = date(2026, 6, 28)
 SUMMER_2026_END = date(2026, 8, 16)
+
+
+def canonical_program_name(org: Organization) -> str:
+    """Human-facing name prefixed by org so many camps each have a clear label."""
+    return f"{org.name} - Summer {SUMMER_2026_START.year} (full program)"
 
 CANONICAL_ORG_SETTINGS: dict[str, str] = {
     "timezone": "America/New_York",
@@ -67,21 +72,30 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"Organization {ORG_SLUG} already up to date")
 
-        _program, prog_created = Program.all_objects.get_or_create(
+        program, prog_created = Program.all_objects.get_or_create(
             organization=org,
             slug=PROGRAM_SLUG,
             defaults={
-                "name": PROGRAM_NAME,
+                "name": canonical_program_name(org),
                 "program_type": "summer_camp",
                 "start_date": SUMMER_2026_START,
                 "end_date": SUMMER_2026_END,
             },
         )
+        canonical = canonical_program_name(org)
+        renamed = False
+        if program.name != canonical:
+            program.name = canonical
+            program.save(update_fields=["name"])
+            renamed = True
+
         if prog_created:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Created program {PROGRAM_NAME} ({SUMMER_2026_START} - {SUMMER_2026_END})",
+                    f"Created program {canonical} ({SUMMER_2026_START} - {SUMMER_2026_END})",
                 ),
             )
+        elif renamed:
+            self.stdout.write(self.style.NOTICE(f"Updated program display name ({PROGRAM_SLUG})"))
         else:
-            self.stdout.write(f"Program {PROGRAM_SLUG} already exists")
+            self.stdout.write(f"Program {PROGRAM_SLUG} already up to date")

@@ -20,7 +20,7 @@ def test_setup_crane_lake_creates_org_and_program():
     assert org.is_active is True
 
     program = Program.all_objects.get(organization=org, slug="summer-2026")
-    assert program.name == "Summer 2026"
+    assert program.name == "URJ Crane Lake Camp - Summer 2026 (full program)"
     assert program.program_type == "summer_camp"
     assert program.start_date == date(2026, 6, 28)
     assert program.end_date == date(2026, 8, 16)
@@ -50,3 +50,19 @@ def test_setup_crane_lake_merges_settings_on_existing_org():
     assert org.name == "URJ Crane Lake Camp"
     assert org.settings.get("custom") == "keep_me"
     assert org.settings.get("timezone") == "America/New_York"
+
+
+@pytest.mark.django_db
+def test_setup_crane_lake_renames_legacy_generic_program_title():
+    org = Organization.objects.create(name="URJ Crane Lake Camp", slug="clc")
+    Program.all_objects.create(
+        organization=org,
+        name="URJ Crane Lake Camp - Summer 2026 (legacy label)",
+        slug="summer-2026",
+        program_type="summer_camp",
+        start_date=date(2026, 6, 28),
+        end_date=date(2026, 8, 16),
+    )
+    call_command("setup_crane_lake", stdout=StringIO())
+    program = Program.all_objects.get(organization=org, slug="summer-2026")
+    assert program.name == "URJ Crane Lake Camp - Summer 2026 (full program)"
