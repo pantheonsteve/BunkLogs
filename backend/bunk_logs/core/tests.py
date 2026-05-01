@@ -10,7 +10,9 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.models import validate_reflection_template_schema
 
 User = get_user_model()
@@ -403,3 +405,264 @@ class TestReflectionTemplate:
             schema={"fields": [_minimal_prompts_field("text", "t")]},
         )
         assert "global" in str(t).lower()
+
+
+@pytest.mark.django_db
+class TestReflection:
+    @pytest.fixture
+    def org(self):
+        return Organization.objects.create(name="Crane Lake", slug="crane-lake")
+
+    @pytest.fixture
+    def program(self, org):
+        return Program.objects.create(
+            organization=org,
+            name="Summer 2026",
+            slug="summer-2026",
+            program_type="summer_camp",
+            start_date=date(2026, 6, 15),
+            end_date=date(2026, 8, 15),
+        )
+
+    @pytest.fixture
+    def person(self, org):
+        return Person.objects.create(
+            organization=org,
+            first_name="Jamie",
+            last_name="Cohen",
+        )
+
+    @pytest.fixture
+    def template(self, org):
+        return ReflectionTemplate.objects.create(
+            organization=org,
+            name="Weekly check-in",
+            slug="weekly-checkin",
+            cadence="weekly",
+            role="counselor",
+            schema={"fields": [_minimal_prompts_field("textarea", "highlight")]},
+        )
+
+    @pytest.fixture
+    def other_role_template(self, org):
+        return ReflectionTemplate.objects.create(
+            organization=org,
+            name="Kitchen weekly",
+            slug="kitchen-weekly",
+            cadence="weekly",
+            role="kitchen_staff",
+            schema={"fields": [_minimal_prompts_field("text", "shift")]},
+        )
+
+    def _make_reflection(self, org, program, person, template, **kwargs):
+        period_start = kwargs.pop("period_start", date(2026, 7, 1))
+        period_end = kwargs.pop("period_end", date(2026, 7, 7))
+        answers = kwargs.pop("answers", {"highlight": "Great week."})
+        language = kwargs.pop("language", "en")
+        r = Reflection(
+            organization=org,
+            program=program,
+            person=person,
+            template=template,
+            period_start=period_start,
+            period_end=period_end,
+            answers=answers,
+            language=language,
+            **kwargs,
+        )
+        r.full_clean()
+        r.save()
+        return r
+
+    def test_create_with_valid_answers(self, org, program, person, template):
+        r = self._make_reflection(org, program, person, template)
+        assert r.pk is not None
+        assert r.answers == {"highlight": "Great week."}
+
+    def test_validate_answers_instance_method(self, org, program, person, template):
+        r = Reflection(
+            organization=org,
+            program=program,
+            person=person,
+            template=template,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={"highlight": "ok"},
+        )
+        r.validate_answers()
+
+    def test_rejects_missing_required_field(self, org, program, person, template):
+        r = Reflection(
+            organization=org,
+            program=program,
+            person=person,
+            template=template,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={},
+        )
+        with pytest.raises(ValidationError) as exc:
+            r.full_clean()
+        assert "highlight" in str(exc.value).lower() or "required" in str(exc.value).lower()
+
+    def test_rejects_wrong_answer_type(self, org, program, person, template):
+        r = Reflection(
+            organization=org,
+            program=program,
+            person=person,
+            template=template,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={"highlight": 123},
+        )
+        with pytest.raises(ValidationError):
+            r.full_clean()
+
+    def test_optional_field_may_be_omitted(self, org, program, person):
+        tmpl = ReflectionTemplate.objects.create(
+            organization=org,
+            name="Optional extra",
+            slug="optional-extra",
+            cadence="weekly",
+            schema={
+                "fields": [
+                    _minimal_prompts_field("text", "required_note"),
+                    {**_minimal_prompts_field("text", "extra"), "required": False},
+                ],
+            },
+        )
+        r = Reflection(
+            organization=org,
+            program=program,
+            person=person,
+            template=tmpl,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={"required_note": "only this"},
+        )
+        r.full_clean()
+        r.save()
+        assert "extra" not in r.answers
+
+    def test_period_end_before_start_rejected_on_clean(self, org, program, person, template):
+        r = Reflection(
+            organization=org,
+            program=program,
+            person=person,
+            template=template,
+            period_start=date(2026, 7, 10),
+            period_end=date(2026, 7, 1),
+            answers={"highlight": "x"},
+        )
+        with pytest.raises(ValidationError):
+            r.full_clean()
+
+    def test_period_end_before_start_rejected_at_db(self, org, program, person, template):
+        with pytest.raises(IntegrityError):
+            Reflection.objects.create(
+                organization=org,
+                program=program,
+                person=person,
+                template=template,
+                period_start=date(2026, 7, 10),
+                period_end=date(2026, 7, 1),
+                answers={"highlight": "x"},
+            )
+
+    def test_query_by_person(self, org, program, person, template):
+        self._make_reflection(org, program, person, template)
+        other = Person.objects.create(organization=org, first_name="Other", last_name="Person")
+        self._make_reflection(org, program, other, template, answers={"highlight": "other"})
+        qs = Reflection.objects.filter(person=person)
+        assert qs.count() == 1
+        assert qs.get().person_id == person.pk
+
+    def test_query_by_program(self, org, program, person, template):
+        p2 = Program.objects.create(
+            organization=org,
+            name="Fall",
+            slug="fall-2026",
+            program_type="religious_school",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 12, 1),
+        )
+        self._make_reflection(org, program, person, template)
+        self._make_reflection(org, p2, person, template, answers={"highlight": "fall"})
+        assert Reflection.objects.filter(program=program).count() == 1
+
+    def test_query_by_date_range(self, org, program, person, template):
+        self._make_reflection(
+            org,
+            program,
+            person,
+            template,
+            period_start=date(2026, 6, 1),
+            period_end=date(2026, 6, 7),
+            answers={"highlight": "week1"},
+        )
+        self._make_reflection(
+            org,
+            program,
+            person,
+            template,
+            period_start=date(2026, 8, 1),
+            period_end=date(2026, 8, 7),
+            answers={"highlight": "week2"},
+        )
+        qs = Reflection.objects.filter(period_end__gte=date(2026, 7, 1), period_end__lte=date(2026, 7, 31))
+        assert qs.count() == 0
+        qs2 = Reflection.objects.filter(period_end__gte=date(2026, 6, 1), period_end__lte=date(2026, 6, 30))
+        assert qs2.count() == 1
+
+    def test_query_by_template_role(self, org, program, person, template, other_role_template):
+        self._make_reflection(org, program, person, template)
+        self._make_reflection(
+            org,
+            program,
+            person,
+            other_role_template,
+            answers={"shift": "ok"},
+        )
+        counselor_only = Reflection.objects.filter(template__role="counselor")
+        assert counselor_only.count() == 1
+        assert counselor_only.get().template_id == template.pk
+
+    def test_language_persisted(self, org, program, person, template):
+        r = self._make_reflection(org, program, person, template, language="es")
+        r.refresh_from_db()
+        assert r.language == "es"
+
+    def test_submitted_by_optional(self, org, program, person, template):
+        user = User.objects.create_user(email="admin@example.com", password="x")
+        r = self._make_reflection(org, program, person, template, submitted_by=user)
+        assert r.submitted_by_id == user.pk
+
+    def test_validate_reflection_answers_rating_group_complete(self, org):
+        schema = {
+            "fields": [
+                {
+                    "key": "ratings",
+                    "type": "rating_group",
+                    "scale_labels": {"en": ["L", "H"]},
+                    "categories": [{"key": "effort", "labels": {"en": "Effort"}}],
+                },
+            ],
+        }
+        validate_reflection_answers(schema, {"ratings": {"effort": 3}})
+
+    def test_validate_reflection_answers_rating_group_missing_category(self, org):
+        schema = {
+            "fields": [
+                {
+                    "key": "ratings",
+                    "type": "rating_group",
+                    "scale_labels": {"en": ["L", "M", "H"]},
+                    "categories": [
+                        {"key": "a", "labels": {"en": "A"}},
+                        {"key": "b", "labels": {"en": "B"}},
+                    ],
+                },
+            ],
+        }
+        with pytest.raises(ValidationError):
+            validate_reflection_answers(schema, {"ratings": {"a": 1}})

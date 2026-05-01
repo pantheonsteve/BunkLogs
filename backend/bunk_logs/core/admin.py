@@ -7,6 +7,7 @@ from .models import Membership
 from .models import Organization
 from .models import Person
 from .models import Program
+from .models import Reflection
 from .models import ReflectionTemplate
 
 
@@ -99,6 +100,39 @@ class ReflectionTemplateAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     autocomplete_fields = ["organization", "parent_template"]
     readonly_fields = ["created_at"]
+
+
+@admin.register(Reflection)
+class ReflectionAdmin(admin.ModelAdmin):
+    list_display = [
+        "person",
+        "program",
+        "template",
+        "period_start",
+        "period_end",
+        "language",
+        "is_complete",
+        "submitted_at",
+    ]
+    list_filter = [
+        "program",
+        "template",
+        "template__role",
+        "period_end",
+        "is_complete",
+        "language",
+    ]
+    search_fields = [
+        "person__first_name",
+        "person__last_name",
+        "person__preferred_name",
+        "program__name",
+        "template__name",
+        "template__slug",
+    ]
+    autocomplete_fields = ["organization", "program", "person", "template", "submitted_by"]
+    readonly_fields = ["submitted_at", "updated_at"]
+    date_hierarchy = "period_end"
 
 
 @admin.register(Membership)
