@@ -22,6 +22,8 @@ import OrderEdit from './pages/OrderEdit';
 import AdminBunkLogs from './pages/AdminBunkLogs';
 import StaffMemberHistory from './pages/StaffMemberHistory';
 import MigrationDashboard from './pages/MigrationDashboard';
+import ReflectionFormPage from './pages/ReflectionFormPage';
+import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -254,6 +256,23 @@ function Router() {
           element={
             <ProtectedRoute>
               <MigrationDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reflect"
+          element={
+            <ProtectedRoute>
+              <ReflectionFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reflect/summary"
+          element={
+            <ProtectedRoute>
+              <ReflectionSummaryPage />
             </ProtectedRoute>
           }
         />

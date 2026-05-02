@@ -43,6 +43,44 @@ def _has_wellness_membership(person: Person) -> bool:
     ).exists()
 
 
+def _privileged_reflection_actor(request) -> bool:
+    return bool(getattr(request.user, "is_superuser", False))
+
+
+def _template_matches_program(template: ReflectionTemplate, program: Program) -> bool:
+    if template.organization_id and template.organization_id != program.organization_id:
+        return False
+    return not (template.program_type and template.program_type != program.program_type)
+
+
+def _may_use_template(request, viewer: Person, program: Program, template: ReflectionTemplate) -> None:
+    """Raise ValidationError if viewer may not submit using this template on this program."""
+    if program.organization_id != viewer.organization_id:
+        raise serializers.ValidationError({"program_slug": "Program is not in your organization."})
+    if not _template_matches_program(template, program):
+        raise serializers.ValidationError({"template": "Template does not apply to this program."})
+
+    if _privileged_reflection_actor(request) or _has_tenant_admin(viewer):
+        return
+
+    if template.role:
+        allowed = Membership.objects.filter(
+            person=viewer,
+            program=program,
+            role=template.role,
+            is_active=True,
+        ).exists()
+        if not allowed:
+            raise serializers.ValidationError(
+                {"template": "Your membership role does not match this template."},
+            )
+        return
+
+    allowed = Membership.objects.filter(person=viewer, program=program, is_active=True).exists()
+    if not allowed:
+        raise serializers.ValidationError({"program_slug": "No active membership in this program."})
+
+
 def _validate_language_coverage(schema: dict, lang: str) -> None:
     fields = schema.get("fields")
     if not isinstance(fields, list):
@@ -227,23 +265,7 @@ class ReflectionSerializer(serializers.ModelSerializer):
         except Program.DoesNotExist as e:
             raise serializers.ValidationError({"program_slug": "Program not found."}) from e
         template = validated_data["template"]
-        if template.program_type and template.program_type != program.program_type:
-            raise serializers.ValidationError({"template": "Template does not match program type."})
-        if template.role:
-            allowed = Membership.objects.filter(
-                person=viewer,
-                program=program,
-                role=template.role,
-                is_active=True,
-            ).exists()
-            if not allowed:
-                raise serializers.ValidationError(
-                    {"template": "Your membership role does not match this template."},
-                )
-        else:
-            allowed = Membership.objects.filter(person=viewer, program=program, is_active=True).exists()
-            if not allowed:
-                raise serializers.ValidationError({"program_slug": "No active membership in this program."})
+        _may_use_template(request, viewer, program, template)
 
         validated_data["organization"] = org
         validated_data["program"] = program
@@ -340,6 +362,18 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    def _template_for_me_payload(self, tpl: ReflectionTemplate, language: str, program: Program) -> Response:
+        try:
+            _validate_language_coverage(tpl.schema, language)
+        except serializers.ValidationError as e:
+            detail = getattr(e, "detail", str(e))
+            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
+        payload = ReflectionTemplateSummarySerializer(tpl).data
+        payload["schema"] = _localize_schema(tpl.schema, language)
+        payload["language"] = language
+        payload["program_slug"] = program.slug
+        return Response(payload)
+
     @action(detail=False, methods=["get"], url_path="template-for-me")
     def template_for_me(self, request):
         viewer = _person_for_request(request)
@@ -347,6 +381,43 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Person profile required."}, status=status.HTTP_403_FORBIDDEN)
         program_slug = (request.query_params.get("program") or "").strip()
         language = (request.query_params.get("language") or "en").strip()
+        elevated = _has_tenant_admin(viewer) or _privileged_reflection_actor(request)
+
+        if elevated and program_slug:
+            try:
+                prog = Program.objects.get(slug=program_slug)
+            except Program.DoesNotExist:
+                return Response({"detail": "Program not found."}, status=status.HTTP_404_NOT_FOUND)
+            if prog.organization_id != viewer.organization_id:
+                return Response({"detail": "Program is not in your organization."}, status=status.HTTP_403_FORBIDDEN)
+            role_for_tpl = (request.query_params.get("role") or "").strip()
+            if not role_for_tpl:
+                m_on_prog = (
+                    Membership.objects.filter(person=viewer, program=prog, is_active=True)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if m_on_prog:
+                    role_for_tpl = m_on_prog.role
+                else:
+                    return Response(
+                        {
+                            "detail": (
+                                "role query parameter is required when you have no active membership on this program."
+                            ),
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            tpl = (
+                ReflectionTemplate.objects.filter(role=role_for_tpl, is_active=True)
+                .filter(Q(program_type=prog.program_type) | Q(program_type__isnull=True))
+                .order_by("-version")
+                .first()
+            )
+            if tpl is None:
+                return Response({"detail": "No template for this role."}, status=status.HTTP_404_NOT_FOUND)
+            return self._template_for_me_payload(tpl, language, prog)
+
         memberships = Membership.objects.filter(person=viewer, is_active=True).select_related("program")
         if program_slug:
             memberships = memberships.filter(program__slug=program_slug)
@@ -362,12 +433,4 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         )
         if tpl is None:
             return Response({"detail": "No template for this role."}, status=status.HTTP_404_NOT_FOUND)
-        try:
-            _validate_language_coverage(tpl.schema, language)
-        except serializers.ValidationError as e:
-            detail = getattr(e, "detail", str(e))
-            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
-        payload = ReflectionTemplateSummarySerializer(tpl).data
-        payload["schema"] = _localize_schema(tpl.schema, language)
-        payload["language"] = language
-        return Response(payload)
+        return self._template_for_me_payload(tpl, language, prog)
