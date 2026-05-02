@@ -1,10 +1,17 @@
+import os
 import re
 import subprocess
 from pathlib import Path
 
 from django.conf import settings
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET
+from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import api_view
+from rest_framework.decorators import authentication_classes
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 PHASE_NAMES = {
     0: "Setup & Context",
@@ -18,18 +25,57 @@ PHASE_NAMES = {
 
 SKIP_FILES = {"prefix.md"}
 
-# In the Docker container the repo root is mounted at /repo.
-# In production (Render) BASE_DIR is backend/ so parent is the repo root.
-_CONTAINER_REPO = Path("/repo")
-_REPO_ROOT = _CONTAINER_REPO if (_CONTAINER_REPO / ".git").exists() else Path(settings.BASE_DIR).parent
-PROMPTS_DIR = _REPO_ROOT / "migration_prompts"
+# When the deliverable merged under a later step's commit (e.g. 1_5 doc in 1_6 PR),
+# git log main will not mention the earlier step id — treat as done if these paths exist on main.
+STEP_COMPLETION_ARTIFACTS: dict[str, tuple[str, ...]] = {
+    "1_5": ("docs/api-consolidation-plan.md",),
+}
+
+
+def _backend_dir() -> Path:
+    return Path(settings.BASE_DIR).resolve()
+
+
+def _git_cwd() -> Path:
+    """Directory that contains the repo .git (used for git log / cat-file)."""
+    raw_env = os.environ.get("BUNKLOGS_REPO_ROOT", "").strip()
+    if raw_env:
+        er = Path(raw_env).resolve()
+        if (er / ".git").exists():
+            return er
+    backend = _backend_dir()
+    if (backend.parent / ".git").exists():
+        return backend.parent
+    if (backend / ".git").exists():
+        return backend
+    container = Path("/repo")
+    if (container / ".git").exists():
+        return container
+    return backend.parent
+
+
+def _migration_prompts_dir() -> Path | None:
+    """Where migration_prompts/*.md live (monorepo sibling, bundled under backend, or env override)."""
+    raw_env = os.environ.get("BUNKLOGS_REPO_ROOT", "").strip()
+    if raw_env:
+        mp = Path(raw_env).resolve() / "migration_prompts"
+        if mp.is_dir():
+            return mp
+    backend = _backend_dir()
+    for cand in (backend / "migration_prompts", backend.parent / "migration_prompts"):
+        if cand.is_dir():
+            return cand
+    container = Path("/repo")
+    if (container / "migration_prompts").is_dir():
+        return container / "migration_prompts"
+    return None
 
 
 def _run_git(args: list[str]) -> str:
     try:
         result = subprocess.run(  # noqa: S603
             ["git", *args],  # noqa: S607
-            cwd=str(_REPO_ROOT),
+            cwd=str(_git_cwd()),
             capture_output=True,
             text=True,
             timeout=10,
@@ -51,7 +97,6 @@ def _parse_step_id(filename: str) -> tuple[str, int, int]:
     m2 = re.match(r"^(\d+)_", stem)
     if m2:
         phase = int(m2.group(1))
-        # non-numeric second segment; use 0 as sort key so it sorts before 0_1
         return stem, phase, 0
     return stem, 0, 0
 
@@ -65,30 +110,68 @@ def _parse_title(path: Path) -> str:
     return path.stem
 
 
+def _artifacts_satisfied_on_main(step_id: str) -> bool:
+    rels = STEP_COMPLETION_ARTIFACTS.get(step_id)
+    if not rels:
+        return False
+    for rel in rels:
+        result = subprocess.run(  # noqa: S603
+            ["git", "cat-file", "-e", f"main:{rel}"],  # noqa: S607
+            cwd=str(_git_cwd()),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode != 0:
+            return False
+    return True
+
+
 def _determine_status(step_id: str, main_log: str, branch_names: set, merged_branches: set) -> tuple[str, str | None]:
     """Return (status, branch_name_or_None)."""
-    # A step is completed if the step_id appears in a main-branch commit message.
-    # Use (?![0-9]) instead of trailing \b because _ is a word char, so
-    # \b1_2\b would NOT match "1_2_resolve_..." in commit messages.
     if re.search(rf"\b{re.escape(step_id)}(?![0-9])", main_log):
         return "completed", None
-    # Or if a matching branch has been merged into main
+    if _artifacts_satisfied_on_main(step_id):
+        return "completed", None
     for branch in merged_branches:
         if step_id in branch and branch not in ("main", "HEAD"):
             return "completed", None
-    # In-progress: a live unmerged branch exists that references this step
     for branch in branch_names - merged_branches:
         if step_id in branch:
             return "in_progress", branch
     return "pending", None
 
 
-@require_GET
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
 def migration_status(request):
-    if not PROMPTS_DIR.exists():
-        return JsonResponse({"error": "migration_prompts directory not accessible", "steps": []}, status=200)
+    if not request.user.is_staff:
+        return Response(
+            {
+                "error": "Staff only",
+                "steps": [],
+                "git_available": False,
+                "has_uncommitted_changes": False,
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
-    files = sorted(f for f in PROMPTS_DIR.glob("*.md") if f.name not in SKIP_FILES)
+    prompts_dir = _migration_prompts_dir()
+    if not prompts_dir:
+        return Response(
+            {
+                "error": "migration_prompts directory not accessible",
+                "steps": [],
+                "git_available": False,
+                "has_uncommitted_changes": False,
+                "prompts_path_checked": str(_backend_dir() / "migration_prompts"),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    files = sorted(f for f in prompts_dir.glob("*.md") if f.name not in SKIP_FILES)
 
     main_log = _run_git(["log", "main", "--oneline"])
     all_branches_raw = _run_git(["branch", "--all"])
@@ -114,7 +197,7 @@ def migration_status(request):
     for path in files:
         step_id, phase, step_num = _parse_step_id(path.name)
         title = _parse_title(path)
-        status, branch = _determine_status(step_id, main_log, branch_names, merged_branches)
+        step_status, branch = _determine_status(step_id, main_log, branch_names, merged_branches)
         steps.append({
             "id": step_id,
             "phase": phase,
@@ -122,15 +205,16 @@ def migration_status(request):
             "step_num": step_num,
             "file": path.name,
             "title": title,
-            "status": status,
+            "status": step_status,
             "branch": branch,
         })
 
     steps.sort(key=lambda s: (s["phase"], s["step_num"], s["file"]))
 
-    return JsonResponse({
+    return Response({
         "steps": steps,
         "git_available": git_available,
         "has_uncommitted_changes": bool(git_status),
-        "repo_root": str(_REPO_ROOT),
+        "repo_root": str(_git_cwd()),
+        "migration_prompts_dir": str(prompts_dir),
     })

@@ -21,6 +21,7 @@ import OrderDetail from './pages/OrderDetail';
 import OrderEdit from './pages/OrderEdit';
 import AdminBunkLogs from './pages/AdminBunkLogs';
 import StaffMemberHistory from './pages/StaffMemberHistory';
+import MigrationDashboard from './pages/MigrationDashboard';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -247,7 +248,16 @@ function Router() {
         />
 
         <Route path="/test-datepicker" element={<DatePickerTest />} />
-        
+
+        <Route
+          path="/migration-dashboard"
+          element={
+            <ProtectedRoute>
+              <MigrationDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<Navigate to="/dashboard" />} />

@@ -13,6 +13,8 @@ services:
       - mailpit
     volumes:
       - .:/app:z
+      # Full monorepo (includes .git) so /api/migration-status/ can read git history and branches.
+      - ..:/repo:z
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     env_file:
@@ -23,6 +25,8 @@ services:
     command: /start
     environment:
       - USE_DOCKER=yes
+      # migration_views._git_cwd / _migration_prompts_dir (not set on host pytest — BASE_DIR parent has .git)
+      - BUNKLOGS_REPO_ROOT=/repo
 
   postgres:
     image: postgres:16
