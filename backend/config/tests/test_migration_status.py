@@ -44,13 +44,25 @@ def test_migration_status_ok_for_staff():
 
 
 @pytest.mark.django_db
-def test_migration_status_marks_1_5_complete_via_artifact_on_main():
-    """1_5 inventory landed in a 1_6 commit message; artifact-based rule still marks it completed."""
+def test_migration_status_marks_1_5_complete_via_artifact_on_main(monkeypatch, tmp_path):
+    """1_5 inventory landed in a 1_6 commit message; artifact-based rule still marks it completed.
+
+    CI checkouts often do not include every ``migration_prompts/*.md`` (many are uncommitted locally);
+    the API only emits rows for files present, so supply a minimal prompt file via monkeypatch.
+    """
+    import config.migration_views as migration_views
+
     from config.migration_views import STEP_COMPLETION_ARTIFACTS
     from config.migration_views import _artifacts_satisfied_on_main
 
     assert "1_5" in STEP_COMPLETION_ARTIFACTS
     assert _artifacts_satisfied_on_main("1_5") is True
+
+    (tmp_path / "1_5_inventory_dual_api_trees.md").write_text(
+        "# 1.5 Dual API inventory\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(migration_views, "_migration_prompts_dir", lambda: tmp_path)
 
     client = APIClient()
     user = User.objects.create_user(
