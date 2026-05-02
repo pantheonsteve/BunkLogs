@@ -54,6 +54,23 @@ def _git_cwd() -> Path:
     return backend.parent
 
 
+def _git_mainline_ref() -> str:
+    """Ref treated as 'main' for log/cat-file (CI often has no local ``main``, only ``origin/main``)."""
+    cwd = str(_git_cwd())
+    for candidate in ("main", "origin/main"):
+        result = subprocess.run(  # noqa: S603
+            ["git", "rev-parse", "--verify", candidate],  # noqa: S607
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0:
+            return candidate
+    return "HEAD"
+
+
 def _migration_prompts_dir() -> Path | None:
     """Where migration_prompts/*.md live (monorepo sibling, bundled under backend, or env override)."""
     raw_env = os.environ.get("BUNKLOGS_REPO_ROOT", "").strip()
@@ -114,10 +131,12 @@ def _artifacts_satisfied_on_main(step_id: str) -> bool:
     rels = STEP_COMPLETION_ARTIFACTS.get(step_id)
     if not rels:
         return False
+    base = _git_mainline_ref()
+    cwd = str(_git_cwd())
     for rel in rels:
         result = subprocess.run(  # noqa: S603
-            ["git", "cat-file", "-e", f"main:{rel}"],  # noqa: S607
-            cwd=str(_git_cwd()),
+            ["git", "cat-file", "-e", f"{base}:{rel}"],  # noqa: S607
+            cwd=cwd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -173,9 +192,10 @@ def migration_status(request):
 
     files = sorted(f for f in prompts_dir.glob("*.md") if f.name not in SKIP_FILES)
 
-    main_log = _run_git(["log", "main", "--oneline"])
+    mainline = _git_mainline_ref()
+    main_log = _run_git(["log", mainline, "--oneline"])
     all_branches_raw = _run_git(["branch", "--all"])
-    merged_raw = _run_git(["branch", "--all", "--merged", "main"])
+    merged_raw = _run_git(["branch", "--all", "--merged", mainline])
     git_status = _run_git(["status", "--porcelain"])
     git_available = bool(all_branches_raw)
 
