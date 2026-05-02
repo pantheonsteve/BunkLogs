@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import json
 from io import StringIO
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 from django.core.management import call_command
 from django.core.management.base import CommandError
 

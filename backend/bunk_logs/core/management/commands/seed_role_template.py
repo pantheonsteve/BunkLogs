@@ -28,7 +28,8 @@ def resolve_template_file_path(arg: str) -> Path:
         resolved = p.resolve()
         if resolved.is_file():
             return resolved
-        raise CommandError(f"Template file not found: {resolved}")
+        msg = f"Template file not found: {resolved}"
+        raise CommandError(msg)
 
     base_dirs: list[Path] = []
     for raw in (
@@ -50,48 +51,52 @@ def resolve_template_file_path(arg: str) -> Path:
         if candidate.is_file():
             return candidate
 
-    raise CommandError(
-        "Template file not found: {!r}. Tried:\n  {}".format(arg, "\n  ".join(str(t) for t in tried)),
-    )
+    tried_lines = "\n  ".join(str(t) for t in tried)
+    msg = f"Template file not found: {arg!r}. Tried:\n  {tried_lines}"
+    raise CommandError(msg)
 
 
 def _coerce_positive_int(value: Any, field: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
-        raise CommandError(f'"{field}" must be a positive integer.')
+        msg = f'"{field}" must be a positive integer.'
+        raise CommandError(msg)
     if value < 1:
-        raise CommandError(f'"{field}" must be >= 1.')
+        msg = f'"{field}" must be >= 1.'
+        raise CommandError(msg)
     return value
 
 
 def parse_template_file(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise CommandError("Template file must contain a JSON object.")
+        msg = "Template file must contain a JSON object."
+        raise CommandError(msg)
     missing = {"name", "slug", "cadence", "schema"} - raw.keys()
     if missing:
-        raise CommandError(f"Template JSON missing required keys: {', '.join(sorted(missing))}.")
+        msg = f"Template JSON missing required keys: {', '.join(sorted(missing))}."
+        raise CommandError(msg)
     version = raw.get("version", 1)
     version = _coerce_positive_int(version, "version")
     slug = raw["slug"]
     if not isinstance(slug, str) or not slug.strip():
-        raise CommandError('"slug" must be a non-empty string.')
+        msg = '"slug" must be a non-empty string.'
+        raise CommandError(msg)
     name = raw["name"]
     if not isinstance(name, str) or not name.strip():
-        raise CommandError('"name" must be a non-empty string.')
+        msg = '"name" must be a non-empty string.'
+        raise CommandError(msg)
     cadence = raw["cadence"]
     if cadence not in CADENCE_CODES:
-        raise CommandError(
-            f'Invalid cadence {cadence!r}; allowed: {", ".join(sorted(CADENCE_CODES))}.',
-        )
+        msg = f'Invalid cadence {cadence!r}; allowed: {", ".join(sorted(CADENCE_CODES))}.'
+        raise CommandError(msg)
     schema = raw["schema"]
     validate_reflection_template_schema(schema)
 
     program_type = raw.get("program_type")
     if program_type is not None and program_type != "":
         if program_type not in PROGRAM_TYPE_CODES:
-            raise CommandError(
-                f'Invalid program_type {program_type!r}; '
-                f'allowed: {", ".join(sorted(PROGRAM_TYPE_CODES))} or omit/null.',
-            )
+            allowed = ", ".join(sorted(PROGRAM_TYPE_CODES))
+            msg = f"Invalid program_type {program_type!r}; allowed: {allowed} or omit/null."
+            raise CommandError(msg)
     else:
         program_type = None
 
@@ -99,17 +104,20 @@ def parse_template_file(raw: dict[str, Any]) -> dict[str, Any]:
     if description is None:
         description = ""
     if not isinstance(description, str):
-        raise CommandError('"description" must be a string.')
+        msg = '"description" must be a string.'
+        raise CommandError(msg)
 
     languages = raw.get("languages", [])
     if languages is None:
         languages = []
     if not isinstance(languages, list) or not all(isinstance(x, str) for x in languages):
-        raise CommandError('"languages" must be a list of strings.')
+        msg = '"languages" must be a list of strings.'
+        raise CommandError(msg)
 
     is_active = raw.get("is_active", True)
     if not isinstance(is_active, bool):
-        raise CommandError('"is_active" must be a boolean.')
+        msg = '"is_active" must be a boolean.'
+        raise CommandError(msg)
 
     return {
         "name": name.strip(),
@@ -152,25 +160,28 @@ class Command(BaseCommand):
         dry_run: bool = options["dry_run"]
 
         if role not in MEMBERSHIP_ROLE_CODES:
-            raise CommandError(
-                f'Invalid role {role!r}; must be one of: {", ".join(sorted(MEMBERSHIP_ROLE_CODES))}.',
-            )
+            roles_list = ", ".join(sorted(MEMBERSHIP_ROLE_CODES))
+            msg = f"Invalid role {role!r}; must be one of: {roles_list}."
+            raise CommandError(msg)
 
         try:
             org = Organization.objects.get(slug=org_slug)
         except Organization.DoesNotExist as exc:
-            raise CommandError(f'Organization with slug {org_slug!r} does not exist.') from exc
+            msg = f"Organization with slug {org_slug!r} does not exist."
+            raise CommandError(msg) from exc
 
         try:
             with template_path.open(encoding="utf-8") as fh:
                 raw = json.load(fh)
         except json.JSONDecodeError as exc:
-            raise CommandError(f"Invalid JSON in template file: {exc}") from exc
+            msg = f"Invalid JSON in template file: {exc}"
+            raise CommandError(msg) from exc
 
         try:
             parsed = parse_template_file(raw)
         except ValidationError as exc:
-            raise CommandError(self._format_validation_error(exc)) from exc
+            msg = self._format_validation_error(exc)
+            raise CommandError(msg) from exc
 
         candidate = ReflectionTemplate(
             organization=org,
@@ -188,9 +199,10 @@ class Command(BaseCommand):
         try:
             candidate.full_clean()
         except ValidationError as exc:
-            raise CommandError(self._format_validation_error(exc)) from exc
+            msg = self._format_validation_error(exc)
+            raise CommandError(msg) from exc
 
-        key = f'{org.slug}/{parsed["slug"]} v{parsed["version"]} (role={role})'
+        key = f"{org.slug}/{parsed['slug']} v{parsed['version']} (role={role})"
         if dry_run:
             existing = ReflectionTemplate.all_objects.filter(
                 organization=org,
