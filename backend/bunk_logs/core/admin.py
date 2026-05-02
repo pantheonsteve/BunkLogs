@@ -11,12 +11,49 @@ from .models import Reflection
 from .models import ReflectionTemplate
 
 
+class ProgramAdminForm(forms.ModelForm):
+    """Normalize titles in admin so staff can type a short label; model still enforces the rule."""
+
+    class Meta:
+        model = Program
+        fields = (
+            "organization",
+            "name",
+            "slug",
+            "program_type",
+            "start_date",
+            "end_date",
+            "is_active",
+            "settings",
+        )
+
+    def clean(self):
+        super().clean()
+        org = self.cleaned_data.get("organization")
+        name = (self.cleaned_data.get("name") or "").strip()
+        if not org or not name:
+            return self.cleaned_data
+        oname = (org.name or "").strip()
+        if oname and not name.startswith(oname):
+            self.cleaned_data["name"] = f"{oname} - {name}"
+        return self.cleaned_data
+
+
+class ProgramInline(admin.TabularInline):
+    model = Program
+    form = ProgramAdminForm
+    extra = 0
+    show_change_link = True
+    fields = ("name", "slug", "program_type", "start_date", "end_date", "is_active")
+
+
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
     list_display = ["name", "slug", "is_active", "created_at"]
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ["name", "slug"]
     list_filter = ["is_active"]
+    inlines = [ProgramInline]
 
 
 @admin.register(Person)
@@ -39,20 +76,23 @@ class PersonAdmin(admin.ModelAdmin):
 
 @admin.register(Program)
 class ProgramAdmin(admin.ModelAdmin):
+    form = ProgramAdminForm
+
     def get_queryset(self, request):
-        return Program.all_objects.all()
+        return Program.all_objects.select_related("organization")
 
     list_display = [
+        "organization",
         "name",
         "slug",
-        "organization",
         "program_type",
         "start_date",
         "end_date",
         "is_active",
     ]
-    list_filter = ["program_type", "is_active"]
-    search_fields = ["name", "slug"]
+    list_filter = ["organization", "program_type", "is_active"]
+    search_fields = ["name", "slug", "organization__name", "organization__slug"]
+    ordering = ("organization__name", "-start_date", "name")
     prepopulated_fields = {"slug": ("name",)}
     autocomplete_fields = ["organization"]
 
@@ -114,10 +154,15 @@ class ReflectionTemplateAdmin(admin.ModelAdmin):
 @admin.register(Reflection)
 class ReflectionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
-        return Reflection.all_objects.all()
+        return Reflection.all_objects.select_related("program__organization", "person", "template")
+
+    @admin.display(description="Organization", ordering="program__organization__name")
+    def program_organization_name(self, obj):
+        return obj.program.organization.name
 
     list_display = [
         "person",
+        "program_organization_name",
         "program",
         "template",
         "period_start",
@@ -127,7 +172,7 @@ class ReflectionAdmin(admin.ModelAdmin):
         "submitted_at",
     ]
     list_filter = [
-        "program",
+        "program__organization",
         "template",
         "template__role",
         "period_end",
@@ -150,10 +195,15 @@ class ReflectionAdmin(admin.ModelAdmin):
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
-        return Membership.all_objects.all()
+        return Membership.all_objects.select_related("program__organization", "person")
+
+    @admin.display(description="Organization", ordering="program__organization__name")
+    def program_organization_name(self, obj):
+        return obj.program.organization.name
 
     list_display = [
         "person",
+        "program_organization_name",
         "program",
         "role",
         "grade_level",

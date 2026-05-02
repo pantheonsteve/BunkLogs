@@ -37,7 +37,7 @@ def org_beta(db):
 def program_alpha(org_alpha):
     return Program.all_objects.create(
         organization=org_alpha,
-        name="P Alpha",
+        name="Alpha Camp - Main",
         slug="p-alpha",
         program_type="summer_camp",
         start_date=date(2026, 6, 1),
@@ -49,7 +49,7 @@ def program_alpha(org_alpha):
 def program_beta(org_beta):
     return Program.all_objects.create(
         organization=org_beta,
-        name="P Beta",
+        name="Beta Camp - Main",
         slug="p-beta",
         program_type="summer_camp",
         start_date=date(2026, 6, 1),

@@ -10,6 +10,7 @@ from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
 
 from config import views
+from config.migration_views import migration_status
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
@@ -55,6 +56,7 @@ urlpatterns += [
     path("api/auth/google/callback/", views.google_callback, name="google_callback"),
     path("api/auth/google/callback/token/", views.google_login_callback, name="google_login_callback"),
     path("api/get-csrf-token/", views.get_csrf_token, name="get-csrf-token"),
+    path("api/migration-status/", migration_status, name="migration-status"),
 ]
 
 if settings.DEBUG:

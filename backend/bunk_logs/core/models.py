@@ -186,7 +186,13 @@ class Program(models.Model):
         ]
 
     def __str__(self) -> str:
-        return self.name
+        if self.organization_id:
+            return f"[{self.organization.slug}] {self.name}"
+        return self.name or "Program"
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def clean(self) -> None:
         super().clean()
@@ -194,6 +200,18 @@ class Program(models.Model):
             raise ValidationError(
                 {"end_date": "End date must be on or after start date."},
             )
+        if self.organization_id and (self.name or "").strip():
+            org_name = (self.organization.name or "").strip()
+            display = (self.name or "").strip()
+            if org_name and not display.startswith(org_name):
+                raise ValidationError(
+                    {
+                        "name": (
+                            "Program title must begin with the organization name "
+                            f"({org_name!r}) so records stay identifiable across tenants."
+                        ),
+                    },
+                )
 
 
 class Person(models.Model):

@@ -1,4 +1,7 @@
 USE_DOCKER=yes
+# ``postgres`` / ``redis`` / ``mailpit`` resolve inside the compose network. When you run
+# ``python manage.py`` on the host with this file copied to ``.django``, local settings
+# swap those hostnames to 127.0.0.1 automatically if they do not resolve (published ports).
 DATABASE_URL=postgres://postgres:postgres@postgres:5432/bunk_logs
 DJANGO_DEBUG=True
 DJANGO_SETTINGS_MODULE=config.settings.local
