@@ -1,0 +1,37 @@
+{
+  "name": "CLC Summer 2026 — Specialist daily",
+  "slug": "clc-2026-specialist-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts with approved specialist reflection questions.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "program_delivery",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] Briefly describe how your area ran today (safety, quality, camper experience)."
+        }
+      },
+      {
+        "key": "collaboration",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] How did you coordinate with unit staff or leadership?"
+        }
+      },
+      {
+        "key": "tomorrow_focus",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] What is your top priority for tomorrow?"
+        }
+      }
+    ]
+  }
+}

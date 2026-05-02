@@ -1,0 +1,37 @@
+{
+  "name": "CLC Summer 2026 — Junior counselor daily",
+  "slug": "clc-2026-junior-counselor-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts with approved JC reflection questions.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "highlight",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] What was one highlight of supporting your bunk or activity today?"
+        }
+      },
+      {
+        "key": "challenge",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] What felt challenging, and what did you try?"
+        }
+      },
+      {
+        "key": "support_needed",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] What support would help you tomorrow?"
+        }
+      }
+    ]
+  }
+}

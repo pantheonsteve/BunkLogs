@@ -1,0 +1,37 @@
+{
+  "name": "CLC Summer 2026 — Health center daily",
+  "slug": "clc-2026-health-center-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace with approved health-center prompts; ensure compliance with charting policies before launch.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "operations_note",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] High-level operations note for the day (no individualized PHI)."
+        }
+      },
+      {
+        "key": "capacity_staffing",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Capacity, staffing, or supply pressures?"
+        }
+      },
+      {
+        "key": "camp_wide_flags",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Trends or alerts that program leadership should track?"
+        }
+      }
+    ]
+  }
+}

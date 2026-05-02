@@ -1,0 +1,57 @@
+{
+  "name": "CLC Summer 2026 — Kitchen staff daily",
+  "slug": "clc-2026-kitchen-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts; TODO(i18n): Have Spanish copy reviewed by fluent kitchen staff.",
+  "languages": ["en", "es"],
+  "schema": {
+    "fields": [
+      {
+        "key": "service_summary",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] Summarize today's meals service (timing, volume, issues).",
+          "es": "[PLACEHOLDER] Resume el servicio de comidas de hoy (tiempo, volumen, problemas)."
+        }
+      },
+      {
+        "key": "safety_sanitation",
+        "type": "rating_group",
+        "required": true,
+        "scale": [1, 4],
+        "scale_labels": {
+          "en": ["Concern", "Fair", "Good", "Excellent"],
+          "es": ["Preocupación", "Regular", "Bueno", "Excelente"]
+        },
+        "categories": [
+          {
+            "key": "food_safety",
+            "labels": {
+              "en": "[PLACEHOLDER] Food safety & sanitation",
+              "es": "[PLACEHOLDER] Seguridad alimentaria e higiene"
+            }
+          },
+          {
+            "key": "workflow",
+            "labels": {
+              "en": "[PLACEHOLDER] Kitchen workflow / teamwork",
+              "es": "[PLACEHOLDER] Flujo de trabajo / trabajo en equipo"
+            }
+          }
+        ]
+      },
+      {
+        "key": "equipment_supply",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Equipment or supply needs to report.",
+          "es": "[PLACEHOLDER] Necesidades de equipo o suministros a reportar."
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "CLC Summer 2026 — Maintenance daily",
+  "slug": "clc-2026-maintenance-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts; TODO(i18n): Have Spanish copy reviewed by fluent maintenance staff.",
+  "languages": ["en", "es"],
+  "schema": {
+    "fields": [
+      {
+        "key": "work_completed",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] What work did you complete or advance today?",
+          "es": "[PLACEHOLDER] ¿Qué trabajo completó o avanzó hoy?"
+        }
+      },
+      {
+        "key": "open_issues",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Open issues, hazards, or repeat repairs.",
+          "es": "[PLACEHOLDER] Problemas abiertos, riesgos o reparaciones repetidas."
+        }
+      },
+      {
+        "key": "priority_areas",
+        "type": "rating_group",
+        "required": false,
+        "scale": [1, 4],
+        "scale_labels": {
+          "en": ["Low", "Medium", "High", "Urgent"],
+          "es": ["Bajo", "Medio", "Alto", "Urgente"]
+        },
+        "categories": [
+          {
+            "key": "grounds_facilities",
+            "labels": {
+              "en": "[PLACEHOLDER] Priority: grounds & facilities condition",
+              "es": "[PLACEHOLDER] Prioridad: estado de instalaciones y terrenos"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
