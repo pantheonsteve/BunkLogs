@@ -148,6 +148,7 @@ frontend/dist/
 frontend/build/
 github-actions-key.json
 *.json
+!templates/reflection_templates/*.json
 backend/.env
 llm_context/
 

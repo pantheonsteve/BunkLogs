@@ -1,0 +1,29 @@
+{
+  "name": "Counselor weekly reflection (example)",
+  "slug": "counselor-weekly-example",
+  "version": 1,
+  "cadence": "weekly",
+  "program_type": "summer_camp",
+  "description": "Placeholder counselor reflection — replace with Brent's finalized prompts.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "highlight",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "What was your biggest highlight with campers this week?"
+        }
+      },
+      {
+        "key": "challenge",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "What was most challenging, and how did you respond?"
+        }
+      }
+    ]
+  }
+}
