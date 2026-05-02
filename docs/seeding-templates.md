@@ -19,8 +19,18 @@ python manage.py seed_role_template \
 |------|----------|-------------|
 | `--org-slug` | yes | Target `Organization.slug` (org must already exist, e.g. via `setup_crane_lake`). |
 | `--role` | yes | Must match a `Membership` role code (`counselor`, `kitchen_staff`, …). |
-| `--template-file` | yes | Path to JSON file (absolute or relative to current working directory). |
+| `--template-file` | yes | Path to JSON (see **Path resolution** below). |
 | `--dry-run` | no | Validate the file and print what would happen; no database writes. |
+
+### Path resolution
+
+Absolute paths are used as-is. Relative paths are tried in order:
+
+1. Current working directory (often `backend/` when you run `manage.py` there).
+2. **Repository root** — parent of Django `BASE_DIR` (where `templates/reflection_templates/` lives in this repo).
+3. **`BASE_DIR`** (the `backend/` package root).
+
+So `templates/reflection_templates/example_counselor.json` works whether your shell cwd is the repo root or `backend/`. If none of these locations contain the file, the command errors and lists paths it tried.
 
 ### Idempotency
 

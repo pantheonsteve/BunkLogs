@@ -128,3 +128,26 @@ class TestSeedRoleTemplateCommand:
                 stdout=StringIO(),
             )
         assert "Invalid role" in str(exc.value)
+
+    def test_relative_path_resolves_from_repo_root(self, tmp_path: Path, settings, monkeypatch):
+        """Paths like templates/... live at repo root; manage.py is often run with cwd=backend/."""
+        repo = tmp_path / "repo"
+        backend = repo / "backend"
+        backend.mkdir(parents=True)
+        rel = "templates/reflection_templates/seed.json"
+        full = repo / rel
+        full.parent.mkdir(parents=True)
+        full.write_text(json.dumps(_minimal_template_payload()), encoding="utf-8")
+
+        settings.BASE_DIR = backend
+        monkeypatch.chdir(backend)
+        Organization.objects.create(name="Test Org", slug="test-org-repo-root")
+
+        call_command(
+            "seed_role_template",
+            org_slug="test-org-repo-root",
+            role="counselor",
+            template_file=rel,
+            stdout=StringIO(),
+        )
+        assert ReflectionTemplate.all_objects.filter(slug="test-weekly-seed").exists()

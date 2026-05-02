@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
@@ -18,6 +19,40 @@ from bunk_logs.core.models import validate_reflection_template_schema
 MEMBERSHIP_ROLE_CODES = {code for code, _ in Membership.ROLES}
 CADENCE_CODES = {code for code, _ in ReflectionTemplate.CADENCES}
 PROGRAM_TYPE_CODES = {code for code, _ in Program.PROGRAM_TYPES}
+
+
+def resolve_template_file_path(arg: str) -> Path:
+    """Resolve JSON path: absolute as-is; relative tries cwd, repo root, then Django BASE_DIR."""
+    p = Path(arg).expanduser()
+    if p.is_absolute():
+        resolved = p.resolve()
+        if resolved.is_file():
+            return resolved
+        raise CommandError(f"Template file not found: {resolved}")
+
+    base_dirs: list[Path] = []
+    for raw in (
+        Path.cwd(),
+        Path(settings.BASE_DIR).resolve().parent,
+        Path(settings.BASE_DIR).resolve(),
+    ):
+        try:
+            resolved_base = raw.resolve()
+        except OSError:
+            continue
+        if resolved_base not in base_dirs:
+            base_dirs.append(resolved_base)
+
+    tried: list[Path] = []
+    for base in base_dirs:
+        candidate = (base / p).resolve()
+        tried.append(candidate)
+        if candidate.is_file():
+            return candidate
+
+    raise CommandError(
+        "Template file not found: {!r}. Tried:\n  {}".format(arg, "\n  ".join(str(t) for t in tried)),
+    )
 
 
 def _coerce_positive_int(value: Any, field: str) -> int:
@@ -113,7 +148,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         org_slug: str = options["org_slug"]
         role: str = options["role"]
-        template_path = Path(options["template_file"]).expanduser().resolve()
+        template_path = resolve_template_file_path(options["template_file"])
         dry_run: bool = options["dry_run"]
 
         if role not in MEMBERSHIP_ROLE_CODES:
@@ -125,9 +160,6 @@ class Command(BaseCommand):
             org = Organization.objects.get(slug=org_slug)
         except Organization.DoesNotExist as exc:
             raise CommandError(f'Organization with slug {org_slug!r} does not exist.') from exc
-
-        if not template_path.is_file():
-            raise CommandError(f"Template file not found: {template_path}")
 
         try:
             with template_path.open(encoding="utf-8") as fh:
