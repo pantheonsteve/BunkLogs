@@ -1,0 +1,385 @@
+from datetime import date
+
+import pytest
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
+
+from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Organization
+from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
+
+User = get_user_model()
+
+
+def _tpl_schema_bilingual(key: str = "note") -> dict:
+    return {"fields": [{"key": key, "type": "text", "prompts": {"en": "English", "es": "Español"}}]}
+
+
+@pytest.fixture
+def org_a(db):
+    return Organization.objects.create(name="Alpha Ref", slug="org-ref-a")
+
+
+@pytest.fixture
+def org_b(db):
+    return Organization.objects.create(name="Beta Ref", slug="org-ref-b")
+
+
+@pytest.fixture
+def program_a(org_a):
+    return Program.all_objects.create(
+        organization=org_a,
+        name="Alpha Ref Summer",
+        slug="prog-ref-a",
+        program_type="summer_camp",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 8, 31),
+    )
+
+
+@pytest.fixture
+def program_b(org_b):
+    return Program.all_objects.create(
+        organization=org_b,
+        name="Beta Ref Summer",
+        slug="prog-ref-b",
+        program_type="summer_camp",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 8, 31),
+    )
+
+
+@pytest.fixture
+def api():
+    return APIClient()
+
+
+@pytest.fixture
+def counselor_template(org_a):
+    return ReflectionTemplate.all_objects.create(
+        organization=org_a,
+        name="Counselor weekly",
+        slug="cns-weekly",
+        cadence="weekly",
+        role="counselor",
+        program_type="summer_camp",
+        schema=_tpl_schema_bilingual(),
+        languages=["en", "es"],
+    )
+
+
+@pytest.fixture
+def counselor_user(org_a, program_a):
+    u = User.objects.create_user(email="cns@example.com", password="pw")
+    p = Person.all_objects.create(organization=org_a, first_name="C", last_name="One", user=u)
+    Membership.all_objects.create(program=program_a, person=p, role="counselor", is_active=True)
+    return u, p
+
+
+@pytest.fixture
+def other_counselor(org_a, program_a):
+    u = User.objects.create_user(email="cns2@example.com", password="pw")
+    p = Person.all_objects.create(organization=org_a, first_name="C", last_name="Two", user=u)
+    Membership.all_objects.create(program=program_a, person=p, role="counselor", is_active=True)
+    return u, p
+
+
+def _hdr_org(slug: str):
+    return {"HTTP_X_ORGANIZATION_SLUG": slug}
+
+
+@pytest.mark.django_db
+def test_person_can_submit(api, org_a, program_a, counselor_template, counselor_user):
+    user, _person = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"note": "did well"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 201, resp.content
+    assert resp.json()["answers"] == {"note": "did well"}
+
+
+@pytest.mark.django_db
+def test_person_cannot_see_other_reflection(
+    api,
+    org_a,
+    program_a,
+    counselor_template,
+    counselor_user,
+    other_counselor,
+):
+    user_a, person_a = counselor_user
+    _user_b, person_b = other_counselor
+    ref_b = Reflection.all_objects.create(
+        organization=org_a,
+        program=program_a,
+        person=person_b,
+        template=counselor_template,
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 7),
+        answers={"note": "b"},
+        language="en",
+    )
+    api.force_authenticate(user=user_a)
+    r = api.get(f"/api/v1/reflections/{ref_b.id}/", **_hdr_org(org_a.slug))
+    assert r.status_code == 404
+
+
+@pytest.mark.django_db
+def test_leadership_sees_unit_level_reflections(
+    api,
+    org_a,
+    program_a,
+    counselor_template,
+    counselor_user,
+):
+    user_c, person_c = counselor_user
+    Membership.all_objects.filter(person=person_c, program=program_a).update(
+        metadata={"unit_slug": "tsofim"},
+    )
+    leader = User.objects.create_user(email="lead@example.com", password="pw")
+    person_l = Person.all_objects.create(organization=org_a, first_name="L", last_name="T", user=leader)
+    Membership.all_objects.create(
+        program=program_a,
+        person=person_l,
+        role="leadership_team",
+        is_active=True,
+        metadata={"assigned_unit_slugs": ["tsofim"]},
+    )
+    api.force_authenticate(user=user_c)
+    rc = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"note": "hello"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert rc.status_code == 201
+    rid = rc.json()["id"]
+
+    api.force_authenticate(user=leader)
+    rr = api.get(f"/api/v1/reflections/{rid}/", **_hdr_org(org_a.slug))
+    assert rr.status_code == 200
+    assert rr.json()["answers"]["note"] == "hello"
+
+
+@pytest.mark.django_db
+def test_cross_org_access_impossible(
+    api,
+    org_a,
+    org_b,
+    program_a,
+    program_b,
+    counselor_user,
+):
+    user_a, person_a = counselor_user
+    tpl_b = ReflectionTemplate.all_objects.create(
+        organization=org_b,
+        name="Other",
+        slug="other-tpl",
+        cadence="weekly",
+        role="counselor",
+        program_type="summer_camp",
+        schema=_tpl_schema_bilingual("x"),
+        languages=["en"],
+    )
+    ref_b = Reflection.all_objects.create(
+        organization=org_b,
+        program=program_b,
+        person=Person.all_objects.create(organization=org_b, first_name="X", last_name="Y"),
+        template=tpl_b,
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 7),
+        answers={"x": "secret"},
+        language="en",
+    )
+    api.force_authenticate(user=user_a)
+    r = api.get(f"/api/v1/reflections/{ref_b.id}/", **_hdr_org(org_a.slug))
+    assert r.status_code == 404
+
+
+@pytest.mark.django_db
+def test_schema_validation_rejects_malformed_answers(
+    api,
+    org_a,
+    program_a,
+    counselor_template,
+    counselor_user,
+):
+    user, _ = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_template_for_me_language_parameter(api, org_a, program_a, counselor_template, counselor_user):
+    user, _ = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.get(
+        "/api/v1/reflections/template-for-me/",
+        {"language": "es"},
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["language"] == "es"
+    assert body["schema"]["fields"][0]["prompts"] == {"es": "Español"}
+
+
+@pytest.mark.django_db
+def test_wellness_team_readonly_enforced(
+    api,
+    org_a,
+    program_a,
+    counselor_template,
+    counselor_user,
+):
+    tpl_well = ReflectionTemplate.all_objects.create(
+        organization=org_a,
+        name="Care check-in",
+        slug="care-in",
+        cadence="weekly",
+        role="camper_care",
+        program_type="summer_camp",
+        schema=_tpl_schema_bilingual("w"),
+        languages=["en", "es"],
+    )
+    user_c, person_c = counselor_user
+    nurse = User.objects.create_user(email="nurse@example.com", password="pw")
+    person_n = Person.all_objects.create(organization=org_a, first_name="N", last_name="C", user=nurse)
+    Membership.all_objects.create(program=program_a, person=person_n, role="health_center", is_active=True)
+
+    api.force_authenticate(user=nurse)
+    wellness_other = Reflection.all_objects.create(
+        organization=org_a,
+        program=program_a,
+        person=person_c,
+        template=tpl_well,
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 7),
+        answers={"w": "well"},
+        language="en",
+    )
+    g = api.get(f"/api/v1/reflections/{wellness_other.id}/", **_hdr_org(org_a.slug))
+    assert g.status_code == 200
+
+    bad = api.patch(
+        f"/api/v1/reflections/{wellness_other.id}/",
+        {"answers": {"w": "hacked"}},
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert bad.status_code == 403
+
+
+@pytest.mark.django_db
+def test_membership_role_filter(api, org_a, program_a, counselor_template, counselor_user, other_counselor):
+    user_a, person_a = counselor_user
+    user_b, person_b = other_counselor
+    Membership.all_objects.filter(person=person_b, program=program_a).update(role="specialist")
+
+    tpl_sp = ReflectionTemplate.all_objects.create(
+        organization=org_a,
+        name="Spec",
+        slug="spec-w",
+        cadence="weekly",
+        role="specialist",
+        program_type="summer_camp",
+        schema=_tpl_schema_bilingual("s"),
+        languages=["en"],
+    )
+
+    api.force_authenticate(user=user_a)
+    api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"note": "a"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    api.force_authenticate(user=user_b)
+    api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": tpl_sp.id,
+            "period_start": "2026-06-02",
+            "period_end": "2026-06-08",
+            "answers": {"s": "b"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+
+    api.force_authenticate(user=user_a)
+    r = api.get(
+        "/api/v1/reflections/",
+        {"membership_role": "specialist"},
+        **_hdr_org(org_a.slug),
+    )
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+@pytest.mark.django_db
+def test_incomplete_reflection_can_patch(api, org_a, program_a, counselor_template, counselor_user):
+    user, person = counselor_user
+    ref = Reflection.all_objects.create(
+        organization=org_a,
+        program=program_a,
+        person=person,
+        template=counselor_template,
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 7),
+        answers={"note": "draft"},
+        language="en",
+        is_complete=False,
+    )
+    api.force_authenticate(user=user)
+    resp = api.patch(
+        f"/api/v1/reflections/{ref.id}/",
+        {"answers": {"note": "updated"}},
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["answers"]["note"] == "updated"
