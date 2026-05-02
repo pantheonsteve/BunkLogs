@@ -2,6 +2,10 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
+from config import migration_views
+from config.migration_views import STEP_COMPLETION_ARTIFACTS
+from config.migration_views import _artifacts_satisfied_on_main
+
 User = get_user_model()
 
 
@@ -50,11 +54,6 @@ def test_migration_status_marks_1_5_complete_via_artifact_on_main(monkeypatch, t
     CI checkouts often do not include every ``migration_prompts/*.md`` (many are uncommitted locally);
     the API only emits rows for files present, so supply a minimal prompt file via monkeypatch.
     """
-    import config.migration_views as migration_views
-
-    from config.migration_views import STEP_COMPLETION_ARTIFACTS
-    from config.migration_views import _artifacts_satisfied_on_main
-
     assert "1_5" in STEP_COMPLETION_ARTIFACTS
     assert _artifacts_satisfied_on_main("1_5") is True
 
