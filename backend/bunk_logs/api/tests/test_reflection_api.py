@@ -72,6 +72,40 @@ def counselor_template(org_a):
 
 
 @pytest.fixture
+def program_second_session(org_a):
+    return Program.all_objects.create(
+        organization=org_a,
+        name="Alpha Ref Session B",
+        slug="prog-ref-session-b",
+        program_type="summer_camp",
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 8, 15),
+    )
+
+
+@pytest.fixture
+def kitchen_template(org_a):
+    return ReflectionTemplate.all_objects.create(
+        organization=org_a,
+        name="Kitchen weekly",
+        slug="kit-weekly",
+        cadence="weekly",
+        role="kitchen_staff",
+        program_type="summer_camp",
+        schema=_tpl_schema_bilingual("k"),
+        languages=["en", "es"],
+    )
+
+
+@pytest.fixture
+def org_admin_user(org_a, program_a):
+    u = User.objects.create_user(email="adm@example.com", password="pw")
+    p = Person.all_objects.create(organization=org_a, first_name="A", last_name="D", user=u)
+    Membership.all_objects.create(program=program_a, person=p, role="admin", is_active=True)
+    return u, p
+
+
+@pytest.fixture
 def counselor_user(org_a, program_a):
     u = User.objects.create_user(email="cns@example.com", password="pw")
     p = Person.all_objects.create(organization=org_a, first_name="C", last_name="One", user=u)
@@ -255,6 +289,7 @@ def test_template_for_me_language_parameter(api, org_a, program_a, counselor_tem
     assert resp.status_code == 200
     body = resp.json()
     assert body["language"] == "es"
+    assert body["program_slug"] == program_a.slug
     assert body["schema"]["fields"][0]["prompts"] == {"es": "Español"}
 
 
@@ -383,3 +418,164 @@ def test_incomplete_reflection_can_patch(api, org_a, program_a, counselor_templa
     )
     assert resp.status_code == 200
     assert resp.json()["answers"]["note"] == "updated"
+
+
+@pytest.mark.django_db
+def test_org_admin_can_submit_reflection_without_membership_on_target_program(
+    api,
+    org_a,
+    program_second_session,
+    kitchen_template,
+    org_admin_user,
+):
+    """Org admin on any program in the org may submit using any template on another program in the same org."""
+    user, _person = org_admin_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_second_session.slug,
+            "template": kitchen_template.id,
+            "period_start": "2026-07-01",
+            "period_end": "2026-07-07",
+            "answers": {"k": "prep lists"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 201, resp.content
+    assert resp.json()["answers"] == {"k": "prep lists"}
+
+
+@pytest.mark.django_db
+def test_counselor_rejected_for_mismatched_template_role(
+    api,
+    org_a,
+    program_a,
+    kitchen_template,
+    counselor_user,
+):
+    user, _ = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": kitchen_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"k": "nope"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 400
+    body = resp.json()
+    assert "template" in body
+
+
+@pytest.mark.django_db
+def test_superuser_can_submit_without_program_membership(
+    api,
+    org_a,
+    program_second_session,
+    kitchen_template,
+):
+    u = User.objects.create_superuser(email="su@example.com", password="pw")
+    Person.all_objects.create(organization=org_a, first_name="S", last_name="U", user=u)
+    api.force_authenticate(user=u)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_second_session.slug,
+            "template": kitchen_template.id,
+            "period_start": "2026-07-01",
+            "period_end": "2026-07-07",
+            "answers": {"k": "su note"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 201, resp.content
+
+
+@pytest.mark.django_db
+def test_template_for_me_org_admin_with_program_and_role(
+    api,
+    org_a,
+    program_second_session,
+    kitchen_template,
+    org_admin_user,
+):
+    user, _ = org_admin_user
+    api.force_authenticate(user=user)
+    resp = api.get(
+        "/api/v1/reflections/template-for-me/",
+        {"program": program_second_session.slug, "role": "kitchen_staff", "language": "en"},
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == kitchen_template.id
+    assert body["program_slug"] == program_second_session.slug
+    assert body["schema"]["fields"][0]["prompts"] == {"en": "English"}
+
+
+@pytest.mark.django_db
+def test_template_for_me_org_admin_requires_role_when_not_on_program(
+    api,
+    org_a,
+    program_second_session,
+    org_admin_user,
+):
+    user, _ = org_admin_user
+    api.force_authenticate(user=user)
+    resp = api.get(
+        "/api/v1/reflections/template-for-me/",
+        {"program": program_second_session.slug},
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 400
+    assert "role" in resp.json()["detail"].lower()
+
+
+@pytest.mark.django_db
+def test_rejects_template_from_other_organization(
+    api,
+    org_a,
+    org_b,
+    program_a,
+    program_b,
+    counselor_user,
+):
+    """Even privileged users cannot attach another org's template to a program."""
+    tpl_other = ReflectionTemplate.all_objects.create(
+        organization=org_b,
+        name="Other org tpl",
+        slug="other-org-tpl",
+        cadence="weekly",
+        role="counselor",
+        program_type="summer_camp",
+        schema=_tpl_schema_bilingual("z"),
+        languages=["en"],
+    )
+    user, _ = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": tpl_other.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"z": "x"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 400
+    assert "template" in resp.json()
