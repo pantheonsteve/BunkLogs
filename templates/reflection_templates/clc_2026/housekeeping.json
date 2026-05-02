@@ -1,0 +1,57 @@
+{
+  "name": "CLC Summer 2026 — Housekeeping daily",
+  "slug": "clc-2026-housekeeping-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts; TODO(i18n): Have Spanish copy reviewed by fluent housekeeping staff.",
+  "languages": ["en", "es"],
+  "schema": {
+    "fields": [
+      {
+        "key": "areas_serviced",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] Which areas did you service today and what was the focus?",
+          "es": "[PLACEHOLDER] ¿Qué áreas atendió hoy y cuál fue el enfoque?"
+        }
+      },
+      {
+        "key": "cleanliness_supply",
+        "type": "rating_group",
+        "required": true,
+        "scale": [1, 4],
+        "scale_labels": {
+          "en": ["Behind", "Caught up", "Good", "Ahead"],
+          "es": ["Atrasado", "Al día", "Bueno", "Adelantado"]
+        },
+        "categories": [
+          {
+            "key": "public_spaces",
+            "labels": {
+              "en": "[PLACEHOLDER] Cleanliness of assigned public spaces",
+              "es": "[PLACEHOLDER] Limpieza de espacios públicos asignados"
+            }
+          },
+          {
+            "key": "supplies",
+            "labels": {
+              "en": "[PLACEHOLDER] Supplies stocked for next cycle",
+              "es": "[PLACEHOLDER] Suministros abastecidos para el siguiente ciclo"
+            }
+          }
+        ]
+      },
+      {
+        "key": "guest_requests",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Special requests or incidents to pass on.",
+          "es": "[PLACEHOLDER] Solicitudes especiales o incidentes a comunicar."
+        }
+      }
+    ]
+  }
+}

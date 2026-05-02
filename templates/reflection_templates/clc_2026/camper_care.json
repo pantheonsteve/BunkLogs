@@ -1,0 +1,37 @@
+{
+  "name": "CLC Summer 2026 — Camper care (wellness) daily",
+  "slug": "clc-2026-camper-care-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace with wellness team camper-care prompts (may include different privacy constraints in production).",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "follow_ups",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] Summarize emotional/social follow-ups or consults today (avoid unnecessary PHI in free text)."
+        }
+      },
+      {
+        "key": "patterns",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Patterns or unit-level themes leadership should know about?"
+        }
+      },
+      {
+        "key": "coordination",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Coordination needed with health center, unit heads, or specialists?"
+        }
+      }
+    ]
+  }
+}

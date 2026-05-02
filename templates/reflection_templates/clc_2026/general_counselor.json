@@ -1,0 +1,37 @@
+{
+  "name": "CLC Summer 2026 — General counselor daily",
+  "slug": "clc-2026-general-counselor-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts with approved GC reflection questions.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "unit_coverage",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] Where did you spend time today and what did you observe?"
+        }
+      },
+      {
+        "key": "counselor_support",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] How did you support counselors or address emerging issues?"
+        }
+      },
+      {
+        "key": "follow_up",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] What needs follow-up with leadership or another team?"
+        }
+      }
+    ]
+  }
+}

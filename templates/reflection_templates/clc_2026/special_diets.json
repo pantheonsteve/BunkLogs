@@ -1,0 +1,37 @@
+{
+  "name": "CLC Summer 2026 — Special diets daily",
+  "slug": "clc-2026-special-diets-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace with approved special-diets / nutrition prompts.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "meal_execution",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] How did special dietary accommodations go today (accuracy, communication with kitchen)?"
+        }
+      },
+      {
+        "key": "new_or_changed",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] New allergies, changes, or incidents to track?"
+        }
+      },
+      {
+        "key": "process_improvements",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] What would improve the workflow tomorrow?"
+        }
+      }
+    ]
+  }
+}

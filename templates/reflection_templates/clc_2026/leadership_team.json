@@ -1,0 +1,60 @@
+{
+  "name": "CLC Summer 2026 — Leadership team check-in",
+  "slug": "clc-2026-leadership-biweekly",
+  "version": 1,
+  "cadence": "biweekly",
+  "program_type": "summer_camp",
+  "description": "Biweekly unit-focused reflection (migration spec: 1–2x per week / biweekly cadence). TODO(BRENT): Confirm exact schedule and questions.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "unit_pulse",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] How is the unit doing overall right now (morale, behavior trends, staffing)?"
+        }
+      },
+      {
+        "key": "wins_and_risks",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] What are the biggest wins since last check-in, and what risks are you watching?"
+        }
+      },
+      {
+        "key": "leadership_actions",
+        "type": "rating_group",
+        "required": false,
+        "scale": [1, 4],
+        "scale_labels": {
+          "en": ["Needs attention", "Developing", "Stable", "Strong"]
+        },
+        "categories": [
+          {
+            "key": "communication",
+            "labels": {
+              "en": "[PLACEHOLDER] Communication within the unit team"
+            }
+          },
+          {
+            "key": "camper_experience",
+            "labels": {
+              "en": "[PLACEHOLDER] Overall camper experience in the unit"
+            }
+          }
+        ]
+      },
+      {
+        "key": "next_steps",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] What decisions or support do you need from camp leadership?"
+        }
+      }
+    ]
+  }
+}
