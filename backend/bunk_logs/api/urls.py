@@ -7,6 +7,7 @@ from bunk_logs.users.api.views import UserViewSet
 from . import reflections
 from . import team_dashboard
 from . import views
+from . import wellness_dashboard
 
 router = DefaultRouter()
 
@@ -59,6 +60,13 @@ urlpatterns = [
 
     # Leadership Team unit health (multi-tenant reflections)
     path("dashboards/team/", team_dashboard.TeamDashboardView.as_view(), name="team-dashboard"),
+
+    # Wellness team dashboard (Camper Care, Health Center, Special Diets)
+    path(
+        "dashboards/wellness/",
+        wellness_dashboard.WellnessDashboardView.as_view(),
+        name="wellness-dashboard",
+    ),
 
     # Unit head and camper care dashboard endpoints
     path("unithead/<str:unithead_id>/<str:date>/", views.get_unit_head_bunks, name="unit-head-bunks"),
