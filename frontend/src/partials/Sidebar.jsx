@@ -6,6 +6,8 @@ import SidebarLinkGroup from "./SidebarLinkGroup";
 
 import CampLogo from "../../src/images/clc-logo.jpeg";
 
+const REFLECTION_FORM_ROLES = ['Counselor', 'Admin', 'Unit Head', 'Camper Care'];
+
 function Sidebar({
   sidebarOpen,
   setSidebarOpen,
@@ -182,6 +184,48 @@ function Sidebar({
                   </button>
                 </li>
               ))}
+              {user && ['Admin', 'Leadership'].includes(user.role) && (
+                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  <NavLink
+                    to="/team/dashboard"
+                    className={({ isActive }) =>
+                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                        isActive ? 'text-teal-600 dark:text-teal-400' : 'hover:text-gray-900 dark:hover:text-white'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
+                      </svg>
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        Unit health (LT)
+                      </span>
+                    </div>
+                  </NavLink>
+                </li>
+              )}
+              {user && REFLECTION_FORM_ROLES.includes(user.role) && (
+                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  <NavLink
+                    to="/reflect"
+                    className={({ isActive }) =>
+                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                        isActive ? 'text-indigo-600 dark:text-indigo-400' : 'hover:text-gray-900 dark:hover:text-white'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                      </svg>
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        Program reflection
+                      </span>
+                    </div>
+                  </NavLink>
+                </li>
+              )}
               <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                 <NavLink 
                   end 

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { useEffect } from 'react';
 import Signin from './pages/Signin';
@@ -24,20 +24,28 @@ import StaffMemberHistory from './pages/StaffMemberHistory';
 import MigrationDashboard from './pages/MigrationDashboard';
 import ReflectionFormPage from './pages/ReflectionFormPage';
 import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
+import TeamDashboardPage from './pages/TeamDashboardPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
-  
+  const location = useLocation();
+
   if (loading) {
     return <div>Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
-    return <Navigate to="/signin" />;
+    const next = `${location.pathname}${location.search}${location.hash}`;
+    return (
+      <Navigate
+        to={`/signin?next=${encodeURIComponent(next)}`}
+        replace
+      />
+    );
   }
-  
+
   return children;
 }
 
@@ -273,6 +281,15 @@ function Router() {
           element={
             <ProtectedRoute>
               <ReflectionSummaryPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/team/dashboard"
+          element={
+            <ProtectedRoute>
+              <TeamDashboardPage />
             </ProtectedRoute>
           }
         />
