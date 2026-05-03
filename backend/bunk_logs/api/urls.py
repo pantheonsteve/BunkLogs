@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from bunk_logs.users.api.views import UserViewSet
 
 from . import reflections
+from . import team_dashboard
 from . import views
 
 router = DefaultRouter()
@@ -55,6 +56,9 @@ urlpatterns = [
 
     # Camper logs history
     path("campers/<str:camper_id>/logs/", views.CamperBunkLogViewSet.as_view(), name="camper-bunklogs"),
+
+    # Leadership Team unit health (multi-tenant reflections)
+    path("dashboards/team/", team_dashboard.TeamDashboardView.as_view(), name="team-dashboard"),
 
     # Unit head and camper care dashboard endpoints
     path("unithead/<str:unithead_id>/<str:date>/", views.get_unit_head_bunks, name="unit-head-bunks"),
