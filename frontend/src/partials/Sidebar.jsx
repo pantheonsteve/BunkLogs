@@ -226,6 +226,28 @@ function Sidebar({
                   </NavLink>
                 </li>
               )}
+              {user && user.role === 'Admin' && (
+                <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+                  <NavLink
+                    to="/admin/memberships"
+                    className={({ isActive }) =>
+                      `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
+                        isActive ? 'text-indigo-600 dark:text-indigo-400' : 'hover:text-gray-900 dark:hover:text-white'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                      </svg>
+                      <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                        Memberships
+                      </span>
+                    </div>
+                  </NavLink>
+                </li>
+              )}
               {user && REFLECTION_FORM_ROLES.includes(user.role) && (
                 <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                   <NavLink

@@ -26,6 +26,7 @@ import ReflectionFormPage from './pages/ReflectionFormPage';
 import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import TeamDashboardPage from './pages/TeamDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
+import MembershipManagementPage from './pages/MembershipManagementPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -300,6 +301,15 @@ function Router() {
           element={
             <ProtectedRoute>
               <WellnessDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/memberships"
+          element={
+            <ProtectedRoute>
+              <MembershipManagementPage />
             </ProtectedRoute>
           }
         />

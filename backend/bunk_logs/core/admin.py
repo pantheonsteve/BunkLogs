@@ -1,7 +1,9 @@
 from django import forms
 from django.contrib import admin
+from django.contrib import messages
 from django.contrib.admin.widgets import AdminTextareaWidget
 from django.db import models
+from django.shortcuts import render
 
 from .models import Membership
 from .models import Organization
@@ -192,8 +194,107 @@ class ReflectionAdmin(admin.ModelAdmin):
     date_hierarchy = "period_end"
 
 
+def _normalize_tags(values) -> list[str]:
+    """Lowercase, strip, dedupe (preserving order)."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for v in values:
+        if v is None:
+            continue
+        t = str(v).strip().lower()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        result.append(t)
+    return result
+
+
+def _parse_tag_input(text: str) -> list[str]:
+    """Accept comma- or newline-separated text and return a normalized tag list."""
+    if not text:
+        return []
+    parts = [p.strip() for chunk in text.replace("\n", ",").split(",") for p in [chunk]]
+    return _normalize_tags(parts)
+
+
+class MembershipTagsWidget(forms.Textarea):
+    """Render the JSON list of tags as comma-separated text for editing in admin."""
+
+    def format_value(self, value):
+        if isinstance(value, list):
+            return ", ".join(str(t) for t in value)
+        if isinstance(value, str) and value.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return ", ".join(str(t) for t in parsed)
+            except (ValueError, TypeError):
+                pass
+        return super().format_value(value)
+
+
+class MembershipTagsField(forms.Field):
+    widget = MembershipTagsWidget(attrs={"rows": 2, "cols": 60})
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("required", False)
+        kwargs.setdefault(
+            "help_text",
+            "Comma- or newline-separated tags (e.g. international, waterfront).",
+        )
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if value is None or value == "":
+            return []
+        if isinstance(value, list):
+            return _normalize_tags(value)
+        return _parse_tag_input(str(value))
+
+    def prepare_value(self, value):
+        if isinstance(value, list):
+            return ", ".join(str(t) for t in value)
+        return value
+
+
+class MembershipAdminForm(forms.ModelForm):
+    tags = MembershipTagsField()
+
+    class Meta:
+        model = Membership
+        fields = (
+            "program",
+            "person",
+            "role",
+            "grade_level",
+            "tags",
+            "start_date",
+            "end_date",
+            "is_active",
+            "metadata",
+        )
+
+
+class BulkTagForm(forms.Form):
+    OP_CHOICES = (
+        ("add", "Add tag(s) to selected"),
+        ("remove", "Remove tag(s) from selected"),
+    )
+    operation = forms.ChoiceField(choices=OP_CHOICES)
+    tags_text = forms.CharField(
+        label="Tags",
+        widget=forms.Textarea(attrs={"rows": 2, "cols": 60}),
+        help_text="Comma- or newline-separated tags.",
+    )
+
+
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
+    form = MembershipAdminForm
+    actions = ["bulk_edit_tags"]
+
     def get_queryset(self, request):
         return Membership.all_objects.select_related("program__organization", "person")
 
@@ -201,11 +302,18 @@ class MembershipAdmin(admin.ModelAdmin):
     def program_organization_name(self, obj):
         return obj.program.organization.name
 
+    @admin.display(description="Tags")
+    def tags_display(self, obj):
+        if not obj.tags:
+            return "—"
+        return ", ".join(str(t) for t in obj.tags)
+
     list_display = [
         "person",
         "program_organization_name",
         "program",
         "role",
+        "tags_display",
         "grade_level",
         "is_active",
         "start_date",
@@ -219,6 +327,45 @@ class MembershipAdmin(admin.ModelAdmin):
         "person__preferred_name",
         "person__email",
         "program__name",
+        "tags",
     ]
     autocomplete_fields = ["program", "person"]
     readonly_fields = ["created_at"]
+
+    @admin.action(description="Edit tags on selected memberships")
+    def bulk_edit_tags(self, request, queryset):
+        if "apply" in request.POST:
+            form = BulkTagForm(request.POST)
+            if form.is_valid():
+                tags = _parse_tag_input(form.cleaned_data["tags_text"])
+                op = form.cleaned_data["operation"]
+                updated = 0
+                for membership in queryset:
+                    current = list(membership.tags or [])
+                    if op == "add":
+                        new = _normalize_tags([*current, *tags])
+                    else:
+                        remove = set(tags)
+                        new = [t for t in _normalize_tags(current) if t not in remove]
+                    if new != current:
+                        membership.tags = new
+                        membership.save(update_fields=["tags"])
+                        updated += 1
+                self.message_user(
+                    request,
+                    f"Updated tags on {updated} membership(s).",
+                    messages.SUCCESS,
+                )
+                return None
+        else:
+            form = BulkTagForm()
+
+        return render(
+            request,
+            "admin/core/membership/bulk_tag_action.html",
+            context={
+                "form": form,
+                "memberships": queryset,
+                "action_name": "bulk_edit_tags",
+            },
+        )
