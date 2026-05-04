@@ -21,6 +21,8 @@ const api = axios.create({
   withCredentials: true, // Important for cookies
 });
 
+const devOrgSlug = (import.meta.env.VITE_DEV_ORGANIZATION_SLUG || '').replace(/['"]/g, '').trim();
+
 // Function to get CSRF token from the server
 const getServerCSRFToken = async () => {
   try {
@@ -39,7 +41,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
+    // Local dev: API host is localhost (no clc. subdomain) — tenant must come from header (DEBUG only on backend).
+    if (import.meta.env.DEV && devOrgSlug) {
+      config.headers['X-Organization-Slug'] = devOrgSlug;
+    }
+
     // Add CSRF token for non-GET requests (except user creation)
     if (config.method !== 'get' && !config.url.includes('/users/create/')) {
       // First try to get CSRF token from cookie
