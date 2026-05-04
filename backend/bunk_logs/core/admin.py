@@ -332,6 +332,23 @@ class MembershipAdmin(admin.ModelAdmin):
     autocomplete_fields = ["program", "person"]
     readonly_fields = ["created_at"]
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # The admin is privileged staff territory; bypass OrgScopedManager so the
+        # form's FK validation works even when the logged-in user has no Person
+        # record (i.e. request.organization is None). The admin changelist itself
+        # already uses all_objects via get_queryset.
+        if db_field.name == "program":
+            kwargs.setdefault(
+                "queryset",
+                Program.all_objects.select_related("organization"),
+            )
+        elif db_field.name == "person":
+            kwargs.setdefault(
+                "queryset",
+                Person.all_objects.select_related("organization"),
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     @admin.action(description="Edit tags on selected memberships")
     def bulk_edit_tags(self, request, queryset):
         if "apply" in request.POST:
