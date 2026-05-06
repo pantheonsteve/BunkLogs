@@ -9,65 +9,17 @@ from django.db.models import Q
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
+from bunk_logs.core.validators.template_schema import ALL_FIELD_TYPES
+from bunk_logs.core.validators.template_schema import META_FIELD_TYPES
+from bunk_logs.core.validators.template_schema import validate_template_schema
 
-REFLECTION_FIELD_TYPES = frozenset(
-    {"text", "textarea", "text_list", "rating_group", "multiple_choice", "single_choice"},
-)
+# Backward-compat alias used by management commands and existing tests
+REFLECTION_FIELD_TYPES = ALL_FIELD_TYPES
 
 
 def validate_reflection_template_schema(schema: Any) -> None:
-    if not isinstance(schema, dict):
-        raise ValidationError({"schema": "Schema must be a JSON object."})
-    fields = schema.get("fields")
-    if not isinstance(fields, list) or len(fields) == 0:
-        raise ValidationError({"schema": 'Schema must include a non-empty "fields" array.'})
-    for i, field in enumerate(fields):
-        loc = f"(field index {i})"
-        if not isinstance(field, dict):
-            raise ValidationError({"schema": f"Each field must be an object {loc}."})
-        if "key" not in field or not isinstance(field["key"], str) or not field["key"].strip():
-            raise ValidationError({"schema": f"Each field requires a non-empty string key {loc}."})
-        ftype = field.get("type")
-        if ftype not in REFLECTION_FIELD_TYPES:
-            raise ValidationError(
-                {
-                    "schema": (
-                        f"Unknown or missing type {loc}; allowed: "
-                        f"{', '.join(sorted(REFLECTION_FIELD_TYPES))}."
-                    ),
-                },
-            )
-        if ftype == "rating_group":
-            labels = field.get("scale_labels")
-            if not isinstance(labels, dict) or len(labels) < 1:
-                raise ValidationError(
-                    {"schema": f"rating_group requires scale_labels with at least one language {loc}."},
-                )
-            for lang, vals in labels.items():
-                if not lang or not isinstance(vals, list):
-                    raise ValidationError(
-                        {"schema": f"scale_labels must map language codes to lists {loc}."},
-                    )
-            cats = field.get("categories")
-            if not isinstance(cats, list) or not cats:
-                raise ValidationError({"schema": f"rating_group requires a non-empty categories array {loc}."})
-            for j, cat in enumerate(cats):
-                if not isinstance(cat, dict):
-                    raise ValidationError({"schema": f"categories[{j}] must be an object {loc}."})
-                ckey = cat.get("key")
-                if not isinstance(ckey, str) or not ckey.strip():
-                    raise ValidationError({"schema": f"categories[{j}] requires a non-empty key {loc}."})
-                clabels = cat.get("labels")
-                if not isinstance(clabels, dict) or len(clabels) < 1:
-                    raise ValidationError(
-                        {"schema": f"categories[{j}] requires labels with at least one language {loc}."},
-                    )
-        else:
-            prompts = field.get("prompts")
-            if not isinstance(prompts, dict) or len(prompts) < 1:
-                raise ValidationError(
-                    {"schema": f"Field requires prompts with at least one language code {loc}."},
-                )
+    """Backward-compatible wrapper; call validate_template_schema directly for new code."""
+    validate_template_schema(schema, [])
 
 
 def validate_reflection_answers(schema: Any, answers: Any) -> None:
@@ -90,51 +42,85 @@ def validate_reflection_answers(schema: Any, answers: Any) -> None:
         ftype = field.get("type")
         if ftype not in REFLECTION_FIELD_TYPES:
             raise ValidationError({"answers": f"Unknown field type in template {loc}."})
+
+        # Meta fields are rendered but not collected as answer data
+        if ftype in META_FIELD_TYPES:
+            continue
+
         required = field.get("required", True)
         if key not in answers:
             if required is False:
                 continue
             raise ValidationError({"answers": f'Missing required answer for field "{key}".'})
         value = answers[key]
-        if ftype in ("text", "textarea", "single_choice"):
+        if ftype in ("text", "textarea", "single_choice", "date"):
             if not isinstance(value, str):
-                raise ValidationError(
-                    {"answers": f'Field "{key}" must be a string.'},
-                )
+                raise ValidationError({"answers": f'Field "{key}" must be a string.'})
         elif ftype == "text_list":
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+                raise ValidationError({"answers": f'Field "{key}" must be a list of strings.'})
+            min_items = field.get("min_items")
+            max_items = field.get("max_items")
+            if min_items is not None and len(value) < min_items:
                 raise ValidationError(
-                    {"answers": f'Field "{key}" must be a list of strings.'},
+                    {"answers": f'Field "{key}" requires at least {min_items} items.'},
+                )
+            if max_items is not None and len(value) > max_items:
+                raise ValidationError(
+                    {"answers": f'Field "{key}" allows at most {max_items} items.'},
                 )
         elif ftype == "multiple_choice":
             if not isinstance(value, list):
+                raise ValidationError({"answers": f'Field "{key}" must be a list.'})
+        elif ftype == "yes_no":
+            if value not in ("yes", "no", True, False):
                 raise ValidationError(
-                    {"answers": f'Field "{key}" must be a list.'},
+                    {"answers": f'Field "{key}" must be "yes", "no", true, or false.'},
                 )
-        elif ftype == "rating_group":
-            if not isinstance(value, dict):
-                raise ValidationError(
-                    {"answers": f'Field "{key}" must be an object mapping categories to ratings.'},
-                )
-            cats = field.get("categories")
-            if not isinstance(cats, list):
-                raise ValidationError({"answers": f'Field "{key}" template categories are invalid.'})
-            cat_keys = {c.get("key") for c in cats if isinstance(c, dict) and isinstance(c.get("key"), str)}
-            for ck, rating in value.items():
-                if ck not in cat_keys:
+        elif ftype == "number":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValidationError({"answers": f'Field "{key}" must be a number.'})
+        elif ftype in ("rating_group", "single_rating"):
+            if ftype == "single_rating":
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
                     raise ValidationError(
-                        {"answers": f'Field "{key}" contains unknown category "{ck}".'},
+                        {"answers": f'Field "{key}" must be a numeric rating.'},
                     )
-                if isinstance(rating, bool) or not isinstance(rating, (int, float)):
+            else:
+                if not isinstance(value, dict):
                     raise ValidationError(
-                        {"answers": f'Field "{key}" category "{ck}" must be a numeric rating.'},
+                        {"answers": f'Field "{key}" must be an object mapping categories to ratings.'},
                     )
-            if required is not False:
-                missing = cat_keys - set(value.keys())
-                if missing:
+                cats = field.get("categories")
+                if not isinstance(cats, list):
                     raise ValidationError(
-                        {"answers": f'Field "{key}" is missing ratings for: {", ".join(sorted(missing))}.'},
+                        {"answers": f'Field "{key}" template categories are invalid.'},
                     )
+                cat_keys = {
+                    c.get("key")
+                    for c in cats
+                    if isinstance(c, dict) and isinstance(c.get("key"), str)
+                }
+                for ck, rating in value.items():
+                    if ck not in cat_keys:
+                        raise ValidationError(
+                            {"answers": f'Field "{key}" contains unknown category "{ck}".'},
+                        )
+                    if isinstance(rating, bool) or not isinstance(rating, (int, float)):
+                        raise ValidationError(
+                            {"answers": f'Field "{key}" category "{ck}" must be a numeric rating.'},
+                        )
+                if required is not False:
+                    missing = cat_keys - set(value.keys())
+                    if missing:
+                        raise ValidationError(
+                            {
+                                "answers": (
+                                    f'Field "{key}" is missing ratings for: '
+                                    f'{", ".join(sorted(missing))}.'
+                                ),
+                            },
+                        )
 
 
 class Organization(models.Model):
@@ -366,7 +352,7 @@ class ReflectionTemplate(models.Model):
 
     def clean(self) -> None:
         super().clean()
-        validate_reflection_template_schema(self.schema)
+        validate_template_schema(self.schema, self.languages or [])
 
 
 class Reflection(models.Model):
