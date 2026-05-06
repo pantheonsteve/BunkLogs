@@ -250,12 +250,24 @@ class TestTemplateCreate:
         tpl = ReflectionTemplate.all_objects.get(pk=res.data["id"])
         assert tpl.organization_id == org.pk
 
-    def test_invalid_schema_rejected(self, admin_client):
+    def test_empty_schema_creates_draft(self, admin_client):
+        """Empty fields list is valid — creates a blank draft template."""
+        payload = {
+            "name": "Draft Template",
+            "slug": "draft-template",
+            "cadence": "daily",
+            "schema": {"fields": []},
+        }
+        res = admin_client.post(LIST_URL, payload, format="json")
+        assert res.status_code == 201
+
+    def test_invalid_field_type_rejected(self, admin_client):
+        """A schema with a populated but structurally invalid field is still rejected."""
         payload = {
             "name": "Bad Schema",
             "slug": "bad-schema",
             "cadence": "daily",
-            "schema": {"fields": []},
+            "schema": {"fields": [{"key": "q1", "type": "not_a_real_type", "prompts": {"en": "Q"}}]},
         }
         res = admin_client.post(LIST_URL, payload, format="json")
         assert res.status_code == 400
