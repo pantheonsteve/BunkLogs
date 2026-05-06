@@ -293,8 +293,14 @@ class TestMembership:
             assert Membership.all_objects.filter(role=value).exists()
 
 
+_CHOICE_OPTIONS = [{"key": "a", "labels": {"en": "Option A"}}, {"key": "b", "labels": {"en": "Option B"}}]
+
+
 def _minimal_prompts_field(ftype: str, key: str) -> dict:
-    return {"key": key, "type": ftype, "prompts": {"en": f"Prompt for {key}"}}
+    base = {"key": key, "type": ftype, "prompts": {"en": f"Prompt for {key}"}}
+    if ftype in ("single_choice", "multiple_choice"):
+        base["options"] = _CHOICE_OPTIONS
+    return base
 
 
 @pytest.mark.django_db
@@ -309,6 +315,7 @@ class TestReflectionTemplate:
                 {
                     "key": "ratings",
                     "type": "rating_group",
+                    "scale": [1, 3],
                     "scale_labels": {
                         "en": ["Low", "Mid", "High"],
                     },
