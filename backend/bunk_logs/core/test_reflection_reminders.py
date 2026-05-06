@@ -1,30 +1,28 @@
 """Tests for reflection reminder email tasks."""
 
-from datetime import date, timedelta
+from datetime import UTC
+from datetime import date
+from datetime import datetime
 from unittest.mock import patch
 
 import pytest
 from django.core import mail
 
-from bunk_logs.core.models import (
-    Membership,
-    Organization,
-    Person,
-    Program,
-    Reflection,
-    ReflectionTemplate,
-)
-from bunk_logs.core.tasks import (
-    _parse_reminder_schedule,
-    _schedule_is_due,
-    dispatch_reflection_reminders,
-    send_reflection_reminders,
-)
+from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Organization
+from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.tasks import _parse_reminder_schedule
+from bunk_logs.core.tasks import _schedule_is_due
+from bunk_logs.core.tasks import dispatch_reflection_reminders
+from bunk_logs.core.tasks import send_reflection_reminders
 
 MINIMAL_SCHEMA = {
     "fields": [
-        {"key": "highlights", "type": "textarea", "label": {"en": "Highlights", "es": "Logros"}}
-    ]
+        {"key": "highlights", "type": "textarea", "label": {"en": "Highlights", "es": "Logros"}},
+    ],
 }
 
 
@@ -235,7 +233,7 @@ class TestSendReflectionReminders:
             email="",
         )
         Membership.all_objects.create(
-            program=program, person=person_no_email, role="counselor", is_active=True
+            program=program, person=person_no_email, role="counselor", is_active=True,
         )
 
         result = send_reflection_reminders(program.pk)
@@ -249,7 +247,7 @@ class TestSendReflectionReminders:
             email="bob@example.com",
         )
         Membership.all_objects.create(
-            program=program, person=kitchen_person, role="kitchen_staff", is_active=True
+            program=program, person=kitchen_person, role="kitchen_staff", is_active=True,
         )
 
         result = send_reflection_reminders(program.pk, role="counselor")
@@ -270,7 +268,7 @@ class TestSendReflectionReminders:
             email="inactive@example.com",
         )
         Membership.all_objects.create(
-            program=program, person=inactive_person, role="counselor", is_active=False
+            program=program, person=inactive_person, role="counselor", is_active=False,
         )
 
         result = send_reflection_reminders(program.pk)
@@ -285,12 +283,10 @@ class TestSendReflectionReminders:
 @pytest.mark.django_db
 class TestDispatchReflectionReminders:
     def test_dispatches_when_schedule_matches(self, program):
-        from datetime import datetime, timezone as dt_tz
-
         program.settings = {"reminder_schedules": {"counselor": "daily_18:00"}}
         program.save()
 
-        fake_now = datetime(2026, 6, 8, 18, 0, 0, tzinfo=dt_tz.utc)
+        fake_now = datetime(2026, 6, 8, 18, 0, 0, tzinfo=UTC)
         with patch("bunk_logs.core.tasks.timezone") as mock_tz:
             mock_tz.now.return_value = fake_now
             mock_tz.localtime.return_value = fake_now
@@ -301,12 +297,10 @@ class TestDispatchReflectionReminders:
         assert any(d["role"] == "counselor" for d in result["dispatched"])
 
     def test_does_not_dispatch_when_schedule_does_not_match(self, program):
-        from datetime import datetime, timezone as dt_tz
-
         program.settings = {"reminder_schedules": {"counselor": "daily_18:00"}}
         program.save()
 
-        fake_now = datetime(2026, 6, 8, 10, 0, 0, tzinfo=dt_tz.utc)
+        fake_now = datetime(2026, 6, 8, 10, 0, 0, tzinfo=UTC)
         with patch("bunk_logs.core.tasks.timezone") as mock_tz:
             mock_tz.now.return_value = fake_now
             mock_tz.localtime.return_value = fake_now
@@ -318,7 +312,7 @@ class TestDispatchReflectionReminders:
         program.settings = {}
         program.save()
 
-        with patch("bunk_logs.core.tasks.send_reflection_reminders") as mock_task:
+        with patch("bunk_logs.core.tasks.send_reflection_reminders"):
             result = dispatch_reflection_reminders()
 
         assert result["dispatched"] == []

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from celery import shared_task
 from django.conf import settings
@@ -11,6 +11,11 @@ from django.core.mail import EmailMultiAlternatives
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
+
+from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +58,7 @@ def _parse_reminder_schedule(schedule_str: str) -> dict:
             # daily_HH:MM
             h, m = parts[1].split(":")
             return {"cadence": cadence, "day_of_week": None, "hour": int(h), "minute": int(m)}
-        elif cadence in ("weekly", "biweekly"):
+        if cadence in ("weekly", "biweekly"):
             # weekly_DOW_HH:MM or biweekly_DOW_HH:MM
             dow_name = parts[1]
             h, m = parts[2].split(":")
@@ -71,7 +76,7 @@ def _parse_reminder_schedule(schedule_str: str) -> dict:
 def _schedule_is_due(schedule_str: str, now: date, current_hour: int) -> bool:
     """Return True if the given schedule_str fires at the current datetime.
 
-    `now` is the current date; `current_hour` is the current hour (0–23).
+    `now` is the current date; `current_hour` is the current hour (0-23).
     Matching is on day-of-week + hour (minutes are ignored for hourly dispatch).
     """
     parsed = _parse_reminder_schedule(schedule_str)
@@ -120,21 +125,19 @@ def send_reflection_reminders(self, program_id: int, role: str | None = None) ->
     that have not submitted a reflection covering today, then sends each person
     an email in their preferred language.
     """
-    from bunk_logs.core.models import Membership, Program, Reflection, ReflectionTemplate
-
     today = date.today()
 
     try:
         program = Program.all_objects.select_related("organization").get(pk=program_id)
     except Program.DoesNotExist:
-        logger.error("send_reflection_reminders: program %s not found", program_id)
+        logger.exception("send_reflection_reminders: program %s not found", program_id)
         return {"error": f"Program {program_id} not found"}
 
     template_qs = ReflectionTemplate.all_objects.filter(
         is_active=True,
         program_type=program.program_type,
     ).filter(
-        Q(organization=program.organization) | Q(organization__isnull=True)
+        Q(organization=program.organization) | Q(organization__isnull=True),
     )
     if role:
         template_qs = template_qs.filter(Q(role=role) | Q(role__isnull=True))
@@ -212,7 +215,7 @@ def _send_reminder_email(person, program, template, lang: str) -> None:
     html_body = render_to_string(f"emails/reflection_reminder_{lang}.html", context)
 
     from_email = getattr(settings, "MAILGUN_FROM_EMAIL", None) or getattr(
-        settings, "DEFAULT_FROM_EMAIL", "noreply@bunklogs.com"
+        settings, "DEFAULT_FROM_EMAIL", "noreply@bunklogs.com",
     )
 
     msg = EmailMultiAlternatives(
@@ -238,8 +241,6 @@ def dispatch_reflection_reminders() -> dict:
     This task runs every hour and dispatches send_reflection_reminders for any
     role whose schedule fires at the current hour.
     """
-    from bunk_logs.core.models import Program
-
     now_local = timezone.localtime(timezone.now())
     today = now_local.date()
     current_hour = now_local.hour
