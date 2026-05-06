@@ -40,19 +40,20 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         csv_path = Path(options["csv_path"])
         if not csv_path.exists():
-            raise CommandError(f"CSV file not found: {csv_path}")
+            msg = f"CSV file not found: {csv_path}"
+            raise CommandError(msg)
 
         try:
             org = Organization.objects.get(slug=options["org_slug"])
         except Organization.DoesNotExist:
-            raise CommandError(f"Organization not found: {options['org_slug']!r}")
+            msg = f"Organization not found: {options['org_slug']!r}"
+            raise CommandError(msg)
 
         try:
             program = Program.all_objects.get(organization=org, slug=options["program_slug"])
         except Program.DoesNotExist:
-            raise CommandError(
-                f"Program not found: {options['program_slug']!r} under org {options['org_slug']!r}"
-            )
+            msg = f"Program not found: {options['program_slug']!r} under org {options['org_slug']!r}"
+            raise CommandError(msg)
 
         dry_run: bool = options["dry_run"]
         created = updated = skipped = 0
@@ -81,7 +82,7 @@ class Command(BaseCommand):
             if dry_run:
                 self.stdout.write(
                     f"[dry-run] Row {i}: campminder_id={campminder_id} role={role} "
-                    f"name='{first_name} {last_name}' email={email or '—'}"
+                    f"name='{first_name} {last_name}' email={email or '—'}",
                 )
                 continue
 
@@ -136,7 +137,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"Done. Created: {created}  Updated: {updated}  Unchanged: {skipped}")
             if not dry_run
-            else self.style.NOTICE(f"[dry-run] Rows inspected: {len(rows)}")
+            else self.style.NOTICE(f"[dry-run] Rows inspected: {len(rows)}"),
         )
         for w in warnings:
             self.stdout.write(self.style.WARNING(w))
