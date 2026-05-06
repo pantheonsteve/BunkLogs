@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from bunk_logs.users.api.views import UserViewSet
 
+from . import field_keys as field_keys_api
 from . import memberships
 from . import reflections
 from . import team_dashboard
@@ -28,6 +29,7 @@ router.register(r"counselorlogs", views.CounselorLogViewSet, basename="counselor
 router.register(r"reflections", reflections.ReflectionViewSet, basename="reflection")
 router.register(r"memberships", memberships.MembershipViewSet, basename="membership")
 router.register(r"templates", templates_api.ReflectionTemplateViewSet, basename="template")
+router.register(r"field-keys", field_keys_api.FieldKeyViewSet, basename="field-key")
 
 # Ordering system
 router.register(r"orders", views.OrderViewSet, basename="order")

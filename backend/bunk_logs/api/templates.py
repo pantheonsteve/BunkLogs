@@ -11,6 +11,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from bunk_logs.core.models import FieldKey
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
@@ -67,6 +68,38 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
             )
         instance.save()
         return instance
+
+
+def _build_registered_keys(schema: dict, org) -> dict:
+    """Return {key: {display_name, expected_field_type, expected_dashboard_role, is_global}}
+    for every field key in `schema` that has an entry in the FieldKey registry."""
+    from django.db.models import Q
+
+    fields = schema.get("fields") if isinstance(schema, dict) else []
+    if not isinstance(fields, list):
+        return {}
+
+    schema_keys = {f.get("key") for f in fields if isinstance(f, dict) and f.get("key")}
+    if not schema_keys:
+        return {}
+
+    if org is not None:
+        qs = FieldKey.all_objects.filter(
+            Q(organization=org) | Q(organization__isnull=True),
+            key__in=schema_keys,
+        )
+    else:
+        qs = FieldKey.all_objects.filter(organization__isnull=True, key__in=schema_keys)
+
+    return {
+        fk.key: {
+            "display_name": fk.display_name,
+            "expected_field_type": fk.expected_field_type,
+            "expected_dashboard_role": fk.expected_dashboard_role,
+            "is_global": fk.organization_id is None,
+        }
+        for fk in qs
+    }
 
 
 class _AuthenticatedWithOrg(permissions.BasePermission):
@@ -138,6 +171,24 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
             raise NotFound
         return obj
 
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        org = getattr(request, "organization", None)
+        schema = request.data.get("schema") if isinstance(request.data, dict) else None
+        if schema and isinstance(schema, dict):
+            from bunk_logs.core.validators.template_schema import check_field_key_hints
+
+            response.data["field_key_warnings"] = check_field_key_hints(schema, org)
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        data = dict(serializer.data)
+        org = getattr(request, "organization", None)
+        data["registered_keys"] = _build_registered_keys(instance.schema, org)
+        return Response(data)
+
     def _check_edit_permission(self, instance: ReflectionTemplate) -> None:
         """Raise 404 for cross-org edits; 403 for global-template edits by non-superusers."""
         org = getattr(self.request, "organization", None)
@@ -170,6 +221,10 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
         serializer.save()
         data = dict(serializer.data)
         data["created_new_version"] = False
+        org = getattr(request, "organization", None)
+        from bunk_logs.core.validators.template_schema import check_field_key_hints
+
+        data["field_key_warnings"] = check_field_key_hints(instance.schema, org)
         return Response(data)
 
     def _create_version(self, old: ReflectionTemplate, request) -> Response:
@@ -226,6 +281,10 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(new_tpl)
         data = dict(serializer.data)
         data["created_new_version"] = True
+        org = getattr(request, "organization", None)
+        from bunk_logs.core.validators.template_schema import check_field_key_hints
+
+        data["field_key_warnings"] = check_field_key_hints(new_tpl.schema, org)
         return Response(data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):

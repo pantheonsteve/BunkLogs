@@ -37,3 +37,14 @@ class ReflectionTemplateScopedManager(models.Manager):
         if org is None:
             return qs.none()
         return qs.filter(Q(organization=org) | Q(organization__isnull=True))
+
+
+class FieldKeyScopedManager(models.Manager):
+    """Own-org keys plus global keys (organization IS NULL)."""
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(Q(organization=org) | Q(organization__isnull=True))

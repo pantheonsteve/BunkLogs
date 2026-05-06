@@ -5,6 +5,7 @@ from django.contrib.admin.widgets import AdminTextareaWidget
 from django.db import models
 from django.shortcuts import render
 
+from .models import FieldKey
 from .models import Membership
 from .models import Organization
 from .models import Person
@@ -47,6 +48,9 @@ class ProgramInline(admin.TabularInline):
     extra = 0
     show_change_link = True
     fields = ("name", "slug", "program_type", "start_date", "end_date", "is_active")
+
+    def get_queryset(self, request):
+        return Program.all_objects.all()
 
 
 @admin.register(Organization)
@@ -152,6 +156,11 @@ class ReflectionTemplateAdmin(admin.ModelAdmin):
     autocomplete_fields = ["organization", "parent_template"]
     readonly_fields = ["created_at"]
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "parent_template":
+            kwargs.setdefault("queryset", ReflectionTemplate.all_objects.all())
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 @admin.register(Reflection)
 class ReflectionAdmin(admin.ModelAdmin):
@@ -192,6 +201,44 @@ class ReflectionAdmin(admin.ModelAdmin):
     autocomplete_fields = ["organization", "program", "person", "template", "submitted_by"]
     readonly_fields = ["submitted_at", "updated_at"]
     date_hierarchy = "period_end"
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "program":
+            kwargs.setdefault(
+                "queryset",
+                Program.all_objects.select_related("organization"),
+            )
+        elif db_field.name == "person":
+            kwargs.setdefault(
+                "queryset",
+                Person.all_objects.select_related("organization"),
+            )
+        elif db_field.name == "template":
+            kwargs.setdefault("queryset", ReflectionTemplate.all_objects.all())
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(FieldKey)
+class FieldKeyAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return FieldKey.all_objects.select_related("organization")
+
+    list_display = [
+        "key",
+        "display_name",
+        "organization",
+        "expected_field_type",
+        "expected_dashboard_role",
+        "created_at",
+    ]
+    list_filter = ["organization", "expected_field_type", "expected_dashboard_role"]
+    search_fields = ["key", "display_name", "description"]
+    autocomplete_fields = ["organization"]
+    readonly_fields = ["created_at"]
+
+    @admin.display(description="Scope")
+    def scope(self, obj):
+        return "global" if obj.organization_id is None else obj.organization.slug
 
 
 def _normalize_tags(values) -> list[str]:

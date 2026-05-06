@@ -6,6 +6,7 @@ from django.db import models
 from django.db.models import F
 from django.db.models import Q
 
+from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
@@ -435,3 +436,45 @@ class Reflection(models.Model):
                 raise ValidationError({"template": "Template must be global or belong to the same organization."})
         if self.template_id:
             self.validate_answers()
+
+
+class FieldKey(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="field_keys",
+        help_text="Null = global key available to all orgs",
+    )
+    key = models.CharField(max_length=64)
+    display_name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    expected_field_type = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Optional hint for editor: text, rating_group, etc.",
+    )
+    expected_dashboard_role = models.CharField(max_length=32, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = FieldKeyScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("organization", "key")]
+        ordering = ["key"]
+        indexes = [
+            models.Index(fields=["key"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["key"],
+                condition=models.Q(organization__isnull=True),
+                name="core_fieldkey_global_key_unique",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        scope = self.organization.slug if self.organization_id else "global"
+        return f"{self.key} ({scope})"
