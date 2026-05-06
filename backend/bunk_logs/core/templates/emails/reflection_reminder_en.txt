@@ -1,0 +1,8 @@
+Hi {{ person.full_name }},
+
+This is a friendly reminder to submit your {{ template.name }} reflection for {{ program.name }}.
+
+Please log in to {{ site_url }} to complete your reflection.
+
+Thank you,
+The {{ site_name }} Team
