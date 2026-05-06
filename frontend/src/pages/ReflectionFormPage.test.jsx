@@ -34,6 +34,41 @@ const templatePayload = {
   language: 'en',
 };
 
+const allFieldsTemplate = {
+  id: 20,
+  name: 'All fields',
+  cadence: 'weekly',
+  languages: ['en'],
+  program_slug: 'prog-c',
+  schema: {
+    fields: [
+      { key: 'txt', type: 'text', prompts: { en: 'Text field?' } },
+      { key: 'ta', type: 'textarea', prompts: { en: 'Textarea field?' }, max_length: 200 },
+      { key: 'tl', type: 'text_list', prompts: { en: 'List field?' }, min_items: 1, max_items: 3 },
+      {
+        key: 'rg',
+        type: 'rating_group',
+        prompts: { en: 'Ratings?' },
+        scale_labels: { en: ['1', '2', '3', '4'] },
+        categories: [{ key: 'cat1', labels: { en: 'Cat1' } }],
+      },
+      {
+        key: 'sc',
+        type: 'single_choice',
+        prompts: { en: 'Single choice?' },
+        options: [{ key: 'a', labels: { en: 'Option A' } }],
+      },
+      {
+        key: 'mc',
+        type: 'multiple_choice',
+        prompts: { en: 'Multi choice?' },
+        options: [{ key: 'x', labels: { en: 'Option X' } }],
+      },
+    ],
+  },
+  language: 'en',
+};
+
 function renderPage(search = '') {
   return render(
     <MemoryRouter initialEntries={[`/reflect${search}`]}>
@@ -121,5 +156,49 @@ describe('ReflectionFormPage', () => {
       program: 'prog-b',
       role: 'kitchen_staff',
     });
+  });
+
+  it('renders all six field types', async () => {
+    getMock.mockResolvedValue({ data: { ...allFieldsTemplate } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('All fields')).toBeInTheDocument());
+    expect(screen.getByText('Text field?')).toBeInTheDocument();
+    expect(screen.getByText('Textarea field?')).toBeInTheDocument();
+    expect(screen.getByText('List field?')).toBeInTheDocument();
+    expect(screen.getByText('Ratings?')).toBeInTheDocument();
+    expect(screen.getByText('Single choice?')).toBeInTheDocument();
+    expect(screen.getByText('Multi choice?')).toBeInTheDocument();
+    expect(screen.getByText('Option A')).toBeInTheDocument();
+    expect(screen.getByText('Option X')).toBeInTheDocument();
+    expect(screen.getByRole('radio')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+  });
+
+  it('save-and-resume: draft persists in localStorage and reloads on mount', async () => {
+    const user = userEvent.setup();
+    getMock.mockResolvedValue({ data: { ...templatePayload } });
+
+    const { unmount } = renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+
+    await user.type(screen.getByTestId('reflect-period-start'), '2026-07-01');
+    await user.type(screen.getByTestId('reflect-period-end'), '2026-07-07');
+    const input = screen.getByTestId('reflect-input-note');
+    await user.type(input, 'draft content');
+
+    await waitFor(() => {
+      const keys = Object.keys(localStorage);
+      expect(keys.some((k) => k.startsWith('reflectionDraft:'))).toBe(true);
+    });
+
+    const draftKey = Object.keys(localStorage).find((k) => k.startsWith('reflectionDraft:'));
+    const stored = JSON.parse(localStorage.getItem(draftKey));
+    expect(stored.answers.note).toContain('draft content');
+
+    unmount();
+
+    getMock.mockResolvedValue({ data: { ...templatePayload } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
   });
 });
