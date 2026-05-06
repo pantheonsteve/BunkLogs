@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reflection Reminder</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <p>Hi {{ person.full_name }},</p>
+
+  <p>
+    This is a friendly reminder to submit your
+    <strong>{{ template.name }}</strong> reflection for
+    <strong>{{ program.name }}</strong>.
+  </p>
+
+  <p>
+    <a href="{{ site_url }}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 4px; text-decoration: none;">
+      Submit Reflection
+    </a>
+  </p>
+
+  <p>Thank you,<br>The {{ site_name }} Team</p>
+</body>
+</html>

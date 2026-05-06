@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Recordatorio de Reflexión</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <p>Hola {{ person.full_name }},</p>
+
+  <p>
+    Este es un recordatorio para enviar tu reflexión de
+    <strong>{{ template.name }}</strong> para
+    <strong>{{ program.name }}</strong>.
+  </p>
+
+  <p>
+    <a href="{{ site_url }}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 4px; text-decoration: none;">
+      Enviar Reflexión
+    </a>
+  </p>
+
+  <p>Gracias,<br>El equipo de {{ site_name }}</p>
+</body>
+</html>

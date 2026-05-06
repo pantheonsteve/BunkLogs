@@ -202,6 +202,11 @@ class Program(models.Model):
 
 
 class Person(models.Model):
+    LANGUAGE_CHOICES = [
+        ("en", "English"),
+        ("es", "Spanish"),
+    ]
+
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -212,6 +217,12 @@ class Person(models.Model):
     preferred_name = models.CharField(max_length=100, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     email = models.EmailField(blank=True)
+    preferred_language = models.CharField(
+        max_length=10,
+        choices=LANGUAGE_CHOICES,
+        default="en",
+        help_text="Language for email communications",
+    )
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         null=True,

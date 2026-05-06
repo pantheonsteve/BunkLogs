@@ -1,0 +1,8 @@
+Hola {{ person.full_name }},
+
+Este es un recordatorio para enviar tu reflexión de {{ template.name }} para {{ program.name }}.
+
+Por favor, inicia sesión en {{ site_url }} para completar tu reflexión.
+
+Gracias,
+El equipo de {{ site_name }}
