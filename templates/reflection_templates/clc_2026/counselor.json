@@ -78,6 +78,7 @@
         "key": "camper_scores",
         "type": "rating_group",
         "required": false,
+        "dashboard_role": "category_ratings",
         "scale": [1, 5],
         "scale_labels": {
           "en": ["1 — Poor", "2", "3", "4", "5 — Excellent"]

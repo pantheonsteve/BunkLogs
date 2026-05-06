@@ -104,6 +104,12 @@ def _validate_language_coverage(schema: dict, lang: str) -> None:
                     raise serializers.ValidationError(
                         {"language": f'Template category labels missing "{lang}" ({loc}, category {j}).'},
                     )
+        elif ftype == "single_rating":
+            labels = field.get("scale_labels") or {}
+            if lang not in labels:
+                raise serializers.ValidationError(
+                    {"language": f'Template scale_labels missing "{lang}" ({loc}).'},
+                )
         else:
             prompts = field.get("prompts") or {}
             if lang not in prompts:
@@ -134,6 +140,10 @@ def _localize_schema(schema: dict, lang: str) -> dict:
                     nc["labels"] = {lang: lbls[lang]}
                 cats.append(nc)
             f["categories"] = cats
+        elif ftype == "single_rating":
+            sl = f.get("scale_labels") or {}
+            if lang in sl:
+                f["scale_labels"] = {lang: sl[lang]}
         else:
             pr = f.get("prompts") or {}
             if lang in pr:
