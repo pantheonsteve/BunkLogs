@@ -6,66 +6,74 @@ import TeamDashboardPage from './TeamDashboardPage';
 const getMock = vi.fn();
 
 vi.mock('../api', () => ({
-  default: {
-    get: (...args) => getMock(...args),
-  },
+  default: { get: (...args) => getMock(...args) },
 }));
 
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({ user: null }),
 }));
 
-const samplePayload = {
-  period: {
-    current_start: '2026-06-01',
-    current_end: '2026-06-14',
-    prior_start: '2026-05-18',
-    prior_end: '2026-05-31',
-  },
-  year_round_only: false,
-  units: [
-    {
-      unit_slug: 'alef',
-      program_slug: 'summer',
-      total_staff: 2,
-      reflections_submitted: 1,
-      completion_rate: 0.5,
-      prior_completion_rate: 0.25,
-      completion_trend: 'up',
-      category_averages: { morale: 3 },
-      prior_category_averages: { morale: 2 },
-      rating_trend: 'up',
-    },
-  ],
-  concerning: [],
-  open_questions: [],
-};
+// Stub TemplateDashboard to avoid deep mock chains
+vi.mock('../dashboards/TemplateDashboard', () => ({
+  default: ({ templateId }) => (
+    <div data-testid="template-dashboard">template-{templateId}</div>
+  ),
+}));
+
+const ltTemplate = { id: 7, name: 'LT Weekly', slug: 'lt-weekly', role: 'leadership_team', is_active: true };
 
 describe('TeamDashboardPage', () => {
   beforeEach(() => {
     getMock.mockReset();
-    getMock.mockResolvedValue({ data: samplePayload });
   });
 
-  it('loads dashboard and shows unit row', async () => {
+  it('loads templates and renders TemplateDashboard', async () => {
+    getMock.mockResolvedValueOnce({ data: [ltTemplate] });
     render(
       <MemoryRouter>
         <TeamDashboardPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(getMock).toHaveBeenCalled());
-    expect(screen.getByText('Unit health')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('alef')).toBeInTheDocument());
-    expect(screen.getByText('summer')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('template-dashboard')).toBeInTheDocument());
+    expect(screen.getByText('template-7')).toBeInTheDocument();
   });
 
-  it('shows access message on 403', async () => {
+  it('shows access restricted on 403', async () => {
     getMock.mockRejectedValueOnce({ response: { status: 403 } });
     render(
       <MemoryRouter>
         <TeamDashboardPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText(/Access restricted/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/access restricted/i)).toBeInTheDocument());
+  });
+
+  it('shows message when no LT templates exist', async () => {
+    getMock.mockResolvedValueOnce({ data: [] });
+    render(
+      <MemoryRouter>
+        <TeamDashboardPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/no active leadership team templates/i)).toBeInTheDocument(),
+    );
+  });
+
+  it('filters to leadership_team role only', async () => {
+    getMock.mockResolvedValueOnce({
+      data: [
+        ltTemplate,
+        { id: 99, name: 'Wellness Daily', slug: 'wl', role: 'camper_care', is_active: true },
+      ],
+    });
+    render(
+      <MemoryRouter>
+        <TeamDashboardPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId('template-dashboard')).toBeInTheDocument());
+    expect(screen.getByText('template-7')).toBeInTheDocument();
+    expect(screen.queryByText('template-99')).not.toBeInTheDocument();
   });
 });

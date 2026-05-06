@@ -259,6 +259,25 @@ describe('TemplateEditorPage', () => {
     });
   });
 
+  it('dashboard preview button opens preview modal with synthetic data', async () => {
+    renderEditor();
+    await waitFor(() => screen.getByTestId('dash-preview-btn'));
+    await userEvent.click(screen.getByTestId('dash-preview-btn'));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /dashboard preview/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/synthetic sample data/i)).toBeInTheDocument();
+  });
+
+  it('dashboard preview modal can be closed', async () => {
+    renderEditor();
+    await waitFor(() => screen.getByTestId('dash-preview-btn'));
+    await userEvent.click(screen.getByTestId('dash-preview-btn'));
+    await waitFor(() => screen.getByRole('dialog', { name: /dashboard preview/i }));
+    await userEvent.click(screen.getByRole('button', { name: /close preview/i }));
+    expect(screen.queryByRole('dialog', { name: /dashboard preview/i })).not.toBeInTheDocument();
+  });
+
   it('field deletion removes field from list', async () => {
     renderEditor();
     await waitFor(() => screen.getAllByRole('option'));
