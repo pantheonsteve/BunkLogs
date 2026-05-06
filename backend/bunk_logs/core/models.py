@@ -353,7 +353,10 @@ class ReflectionTemplate(models.Model):
 
     def clean(self) -> None:
         super().clean()
-        validate_template_schema(self.schema, self.languages or [])
+        schema = self.schema or {}
+        fields = schema.get("fields") if isinstance(schema, dict) else None
+        if isinstance(fields, list) and fields:
+            validate_template_schema(schema, self.languages or [])
 
 
 class Reflection(models.Model):
