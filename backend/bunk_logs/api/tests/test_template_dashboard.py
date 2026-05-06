@@ -331,7 +331,7 @@ def test_single_rating_aggregation(api_client, org, program, lt_template, lt_use
     u2 = User.objects.create_user(email="c2@example.com", password="pw")
     p2 = Person.all_objects.create(organization=org, first_name="C", last_name="2", user=u2)
     Membership.all_objects.create(
-        program=program, person=p2, role="counselor", is_active=True
+        program=program, person=p2, role="counselor", is_active=True,
     )
     period_end = date(2026, 6, 14)
     _make_reflection(org, program, p_c, lt_template, period_end, {"overall": 4})
@@ -518,7 +518,7 @@ def test_csv_export_returns_parseable_csv(api_client, org, program, lt_template,
     # section_header should not appear
     assert "header_section" not in header
     # Data row
-    data_row = dict(zip(header, rows[1]))
+    data_row = dict(zip(header, rows[1], strict=False))
     assert data_row["overall"] == "3"
     assert data_row["pulse__morale"] == "4"
     assert "collaboration" in data_row["win_items"]
@@ -537,7 +537,7 @@ def test_csv_export_permission_denied(api_client, org, wellness_template, lt_use
 
 @pytest.mark.django_db
 def test_csv_export_filename_includes_slug_and_period(
-    api_client, org, lt_template, lt_user
+    api_client, org, lt_template, lt_user,
 ):
     u_lt, _ = lt_user
     api_client.force_authenticate(user=u_lt)
