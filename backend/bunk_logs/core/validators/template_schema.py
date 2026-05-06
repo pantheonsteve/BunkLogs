@@ -278,3 +278,53 @@ def validate_template_schema(schema: Any, languages: list[str]) -> None:
         # Language coverage check (only when languages are declared)
         if languages:
             _validate_language_coverage(field, ftype, languages, loc)
+
+
+# ---------------------------------------------------------------------------
+# Field key registry hints (DB-aware, non-blocking)
+# ---------------------------------------------------------------------------
+
+
+def check_field_key_hints(schema: Any, org) -> list[str]:
+    """Return a list of warning strings for type mismatches with the FieldKey registry.
+
+    Does NOT raise — callers surface these as non-blocking warnings in API responses.
+
+    Args:
+        schema: A validated ReflectionTemplate.schema dict.
+        org:    The Organization instance (or None) for the current request.
+    """
+    from django.db.models import Q
+
+    from bunk_logs.core.models import FieldKey
+
+    if not isinstance(schema, dict):
+        return []
+    fields = schema.get("fields")
+    if not isinstance(fields, list):
+        return []
+
+    if org is not None:
+        registry_qs = FieldKey.all_objects.filter(
+            Q(organization=org) | Q(organization__isnull=True),
+        )
+    else:
+        registry_qs = FieldKey.all_objects.filter(organization__isnull=True)
+
+    registry: dict[str, FieldKey] = {fk.key: fk for fk in registry_qs}
+
+    warnings: list[str] = []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        key = field.get("key")
+        ftype = field.get("type")
+        if not isinstance(key, str) or not isinstance(ftype, str):
+            continue
+        registered = registry.get(key)
+        if registered and registered.expected_field_type and registered.expected_field_type != ftype:
+            warnings.append(
+                f'Field "{key}" uses type "{ftype}" but the registry expects '
+                f'"{registered.expected_field_type}" for this key.',
+            )
+    return warnings
