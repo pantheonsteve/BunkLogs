@@ -8,6 +8,7 @@ from . import field_keys as field_keys_api
 from . import memberships
 from . import reflections
 from . import team_dashboard
+from . import template_dashboard
 from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
@@ -72,6 +73,18 @@ urlpatterns = [
         "dashboards/wellness/",
         wellness_dashboard.WellnessDashboardView.as_view(),
         name="wellness-dashboard",
+    ),
+
+    # Template-scoped aggregation dashboard and CSV export
+    path(
+        "dashboards/template/<int:template_id>/",
+        template_dashboard.TemplateDashboardView.as_view(),
+        name="template-dashboard",
+    ),
+    path(
+        "dashboards/template/<int:template_id>/export/",
+        template_dashboard.TemplateDashboardExportView.as_view(),
+        name="template-dashboard-export",
     ),
 
     # Unit head and camper care dashboard endpoints

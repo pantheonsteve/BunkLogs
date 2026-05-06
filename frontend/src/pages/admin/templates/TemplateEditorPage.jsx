@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Plus, X, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, BarChart2, ChevronDown, Plus, X, AlertTriangle } from 'lucide-react';
 import api from '../../../api';
 import FieldList from '../../../components/templates/FieldList';
 import FieldInspector from '../../../components/templates/FieldInspector';
 import FieldTypePicker from '../../../components/templates/FieldTypePicker';
 import LivePreview from '../../../components/templates/LivePreview';
+import DashboardPreviewModal from '../../../dashboards/DashboardPreviewModal';
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
@@ -171,6 +172,7 @@ export default function TemplateEditorPage() {
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showAddLang, setShowAddLang] = useState(false);
+  const [showDashPreview, setShowDashPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
   const [toast, setToast] = useState('');
@@ -388,6 +390,17 @@ export default function TemplateEditorPage() {
 
             <button
               type="button"
+              onClick={() => setShowDashPreview(true)}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1.5 transition-colors"
+              aria-label="Preview dashboard"
+              data-testid="dash-preview-btn"
+            >
+              <BarChart2 size={14} />
+              Dashboard
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleSave(false)}
               disabled={!dirty || saving}
               className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -484,6 +497,14 @@ export default function TemplateEditorPage() {
           existing={languages}
           onAdd={addLanguage}
           onClose={() => setShowAddLang(false)}
+        />
+      )}
+
+      {showDashPreview && (
+        <DashboardPreviewModal
+          schemaFields={fields}
+          language={language}
+          onClose={() => setShowDashPreview(false)}
         />
       )}
 
