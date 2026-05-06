@@ -27,6 +27,9 @@ import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import TeamDashboardPage from './pages/TeamDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
+import TemplateListPage from './pages/admin/templates/TemplateListPage';
+import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
+import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -46,6 +49,28 @@ function ProtectedRoute({ children }) {
         replace
       />
     );
+  }
+
+  return children;
+}
+
+// Admin-only route: requires is_staff or is_superuser
+function AdminRoute({ children }) {
+  const { isAuthenticated, loading, user } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    const next = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/signin?next=${encodeURIComponent(next)}`} replace />;
+  }
+
+  const isAdmin = user?.is_staff || user?.is_superuser || user?.role?.toLowerCase() === 'admin';
+  if (!isAdmin) {
+    return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   }
 
   return children;
@@ -311,6 +336,32 @@ function Router() {
             <ProtectedRoute>
               <MembershipManagementPage />
             </ProtectedRoute>
+          }
+        />
+
+        {/* Template admin routes */}
+        <Route
+          path="/admin/templates"
+          element={
+            <AdminRoute>
+              <TemplateListPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/templates/new"
+          element={
+            <AdminRoute>
+              <TemplateNewPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/templates/:id/edit"
+          element={
+            <AdminRoute>
+              <TemplateEditorPage />
+            </AdminRoute>
           }
         />
 

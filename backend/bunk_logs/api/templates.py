@@ -43,7 +43,9 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         schema = attrs.get("schema", getattr(self.instance, "schema", None))
         languages = attrs.get("languages", getattr(self.instance, "languages", None) or [])
-        if schema is not None:
+        # Skip schema validation for empty drafts (fields list is empty or missing).
+        # Full validation runs when the template has at least one field.
+        if schema is not None and isinstance(schema.get("fields"), list) and schema["fields"]:
             from bunk_logs.core.validators.template_schema import validate_template_schema
 
             try:
