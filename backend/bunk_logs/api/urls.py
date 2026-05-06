@@ -7,6 +7,7 @@ from bunk_logs.users.api.views import UserViewSet
 from . import memberships
 from . import reflections
 from . import team_dashboard
+from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
 
@@ -26,6 +27,7 @@ router.register(r"counselorlogs", views.CounselorLogViewSet, basename="counselor
 
 router.register(r"reflections", reflections.ReflectionViewSet, basename="reflection")
 router.register(r"memberships", memberships.MembershipViewSet, basename="membership")
+router.register(r"templates", templates_api.ReflectionTemplateViewSet, basename="template")
 
 # Ordering system
 router.register(r"orders", views.OrderViewSet, basename="order")
