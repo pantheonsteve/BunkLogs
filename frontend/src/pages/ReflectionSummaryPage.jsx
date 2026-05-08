@@ -50,7 +50,9 @@ export default function ReflectionSummaryPage() {
     );
   }
 
-  const { reflectionId, templateName, periodStart, periodEnd, language, schema, answers } = data;
+  const { reflectionId, templateName, subjectName, periodStart, periodEnd, language, schema, answers, returnTo } = data;
+  const backHref = returnTo || '/reflect';
+  const backLabel = returnTo === '/tasks' ? '← Back to tasks' : 'Submit another';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
@@ -58,8 +60,11 @@ export default function ReflectionSummaryPage() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
           Reflection submitted
         </h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          Reference #{reflectionId} · {templateName} · {periodStart} → {periodEnd} · {language}
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+          {templateName}{subjectName ? ` · About ${subjectName}` : ''}
+        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-6">
+          #{reflectionId} · {periodStart} → {periodEnd} · {language}
         </p>
         <ul className="space-y-4">
           {(schema?.fields || []).map((field) => (
@@ -75,10 +80,10 @@ export default function ReflectionSummaryPage() {
         </ul>
         <div className="mt-8 flex flex-wrap gap-4">
           <Link
-            to="/reflect"
+            to={backHref}
             className="text-blue-600 dark:text-blue-400 underline font-medium text-sm"
           >
-            Submit another
+            {backLabel}
           </Link>
           <Link
             to="/my-reflections"
