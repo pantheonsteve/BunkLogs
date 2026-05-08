@@ -577,6 +577,72 @@ def test_csv_export_permission_denied(api_client, org, wellness_template, lt_use
 
 
 @pytest.mark.django_db
+def test_csv_export_includes_subject_author_and_assignment_group_columns(
+    api_client, org, program, admin_user,
+):
+    """Step 3.20 extension: CSV must export shared-roster context columns."""
+    from bunk_logs.core.models import AssignmentGroup
+    from bunk_logs.core.models import AssignmentGroupMembership
+
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Maple",
+        slug="bunk-maple-csv", group_type="bunk",
+    )
+    tpl = ReflectionTemplate.all_objects.create(
+        organization=org, name="Bunk Obs", slug="bunk-obs-csv",
+        cadence="daily",
+        subject_mode="single_subject", assignment_scope="per_subject_in_group",
+        assignment_group_types=["bunk"],
+        author_role_filter=["counselor"], subject_role_filter=["camper"],
+        schema={"fields": [{"key": "n", "type": "text", "prompts": {"en": "n"}}]},
+    )
+    camper = Person.all_objects.create(
+        organization=org, first_name="Sarah", last_name="Levin",
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=bunk, person=camper, role_in_group="subject", is_active=True,
+    )
+    counselor = Person.all_objects.create(
+        organization=org, first_name="Counselor", last_name="Mike",
+    )
+    Membership.all_objects.create(
+        program=program, person=counselor, role="counselor", is_active=True,
+    )
+    period_end = date(2026, 6, 14)
+    Reflection.all_objects.create(
+        organization=org, program=program, template=tpl,
+        subject=camper, author=counselor, assignment_group=bunk,
+        period_start=period_end, period_end=period_end,
+        answers={"n": "doing well"}, language="en", is_complete=True,
+    )
+
+    u, _ = admin_user
+    api_client.force_authenticate(user=u)
+    r = api_client.get(
+        f"/api/v1/dashboards/template/{tpl.id}/export/",
+        {"period_end": str(period_end)},
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 200
+    reader = csv.reader(io.StringIO(r.content.decode("utf-8")))
+    rows = list(reader)
+    header = rows[0]
+    for col in (
+        "subject_name", "subject_id",
+        "author_name", "author_id",
+        "assignment_group_name", "assignment_group_id",
+        "subject_group_name", "subject_group_id",
+        "submission_id",
+    ):
+        assert col in header, f"missing column {col}"
+    data_row = dict(zip(header, rows[1], strict=False))
+    assert data_row["subject_name"] == "Sarah Levin"
+    assert data_row["author_name"] == "Counselor Mike"
+    assert data_row["assignment_group_name"] == "Bunk Maple"
+    assert data_row["submission_id"]  # non-empty UUID
+
+
+@pytest.mark.django_db
 def test_csv_export_filename_includes_slug_and_period(
     api_client, org, lt_template, lt_user,
 ):

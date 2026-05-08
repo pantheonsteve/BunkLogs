@@ -137,7 +137,7 @@ def _get_reflections(
         period_end__gte=start,
         period_end__lte=end,
         is_complete=True,
-    ).select_related("subject", "author", "assignment_group")
+    ).select_related("subject", "author", "assignment_group", "subject_group")
     return list(reflections_visible_to(user, base))
 
 
@@ -381,6 +381,13 @@ def _aggregate_field(
 
 
 def _build_csv(template: ReflectionTemplate, refs: list[Reflection]) -> str:
+    """Render a CSV row per reflection.
+
+    3.20 extension: include subject/author/assignment_group columns so
+    shared-roster templates (where ``subject != author``) export usably. The
+    legacy 3.16 columns (person_name, person_id) are kept for back-compat with
+    existing downloaded snapshots.
+    """
     schema_fields = [
         f
         for f in (template.schema.get("fields") or [])
@@ -388,7 +395,21 @@ def _build_csv(template: ReflectionTemplate, refs: list[Reflection]) -> str:
     ]
     out = io.StringIO()
     writer = csv.writer(out)
-    headers = ["person_name", "person_id", "period_end", "language"]
+    headers = [
+        "person_name",
+        "person_id",
+        "period_end",
+        "language",
+        "subject_name",
+        "subject_id",
+        "author_name",
+        "author_id",
+        "assignment_group_name",
+        "assignment_group_id",
+        "subject_group_name",
+        "subject_group_id",
+        "submission_id",
+    ]
     for field in schema_fields:
         ftype = field.get("type", "")
         fkey = field.get("key", "")
@@ -402,7 +423,28 @@ def _build_csv(template: ReflectionTemplate, refs: list[Reflection]) -> str:
         person_name = ""
         if r.subject:
             person_name = f"{r.subject.first_name} {r.subject.last_name}".strip()
-        row: list[Any] = [person_name, r.subject_id, r.period_end.isoformat(), r.language]
+        author_name = r.author.full_name if getattr(r, "author", None) else ""
+        assignment_group_name = (
+            r.assignment_group.name if getattr(r, "assignment_group", None) else ""
+        )
+        subject_group_name = (
+            r.subject_group.name if getattr(r, "subject_group", None) else ""
+        )
+        row: list[Any] = [
+            person_name,
+            r.subject_id,
+            r.period_end.isoformat(),
+            r.language,
+            person_name,
+            r.subject_id,
+            author_name,
+            r.author_id,
+            assignment_group_name,
+            r.assignment_group_id,
+            subject_group_name,
+            r.subject_group_id,
+            str(r.submission_id) if r.submission_id else "",
+        ]
         for field in schema_fields:
             ftype = field.get("type", "")
             fkey = field.get("key", "")
