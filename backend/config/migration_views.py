@@ -23,7 +23,7 @@ PHASE_NAMES = {
     6: "Legacy Deprecation",
 }
 
-SKIP_FILES = {"prefix.md"}
+SKIP_FILES = {"prefix.md", "0_0_context_prompt.md"}
 
 # When the deliverable merged under a later step's commit (e.g. 1_5 doc in 1_6 PR),
 # git log main will not mention the earlier step id — treat as done if these paths exist on main.
@@ -147,17 +147,25 @@ def _artifacts_satisfied_on_main(step_id: str) -> bool:
     return True
 
 
+def _step_aliases(step_id: str) -> list[str]:
+    """Return all textual forms a step might appear as (e.g. '3_17' and '3.17')."""
+    return [step_id, step_id.replace("_", ".")]
+
+
 def _determine_status(step_id: str, main_log: str, branch_names: set, merged_branches: set) -> tuple[str, str | None]:
     """Return (status, branch_name_or_None)."""
-    if re.search(rf"\b{re.escape(step_id)}(?![0-9])", main_log):
-        return "completed", None
+    for alias in _step_aliases(step_id):
+        if re.search(rf"\b{re.escape(alias)}(?![0-9])", main_log):
+            return "completed", None
     if _artifacts_satisfied_on_main(step_id):
         return "completed", None
     for branch in merged_branches:
-        if step_id in branch and branch not in ("main", "HEAD"):
+        if branch in ("main", "HEAD"):
+            continue
+        if any(alias in branch for alias in _step_aliases(step_id)):
             return "completed", None
     for branch in branch_names - merged_branches:
-        if step_id in branch:
+        if any(alias in branch for alias in _step_aliases(step_id)):
             return "in_progress", branch
     return "pending", None
 
