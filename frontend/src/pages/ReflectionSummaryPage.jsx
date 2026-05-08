@@ -73,12 +73,20 @@ export default function ReflectionSummaryPage() {
             </li>
           ))}
         </ul>
-        <Link
-          to="/reflect"
-          className="inline-block mt-8 text-blue-600 dark:text-blue-400 underline font-medium"
-        >
-          Submit another
-        </Link>
+        <div className="mt-8 flex flex-wrap gap-4">
+          <Link
+            to="/reflect"
+            className="text-blue-600 dark:text-blue-400 underline font-medium text-sm"
+          >
+            Submit another
+          </Link>
+          <Link
+            to="/my-reflections"
+            className="text-gray-600 dark:text-gray-400 underline font-medium text-sm"
+          >
+            View my history →
+          </Link>
+        </div>
       </div>
     </div>
   );

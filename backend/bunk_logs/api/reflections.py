@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import calendar
+from datetime import date
+from datetime import timedelta
 from functools import reduce
 from operator import or_
 
@@ -190,6 +193,38 @@ def leadership_visibility_q(viewer: Person) -> Q | None:
         if person_ids:
             q_acc |= Q(program_id=pid, subject_id__in=person_ids)
     return q_acc
+
+
+def _build_periods(today: date, cadence: str) -> list[tuple[date, date]]:
+    """Return (period_start, period_end) tuples, most-recent first, for the summary window."""
+    if cadence == "daily":
+        return [(today - timedelta(days=i), today - timedelta(days=i)) for i in range(14)]
+    if cadence == "weekly":
+        monday = today - timedelta(days=today.weekday())
+        return [
+            (monday - timedelta(weeks=i), monday - timedelta(weeks=i) + timedelta(days=6))
+            for i in range(4)
+        ]
+    if cadence == "biweekly":
+        monday = today - timedelta(days=today.weekday())
+        iso_week = monday.isocalendar()[1]
+        period_start = monday if iso_week % 2 == 0 else monday - timedelta(weeks=1)
+        return [
+            (period_start - timedelta(weeks=i * 2), period_start - timedelta(weeks=i * 2) + timedelta(days=13))
+            for i in range(4)
+        ]
+    if cadence == "monthly":
+        periods = []
+        y, m = today.year, today.month
+        for _ in range(3):
+            last = calendar.monthrange(y, m)[1]
+            periods.append((date(y, m, 1), date(y, m, last)))
+            m -= 1
+            if m == 0:
+                m, y = 12, y - 1
+        return periods
+    # on_demand / unknown: treat as a single open window
+    return [(today - timedelta(days=13), today)]
 
 
 class ReflectionTemplateSummarySerializer(serializers.ModelSerializer):
@@ -465,3 +500,75 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         if tpl is None:
             return Response({"detail": "No template for this role."}, status=status.HTTP_404_NOT_FOUND)
         return self._template_for_me_payload(tpl, language, prog)
+
+    @action(detail=False, methods=["get"], url_path="my-summary")
+    def my_summary(self, request):
+        """Personal reflection completion summary: current period, history, streak, total."""
+        viewer = _person_for_request(request)
+        if viewer is None:
+            return Response({"detail": "Person profile required."}, status=status.HTTP_403_FORBIDDEN)
+
+        program_slug = (request.query_params.get("program") or "").strip()
+        memberships = Membership.objects.filter(person=viewer, is_active=True).select_related("program")
+        if program_slug:
+            memberships = memberships.filter(program__slug=program_slug)
+        m = memberships.order_by("-created_at").first()
+        if m is None:
+            return Response({"detail": "No active membership found."}, status=status.HTTP_404_NOT_FOUND)
+
+        prog = m.program
+        tpl = (
+            ReflectionTemplate.objects.filter(role=m.role, is_active=True)
+            .filter(Q(program_type=prog.program_type) | Q(program_type__isnull=True))
+            .order_by("-version")
+            .first()
+        )
+        if tpl is None:
+            return Response({"detail": "No template for this role."}, status=status.HTTP_404_NOT_FOUND)
+
+        today = date.today()
+        periods = _build_periods(today, tpl.cadence)
+        cutoff = periods[-1][0] if periods else today
+
+        reflections_raw = list(
+            Reflection.objects.filter(
+                subject=viewer,
+                template=tpl,
+                program=prog,
+                period_end__gte=cutoff,
+            ).values("id", "period_start", "period_end", "submitted_at", "is_complete"),
+        )
+
+        history = []
+        for p_start, p_end in periods:
+            ref = next(
+                (r for r in reflections_raw if p_start <= r["period_end"] <= p_end),
+                None,
+            )
+            history.append({
+                "period_start": p_start.isoformat(),
+                "period_end": p_end.isoformat(),
+                "submitted": bool(ref and ref["is_complete"]),
+                "submitted_at": ref["submitted_at"].isoformat() if ref and ref["submitted_at"] else None,
+                "reflection_id": ref["id"] if ref else None,
+            })
+
+        streak = 0
+        for entry in history:
+            if entry["submitted"]:
+                streak += 1
+            else:
+                break
+
+        total_completed = Reflection.objects.filter(
+            subject=viewer, template=tpl, program=prog, is_complete=True,
+        ).count()
+
+        return Response({
+            "template": ReflectionTemplateSummarySerializer(tpl).data,
+            "program": prog.slug,
+            "current_period": history[0] if history else None,
+            "history": history,
+            "streak": streak,
+            "total_completed": total_completed,
+        })

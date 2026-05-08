@@ -22,6 +22,7 @@ import OrderEdit from './pages/OrderEdit';
 import AdminBunkLogs from './pages/AdminBunkLogs';
 import StaffMemberHistory from './pages/StaffMemberHistory';
 import MigrationDashboard from './pages/MigrationDashboard';
+import MyReflectionsPage from './pages/MyReflectionsPage';
 import ReflectionFormPage from './pages/ReflectionFormPage';
 import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import TeamDashboardPage from './pages/TeamDashboardPage';
@@ -308,6 +309,15 @@ function Router() {
           element={
             <ProtectedRoute>
               <ReflectionSummaryPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-reflections"
+          element={
+            <ProtectedRoute>
+              <MyReflectionsPage />
             </ProtectedRoute>
           }
         />
