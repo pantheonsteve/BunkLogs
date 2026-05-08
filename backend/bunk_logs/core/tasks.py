@@ -1,9 +1,12 @@
-"""Celery tasks for reflection reminder emails."""
+"""Celery tasks for reflection reminder emails and roster imports."""
 
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from datetime import date
+from typing import Any
 
 from celery import shared_task
 from django.conf import settings
@@ -16,6 +19,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import RosterImportLog
 
 logger = logging.getLogger(__name__)
 
@@ -264,3 +268,83 @@ def dispatch_reflection_reminders() -> dict:
                 )
 
     return {"dispatched": dispatched}
+
+
+@shared_task(bind=True, name="bunk_logs.core.tasks.import_roster_task")
+def import_roster_task(
+    self,
+    log_id: int,
+    csv_content: str,
+    importer_type: str,
+    options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run a roster import asynchronously and persist results in RosterImportLog.
+
+    Args:
+        log_id: PK of the RosterImportLog to update.
+        csv_content: Raw CSV text (passed as string to avoid file-system path assumptions).
+        importer_type: 'campminder' or 'tbe_shulcloud'.
+        options: Extra kwargs forwarded to the importer (e.g. {'reconcile': True}).
+    """
+    opts = options or {}
+
+    try:
+        log = RosterImportLog.all_objects.select_related("organization", "program").get(pk=log_id)
+    except RosterImportLog.DoesNotExist:
+        logger.error("import_roster_task: RosterImportLog %s not found", log_id)
+        return {"error": f"RosterImportLog {log_id} not found"}
+
+    log.status = "running"
+    log.save(update_fields=["status"])
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".csv",
+        delete=False,
+        encoding="utf-8",
+    ) as tmp:
+        tmp.write(csv_content)
+        tmp_path = tmp.name
+
+    try:
+        if importer_type == "campminder":
+            from bunk_logs.core.management.commands.import_campminder_roster import Command as CampminderCmd
+
+            cmd = CampminderCmd()
+            cmd.handle(
+                csv_path=tmp_path,
+                org_slug=log.organization.slug,
+                program_slug=log.program.slug,
+                dry_run=False,
+                reconcile=opts.get("reconcile", False),
+            )
+        elif importer_type == "tbe_shulcloud":
+            from bunk_logs.core.management.commands.import_tbe_roster import Command as TBECmd
+
+            cmd = TBECmd()
+            cmd.handle(
+                csv_path=tmp_path,
+                org_slug=log.organization.slug,
+                program_slug=log.program.slug,
+                dry_run=False,
+            )
+        else:
+            raise ValueError(f"Unknown importer_type: {importer_type!r}")
+
+        # The commands update log directly; reload to get the latest summary
+        log.refresh_from_db()
+        return {"log_id": log_id, "status": log.status, "summary": log.summary}
+
+    except Exception as exc:
+        logger.exception("import_roster_task failed for log %s", log_id)
+        log.status = "failed"
+        log.summary = {**log.summary, "error": str(exc)}
+        log.completed_at = timezone.now()
+        log.save(update_fields=["status", "summary", "completed_at"])
+        raise self.retry(exc=exc, max_retries=0)  # don't retry roster imports
+
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass

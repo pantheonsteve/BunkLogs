@@ -402,6 +402,48 @@ class AssignmentGroupMembership(models.Model):
         return f"{self.person} as {self.get_role_in_group_display()} in {self.group}"
 
 
+class RosterImportLog(models.Model):
+    IMPORT_STATUS = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="roster_import_logs",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="roster_import_logs",
+    )
+    importer_type = models.CharField(max_length=64)
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="roster_import_logs",
+    )
+    status = models.CharField(max_length=32, choices=IMPORT_STATUS, default="pending")
+    summary = models.JSONField(default=dict, blank=True)
+    csv_filename = models.CharField(max_length=255, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self) -> str:
+        return f"{self.importer_type} import for {self.program} ({self.status})"
+
+
 class ReflectionTemplate(models.Model):
     CADENCES = [
         ("daily", "Daily"),

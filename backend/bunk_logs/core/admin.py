@@ -14,6 +14,7 @@ from .models import Person
 from .models import Program
 from .models import Reflection
 from .models import ReflectionTemplate
+from .models import RosterImportLog
 
 
 class ProgramAdminForm(forms.ModelForm):
@@ -318,6 +319,20 @@ class FieldKeyAdmin(admin.ModelAdmin):
     @admin.display(description="Scope")
     def scope(self, obj):
         return "global" if obj.organization_id is None else obj.organization.slug
+
+
+@admin.register(RosterImportLog)
+class RosterImportLogAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return RosterImportLog.all_objects.select_related("organization", "program", "initiated_by")
+
+    list_display = ["importer_type", "program", "organization", "status", "csv_filename", "started_at", "completed_at"]
+    list_filter = ["importer_type", "status", "organization"]
+    search_fields = ["csv_filename", "program__name"]
+    readonly_fields = ["started_at", "completed_at", "summary", "status"]
+
+    def has_add_permission(self, request):
+        return False
 
 
 def _normalize_tags(values) -> list[str]:
