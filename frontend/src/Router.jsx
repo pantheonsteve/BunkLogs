@@ -37,6 +37,7 @@ import TasksPage from './pages/TasksPage';
 import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
 import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
 import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
+import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -360,6 +361,14 @@ function Router() {
           element={
             <ProtectedRoute>
               <SubjectTrendsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/subject/:personId"
+          element={
+            <ProtectedRoute>
+              <SubjectDetailPage />
             </ProtectedRoute>
           }
         />
