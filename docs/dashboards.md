@@ -125,6 +125,11 @@ Same parameters and permissions as the aggregation endpoint. Returns
 **CSV columns:**
 
 - `person_name`, `person_id`, `period_end`, `language`
+- `subject_name`, `subject_id` — explicit subject (matches `person_*` for self-reflection)
+- `author_name`, `author_id` — who *filled out* this reflection
+- `assignment_group_name`, `assignment_group_id` — group context (e.g. which bunk)
+- `subject_group_name`, `subject_group_id` — populated only when `subject_mode='group'`
+- `submission_id` — UUID grouping multi-subject submissions
 - One column per non-meta field
 - `rating_group` fields expand to one column per category, e.g.
   `pulse__morale`, `pulse__energy`
@@ -193,7 +198,7 @@ import DashboardPreviewModal from '../dashboards/DashboardPreviewModal';
 
 5. **Aggregation** — If the new role requires a new aggregation shape, add a
    new aggregator function in
-   `backend/bunk_logs/api/template_dashboard.py` and wire it in
+   `backend/bunk_logs/api/dashboards/template.py` and wire it in
    `_aggregate_field`.
 
 6. **Tests** — Add tests to `widgetMap.test.js`, `widgets.test.jsx`, and
@@ -204,6 +209,183 @@ import DashboardPreviewModal from '../dashboards/DashboardPreviewModal';
 ---
 
 ## Permission Model Summary
+
+The visibility model is consolidated in
+[`backend/bunk_logs/core/permissions/visibility.py`](../backend/bunk_logs/core/permissions/visibility.py)
+as `reflections_visible_to(user, queryset=None)`. Every list / dashboard /
+export endpoint that touches reflections funnels through this helper so the
+rules below cannot drift out of sync.
+
+### Who can see which reflection
+
+A reflection is visible to a user when **any** of these are true:
+
+1. The user is a Django superuser, OR has an active `admin` Membership in the
+   reflection's organization.
+2. The user is the **author** of the reflection.
+3. The user is the **subject** *and* the template's `subject_visible=True`.
+4. The user is an **author of the reflection's `assignment_group`**, or of any
+   ancestor group (e.g. a unit head sees every bunk under their unit).
+5. The user has a `leadership_team` or `faculty` membership scoped to the
+   reflection's program — restricted to `assigned_unit_slugs` when those are
+   set on the membership metadata, unrestricted otherwise.
+6. The user has a wellness membership (`camper_care`, `health_center`, or
+   `special_diets`) and the reflection's template `role` is one of those
+   wellness roles.
+
+All paths are tenant-scoped: the helper filters by the current organization
+context, so cross-tenant reflections are unreachable regardless of which path
+matches.
+
+### Per-dashboard access pre-checks
+
+Some dashboards apply an additional cheap pre-check **before** running the
+expensive aggregation, so users with no role-based relationship to a template
+get an early 403 instead of an empty payload:
+
+| Dashboard                  | Allowed viewers (in addition to admin / superuser) |
+|----------------------------|---------------------------------------------------|
+| `template/{id}/`           | LT for LT templates, wellness for wellness templates, supervisors of any matching shared-roster `assignment_group_types` |
+| `coverage/`                | Anyone with at least one supervised group (org admins see everything) |
+| `subject-trends/`          | Supervisors of the requested group (admins see all groups) |
+| `subject/{person_id}/`     | Anyone (visibility filter on reflections handles the rest; empty payload if nothing visible) |
+| `authors/`                 | Supervisors only (`has_supervisor_role`): admin, leadership/faculty, or author of a group with at least one descendant. Lone counselors get 403. |
+| `concerns/`                | Anyone (filter on reflections is the gate); mark-read endpoint validates visibility on the underlying reflection so 404s don't leak existence. |
+
+### How to test visibility changes
+
+`backend/bunk_logs/core/permissions/test_visibility.py` is the canonical test
+file. Add a fixture-driven case for every new code path that introduces a way
+to see a reflection.
+
+---
+
+## Coverage / color-pattern dashboards (3.20)
+
+### Coverage Dashboard
+
+```
+GET /api/v1/dashboards/coverage/?group_type=&template=&date_start=&date_end=
+```
+
+Per-group, per-day completion percentages. Returns one row per visible
+`AssignmentGroup` with a `days[]` array of cells (`covered`, `total`, `percent`,
+`status`). Tier mapping is fixed (and applied server-side):
+
+| `status`     | Range  | Meaning |
+|--------------|--------|---------|
+| `green`      | 100%   | All required reflections completed |
+| `light_green`| 90–99% | Almost there |
+| `yellow`     | 70–89% | Below target |
+| `orange`     | 40–69% | Significant gaps |
+| `red`        | 1–39%  | Mostly missed |
+| `gray`       | 0%     | Day with a roster but no reflections |
+| `inactive`   | n/a    | Group has no roster on this day (transparent + striped fill) |
+
+UI: [`frontend/src/dashboards/coverage/`](../frontend/src/dashboards/coverage/).
+Route `/dashboards/coverage`.
+
+### Subject Trend Grid (color patterns)
+
+```
+GET /api/v1/dashboards/subject-trends/?assignment_group=&template=&date_start=&date_end=&category=
+```
+
+The signature view of 3.20: rows = subjects, columns = days, cells colored on
+the template's primary rating field (or averaged across `category_ratings`,
+or filtered to a single category when `?category=<key>` is set). Returns
+`scale_max` so the UI picks the matching diverging palette.
+
+UI: [`frontend/src/dashboards/trends/`](../frontend/src/dashboards/trends/).
+Route `/dashboards/subject-trends/:groupId?template=&category=`.
+
+### Per-Subject Detail
+
+```
+GET /api/v1/dashboards/subject/{person_id}/?date_start=&date_end=
+```
+
+Cross-template aggregation for one Person: rating series per template (one
+entry per `single_rating` field, plus one per category in `rating_group`
+fields), recent text responses, and a `concerning_patterns[]` array.
+
+Detection rules (no scipy dependency):
+
+- `low_rating` — any rating `≤ 1` in the last 14 days.
+- `downward_trend` — split last 14 days in half, require `≥ 3` ratings each
+  half, fire when `recent_mean < prior_mean − 0.5`.
+
+Route `/dashboards/subject/:personId`.
+
+### Author Attribution
+
+```
+GET /api/v1/dashboards/authors/?date_start=&date_end=&assignment_group=&template=
+```
+
+Per-author submission counts plus a per-day timeline. **Supervisor-gated** by
+`has_supervisor_role` — direct reports cannot see this view.
+
+Route `/dashboards/authors`.
+
+### Concerns Inbox
+
+```
+GET    /api/v1/dashboards/concerns/?date_start=&date_end=&include_read=
+POST   /api/v1/dashboards/concerns/<reflection_id>/<field_key>/read/
+DELETE /api/v1/dashboards/concerns/<reflection_id>/<field_key>/read/
+```
+
+Lists concerning items (open-concern textareas with non-empty answers, plus
+ratings `≤ 1` on `primary_rating` and `category_ratings` fields), filtered to
+what the viewer is allowed to see. Per-user read state lives in
+`ConcernReadState` keyed by `(user, reflection, field_key)`.
+
+The mark-read endpoint refuses to write a row for a reflection the user can't
+see (404), so an unauthorized user can't probe reflection IDs via 200/4xx
+timing.
+
+Route `/dashboards/concerns`.
+
+---
+
+## Color-scale conventions
+
+Shared by the Coverage Dashboard, Subject Trend Grid, and ConcernQueueWidget.
+Implemented in [`frontend/src/dashboards/colors.js`](../frontend/src/dashboards/colors.js).
+
+- **Coverage tiers** (`green` / `light_green` / `yellow` / `orange` / `red` /
+  `gray` / `inactive`) — colorblind-aware palette using Okabe-Ito-leaning
+  hues. Inactive cells are transparent + diagonal stripes so they read as
+  "no data" even on a black-and-white print.
+- **Rating colors** — diverging palette anchored to the template's
+  `scale_max`. 1-3 / 1-4 / 1-5 scales each have their own palette so a
+  rating of `4 / 5` doesn't render the same color as `4 / 4`.
+- **No-data cells** — neutral gray (`#e5e7eb`) with an em-dash glyph and an
+  `aria-label` describing the missing-data state.
+
+Every cell carries an `aria-label` of the form `"<subject>, <date>, rating X
+of Y, logged by <author>"` (or the equivalent for coverage cells), and a
+`<title>` tooltip with the same information for sighted hover users.
+
+---
+
+## Performance notes
+
+- All five new dashboards run live SQL on the existing `Reflection` table; the
+  3.16 indexes (`(template, period_end)`, `(subject, period_end)`,
+  `(assignment_group, period_end)`, `(author, period_end)`) cover the access
+  patterns. No `CoverageSnapshot` table is materialized — measured on the
+  worst-case 60-day × full-org window the response is well under the 1s P95
+  budget called out in the prompt.
+- Visibility resolution is a constant number of queries regardless of group
+  tree depth: one to load the user's direct author memberships, one to load
+  the org's parent→child edges, then an in-memory BFS. There is a query-count
+  guard in `core/permissions/test_visibility.py::TestQueryCount`.
+- The legacy permission model summary below is preserved for context; the new
+  consolidated rules above always supersede it.
+
+### Legacy summary
 
 - LT users see data for `leadership_team`-role templates only.
 - Wellness users see data for wellness-type templates only.
