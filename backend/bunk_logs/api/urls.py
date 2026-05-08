@@ -14,6 +14,7 @@ from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
 from .dashboards import authors as authors_dashboard
+from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import trends as trends_dashboard
@@ -119,6 +120,18 @@ urlpatterns = [
         "dashboards/authors/",
         authors_dashboard.AuthorAttributionView.as_view(),
         name="dashboard-authors",
+    ),
+
+    # Concerns Inbox (commit 7 of 3.20)
+    path(
+        "dashboards/concerns/",
+        concerns_dashboard.ConcernsInboxView.as_view(),
+        name="dashboard-concerns",
+    ),
+    path(
+        "dashboards/concerns/<int:reflection_id>/<str:field_key>/read/",
+        concerns_dashboard.ConcernMarkReadView.as_view(),
+        name="dashboard-concerns-mark-read",
     ),
 
     # Unit head and camper care dashboard endpoints
