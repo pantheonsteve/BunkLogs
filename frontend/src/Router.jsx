@@ -31,6 +31,8 @@ import MembershipManagementPage from './pages/MembershipManagementPage';
 import TemplateListPage from './pages/admin/templates/TemplateListPage';
 import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
+import GroupListPage from './pages/admin/groups/GroupListPage';
+import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -371,6 +373,24 @@ function Router() {
           element={
             <AdminRoute>
               <TemplateEditorPage />
+            </AdminRoute>
+          }
+        />
+
+        {/* Group admin routes */}
+        <Route
+          path="/admin/groups"
+          element={
+            <AdminRoute>
+              <GroupListPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/groups/:id"
+          element={
+            <AdminRoute>
+              <GroupDetailPage />
             </AdminRoute>
           }
         />
