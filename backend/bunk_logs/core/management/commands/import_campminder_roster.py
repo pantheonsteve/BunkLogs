@@ -149,18 +149,21 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         csv_path = Path(options["csv_path"])
         if not csv_path.exists():
-            raise CommandError(f"CSV file not found: {csv_path}")
+            msg = f"CSV file not found: {csv_path}"
+            raise CommandError(msg)
 
         try:
             org = Organization.objects.get(slug=options["org_slug"])
         except Organization.DoesNotExist:
-            raise CommandError(f"Organization not found: {options['org_slug']!r}")
+            msg = f"Organization not found: {options['org_slug']!r}"
+            raise CommandError(msg)
 
         try:
             program = Program.all_objects.get(organization=org, slug=options["program_slug"])
         except Program.DoesNotExist:
+            msg = f"Program not found: {options['program_slug']!r} under org {options['org_slug']!r}"
             raise CommandError(
-                f"Program not found: {options['program_slug']!r} under org {options['org_slug']!r}"
+                msg,
             )
 
         dry_run: bool = options["dry_run"]
@@ -180,7 +183,7 @@ class Command(BaseCommand):
             )
 
         persons_created = persons_updated = persons_skipped = 0
-        groups_created = memberships_created = memberships_reactivated = 0
+        memberships_created = memberships_reactivated = 0
         memberships_deactivated = 0
         warnings: list[str] = []
 
@@ -210,7 +213,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"[dry-run] Row {i}: campminder_id={campminder_id} role={role} "
                     f"bunk={bunk_name or '—'} unit={unit_name or '—'} "
-                    f"division={division_name or '—'} caseload={caseload_name or '—'}"
+                    f"division={division_name or '—'} caseload={caseload_name or '—'}",
                 )
                 continue
 
@@ -262,7 +265,7 @@ class Command(BaseCommand):
                 if caseload_name:
                     if not caseload_owner_id:
                         warnings.append(
-                            f"Row {i}: caseload_name set but caseload_owner_campminder_id missing — skipped"
+                            f"Row {i}: caseload_name set but caseload_owner_campminder_id missing — skipped",
                         )
                     else:
                         owner = Person.all_objects.filter(
@@ -271,7 +274,7 @@ class Command(BaseCommand):
                         ).first()
                         if owner is None:
                             warnings.append(
-                                f"Row {i}: caseload owner with campminder_id={caseload_owner_id!r} not found — skipped"
+                                f"Row {i}: caseload owner with campminder_id={caseload_owner_id!r} not found — skipped",
                             )
                         else:
                             caseload_group = _get_or_create_group(program, "caseload", caseload_name)
@@ -327,8 +330,8 @@ class Command(BaseCommand):
                     f"Done. Persons created: {persons_created}  updated: {persons_updated}  "
                     f"unchanged: {persons_skipped} | "
                     f"Group memberships created: {memberships_created}  "
-                    f"deactivated: {memberships_deactivated}"
-                )
+                    f"deactivated: {memberships_deactivated}",
+                ),
             )
         for w in warnings:
             self.stdout.write(self.style.WARNING(w))

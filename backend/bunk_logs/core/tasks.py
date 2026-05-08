@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-import os
 import tempfile
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from celery import shared_task
@@ -291,7 +291,7 @@ def import_roster_task(
     try:
         log = RosterImportLog.all_objects.select_related("organization", "program").get(pk=log_id)
     except RosterImportLog.DoesNotExist:
-        logger.error("import_roster_task: RosterImportLog %s not found", log_id)
+        logger.exception("import_roster_task: RosterImportLog %s not found", log_id)
         return {"error": f"RosterImportLog {log_id} not found"}
 
     log.status = "running"
@@ -329,7 +329,8 @@ def import_roster_task(
                 dry_run=False,
             )
         else:
-            raise ValueError(f"Unknown importer_type: {importer_type!r}")
+            msg = f"Unknown importer_type: {importer_type!r}"
+            raise ValueError(msg)
 
         # The commands update log directly; reload to get the latest summary
         log.refresh_from_db()
@@ -345,6 +346,6 @@ def import_roster_task(
 
     finally:
         try:
-            os.unlink(tmp_path)
+            Path(tmp_path).unlink()
         except OSError:
             pass

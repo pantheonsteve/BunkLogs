@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.utils.text import slugify
 from rest_framework import permissions
 from rest_framework import serializers
 from rest_framework import status
@@ -8,7 +9,6 @@ from rest_framework.decorators import action
 from rest_framework.parsers import FormParser
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
-from django.utils.text import slugify
 
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -128,7 +128,8 @@ class MembershipAddSerializer(serializers.Serializer):
         if org:
             qs = qs.filter(organization=org)
         if not qs.exists():
-            raise serializers.ValidationError("Person not found in this organization.")
+            msg = "Person not found in this organization."
+            raise serializers.ValidationError(msg)
         return value
 
 

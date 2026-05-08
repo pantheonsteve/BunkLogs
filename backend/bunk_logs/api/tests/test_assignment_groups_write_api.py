@@ -196,7 +196,7 @@ class TestDeleteGroup:
 
     def test_delete_blocked_when_reflections_exist(self, client, org, program, group, admin_user):
         user, _ = admin_user
-        person = Person.all_objects.create(organization=org, first_name="Subject", last_name="Test")
+        Person.all_objects.create(organization=org, first_name="Subject", last_name="Test")
         template = ReflectionTemplate.all_objects.create(
             organization=org,
             name="Test Template",
@@ -265,7 +265,7 @@ class TestAddMembership:
 class TestRemoveMembership:
     def test_admin_soft_removes(self, client, org, group, admin_user, person_a):
         membership = AssignmentGroupMembership.all_objects.create(
-            group=group, person=person_a, role_in_group="subject", is_active=True
+            group=group, person=person_a, role_in_group="subject", is_active=True,
         )
         user, _ = admin_user
         client.force_authenticate(user=user)
@@ -279,7 +279,7 @@ class TestRemoveMembership:
 
     def test_hard_delete_with_flag(self, client, org, group, admin_user, person_a):
         membership = AssignmentGroupMembership.all_objects.create(
-            group=group, person=person_a, role_in_group="subject", is_active=True
+            group=group, person=person_a, role_in_group="subject", is_active=True,
         )
         user, _ = admin_user
         client.force_authenticate(user=user)
@@ -292,11 +292,11 @@ class TestRemoveMembership:
 
     def test_cross_group_membership_not_found(self, client, org, org_b, program_b, admin_user):
         group_other = AssignmentGroup.all_objects.create(
-            organization=org_b, program=program_b, name="Other", slug="other-grp-remove", group_type="bunk"
+            organization=org_b, program=program_b, name="Other", slug="other-grp-remove", group_type="bunk",
         )
         person_other = Person.all_objects.create(organization=org_b, first_name="Other", last_name="Person")
         membership = AssignmentGroupMembership.all_objects.create(
-            group=group_other, person=person_other, role_in_group="subject", is_active=True
+            group=group_other, person=person_other, role_in_group="subject", is_active=True,
         )
         user, _ = admin_user
         client.force_authenticate(user=user)

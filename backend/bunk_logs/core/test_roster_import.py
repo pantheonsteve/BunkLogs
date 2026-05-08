@@ -7,7 +7,6 @@ from io import StringIO
 
 import pytest
 from django.core.management import call_command
-from django.core.management.base import CommandError
 
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -120,7 +119,7 @@ class TestCampminderBunkHierarchy:
         bunk = AssignmentGroup.all_objects.get(program=program, slug="bunk-maple")
         alice = Person.all_objects.get(external_ids__campminder_id="CM001")
         assert AssignmentGroupMembership.all_objects.filter(
-            group=bunk, person=alice, role_in_group="subject"
+            group=bunk, person=alice, role_in_group="subject",
         ).exists()
 
     def test_counselors_are_authors(self, tmp_path, program):
@@ -128,7 +127,7 @@ class TestCampminderBunkHierarchy:
         bunk = AssignmentGroup.all_objects.get(program=program, slug="bunk-maple")
         carol = Person.all_objects.get(external_ids__campminder_id="CM003")
         assert AssignmentGroupMembership.all_objects.filter(
-            group=bunk, person=carol, role_in_group="author"
+            group=bunk, person=carol, role_in_group="author",
         ).exists()
 
     def test_staff_only_rows_no_group(self, tmp_path, program):
@@ -164,7 +163,7 @@ CM003,Carol,Lee,counselor,Bunk Maple,Sophomores,Upper Camp,carol@example.com
 """
         _run_campminder(tmp_path, updated_csv, reconcile=True)
         active_subjects = AssignmentGroupMembership.all_objects.filter(
-            group=bunk, role_in_group="subject", is_active=True
+            group=bunk, role_in_group="subject", is_active=True,
         ).count()
         assert active_subjects == 1  # Only Alice remains active
 
@@ -195,11 +194,6 @@ CM021,Camper,One,camper,Senior Caseload,CM020,
 
     def test_caseload_created_with_owner_first(self, tmp_path, program):
         # Correct order: owner row first, then subject
-        csv = """
-campminder_id,first_name,last_name,role,caseload_name,caseload_owner_campminder_id,email
-CM020,Wellness,Staff,camper_care,,
-CM021,Camper,One,camper,Senior Caseload,CM020,
-"""
         # Import owner first (no caseload), then camper with caseload
         csv2 = """
 campminder_id,first_name,last_name,role,caseload_name,caseload_owner_campminder_id,email
@@ -225,7 +219,7 @@ class TestCampminderRosterImportLog:
     def test_log_created_and_completed(self, tmp_path, program):
         _run_campminder(tmp_path, CAMPMINDER_BUNK_CSV)
         log = RosterImportLog.all_objects.filter(
-            program=program, importer_type="campminder"
+            program=program, importer_type="campminder",
         ).first()
         assert log is not None
         assert log.status == "completed"

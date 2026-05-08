@@ -116,18 +116,21 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         csv_path = Path(options["csv_path"])
         if not csv_path.exists():
-            raise CommandError(f"CSV file not found: {csv_path}")
+            msg = f"CSV file not found: {csv_path}"
+            raise CommandError(msg)
 
         try:
             org = Organization.objects.get(slug=options["org_slug"])
         except Organization.DoesNotExist:
-            raise CommandError(f"Organization not found: {options['org_slug']!r}")
+            msg = f"Organization not found: {options['org_slug']!r}"
+            raise CommandError(msg)
 
         try:
             program = Program.all_objects.get(organization=org, slug=options["program_slug"])
         except Program.DoesNotExist:
+            msg = f"Program not found: {options['program_slug']!r} under org {options['org_slug']!r}"
             raise CommandError(
-                f"Program not found: {options['program_slug']!r} under org {options['org_slug']!r}"
+                msg,
             )
 
         dry_run: bool = options["dry_run"]
@@ -180,7 +183,7 @@ class Command(BaseCommand):
             if dry_run:
                 self.stdout.write(
                     f"[dry-run] Row {i}: {first_name} {last_name} role={role} "
-                    f"classroom={classroom_name} grade={grade_level or '—'}"
+                    f"classroom={classroom_name} grade={grade_level or '—'}",
                 )
                 continue
 
@@ -265,8 +268,8 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Done. Persons created: {persons_created}  updated: {persons_updated}  "
-                    f"unchanged: {persons_skipped} | Memberships created: {memberships_created}"
-                )
+                    f"unchanged: {persons_skipped} | Memberships created: {memberships_created}",
+                ),
             )
         for w in warnings:
             self.stdout.write(self.style.WARNING(w))
