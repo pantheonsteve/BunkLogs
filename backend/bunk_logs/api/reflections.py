@@ -10,7 +10,6 @@ from operator import or_
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Exists
 from django.db.models import OuterRef
-from django.db.models import Prefetch
 from django.db.models import Q
 from rest_framework import permissions
 from rest_framework import serializers

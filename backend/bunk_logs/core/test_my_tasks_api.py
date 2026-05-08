@@ -30,8 +30,8 @@ SIMPLE_SCHEMA = {
             "type": "textarea",
             "required": False,
             "prompts": {"en": "Notes"},
-        }
-    ]
+        },
+    ],
 }
 
 
@@ -59,19 +59,17 @@ def program(org):
 
 @pytest.fixture
 def counselor_user(org):
-    u = User.objects.create_user(email="counselor_tasks@test.com", password="pw")
-    return u
+    return User.objects.create_user(email="counselor_tasks@test.com", password="pw")
 
 
 @pytest.fixture
 def counselor_person(org, counselor_user):
-    p = Person.all_objects.create(
+    return Person.all_objects.create(
         organization=org,
         first_name="Counselor",
         last_name="Mike",
         user=counselor_user,
     )
-    return p
 
 
 @pytest.fixture
@@ -190,7 +188,7 @@ def _authed_client(user, org):
 
 @pytest.mark.django_db
 def test_my_tasks_self_reflection_appears(
-    org, program, counselor_user, counselor_person, counselor_membership, self_template
+    org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
     with organization_context(org):
         client = _authed_client(counselor_user, org)
@@ -209,7 +207,7 @@ def test_my_tasks_self_reflection_appears(
 
 @pytest.mark.django_db
 def test_my_tasks_self_reflection_shows_submitted(
-    org, program, counselor_user, counselor_person, counselor_membership, self_template
+    org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
     today = date.today()
     with organization_context(org):
@@ -343,7 +341,7 @@ def test_my_tasks_covered_by_me_flag_accurate(
     """covered_by_me is False when another counselor logged the camper."""
     other_user = User.objects.create_user(email="other_counselor@test.com", password="pw")
     other_person = Person.all_objects.create(
-        organization=org, first_name="Other", last_name="Counselor", user=other_user
+        organization=org, first_name="Other", last_name="Counselor", user=other_user,
     )
     today = date.today()
     with organization_context(org):
@@ -453,8 +451,8 @@ def test_supervisor_coverage_scopes_to_author_groups(
 @pytest.mark.django_db
 def test_supervisor_coverage_no_groups_returns_empty(db, org):
     counselor_user = User.objects.create_user(email="cov_empty@test.com", password="pw")
-    counselor_person = Person.all_objects.create(
-        organization=org, first_name="Solo", last_name="Counselor", user=counselor_user
+    Person.all_objects.create(
+        organization=org, first_name="Solo", last_name="Counselor", user=counselor_user,
     )
     with organization_context(org):
         client = _authed_client(counselor_user, org)
