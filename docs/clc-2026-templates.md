@@ -1,6 +1,6 @@
 # Crane Lake Summer 2026 role reflection templates
 
-JSON definitions live under `templates/reflection_templates/clc_2026/`. They target organization slug **`clc`** (create/update via `setup_crane_lake` before seeding).
+JSON definitions live under `backend/templates/reflection_templates/clc_2026/`. They target organization slug **`clc`** (create/update via `setup_crane_lake` before seeding).
 
 ## Template index
 
@@ -53,6 +53,9 @@ python manage.py seed_role_template --org-slug clc --role health_center \
   --template-file templates/reflection_templates/clc_2026/health_center.json
 python manage.py seed_role_template --org-slug clc --role special_diets \
   --template-file templates/reflection_templates/clc_2026/special_diets.json
+
+# Or run all at once using the onboarding command:
+python manage.py onboard_clc_summer_2026 --skip-import
 ```
 
 Use `--dry-run` to validate without writing. Re-running the same file updates the row (org + slug + version).
