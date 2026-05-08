@@ -149,7 +149,7 @@ def test_legacy_django_admin_user_role_allowed_without_membership_admin(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person,
+        subject=person,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -184,7 +184,7 @@ def test_lt_only_sees_assigned_units(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person_a,
+        subject=person_a,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -194,7 +194,7 @@ def test_lt_only_sees_assigned_units(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person_b,
+        subject=person_b,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -236,7 +236,7 @@ def test_admin_sees_all_units(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person_a,
+        subject=person_a,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -246,7 +246,7 @@ def test_admin_sees_all_units(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person_b,
+        subject=person_b,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -294,7 +294,7 @@ def test_year_round_filter(api, org_td, program_td, rating_template, lt_user_res
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=py,
+        subject=py,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -304,7 +304,7 @@ def test_year_round_filter(api, org_td, program_td, rating_template, lt_user_res
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=ps,
+        subject=ps,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -350,7 +350,7 @@ def test_low_ratings_flagged(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person,
+        subject=person,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -395,7 +395,7 @@ def test_category_average_aggregation(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=person_c,
+        subject=person_c,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,
@@ -405,7 +405,7 @@ def test_category_average_aggregation(
     Reflection.all_objects.create(
         organization=org_td,
         program=program_td,
-        person=p2,
+        subject=p2,
         template=rating_template,
         period_start=period_start,
         period_end=period_end,

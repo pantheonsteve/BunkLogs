@@ -484,7 +484,7 @@ class TestReflection:
         r = Reflection(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=template,
             period_start=period_start,
             period_end=period_end,
@@ -505,7 +505,7 @@ class TestReflection:
         r = Reflection(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=template,
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 7),
@@ -517,7 +517,7 @@ class TestReflection:
         r = Reflection(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=template,
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 7),
@@ -531,7 +531,7 @@ class TestReflection:
         r = Reflection(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=template,
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 7),
@@ -556,7 +556,7 @@ class TestReflection:
         r = Reflection(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=tmpl,
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 7),
@@ -570,7 +570,7 @@ class TestReflection:
         r = Reflection(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=template,
             period_start=date(2026, 7, 10),
             period_end=date(2026, 7, 1),
@@ -584,7 +584,7 @@ class TestReflection:
             Reflection.all_objects.create(
                 organization=org,
                 program=program,
-                person=person,
+                subject=person,
                 template=template,
                 period_start=date(2026, 7, 10),
                 period_end=date(2026, 7, 1),
@@ -595,9 +595,9 @@ class TestReflection:
         self._make_reflection(org, program, person, template)
         other = Person.all_objects.create(organization=org, first_name="Other", last_name="Person")
         self._make_reflection(org, program, other, template, answers={"highlight": "other"})
-        qs = Reflection.all_objects.filter(person=person)
+        qs = Reflection.all_objects.filter(subject=person)
         assert qs.count() == 1
-        assert qs.get().person_id == person.pk
+        assert qs.get().subject_id == person.pk
 
     def test_query_by_program(self, org, program, person, template):
         p2 = Program.all_objects.create(

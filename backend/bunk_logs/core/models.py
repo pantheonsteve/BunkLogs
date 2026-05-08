@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 from django.conf import settings
@@ -6,12 +7,14 @@ from django.db import models
 from django.db.models import F
 from django.db.models import Q
 
+from bunk_logs.core.managers import AssignmentGroupMembershipScopedManager
 from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
 from bunk_logs.core.validators.template_schema import ALL_FIELD_TYPES
 from bunk_logs.core.validators.template_schema import META_FIELD_TYPES
+from bunk_logs.core.validators.template_schema import validate_template_coherence
 from bunk_logs.core.validators.template_schema import validate_template_schema
 
 # Backward-compat alias used by management commands and existing tests
@@ -298,6 +301,107 @@ class Membership(models.Model):
         return f"{self.person} — {self.program} ({self.get_role_display()})"
 
 
+class AssignmentGroup(models.Model):
+    GROUP_TYPES = [
+        ("bunk", "Bunk"),
+        ("classroom", "Classroom"),
+        ("caseload", "Caseload"),
+        ("unit", "Unit"),
+        ("division", "Division"),
+        ("cohort", "Cohort"),
+        ("specialty", "Specialty/Activity Group"),
+        ("custom", "Custom Group"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="assignment_groups",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="assignment_groups",
+    )
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=100)
+    group_type = models.CharField(max_length=32, choices=GROUP_TYPES)
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="children",
+        help_text="For nesting: bunk -> unit -> division",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("program", "slug")]
+        ordering = ["group_type", "name"]
+        indexes = [
+            models.Index(fields=["program", "group_type", "is_active"]),
+            models.Index(fields=["parent"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_group_type_display()}: {self.name}"
+
+    def get_descendants(self) -> list:
+        """Recursive children for hierarchy queries (cache for perf if needed)."""
+        descendants = list(AssignmentGroup.all_objects.filter(parent=self, is_active=True))
+        for child in list(descendants):
+            descendants.extend(child.get_descendants())
+        return descendants
+
+
+class AssignmentGroupMembership(models.Model):
+    ROLES_IN_GROUP = [
+        ("subject", "Subject"),
+        ("author", "Author"),
+    ]
+
+    group = models.ForeignKey(
+        AssignmentGroup,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="assignment_group_memberships",
+    )
+    role_in_group = models.CharField(max_length=16, choices=ROLES_IN_GROUP)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Role-specific data, e.g. {'is_lead_counselor': true}",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = AssignmentGroupMembershipScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("group", "person", "role_in_group")]
+        indexes = [
+            models.Index(fields=["group", "role_in_group", "is_active"]),
+            models.Index(fields=["person", "role_in_group", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.person} as {self.get_role_in_group_display()} in {self.group}"
+
+
 class ReflectionTemplate(models.Model):
     CADENCES = [
         ("daily", "Daily"),
@@ -351,6 +455,45 @@ class ReflectionTemplate(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    SUBJECT_MODES = [
+        ("self", "Self-reflection (author == subject)"),
+        ("single_subject", "About one other person"),
+        ("multi_subject", "About multiple people in one submission"),
+        ("group", "About a group/unit, no individual subject"),
+    ]
+    subject_mode = models.CharField(max_length=32, choices=SUBJECT_MODES, default="self")
+
+    ASSIGNMENT_SCOPES = [
+        ("none", "No group context"),
+        ("per_subject_in_group", "One reflection per subject in the assignment group"),
+        ("per_group", "One reflection per group as a whole"),
+    ]
+    assignment_scope = models.CharField(max_length=32, choices=ASSIGNMENT_SCOPES, default="none")
+
+    assignment_group_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Which group types this template applies to, e.g. ['bunk']",
+    )
+    author_role_filter = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Membership roles eligible to author this template, e.g. ['counselor', 'unit_head']",
+    )
+    subject_role_filter = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Membership roles eligible to be subjects, e.g. ['camper']. Empty = any role.",
+    )
+    required_per_subject_per_period = models.IntegerField(
+        default=1,
+        help_text="How many reflections per subject per cadence period for completion",
+    )
+    subject_visible = models.BooleanField(
+        default=False,
+        help_text="Whether the subject can see reflections about themselves",
+    )
+
     objects = ReflectionTemplateScopedManager()
     all_objects = models.Manager()  # noqa: DJ012
 
@@ -368,6 +511,16 @@ class ReflectionTemplate(models.Model):
         fields = schema.get("fields") if isinstance(schema, dict) else None
         if isinstance(fields, list) and fields:
             validate_template_schema(schema, self.languages or [])
+        valid_roles = frozenset(role for role, _ in Membership.ROLES)
+        validate_template_coherence(
+            subject_mode=self.subject_mode or "self",
+            assignment_scope=self.assignment_scope or "none",
+            assignment_group_types=self.assignment_group_types or [],
+            author_role_filter=self.author_role_filter or [],
+            subject_role_filter=self.subject_role_filter or [],
+            subject_visible=bool(self.subject_visible),
+            valid_roles=valid_roles,
+        )
 
 
 class Reflection(models.Model):
@@ -381,10 +534,42 @@ class Reflection(models.Model):
         on_delete=models.CASCADE,
         related_name="reflections",
     )
-    person = models.ForeignKey(
+    subject = models.ForeignKey(
         Person,
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
+        related_name="reflections_about",
+        help_text="Who this reflection is ABOUT. Null when subject_mode='group'.",
+    )
+    subject_group = models.ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="reflections_as_subject",
+        help_text="Set when subject_mode='group'",
+    )
+    author = models.ForeignKey(
+        Person,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reflections_authored",
+        help_text="Who FILLED OUT this reflection (may equal subject for self-reflection)",
+    )
+    assignment_group = models.ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
         related_name="reflections",
+        help_text="Which group context this was authored in (e.g. which bunk)",
+    )
+    submission_id = models.UUIDField(
+        default=uuid.uuid4,
+        db_index=True,
+        help_text="Groups multi-subject submissions together",
     )
     template = models.ForeignKey(
         ReflectionTemplate,
@@ -397,7 +582,7 @@ class Reflection(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="reflections_submitted",
-        help_text="Who actually submitted this reflection",
+        help_text="Who actually submitted this reflection (User; audit trail)",
     )
     period_start = models.DateField(help_text="Start of period being reflected on")
     period_end = models.DateField(help_text="End of period being reflected on")
@@ -418,8 +603,12 @@ class Reflection(models.Model):
         ordering = ["-period_end"]
         indexes = [
             models.Index(fields=["organization", "program", "period_end"]),
-            models.Index(fields=["person", "period_end"]),
+            models.Index(fields=["subject", "period_end"]),
+            models.Index(fields=["subject_group", "period_end"]),
+            models.Index(fields=["assignment_group", "period_end"]),
+            models.Index(fields=["author", "period_end"]),
             models.Index(fields=["template", "is_complete"]),
+            models.Index(fields=["submission_id"]),
         ]
         constraints = [
             models.CheckConstraint(
@@ -429,7 +618,8 @@ class Reflection(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.person} — {self.template.slug} ({self.period_end})"
+        who = self.subject or self.subject_group or "?"
+        return f"{who} — {self.template.slug} ({self.period_end})"
 
     def validate_answers(self) -> None:
         validate_reflection_answers(self.template.schema, self.answers)
@@ -442,8 +632,10 @@ class Reflection(models.Model):
             )
         if self.program_id and self.organization_id and self.program.organization_id != self.organization_id:
             raise ValidationError({"program": "Program must belong to the same organization."})
-        if self.person_id and self.organization_id and self.person.organization_id != self.organization_id:
-            raise ValidationError({"person": "Person must belong to the same organization."})
+        if self.subject_id and self.organization_id and self.subject.organization_id != self.organization_id:
+            raise ValidationError({"subject": "Subject must belong to the same organization."})
+        if self.author_id and self.organization_id and self.author.organization_id != self.organization_id:
+            raise ValidationError({"author": "Author must belong to the same organization."})
         if self.template_id and self.organization_id:
             to = self.template.organization_id
             if to is not None and to != self.organization_id:

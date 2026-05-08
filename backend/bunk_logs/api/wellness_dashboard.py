@@ -152,7 +152,7 @@ def _trend_label(current: float | None, prior: float | None) -> str:
 def _completion_rate(person_ids: set[int], reflections: list[Reflection]) -> float:
     if not person_ids:
         return 0.0
-    submitted = {r.person_id for r in reflections}
+    submitted = {r.subject_id for r in reflections}
     return len(submitted & person_ids) / len(person_ids)
 
 
@@ -235,16 +235,16 @@ class WellnessDashboardView(APIView):
                 cur_refs = list(
                     Reflection.objects.filter(
                         program_id=program_id,
-                        person_id__in=role_pids,
+                        subject_id__in=role_pids,
                         period_end__gte=cur_start,
                         period_end__lte=cur_end,
                         is_complete=True,
-                    ).select_related("template", "person", "program"),
+                    ).select_related("template", "subject", "program"),
                 )
                 prev_refs = list(
                     Reflection.objects.filter(
                         program_id=program_id,
-                        person_id__in=role_pids,
+                        subject_id__in=role_pids,
                         period_end__gte=prev_start,
                         period_end__lte=prev_end,
                         is_complete=True,
@@ -276,7 +276,7 @@ class WellnessDashboardView(APIView):
                                 concerning.append(
                                     {
                                         "reflection_id": ref.id,
-                                        "person_id": ref.person_id,
+                                        "person_id": ref.subject_id,
                                         "field_key": fkey,
                                         "category": cat,
                                         "value": float(val),
@@ -289,14 +289,14 @@ class WellnessDashboardView(APIView):
                             open_questions.append(
                                 {
                                     "reflection_id": ref.id,
-                                    "person_id": ref.person_id,
+                                    "person_id": ref.subject_id,
                                     "field_key": oq_key,
                                     "period_end": ref.period_end.isoformat(),
                                     "text": text.strip()[:MAX_TEXT_LEN],
                                 },
                             )
 
-                submitted_count = len({r.person_id for r in cur_refs})
+                submitted_count = len({r.subject_id for r in cur_refs})
                 total_staff_overall += len(role_pids)
                 total_submitted_overall += submitted_count
 
@@ -342,7 +342,7 @@ class WellnessDashboardView(APIView):
             if non_wellness_pids:
                 other_refs = Reflection.objects.filter(
                     program_id=program_id,
-                    person_id__in=non_wellness_pids,
+                    subject_id__in=non_wellness_pids,
                     period_end__gte=cur_start,
                     period_end__lte=cur_end,
                     is_complete=True,
@@ -355,7 +355,7 @@ class WellnessDashboardView(APIView):
                             cross_team_patterns.append(
                                 {
                                     "reflection_id": ref.id,
-                                    "person_id": ref.person_id,
+                                    "person_id": ref.subject_id,
                                     "program_slug": prog.slug,
                                     "field_key": fkey,
                                     "template_slug": ref.template.slug,

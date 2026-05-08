@@ -176,7 +176,7 @@ class TestSendReflectionReminders:
         Reflection.all_objects.create(
             organization=program.organization,
             program=program,
-            person=person_en,
+            subject=person_en,
             template=template,
             period_start=today,
             period_end=today,

@@ -184,7 +184,7 @@ def test_camper_care_user_can_access(
     Reflection.all_objects.create(
         organization=org_w,
         program=program_w,
-        person=person,
+        subject=person,
         template=wellness_template,
         period_start=period_start,
         period_end=period_end,
@@ -306,7 +306,7 @@ def test_low_ratings_flagged_as_concerning(
     Reflection.all_objects.create(
         organization=org_w,
         program=program_w,
-        person=person,
+        subject=person,
         template=wellness_template,
         period_start=period_start,
         period_end=period_end,
@@ -341,7 +341,7 @@ def test_cross_team_patterns_surface_wellness_mentions(
     Reflection.all_objects.create(
         organization=org_w,
         program=program_w,
-        person=person_cn,
+        subject=person_cn,
         template=counselor_template,
         period_start=period_start,
         period_end=period_end,
@@ -354,7 +354,7 @@ def test_cross_team_patterns_surface_wellness_mentions(
     Reflection.all_objects.create(
         organization=org_w,
         program=program_w,
-        person=person_cn,
+        subject=person_cn,
         template=counselor_template,
         period_start=period_start,
         period_end=period_end - timedelta(days=1),
@@ -390,7 +390,7 @@ def test_completion_aggregation(
     Reflection.all_objects.create(
         organization=org_w,
         program=program_w,
-        person=person_cc,
+        subject=person_cc,
         template=wellness_template,
         period_start=period_start,
         period_end=period_end,

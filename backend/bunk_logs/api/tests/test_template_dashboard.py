@@ -213,7 +213,7 @@ def _make_reflection(
     return Reflection.all_objects.create(
         organization=org,
         program=program,
-        person=person,
+        subject=person,
         template=template,
         period_start=period_end,
         period_end=period_end,

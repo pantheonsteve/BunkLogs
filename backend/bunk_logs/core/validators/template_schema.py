@@ -281,6 +281,64 @@ def validate_template_schema(schema: Any, languages: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Template-level coherence validation (model fields, not JSON schema fields)
+# ---------------------------------------------------------------------------
+
+_SUBJECT_MODES = frozenset({"self", "single_subject", "multi_subject", "group"})
+_ASSIGNMENT_SCOPES = frozenset({"none", "per_subject_in_group", "per_group"})
+
+
+def validate_template_coherence(
+    subject_mode: str,
+    assignment_scope: str,
+    assignment_group_types: list,
+    author_role_filter: list,
+    subject_role_filter: list,
+    subject_visible: bool,
+    valid_roles: frozenset,
+) -> None:
+    """Validate cross-field coherence for ReflectionTemplate model fields.
+
+    Raises ``django.core.exceptions.ValidationError`` if any rule is violated.
+    """
+    if subject_mode == "self" and assignment_scope != "none":
+        raise ValidationError(
+            {"assignment_scope": "Self-reflection templates must have assignment_scope='none'."},
+        )
+    if subject_mode == "group" and assignment_scope != "per_group":
+        raise ValidationError(
+            {"assignment_scope": "Group-mode templates must have assignment_scope='per_group'."},
+        )
+    if subject_mode in ("single_subject", "multi_subject") and assignment_scope != "per_subject_in_group":
+        raise ValidationError(
+            {
+                "assignment_scope": (
+                    f"subject_mode='{subject_mode}' requires assignment_scope='per_subject_in_group'."
+                ),
+            },
+        )
+    if assignment_scope != "none" and not assignment_group_types:
+        raise ValidationError(
+            {"assignment_group_types": "assignment_group_types must be non-empty when assignment_scope is set."},
+        )
+    if subject_visible and subject_mode == "self":
+        raise ValidationError(
+            {"subject_visible": "subject_visible cannot be True for self-reflection templates."},
+        )
+    if valid_roles:
+        for role in author_role_filter or []:
+            if role not in valid_roles:
+                raise ValidationError(
+                    {"author_role_filter": f'Unknown role "{role}" in author_role_filter.'},
+                )
+        for role in subject_role_filter or []:
+            if role not in valid_roles:
+                raise ValidationError(
+                    {"subject_role_filter": f'Unknown role "{role}" in subject_role_filter.'},
+                )
+
+
+# ---------------------------------------------------------------------------
 # Field key registry hints (DB-aware, non-blocking)
 # ---------------------------------------------------------------------------
 

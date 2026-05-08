@@ -161,7 +161,7 @@ def send_reflection_reminders(self, program_id: int, role: str | None = None) ->
             is_complete=True,
             period_start__lte=today,
             period_end__gte=today,
-        ).values_list("person_id", flat=True)
+        ).values_list("subject_id", flat=True)
 
         missing = target.exclude(person_id__in=already_submitted)
 

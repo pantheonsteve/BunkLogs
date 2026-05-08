@@ -160,7 +160,7 @@ def test_person_cannot_see_other_reflection(
     ref_b = Reflection.all_objects.create(
         organization=org_a,
         program=program_a,
-        person=person_b,
+        subject=person_b,
         template=counselor_template,
         period_start=date(2026, 6, 1),
         period_end=date(2026, 6, 7),
@@ -239,7 +239,7 @@ def test_cross_org_access_impossible(
     ref_b = Reflection.all_objects.create(
         organization=org_b,
         program=program_b,
-        person=Person.all_objects.create(organization=org_b, first_name="X", last_name="Y"),
+        subject=Person.all_objects.create(organization=org_b, first_name="X", last_name="Y"),
         template=tpl_b,
         period_start=date(2026, 6, 1),
         period_end=date(2026, 6, 7),
@@ -320,7 +320,7 @@ def test_wellness_team_readonly_enforced(
     wellness_other = Reflection.all_objects.create(
         organization=org_a,
         program=program_a,
-        person=person_c,
+        subject=person_c,
         template=tpl_well,
         period_start=date(2026, 6, 1),
         period_end=date(2026, 6, 7),
@@ -401,7 +401,7 @@ def test_incomplete_reflection_can_patch(api, org_a, program_a, counselor_templa
     ref = Reflection.all_objects.create(
         organization=org_a,
         program=program_a,
-        person=person,
+        subject=person,
         template=counselor_template,
         period_start=date(2026, 6, 1),
         period_end=date(2026, 6, 7),

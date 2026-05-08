@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from bunk_logs.users.api.views import UserViewSet
 
+from . import assignment_groups
 from . import field_keys as field_keys_api
 from . import memberships
 from . import reflections
@@ -29,6 +30,7 @@ router.register(r"counselorlogs", views.CounselorLogViewSet, basename="counselor
 
 router.register(r"reflections", reflections.ReflectionViewSet, basename="reflection")
 router.register(r"memberships", memberships.MembershipViewSet, basename="membership")
+router.register(r"assignment-groups", assignment_groups.AssignmentGroupViewSet, basename="assignment-group")
 router.register(r"templates", templates_api.ReflectionTemplateViewSet, basename="template")
 router.register(r"field-keys", field_keys_api.FieldKeyViewSet, basename="field-key")
 
