@@ -31,12 +31,17 @@ def resolve_template_file_path(arg: str) -> Path:
         msg = f"Template file not found: {resolved}"
         raise CommandError(msg)
 
+    # /repo is the full monorepo mount used in the local Docker/Podman setup.
+    _REPO_MOUNT = Path("/repo")
     base_dirs: list[Path] = []
     for raw in (
         Path.cwd(),
         Path(settings.BASE_DIR).resolve().parent,
         Path(settings.BASE_DIR).resolve(),
+        _REPO_MOUNT if _REPO_MOUNT.is_dir() else None,
     ):
+        if raw is None:
+            continue
         try:
             resolved_base = raw.resolve()
         except OSError:
