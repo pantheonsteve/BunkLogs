@@ -29,6 +29,7 @@ SKIP_FILES = {"prefix.md", "0_0_context_prompt.md"}
 # git log main will not mention the earlier step id — treat as done if these paths exist on main.
 STEP_COMPLETION_ARTIFACTS: dict[str, tuple[str, ...]] = {
     "1_5": ("docs/api-consolidation-plan.md",),
+    "3_12": ("backend/bunk_logs/core/management/commands/onboard_clc_summer_2026.py",),
 }
 
 
