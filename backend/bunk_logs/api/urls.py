@@ -14,6 +14,7 @@ from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
 from .dashboards import coverage as coverage_dashboard
+from .dashboards import trends as trends_dashboard
 
 router = DefaultRouter()
 
@@ -95,6 +96,13 @@ urlpatterns = [
         "dashboards/coverage/",
         coverage_dashboard.CoverageDashboardView.as_view(),
         name="dashboard-coverage",
+    ),
+
+    # Subject Trend Grid (commit 4 of 3.20)
+    path(
+        "dashboards/subject-trends/",
+        trends_dashboard.SubjectTrendGridView.as_view(),
+        name="dashboard-subject-trends",
     ),
 
     # Unit head and camper care dashboard endpoints
