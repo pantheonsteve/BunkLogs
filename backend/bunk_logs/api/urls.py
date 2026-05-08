@@ -13,6 +13,7 @@ from . import template_dashboard
 from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
+from .dashboards import coverage as coverage_dashboard
 
 router = DefaultRouter()
 
@@ -87,6 +88,13 @@ urlpatterns = [
         "dashboards/template/<int:template_id>/export/",
         template_dashboard.TemplateDashboardExportView.as_view(),
         name="template-dashboard-export",
+    ),
+
+    # Cross-roster coverage heatmap (commit 3 of 3.20)
+    path(
+        "dashboards/coverage/",
+        coverage_dashboard.CoverageDashboardView.as_view(),
+        name="dashboard-coverage",
     ),
 
     # Unit head and camper care dashboard endpoints
