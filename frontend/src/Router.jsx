@@ -38,6 +38,7 @@ import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
 import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
 import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
 import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
+import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -369,6 +370,14 @@ function Router() {
           element={
             <ProtectedRoute>
               <SubjectDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/authors"
+          element={
+            <ProtectedRoute>
+              <AuthorAttributionPage />
             </ProtectedRoute>
           }
         />

@@ -13,6 +13,7 @@ from . import template_dashboard
 from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
+from .dashboards import authors as authors_dashboard
 from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import trends as trends_dashboard
@@ -111,6 +112,13 @@ urlpatterns = [
         "dashboards/subject/<int:person_id>/",
         subject_dashboard.SubjectDetailView.as_view(),
         name="dashboard-subject-detail",
+    ),
+
+    # Author attribution (commit 6 of 3.20)
+    path(
+        "dashboards/authors/",
+        authors_dashboard.AuthorAttributionView.as_view(),
+        name="dashboard-authors",
     ),
 
     # Unit head and camper care dashboard endpoints
