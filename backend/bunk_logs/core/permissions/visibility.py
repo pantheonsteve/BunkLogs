@@ -239,8 +239,7 @@ def has_supervisor_role(user) -> bool:
     )
     if not direct_ids:
         return False
-    has_children = AssignmentGroup.all_objects.filter(
+    return AssignmentGroup.all_objects.filter(
         parent_id__in=direct_ids,
         is_active=True,
     ).exists()
-    return has_children

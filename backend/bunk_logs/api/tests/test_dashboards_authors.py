@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import date
-from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -67,11 +66,10 @@ def _bunk_obs(org):
 
 @pytest.fixture
 def setup(org, program):
-    bunk = AssignmentGroup.all_objects.create(
+    return AssignmentGroup.all_objects.create(
         organization=org, program=program, name="Bunk",
         slug="au-bunk", group_type="bunk",
     )
-    return bunk
 
 
 def test_lone_counselor_blocked_403(api_client, org, program, setup):

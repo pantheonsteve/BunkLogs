@@ -143,7 +143,7 @@ def test_unauthenticated_blocked(api_client, org, setup):
 def test_supervisor_sees_cross_template_aggregation(api_client, org, program, setup):
     _, camper, counselor_user, counselor = setup
     pulse = _bunk_pulse_template(org)
-    wellness = _wellness_template(org)
+    _wellness_template(org)
     today = date.today()
     _make_reflection(
         org, program, pulse, subject=camper, author=counselor,
@@ -201,7 +201,7 @@ def test_downward_trend_surfaces(api_client, org, program, setup):
             day=today - timedelta(days=i), answers={"overall": 5},
         )
     # Recent half (days 0-6 ago): mean ~ 2.5  (drop > 0.5)
-    for i in range(0, 7):
+    for i in range(7):
         _make_reflection(
             org, program, pulse, subject=camper, author=counselor,
             day=today - timedelta(days=i), answers={"overall": 2},
@@ -220,7 +220,7 @@ def test_flat_series_does_not_false_positive(api_client, org, program, setup):
     pulse = _bunk_pulse_template(org)
     today = date.today()
     # Stable rating of 3 across the window — small ±0.0 variance shouldn't trigger
-    for i in range(0, 14):
+    for i in range(14):
         _make_reflection(
             org, program, pulse, subject=camper, author=counselor,
             day=today - timedelta(days=i), answers={"overall": 3},

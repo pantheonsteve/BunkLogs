@@ -9,7 +9,6 @@ categories, OR a single category when ``?category=<key>`` is provided.
 
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date
 from datetime import timedelta
 from typing import Any
@@ -118,10 +117,8 @@ class SubjectTrendGridView(APIView):
 
         # Permission: viewer must be able to see at least one reflection in this group
         # OR the group must be visible to them via author-or-descendant set.
-        from bunk_logs.core.permissions.visibility import (
-            author_group_ids_with_descendants,
-            is_org_admin,
-        )
+        from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
+        from bunk_logs.core.permissions.visibility import is_org_admin
         viewer = Person.objects.filter(user=request.user).first()
         if not is_org_admin(request.user):
             if viewer is None:
@@ -190,7 +187,7 @@ class SubjectTrendGridView(APIView):
                     period_end__lte=cur_end,
                     is_complete=True,
                 ).select_related("author"),
-            ).order_by("period_end")
+            ).order_by("period_end"),
         )
 
         # Aggregate per (subject, day): if multiple, take most recent submission

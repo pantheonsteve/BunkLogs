@@ -120,7 +120,7 @@ class ConcernsInboxView(APIView):
                     period_end__lte=cur_end,
                     is_complete=True,
                 ).select_related("subject", "author", "template", "assignment_group"),
-            ).order_by("-period_end")
+            ).order_by("-period_end"),
         )
 
         # Pull this viewer's read states for all candidate reflections in one query

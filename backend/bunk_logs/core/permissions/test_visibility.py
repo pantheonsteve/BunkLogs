@@ -5,8 +5,8 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.test.utils import CaptureQueriesContext
 from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroup
