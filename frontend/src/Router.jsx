@@ -33,6 +33,8 @@ import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
 import GroupListPage from './pages/admin/groups/GroupListPage';
 import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
+import TasksPage from './pages/TasksPage';
+import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -392,6 +394,26 @@ function Router() {
             <AdminRoute>
               <GroupDetailPage />
             </AdminRoute>
+          }
+        />
+
+        {/* Roster-aware tasks home screen */}
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <TasksPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Supervisor coverage view */}
+        <Route
+          path="/supervisor/coverage"
+          element={
+            <ProtectedRoute>
+              <SupervisorCoveragePage />
+            </ProtectedRoute>
           }
         />
 
