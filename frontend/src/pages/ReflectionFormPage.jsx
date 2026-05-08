@@ -43,6 +43,17 @@ export default function ReflectionFormPage() {
   const programParam = searchParams.get('program') || '';
   const roleParam = searchParams.get('role') || '';
 
+  // Pre-fill params from tasks home screen
+  const templateParam = searchParams.get('template') || '';
+  const assignmentGroupParam = searchParams.get('assignment_group') || '';
+  const subjectParam = searchParams.get('subject') || '';
+  const subjectGroupParam = searchParams.get('subject_group') || '';
+  const subjectNameParam = searchParams.get('subject_name') || '';
+  const periodStartParam = searchParams.get('period_start') || '';
+  const periodEndParam = searchParams.get('period_end') || '';
+
+  const isPrefilled = Boolean(templateParam && programParam);
+
   const [language, setLanguage] = useState('en');
   const [meta, setMeta] = useState(null);
   const [schema, setSchema] = useState(null);
@@ -50,16 +61,18 @@ export default function ReflectionFormPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [answers, setAnswers] = useState({});
-  const [periodStart, setPeriodStart] = useState('');
-  const [periodEnd, setPeriodEnd] = useState('');
+  const [periodStart, setPeriodStart] = useState(periodStartParam);
+  const [periodEnd, setPeriodEnd] = useState(periodEndParam);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const draftKey = useMemo(() => {
+    const subjectKey = subjectParam ? `_s${subjectParam}` : '';
+    const groupKey = assignmentGroupParam ? `_g${assignmentGroupParam}` : '';
     if (!meta?.id || !periodStart || !periodEnd) return null;
-    return reflectionDraftKey(meta.id, periodStart, periodEnd);
-  }, [meta?.id, periodStart, periodEnd]);
+    return reflectionDraftKey(`${meta.id}${subjectKey}${groupKey}`, periodStart, periodEnd);
+  }, [meta?.id, periodStart, periodEnd, subjectParam, assignmentGroupParam]);
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true);
@@ -67,26 +80,28 @@ export default function ReflectionFormPage() {
     try {
       const params = { language };
       if (programParam) params.program = programParam;
-      if (roleParam) params.role = roleParam;
+      if (templateParam) params.template = templateParam;
+      else if (roleParam) params.role = roleParam;
       const { data } = await api.get('/api/v1/reflections/template-for-me/', { params });
       setMeta({
         id: data.id,
         name: data.name,
         cadence: data.cadence,
         languages: data.languages || [],
+        subject_mode: data.subject_mode || 'self',
       });
       setSchema(data.schema);
       setProgramSlug(data.program_slug || '');
       setAnswers(buildDefaultAnswers(data.schema));
     } catch (err) {
-      const status = err.response?.status;
+      const httpStatus = err.response?.status;
       const detail = err.response?.data?.detail;
       const msg =
         typeof detail === 'string'
           ? detail
-          : status === 403
+          : httpStatus === 403
             ? 'You do not have access to reflections for this organization.'
-            : status === 404
+            : httpStatus === 404
               ? 'No reflection template is available for your role or program.'
               : 'Could not load reflection template.';
       setLoadError(msg);
@@ -97,7 +112,7 @@ export default function ReflectionFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [language, programParam, roleParam]);
+  }, [language, programParam, roleParam, templateParam]);
 
   useEffect(() => {
     fetchTemplate();
@@ -350,25 +365,32 @@ export default function ReflectionFormPage() {
 
     setSubmitting(true);
     try {
-      const { data } = await api.post('/api/v1/reflections/', {
+      const payload = {
         program_slug: programSlug,
         template: meta.id,
         period_start: periodStart,
         period_end: periodEnd,
         answers,
         language,
-      });
+      };
+      if (subjectParam) payload.subject = Number(subjectParam);
+      if (assignmentGroupParam) payload.assignment_group = Number(assignmentGroupParam);
+      if (subjectGroupParam) payload.subject_group = Number(subjectGroupParam);
+
+      const { data } = await api.post('/api/v1/reflections/', payload);
       if (draftKey) clearReflectionDraft(draftKey);
       navigate('/reflect/summary', {
         replace: true,
         state: {
           reflectionId: data.id,
           templateName: meta.name,
+          subjectName: subjectNameParam || null,
           periodStart,
           periodEnd,
           language,
           schema,
           answers: data.answers || answers,
+          returnTo: isPrefilled ? '/tasks' : null,
         },
       });
     } catch (err) {
@@ -392,7 +414,18 @@ export default function ReflectionFormPage() {
       <div className="max-w-lg mx-auto">
         <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Reflection</h1>
+            {isPrefilled && (
+              <button
+                type="button"
+                onClick={() => navigate('/tasks')}
+                className="text-xs text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1"
+              >
+                ← Back to tasks
+              </button>
+            )}
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {subjectNameParam ? `About ${subjectNameParam}` : 'Reflection'}
+            </h1>
             {meta ? (
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{meta.name}</p>
             ) : null}
