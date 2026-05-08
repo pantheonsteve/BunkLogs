@@ -14,10 +14,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
+from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 User = get_user_model()
 
@@ -37,6 +40,45 @@ TEMPLATE_ROLE_VIEWER_ROLES: dict[str, frozenset[str]] = {
     "special_diets": _WELLNESS_ACCESS,
     "wellness": _WELLNESS_ACCESS,
 }
+
+
+def _viewer_can_access_template(viewer: Person, user, template: ReflectionTemplate) -> bool:
+    """Cheap pre-check used before running expensive aggregation.
+
+    Honors the same paths as ``reflections_visible_to`` but answers the question
+    "could this user have visibility to any reflection of this template?" without
+    needing reflections to actually exist (so admins of a fresh template still
+    get an empty dashboard rather than 403).
+    """
+    user_role = getattr(user, "role", "") or ""
+    if user.is_superuser or user_role == User.ADMIN:
+        return True
+    if Membership.objects.filter(
+        person=viewer, role="admin", is_active=True,
+        program__organization_id=viewer.organization_id,
+    ).exists():
+        return True
+
+    allowed_viewer_roles = TEMPLATE_ROLE_VIEWER_ROLES.get(template.role or "", _ADMIN_ONLY)
+    if Membership.objects.filter(
+        person=viewer,
+        role__in=allowed_viewer_roles,
+        is_active=True,
+        program__organization_id=viewer.organization_id,
+    ).exists():
+        return True
+
+    # Shared-roster: user supervises a group whose group_type matches the template
+    if template.assignment_group_types:
+        gids = author_group_ids_with_descendants(viewer)
+        if gids and AssignmentGroup.all_objects.filter(
+            id__in=gids,
+            group_type__in=template.assignment_group_types,
+            is_active=True,
+        ).exists():
+            return True
+
+    return False
 
 
 def _parse_period(request) -> tuple[date, date, date, date]:
@@ -76,34 +118,27 @@ def _trend_label(current: float | None, prior: float | None) -> str:
     return "flat"
 
 
-def _viewer_can_access_template(viewer: Person, user, template: ReflectionTemplate) -> bool:
-    user_role = getattr(user, "role", "") or ""
-    if user.is_superuser or user_role == User.ADMIN:
-        return True
-    allowed_viewer_roles = TEMPLATE_ROLE_VIEWER_ROLES.get(template.role or "", _ADMIN_ONLY)
-    return Membership.objects.filter(
-        person=viewer,
-        role__in=allowed_viewer_roles,
-        is_active=True,
-        program__organization_id=viewer.organization_id,
-    ).exists()
-
-
 def _get_reflections(
+    user,
     template: ReflectionTemplate,
     org_id: int,
     start: date,
     end: date,
 ) -> list[Reflection]:
-    return list(
-        Reflection.objects.filter(
-            template=template,
-            organization_id=org_id,
-            period_end__gte=start,
-            period_end__lte=end,
-            is_complete=True,
-        ).select_related("subject"),
-    )
+    """Return reflections for ``template`` in [start, end] visible to ``user``.
+
+    Visibility is delegated to ``reflections_visible_to`` so that supervisor /
+    LT / wellness / org-admin / shared-roster paths are all honored consistently
+    with the per-reflection list endpoint.
+    """
+    base = Reflection.objects.filter(
+        template=template,
+        organization_id=org_id,
+        period_end__gte=start,
+        period_end__lte=end,
+        is_complete=True,
+    ).select_related("subject", "author", "assignment_group")
+    return list(reflections_visible_to(user, base))
 
 
 def _eligible_person_count(template: ReflectionTemplate, org_id: int) -> int:
@@ -416,8 +451,8 @@ class TemplateDashboardView(APIView):
             return Response({"detail": "Access denied for this template."}, status=403)
 
         cur_start, cur_end, prev_start, prev_end = _parse_period(request)
-        cur_refs = _get_reflections(template, org.id, cur_start, cur_end)
-        prev_refs = _get_reflections(template, org.id, prev_start, prev_end)
+        cur_refs = _get_reflections(request.user, template, org.id, cur_start, cur_end)
+        prev_refs = _get_reflections(request.user, template, org.id, prev_start, prev_end)
 
         person_ids = {r.subject_id for r in cur_refs}
         eligible = _eligible_person_count(template, org.id)
@@ -482,7 +517,7 @@ class TemplateDashboardExportView(TemplateDashboardView):
             return Response({"detail": "Access denied for this template."}, status=403)
 
         cur_start, cur_end, _, __ = _parse_period(request)
-        cur_refs = _get_reflections(template, org.id, cur_start, cur_end)
+        cur_refs = _get_reflections(request.user, template, org.id, cur_start, cur_end)
         csv_text = _build_csv(template, cur_refs)
         filename = f"{template.slug}_{cur_start}_{cur_end}.csv"
         response = HttpResponse(csv_text, content_type="text/csv")

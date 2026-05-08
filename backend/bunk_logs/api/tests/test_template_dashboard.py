@@ -296,6 +296,47 @@ def test_template_not_found_returns_404(api_client, org, lt_user):
     assert r.status_code == 404
 
 
+@pytest.mark.django_db
+def test_supervisor_can_access_shared_roster_template(api_client, org, program):
+    """Supervisor of a matching AssignmentGroup can view shared-roster dashboards.
+
+    Regression: prior behaviour gated dashboards on a per-template ``role``
+    membership, which broke for shared-roster templates where the author role
+    (counselor) doesn't grant data-viewing rights — only being a supervisor
+    of the group does.
+    """
+    from bunk_logs.core.models import AssignmentGroup
+    from bunk_logs.core.models import AssignmentGroupMembership
+
+    u, p = _make_person(org, program, "unit_head", email_suffix="uh-shared")
+
+    bunk_obs = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Bunk Obs",
+        slug="bunk-obs-tpl",
+        cadence="daily",
+        subject_mode="single_subject",
+        assignment_scope="per_subject_in_group",
+        assignment_group_types=["bunk"],
+        author_role_filter=["counselor"],
+        subject_role_filter=["camper"],
+        schema={"fields": [{"key": "n", "type": "text", "prompts": {"en": "n"}}]},
+    )
+    unit = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="U", slug="u", group_type="unit",
+    )
+    AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="B", slug="b",
+        group_type="bunk", parent=unit,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=unit, person=p, role_in_group="author", is_active=True,
+    )
+    api_client.force_authenticate(user=u)
+    r = api_client.get(f"/api/v1/dashboards/template/{bunk_obs.id}/", **_hdr(org.slug))
+    assert r.status_code == 200, r.content
+
+
 # ── Aggregation correctness tests ──────────────────────────────────────────────
 
 

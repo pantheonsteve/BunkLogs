@@ -402,6 +402,7 @@ def test_incomplete_reflection_can_patch(api, org_a, program_a, counselor_templa
         organization=org_a,
         program=program_a,
         subject=person,
+        author=person,
         template=counselor_template,
         period_start=date(2026, 6, 1),
         period_end=date(2026, 6, 7),
