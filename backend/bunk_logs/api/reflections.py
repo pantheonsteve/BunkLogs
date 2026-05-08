@@ -188,7 +188,7 @@ def leadership_visibility_q(viewer: Person) -> Q | None:
             if str(mem.metadata.get("unit_slug") or "") in unit_slugs
         ]
         if person_ids:
-            q_acc |= Q(program_id=pid, person_id__in=person_ids)
+            q_acc |= Q(program_id=pid, subject_id__in=person_ids)
     return q_acc
 
 
@@ -220,7 +220,11 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "organization",
             "program",
             "program_slug",
-            "person",
+            "subject",
+            "subject_group",
+            "author",
+            "assignment_group",
+            "submission_id",
             "template",
             "template_meta",
             "submitted_by",
@@ -236,7 +240,11 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "id",
             "organization",
             "program",
-            "person",
+            "subject",
+            "subject_group",
+            "author",
+            "assignment_group",
+            "submission_id",
             "submitted_by",
             "submitted_at",
             "updated_at",
@@ -279,7 +287,8 @@ class ReflectionSerializer(serializers.ModelSerializer):
 
         validated_data["organization"] = org
         validated_data["program"] = program
-        validated_data["person"] = viewer
+        validated_data["subject"] = viewer
+        validated_data["author"] = viewer
         validated_data["submitted_by"] = request.user
         try:
             instance = Reflection(**validated_data)
@@ -319,7 +328,7 @@ class ReflectionPermission(permissions.BasePermission):
         viewer = _person_for_request(request)
         if viewer is None:
             return False
-        return obj.person_id == viewer.id
+        return viewer.id in (obj.subject_id, obj.author_id)
 
 
 class ReflectionViewSet(viewsets.ModelViewSet):
@@ -328,14 +337,17 @@ class ReflectionViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
-        qs = Reflection.objects.select_related("person", "program", "template", "organization")
+        qs = Reflection.objects.select_related(
+            "subject", "author", "program", "template", "organization",
+            "assignment_group", "subject_group",
+        )
         viewer = _person_for_request(self.request)
         if viewer is None:
             return qs.none()
         if _has_tenant_admin(viewer):
             return self._filter_query_params(qs)
 
-        parts: list[Q] = [Q(person=viewer)]
+        parts: list[Q] = [Q(subject=viewer), Q(author=viewer)]
         lq = leadership_visibility_q(viewer)
         if lq is not None:
             parts.append(lq)
@@ -364,12 +376,21 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(
                 Exists(
                     Membership.objects.filter(
-                        person_id=OuterRef("person_id"),
+                        person_id=OuterRef("subject_id"),
                         program_id=OuterRef("program_id"),
                         role=mrole,
                     ),
                 ),
             )
+        subject_id = (p.get("subject") or "").strip()
+        if subject_id.isdigit():
+            qs = qs.filter(subject_id=int(subject_id))
+        author_id = (p.get("author") or "").strip()
+        if author_id.isdigit():
+            qs = qs.filter(author_id=int(author_id))
+        ag_id = (p.get("assignment_group") or "").strip()
+        if ag_id.isdigit():
+            qs = qs.filter(assignment_group_id=int(ag_id))
         return qs
 
     def _template_for_me_payload(self, tpl: ReflectionTemplate, language: str, program: Program) -> Response:

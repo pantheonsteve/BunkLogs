@@ -5,6 +5,8 @@ from django.contrib.admin.widgets import AdminTextareaWidget
 from django.db import models
 from django.shortcuts import render
 
+from .models import AssignmentGroup
+from .models import AssignmentGroupMembership
 from .models import FieldKey
 from .models import Membership
 from .models import Organization
@@ -103,6 +105,68 @@ class ProgramAdmin(admin.ModelAdmin):
     autocomplete_fields = ["organization"]
 
 
+class AssignmentGroupMembershipInline(admin.TabularInline):
+    model = AssignmentGroupMembership
+    extra = 0
+    fields = ("person", "role_in_group", "is_active", "start_date", "end_date")
+    raw_id_fields = ("person",)
+
+    def get_queryset(self, request):
+        return AssignmentGroupMembership.all_objects.select_related("person")
+
+
+@admin.register(AssignmentGroup)
+class AssignmentGroupAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return AssignmentGroup.all_objects.select_related("organization", "program", "parent")
+
+    list_display = ["name", "group_type", "program", "organization", "parent", "is_active"]
+    list_filter = ["group_type", "program__organization", "is_active"]
+    search_fields = ["name", "slug"]
+    prepopulated_fields = {"slug": ("name",)}
+    autocomplete_fields = ["organization", "program"]
+    readonly_fields = ["created_at", "updated_at"]
+    inlines = [AssignmentGroupMembershipInline]
+
+    actions = ["deactivate_groups"]
+
+    @admin.action(description="Deactivate selected groups")
+    def deactivate_groups(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f"Deactivated {updated} group(s).")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "program":
+            kwargs.setdefault("queryset", Program.all_objects.select_related("organization"))
+        if db_field.name == "parent":
+            kwargs.setdefault("queryset", AssignmentGroup.all_objects.select_related("program"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(AssignmentGroupMembership)
+class AssignmentGroupMembershipAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return AssignmentGroupMembership.all_objects.select_related("group__organization", "person")
+
+    list_display = ["person", "group", "role_in_group", "is_active", "start_date", "end_date"]
+    list_filter = ["role_in_group", "is_active", "group__organization"]
+    search_fields = [
+        "person__first_name",
+        "person__last_name",
+        "person__preferred_name",
+        "group__name",
+    ]
+    autocomplete_fields = ["group", "person"]
+    readonly_fields = ["created_at"]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "group":
+            kwargs.setdefault("queryset", AssignmentGroup.all_objects.select_related("program__organization"))
+        elif db_field.name == "person":
+            kwargs.setdefault("queryset", Person.all_objects.select_related("organization"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
 class ReflectionTemplateAdminForm(forms.ModelForm):
     class Meta:
         model = ReflectionTemplate
@@ -119,6 +183,13 @@ class ReflectionTemplateAdminForm(forms.ModelForm):
             "is_active",
             "version",
             "parent_template",
+            "subject_mode",
+            "assignment_scope",
+            "assignment_group_types",
+            "author_role_filter",
+            "subject_role_filter",
+            "required_per_subject_per_period",
+            "subject_visible",
         )
 
 
@@ -165,17 +236,21 @@ class ReflectionTemplateAdmin(admin.ModelAdmin):
 @admin.register(Reflection)
 class ReflectionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
-        return Reflection.all_objects.select_related("program__organization", "person", "template")
+        return Reflection.all_objects.select_related(
+            "program__organization", "subject", "author", "template", "assignment_group",
+        )
 
     @admin.display(description="Organization", ordering="program__organization__name")
     def program_organization_name(self, obj):
         return obj.program.organization.name
 
     list_display = [
-        "person",
+        "subject",
+        "author",
         "program_organization_name",
         "program",
         "template",
+        "assignment_group",
         "period_start",
         "period_end",
         "language",
@@ -191,15 +266,17 @@ class ReflectionAdmin(admin.ModelAdmin):
         "language",
     ]
     search_fields = [
-        "person__first_name",
-        "person__last_name",
-        "person__preferred_name",
+        "subject__first_name",
+        "subject__last_name",
+        "subject__preferred_name",
+        "author__first_name",
+        "author__last_name",
         "program__name",
         "template__name",
         "template__slug",
     ]
-    autocomplete_fields = ["organization", "program", "person", "template", "submitted_by"]
-    readonly_fields = ["submitted_at", "updated_at"]
+    autocomplete_fields = ["organization", "program", "subject", "author", "template", "submitted_by", "assignment_group"]
+    readonly_fields = ["submitted_at", "updated_at", "submission_id"]
     date_hierarchy = "period_end"
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
@@ -208,13 +285,15 @@ class ReflectionAdmin(admin.ModelAdmin):
                 "queryset",
                 Program.all_objects.select_related("organization"),
             )
-        elif db_field.name == "person":
+        elif db_field.name in ("subject", "author"):
             kwargs.setdefault(
                 "queryset",
                 Person.all_objects.select_related("organization"),
             )
         elif db_field.name == "template":
             kwargs.setdefault("queryset", ReflectionTemplate.all_objects.all())
+        elif db_field.name == "assignment_group":
+            kwargs.setdefault("queryset", AssignmentGroup.all_objects.select_related("program"))
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 

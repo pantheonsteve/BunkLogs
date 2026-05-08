@@ -298,7 +298,7 @@ class TestTemplatePatch:
         Reflection.all_objects.create(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=tpl,
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 7),
@@ -384,7 +384,7 @@ class TestTemplateDelete:
         Reflection.all_objects.create(
             organization=org,
             program=program,
-            person=person,
+            subject=person,
             template=tpl,
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 7),

@@ -102,7 +102,7 @@ def _get_reflections(
             period_end__gte=start,
             period_end__lte=end,
             is_complete=True,
-        ).select_related("person"),
+        ).select_related("subject"),
     )
 
 
@@ -231,7 +231,7 @@ def _agg_text(field: dict, refs: list[Reflection]) -> dict[str, Any]:
             items.append(
                 {
                     "reflection_id": r.id,
-                    "person_id": r.person_id,
+                    "person_id": r.subject_id,
                     "period_end": r.period_end.isoformat(),
                     "text": v.strip()[:2000],
                     "is_read": False,
@@ -363,11 +363,11 @@ def _build_csv(template: ReflectionTemplate, refs: list[Reflection]) -> str:
         else:
             headers.append(fkey)
     writer.writerow(headers)
-    for r in sorted(refs, key=lambda x: (x.period_end, x.person_id)):
+    for r in sorted(refs, key=lambda x: (x.period_end, x.subject_id or 0)):
         person_name = ""
-        if r.person:
-            person_name = f"{r.person.first_name} {r.person.last_name}".strip()
-        row: list[Any] = [person_name, r.person_id, r.period_end.isoformat(), r.language]
+        if r.subject:
+            person_name = f"{r.subject.first_name} {r.subject.last_name}".strip()
+        row: list[Any] = [person_name, r.subject_id, r.period_end.isoformat(), r.language]
         for field in schema_fields:
             ftype = field.get("type", "")
             fkey = field.get("key", "")
@@ -419,7 +419,7 @@ class TemplateDashboardView(APIView):
         cur_refs = _get_reflections(template, org.id, cur_start, cur_end)
         prev_refs = _get_reflections(template, org.id, prev_start, prev_end)
 
-        person_ids = {r.person_id for r in cur_refs}
+        person_ids = {r.subject_id for r in cur_refs}
         eligible = _eligible_person_count(template, org.id)
 
         fields_out = []

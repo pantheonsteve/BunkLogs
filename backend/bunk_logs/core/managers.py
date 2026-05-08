@@ -48,3 +48,14 @@ class FieldKeyScopedManager(models.Manager):
         if org is None:
             return qs.none()
         return qs.filter(Q(organization=org) | Q(organization__isnull=True))
+
+
+class AssignmentGroupMembershipScopedManager(models.Manager):
+    """Scope by group.organization (AssignmentGroupMembership has no direct organization FK)."""
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(group__organization=org)
