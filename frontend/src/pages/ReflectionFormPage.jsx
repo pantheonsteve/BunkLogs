@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
+import ReflectionField from '../components/templates/ReflectionField';
 import {
   validateReflectionAnswers,
   buildDefaultAnswers,
-  ratingScaleValues,
-  localizedOptionLabel,
 } from '../utils/reflection/reflectionFormValidation';
 import {
   reflectionDraftKey,
@@ -13,24 +12,6 @@ import {
   saveReflectionDraft,
   clearReflectionDraft,
 } from '../utils/reflection/reflectionDraftStorage';
-
-function promptText(field) {
-  if (!field.prompts || typeof field.prompts !== 'object') return '';
-  const v = Object.values(field.prompts)[0];
-  return typeof v === 'string' ? v : '';
-}
-
-function categoryLabel(cat) {
-  if (!cat.labels || typeof cat.labels !== 'object') return cat.key || '';
-  const v = Object.values(cat.labels)[0];
-  return typeof v === 'string' ? v : cat.key || '';
-}
-
-function scaleLabelsList(field) {
-  if (!field.scale_labels || typeof field.scale_labels !== 'object') return [];
-  const row = Object.values(field.scale_labels)[0];
-  return Array.isArray(row) ? row : [];
-}
 
 function mergeAnswers(defaults, draftAnswers) {
   if (!draftAnswers || typeof draftAnswers !== 'object') return defaults;
@@ -148,200 +129,16 @@ export default function ReflectionFormPage() {
     });
   };
 
-  const renderField = (field) => {
-    const err = fieldErrors[field.key];
-    const commonLabel = (
-      <label className="block text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
-        {field.type === 'rating_group' ? null : promptText(field)}
-      </label>
-    );
-
-    if (field.type === 'text') {
-      return (
-        <div key={field.key} className="mb-5">
-          {commonLabel}
-          <input
-            type="text"
-            data-testid={`reflect-input-${field.key}`}
-            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-            value={answers[field.key] ?? ''}
-            onChange={(e) => updateAnswer(field.key, e.target.value)}
-          />
-          {err ? <p className="text-red-600 text-xs mt-1">{err}</p> : null}
-        </div>
-      );
-    }
-
-    if (field.type === 'textarea') {
-      const v = answers[field.key] ?? '';
-      const max = field.max_length;
-      return (
-        <div key={field.key} className="mb-5">
-          {commonLabel}
-          <textarea
-            rows={4}
-            data-testid={`reflect-input-${field.key}`}
-            maxLength={typeof max === 'number' ? max : undefined}
-            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-            value={v}
-            onChange={(e) => updateAnswer(field.key, e.target.value)}
-          />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>{err || ''}</span>
-            {typeof max === 'number' ? (
-              <span>
-                {v.length}/{max}
-              </span>
-            ) : (
-              <span>{v.length} characters</span>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (field.type === 'text_list') {
-      const items = Array.isArray(answers[field.key]) ? [...answers[field.key]] : [];
-      const maxItems = typeof field.max_items === 'number' ? field.max_items : 12;
-      const minItems = typeof field.min_items === 'number' ? field.min_items : 1;
-      return (
-        <div key={field.key} className="mb-5">
-          {commonLabel}
-          <div className="space-y-2">
-            {items.map((line, idx) => (
-              <input
-                key={idx}
-                type="text"
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
-                value={line}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[idx] = e.target.value;
-                  updateAnswer(field.key, next);
-                }}
-              />
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {items.length < maxItems ? (
-              <button
-                type="button"
-                className="text-sm text-blue-600 dark:text-blue-400"
-                onClick={() => updateAnswer(field.key, [...items, ''])}
-              >
-                + Add line
-              </button>
-            ) : null}
-            {items.length > minItems ? (
-              <button
-                type="button"
-                className="text-sm text-gray-600 dark:text-gray-400"
-                onClick={() => updateAnswer(field.key, items.slice(0, -1))}
-              >
-                Remove last
-              </button>
-            ) : null}
-          </div>
-          {err ? <p className="text-red-600 text-xs mt-1">{err}</p> : null}
-        </div>
-      );
-    }
-
-    if (field.type === 'rating_group') {
-      const scale = ratingScaleValues(field);
-      const labels = scaleLabelsList(field);
-      const val = answers[field.key] && typeof answers[field.key] === 'object' ? answers[field.key] : {};
-      const heading = promptText(field) || 'Ratings';
-      return (
-        <div key={field.key} className="mb-6">
-          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{heading}</p>
-          <div className="space-y-3">
-            {(field.categories || []).map((cat) => (
-              <div key={cat.key}>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">{categoryLabel(cat)}</p>
-                <div className="flex flex-wrap gap-2">
-                  {scale.map((n, idx) => {
-                    const label = labels[idx] ?? String(n);
-                    const selected = val[cat.key] === n || val[cat.key] === String(n);
-                    return (
-                      <button
-                        key={String(n)}
-                        type="button"
-                        title={label}
-                        onClick={() =>
-                          updateAnswer(field.key, {
-                            ...val,
-                            [cat.key]: n,
-                          })
-                        }
-                        className={`min-h-[44px] min-w-[44px] px-3 rounded-lg border text-sm font-medium transition-colors ${
-                          selected
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-          {err ? <p className="text-red-600 text-xs mt-1">{err}</p> : null}
-        </div>
-      );
-    }
-
-    const options = Array.isArray(field.options) ? field.options : [];
-
-    if (field.type === 'single_choice') {
-      const v = answers[field.key] ?? '';
-      return (
-        <div key={field.key} className="mb-5">
-          {commonLabel}
-          <div className="space-y-2">
-            {options.map((opt) => (
-              <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  name={`choice_${field.key}`}
-                  checked={v === opt.key}
-                  onChange={() => updateAnswer(field.key, opt.key)}
-                />
-                <span>{localizedOptionLabel(opt, opt.key)}</span>
-              </label>
-            ))}
-          </div>
-          {err ? <p className="text-red-600 text-xs mt-1">{err}</p> : null}
-        </div>
-      );
-    }
-
-    if (field.type === 'multiple_choice') {
-      const v = Array.isArray(answers[field.key]) ? answers[field.key] : [];
-      const toggle = (key) => {
-        if (v.includes(key)) updateAnswer(field.key, v.filter((x) => x !== key));
-        else updateAnswer(field.key, [...v, key]);
-      };
-      return (
-        <div key={field.key} className="mb-5">
-          {commonLabel}
-          <div className="space-y-2">
-            {options.map((opt) => (
-              <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={v.includes(opt.key)} onChange={() => toggle(opt.key)} />
-                <span>{localizedOptionLabel(opt, opt.key)}</span>
-              </label>
-            ))}
-          </div>
-          {err ? <p className="text-red-600 text-xs mt-1">{err}</p> : null}
-        </div>
-      );
-    }
-
-    return null;
-  };
+  const renderField = (field) => (
+    <ReflectionField
+      key={field.key}
+      field={field}
+      language={language}
+      answer={answers[field.key]}
+      onChange={(val) => updateAnswer(field.key, val)}
+      error={fieldErrors[field.key]}
+    />
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
