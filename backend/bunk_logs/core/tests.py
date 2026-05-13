@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
+from bunk_logs.core.models import ROLE_TO_CAPABILITY
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -291,6 +292,108 @@ class TestMembership:
             Membership.all_objects.create(program=program, person=person, role=value)
         for value, _label in Membership.ROLES:
             assert Membership.all_objects.filter(role=value).exists()
+
+
+@pytest.mark.django_db
+class TestMembershipCapability:
+    """Capability is a derived RBAC layer kept in sync with role on every save()."""
+
+    @pytest.fixture
+    def org(self):
+        return Organization.objects.create(name="Cap Org", slug="cap-org")
+
+    @pytest.fixture
+    def program(self, org):
+        return Program.all_objects.create(
+            organization=org,
+            name="Cap Org - Summer 2026",
+            slug="cap-summer-2026",
+            program_type="summer_camp",
+            start_date=date(2026, 6, 15),
+            end_date=date(2026, 8, 15),
+        )
+
+    def _person(self, org, first="P", last="Erson"):
+        return Person.all_objects.create(organization=org, first_name=first, last_name=last)
+
+    def test_mapping_covers_every_role(self):
+        all_roles = {value for value, _label in Membership.ROLES}
+        assert set(ROLE_TO_CAPABILITY.keys()) == all_roles, (
+            "ROLE_TO_CAPABILITY must cover every role in Membership.ROLES. "
+            f"Missing: {all_roles - set(ROLE_TO_CAPABILITY.keys())}. "
+            f"Extra: {set(ROLE_TO_CAPABILITY.keys()) - all_roles}."
+        )
+
+    def test_capability_values_are_the_five_documented_ones(self):
+        assert set(ROLE_TO_CAPABILITY.values()) == {
+            "participant",
+            "supervisor",
+            "program_lead",
+            "domain_specialist",
+            "admin",
+        }
+        assert {value for value, _ in Membership.CAPABILITIES} == set(ROLE_TO_CAPABILITY.values())
+
+    def test_save_assigns_capability_for_every_role(self, org, program):
+        for value, _label in Membership.ROLES:
+            person = self._person(org, last=f"Person-{value}")
+            m = Membership.all_objects.create(program=program, person=person, role=value)
+            m.refresh_from_db()
+            assert m.capability == ROLE_TO_CAPABILITY[value]
+
+    def test_changing_role_updates_capability(self, org, program):
+        person = self._person(org, last="Promoted")
+        m = Membership.all_objects.create(program=program, person=person, role="counselor")
+        assert m.capability == "participant"
+
+        m.role = "unit_head"
+        m.save()
+        m.refresh_from_db()
+        assert m.capability == "supervisor"
+
+        m.role = "admin"
+        m.save()
+        m.refresh_from_db()
+        assert m.capability == "admin"
+
+    def test_unmapped_role_raises_validation_error(self, org, program):
+        person = self._person(org, last="Unknown")
+        m = Membership(program=program, person=person, role="not_a_real_role")
+        with pytest.raises(ValidationError) as exc_info:
+            m.save()
+        assert "role" in exc_info.value.message_dict
+
+    def test_filter_by_capability_returns_expected_rows(self, org, program):
+        roles_in_program = [
+            "camper",
+            "counselor",
+            "unit_head",
+            "leadership_team",
+            "camper_care",
+            "admin",
+        ]
+        for r in roles_in_program:
+            Membership.all_objects.create(
+                program=program,
+                person=self._person(org, last=f"P-{r}"),
+                role=r,
+            )
+
+        expected_by_capability = {
+            "participant": {"camper", "counselor"},
+            "supervisor": {"unit_head"},
+            "program_lead": {"leadership_team"},
+            "domain_specialist": {"camper_care"},
+            "admin": {"admin"},
+        }
+        for cap, expected_roles in expected_by_capability.items():
+            rows = Membership.all_objects.filter(capability=cap, program=program)
+            assert {m.role for m in rows} == expected_roles
+
+    def test_capability_admin_field_is_indexed(self):
+        """Capability is meant to be queried at scale; ensure db_index=True is set."""
+        field = Membership._meta.get_field("capability")
+        assert field.db_index is True
 
 
 _CHOICE_OPTIONS = [{"key": "a", "labels": {"en": "Option A"}}, {"key": "b", "labels": {"en": "Option B"}}]

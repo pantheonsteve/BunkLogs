@@ -440,6 +440,137 @@ class TestTemplateClone:
         res = admin_client.post(clone_url(tpl.pk), format="json")
         assert res.status_code == 404
 
+    def test_clone_carries_subject_and_assignment_settings(self, admin_client, org):
+        tpl = _make_template(
+            org,
+            slug="clone-routing",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            author_role_filter=["counselor"],
+            subject_role_filter=["camper"],
+            subject_visible=True,
+        )
+        res = admin_client.post(clone_url(tpl.pk), format="json")
+        assert res.status_code == 201
+        cloned = ReflectionTemplate.all_objects.get(pk=res.data["id"])
+        assert cloned.subject_mode == "single_subject"
+        assert cloned.assignment_scope == "per_subject_in_group"
+        assert cloned.assignment_group_types == ["bunk"]
+        assert cloned.author_role_filter == ["counselor"]
+        assert cloned.subject_role_filter == ["camper"]
+        assert cloned.subject_visible is True
+
+
+# ---------------------------------------------------------------------------
+# Routing fields (subject_mode / assignment_scope / role filters)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestTemplateRoutingFields:
+    def test_create_with_routing_fields_round_trips(self, admin_client):
+        payload = {
+            "name": "Daily Camper Reflection",
+            "slug": "daily-camper-reflection",
+            "cadence": "daily",
+            "schema": {"fields": [{"key": "q1", "type": "text", "prompts": {"en": "Q"}}]},
+            "subject_mode": "single_subject",
+            "assignment_scope": "per_subject_in_group",
+            "assignment_group_types": ["bunk"],
+            "author_role_filter": ["counselor", "junior_counselor"],
+            "subject_role_filter": ["camper"],
+            "subject_visible": False,
+        }
+        res = admin_client.post(LIST_URL, payload, format="json")
+        assert res.status_code == 201, res.data
+        assert res.data["subject_mode"] == "single_subject"
+        assert res.data["assignment_scope"] == "per_subject_in_group"
+        assert res.data["assignment_group_types"] == ["bunk"]
+        assert res.data["author_role_filter"] == ["counselor", "junior_counselor"]
+        assert res.data["subject_role_filter"] == ["camper"]
+        assert res.data["subject_visible"] is False
+
+    def test_create_rejects_incoherent_subject_mode(self, admin_client):
+        # subject_mode='self' must have assignment_scope='none'
+        payload = {
+            "name": "Bad Routing",
+            "slug": "bad-routing",
+            "cadence": "weekly",
+            "schema": {"fields": []},
+            "subject_mode": "self",
+            "assignment_scope": "per_subject_in_group",
+            "assignment_group_types": ["bunk"],
+        }
+        res = admin_client.post(LIST_URL, payload, format="json")
+        assert res.status_code == 400
+        assert "assignment_scope" in res.data
+
+    def test_create_rejects_unknown_role_filter(self, admin_client):
+        payload = {
+            "name": "Bad Role Filter",
+            "slug": "bad-role-filter",
+            "cadence": "weekly",
+            "schema": {"fields": []},
+            "author_role_filter": ["not_a_role"],
+        }
+        res = admin_client.post(LIST_URL, payload, format="json")
+        assert res.status_code == 400
+        assert "author_role_filter" in res.data
+
+    def test_patch_routing_fields_edits_in_place(self, admin_client, org):
+        tpl = _make_template(org, slug="routing-edit")
+        payload = {
+            "subject_mode": "single_subject",
+            "assignment_scope": "per_subject_in_group",
+            "assignment_group_types": ["bunk"],
+            "author_role_filter": ["counselor"],
+            "subject_role_filter": ["camper"],
+            "subject_visible": True,
+        }
+        res = admin_client.patch(detail_url(tpl.pk), payload, format="json")
+        assert res.status_code == 200, res.data
+        tpl.refresh_from_db()
+        assert tpl.subject_mode == "single_subject"
+        assert tpl.assignment_scope == "per_subject_in_group"
+        assert tpl.assignment_group_types == ["bunk"]
+        assert tpl.author_role_filter == ["counselor"]
+        assert tpl.subject_role_filter == ["camper"]
+        assert tpl.subject_visible is True
+
+    def test_patch_with_responses_propagates_routing_fields_to_new_version(
+        self, admin_client, org, program,
+    ):
+        tpl = _make_template(
+            org,
+            slug="routing-version",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+        )
+        person = Person.all_objects.create(organization=org, first_name="A", last_name="B")
+        Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            subject=person,
+            template=tpl,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={"q1": "hello"},
+        )
+        # Edit only the role filter; subject_mode/scope/group_types must propagate.
+        res = admin_client.patch(
+            detail_url(tpl.pk),
+            {"author_role_filter": ["counselor", "junior_counselor"]},
+            format="json",
+        )
+        assert res.status_code == 201, res.data
+        new_tpl = ReflectionTemplate.all_objects.get(pk=res.data["id"])
+        assert new_tpl.subject_mode == "single_subject"
+        assert new_tpl.assignment_scope == "per_subject_in_group"
+        assert new_tpl.assignment_group_types == ["bunk"]
+        assert new_tpl.author_role_filter == ["counselor", "junior_counselor"]
+
 
 # ---------------------------------------------------------------------------
 # Cross-org isolation

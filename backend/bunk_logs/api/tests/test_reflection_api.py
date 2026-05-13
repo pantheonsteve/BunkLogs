@@ -343,7 +343,9 @@ def test_wellness_team_readonly_enforced(
 def test_membership_role_filter(api, org_a, program_a, counselor_template, counselor_user, other_counselor):
     user_a, person_a = counselor_user
     user_b, person_b = other_counselor
-    Membership.all_objects.filter(person=person_b, program=program_a).update(role="specialist")
+    m_b = Membership.all_objects.get(person=person_b, program=program_a)
+    m_b.role = "specialist"
+    m_b.save(update_fields=["role", "capability"])
 
     tpl_sp = ReflectionTemplate.all_objects.create(
         organization=org_a,

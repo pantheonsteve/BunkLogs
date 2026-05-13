@@ -72,6 +72,7 @@ class MembershipSerializer(serializers.ModelSerializer):
             "person_name",
             "person_email",
             "role",
+            "capability",
             "grade_level",
             "tags",
             "start_date",
@@ -89,6 +90,7 @@ class MembershipSerializer(serializers.ModelSerializer):
             "person_name",
             "person_email",
             "role",
+            "capability",
             "created_at",
         ]
 

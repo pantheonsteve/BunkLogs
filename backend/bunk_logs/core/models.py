@@ -21,6 +21,30 @@ from bunk_logs.core.validators.template_schema import validate_template_schema
 REFLECTION_FIELD_TYPES = ALL_FIELD_TYPES
 
 
+# Mapping from Membership.role to Membership.capability. Single source of truth
+# kept in sync by Membership.save() and verified by a coverage test that
+# asserts every role choice has a capability assignment. Permission code is
+# expected to query on capability, not branch on individual role labels.
+ROLE_TO_CAPABILITY: dict[str, str] = {
+    "camper": "participant",
+    "counselor": "participant",
+    "junior_counselor": "participant",
+    "specialist": "participant",
+    "general_counselor": "participant",
+    "kitchen_staff": "participant",
+    "maintenance": "participant",
+    "housekeeping": "participant",
+    "madrich": "participant",
+    "unit_head": "supervisor",
+    "faculty": "supervisor",
+    "leadership_team": "program_lead",
+    "camper_care": "domain_specialist",
+    "health_center": "domain_specialist",
+    "special_diets": "domain_specialist",
+    "admin": "admin",
+}
+
+
 def validate_reflection_template_schema(schema: Any) -> None:
     """Backward-compatible wrapper; call validate_template_schema directly for new code."""
     validate_template_schema(schema, [])
@@ -252,6 +276,15 @@ class Person(models.Model):
 
 
 class Membership(models.Model):
+    """A Person's participation in a Program with a specific role.
+
+    ``role`` is the customer-facing label and template-routing key (16 values).
+    ``capability`` is a derived RBAC layer with 5 values, kept in sync from
+    ``role`` via ``ROLE_TO_CAPABILITY`` on every ``save()``. Permission code
+    should query on ``capability``; do not mutate ``role`` via
+    ``QuerySet.update()`` or ``bulk_create``, as those bypass the sync.
+    """
+
     ROLES = [
         ("camper", "Camper"),
         ("counselor", "Counselor"),
@@ -271,6 +304,14 @@ class Membership(models.Model):
         ("admin", "Admin"),
     ]
 
+    CAPABILITIES = [
+        ("participant", "Participant"),
+        ("supervisor", "Supervisor"),
+        ("program_lead", "Program Lead"),
+        ("domain_specialist", "Domain Specialist"),
+        ("admin", "Admin"),
+    ]
+
     program = models.ForeignKey(
         Program,
         on_delete=models.CASCADE,
@@ -282,6 +323,12 @@ class Membership(models.Model):
         related_name="memberships",
     )
     role = models.CharField(max_length=32, choices=ROLES)
+    capability = models.CharField(
+        max_length=32,
+        choices=CAPABILITIES,
+        db_index=True,
+        help_text="RBAC layer derived from role via ROLE_TO_CAPABILITY.",
+    )
     grade_level = models.IntegerField(null=True, blank=True)
     tags = models.JSONField(default=list, blank=True)
     start_date = models.DateField(null=True, blank=True)
@@ -299,6 +346,15 @@ class Membership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.person} — {self.program} ({self.get_role_display()})"
+
+    def save(self, *args, **kwargs):
+        try:
+            self.capability = ROLE_TO_CAPABILITY[self.role]
+        except KeyError as exc:
+            raise ValidationError(
+                {"role": f"role {self.role!r} has no capability mapping."},
+            ) from exc
+        super().save(*args, **kwargs)
 
 
 class AssignmentGroup(models.Model):

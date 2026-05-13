@@ -454,6 +454,7 @@ class MembershipAdmin(admin.ModelAdmin):
         "program_organization_name",
         "program",
         "role",
+        "capability",
         "tags_display",
         "grade_level",
         "is_active",
@@ -461,7 +462,7 @@ class MembershipAdmin(admin.ModelAdmin):
         "end_date",
         "created_at",
     ]
-    list_filter = ["role", "is_active", "program__organization"]
+    list_filter = ["role", "capability", "is_active", "program__organization"]
     search_fields = [
         "person__first_name",
         "person__last_name",
@@ -471,7 +472,7 @@ class MembershipAdmin(admin.ModelAdmin):
         "tags",
     ]
     autocomplete_fields = ["program", "person"]
-    readonly_fields = ["created_at"]
+    readonly_fields = ["capability", "created_at"]
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         # The admin is privileged staff territory; bypass OrgScopedManager so the
