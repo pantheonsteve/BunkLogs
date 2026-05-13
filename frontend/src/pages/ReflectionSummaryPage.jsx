@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import PrivacyChip from '../components/reflection/PrivacyChip';
 
 function promptText(field) {
   if (!field.prompts || typeof field.prompts !== 'object') return '';
@@ -50,16 +51,22 @@ export default function ReflectionSummaryPage() {
     );
   }
 
-  const { reflectionId, templateName, subjectName, periodStart, periodEnd, language, schema, answers, returnTo } = data;
+  const {
+    reflectionId, templateName, subjectName, periodStart, periodEnd, language,
+    schema, answers, returnTo, teamVisibility,
+  } = data;
   const backHref = returnTo || '/reflect';
   const backLabel = returnTo === '/tasks' ? '← Back to tasks' : 'Submit another';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
       <div className="max-w-xl mx-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-          Reflection submitted
-        </h1>
+        <div className="flex flex-wrap items-center gap-3 mb-2">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Reflection submitted
+          </h1>
+          <PrivacyChip teamVisibility={teamVisibility} />
+        </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
           {templateName}{subjectName ? ` · About ${subjectName}` : ''}
         </p>
