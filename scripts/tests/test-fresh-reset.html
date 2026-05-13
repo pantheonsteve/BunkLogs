@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Password Reset with Fresh Key</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 50px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 15px; margin: 10px 0; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        input { padding: 8px; margin: 5px; width: 400px; }
+    </style>
+</head>
+<body>
+    <h1>Password Reset Test with Fresh Key</h1>
+    
+    <div class="test-section">
+        <h2>Test Reset with Fresh Key</h2>
+        <p>Key: <code>7-crtn67-fc9ae69a8091adca26352948809f8991</code></p>
+        
+        <div>
+            <input type="text" id="resetKey" value="7-crtn67-fc9ae69a8091adca26352948809f8991" readonly>
+        </div>
+        
+        <div>
+            <input type="password" id="newPassword" placeholder="New password" value="newpassword123">
+        </div>
+        
+        <div>
+            <input type="password" id="confirmPassword" placeholder="Confirm password" value="newpassword123">
+        </div>
+        
+        <button onclick="testValidateKey()">1. Validate Key</button>
+        <button onclick="testResetPassword()">2. Reset Password</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8000/_allauth/browser/v1';
+        
+        async function getCSRFToken() {
+            const response = await fetch('http://localhost:8000/api/get-csrf-token/', {
+                credentials: 'include'
+            });
+            const data = await response.json();
+            return data.csrfToken;
+        }
+        
+        async function testValidateKey() {
+            const key = document.getElementById('resetKey').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/auth/password/reset`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Password-Reset-Key': key
+                    },
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 200) {
+                    resultDiv.innerHTML = `<div class="result success">✅ Key is valid!\nUser: ${result.data.user.email}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">❌ Key validation failed: ${JSON.stringify(result, null, 2)}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testResetPassword() {
+            const key = document.getElementById('resetKey').value;
+            const password = document.getElementById('newPassword').value;
+            const password_confirm = document.getElementById('confirmPassword').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Get CSRF token
+                const csrfToken = await getCSRFToken();
+                
+                const response = await fetch(`${BASE_URL}/auth/password/reset`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        key,
+                        password,
+                        password_confirm
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 200) {
+                    resultDiv.innerHTML = `<div class="result success">✅ Password reset successful!</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">❌ Password reset failed: ${JSON.stringify(result, null, 2)}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
