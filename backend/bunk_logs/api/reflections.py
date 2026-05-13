@@ -215,6 +215,7 @@ class ReflectionTemplateSummarySerializer(serializers.ModelSerializer):
             "version",
             "languages",
             "description",
+            "supports_privacy",
         ]
 
 
@@ -295,6 +296,22 @@ class ReflectionSerializer(serializers.ModelSerializer):
             except DjangoValidationError as e:
                 raise serializers.ValidationError(e.message_dict if hasattr(e, "message_dict") else str(e))
             _validate_language_coverage(template.schema, language)
+
+        tv = attrs.get(
+            "team_visibility",
+            getattr(self.instance, "team_visibility", None),
+        )
+        if (
+            tv == Reflection.TeamVisibility.SUPERVISORS_ONLY
+            and template is not None
+            and not template.supports_privacy
+        ):
+            raise serializers.ValidationError({
+                "team_visibility": (
+                    "This template does not support the 'supervisors only' "
+                    "privacy flag."
+                ),
+            })
         return attrs
 
     def create(self, validated_data):

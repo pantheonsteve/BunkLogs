@@ -45,6 +45,7 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
             "author_role_filter",
             "subject_role_filter",
             "subject_visible",
+            "supports_privacy",
             "required_per_subject_per_period",
         ]
         read_only_fields = ["id", "organization", "version", "parent_template", "created_at"]
