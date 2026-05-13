@@ -182,6 +182,35 @@ that sets `team_visibility="supervisors_only"` against that template:
   client that bypasses the editor can't sneak a private entry past the
   rule.
 
+### "Filed privately" chip surfaces (step 3.24)
+
+A reflection that's allowed through to a viewer despite being
+`supervisors_only` is still _flagged_ in the UI so the viewer treats it
+as sensitive. The shared component
+[`frontend/src/components/reflection/PrivacyChip.jsx`](../frontend/src/components/reflection/PrivacyChip.jsx)
+is the single source of truth for this glyph; anything that lists
+individual reflections renders it via `<PrivacyChip teamVisibility={…} />`.
+The chip returns `null` for `team` or missing values, so call sites can
+render it unconditionally.
+
+The chip currently appears on:
+
+- `TrendCell` (icon-only overlay) in the Subject Trend Grid.
+- `TextResponseListWidget` items on the Template Dashboard.
+- `ConcernsInbox` items.
+- `SubjectDetail` patterns, recent texts, rating-series rows, and the
+  per-template reflection list.
+- `MyReflectionsPage` history rows (author confirms their own toggle).
+- `ReflectionSummaryPage` immediately after the form is submitted.
+
+If you add a new surface that exposes a `reflection_id`, also add
+`team_visibility` to the matching dashboard payload (look at
+`backend/bunk_logs/api/dashboards/*.py` and
+`backend/bunk_logs/api/reflections.py::my_summary`) so the chip can
+render. The backend tests under `backend/bunk_logs/api/tests/` pin
+`team_visibility` presence on each of the existing surfaces; copy that
+pattern.
+
 ## When to revisit
 
 Revisit this design only if one of the following becomes true:
