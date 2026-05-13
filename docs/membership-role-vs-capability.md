@@ -142,6 +142,34 @@ fail in CI if you forget step 2.
   `SupervisorScope` join table may show up in a later prompt when TBE
   Tier 2 forces it.
 
+## Per-reflection visibility (`team_visibility`)
+
+`Membership.capability` and `Membership.metadata.assigned_unit_slugs` decide
+**who is structurally in scope** for a given reflection. The per-row
+`Reflection.team_visibility` flag (step 3.22) layers on top of that to let an
+author opt one specific entry out of the *peer-collaboration* path while
+keeping the *supervisor* path open.
+
+`Reflection.team_visibility` has two values, with `team` as the default:
+
+| value | what it changes | what it does NOT change |
+|---|---|---|
+| `team` | default; peer authors of the same `AssignmentGroup` see the entry; the wellness shortcut (path 6) applies | n/a |
+| `supervisors_only` | hides the entry from same-group peer authors; suppresses the wellness shortcut for this row | author, subject (when `subject_visible=True`), org admin, ancestor-group authors, and unit-scoped supervisors all still see it |
+
+Implementation references:
+
+- `Reflection.team_visibility` (`backend/bunk_logs/core/models.py`)
+- `_author_group_ids_split` and the path-4 / path-6 gating in
+  `backend/bunk_logs/core/permissions/visibility.py`
+- The form toggle in `frontend/src/pages/ReflectionFormPage.jsx`
+
+The flag is a per-reflection decision; there is no template-level "no, you
+can't make this private" gate yet. If a template needs to forbid the toggle
+(e.g. a self-reflection where privacy makes no sense), gate the UI -- the
+backend will still accept either value because the data model is permissive
+on purpose.
+
 ## When to revisit
 
 Revisit this design only if one of the following becomes true:
