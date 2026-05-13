@@ -125,6 +125,59 @@ describe('TrendCell', () => {
     );
     expect(screen.getByLabelText(/Sarah Levin.*no reflection/i)).toBeInTheDocument();
   });
+
+  it('renders the PrivacyChip lock overlay when the cell is filed privately', () => {
+    render(
+      withRouter(
+        <table>
+          <tbody>
+            <tr>
+              <TrendCell
+                cell={{
+                  date: '2026-06-14',
+                  rating: 2,
+                  reflection_id: 99,
+                  author_name: 'Mike',
+                  team_visibility: 'supervisors_only',
+                }}
+                scaleMax={4}
+                subjectName="Sarah Levin"
+              />
+            </tr>
+          </tbody>
+        </table>,
+      ),
+    );
+    expect(screen.getByTestId('privacy-chip')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Sarah Levin.*filed privately/i),
+    ).toBeInTheDocument();
+  });
+
+  it('does not render the PrivacyChip when team_visibility is "team"', () => {
+    render(
+      withRouter(
+        <table>
+          <tbody>
+            <tr>
+              <TrendCell
+                cell={{
+                  date: '2026-06-14',
+                  rating: 4,
+                  reflection_id: 99,
+                  author_name: 'Mike',
+                  team_visibility: 'team',
+                }}
+                scaleMax={4}
+                subjectName="Sarah Levin"
+              />
+            </tr>
+          </tbody>
+        </table>,
+      ),
+    );
+    expect(screen.queryByTestId('privacy-chip')).toBeNull();
+  });
 });
 
 
