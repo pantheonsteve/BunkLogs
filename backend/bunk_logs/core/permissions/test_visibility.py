@@ -101,6 +101,7 @@ def _make_template(
 
 def _make_reflection(
     org, program, template, *, subject=None, author=None, assignment_group=None,
+    team_visibility=Reflection.TeamVisibility.TEAM,
 ) -> Reflection:
     return Reflection.all_objects.create(
         organization=org,
@@ -113,6 +114,7 @@ def _make_reflection(
         period_end=date(2026, 6, 7),
         answers={"n": "x"},
         language="en",
+        team_visibility=team_visibility,
     )
 
 
@@ -581,6 +583,210 @@ class TestCamperCareScope:
         )
         with organization_context(org_a):
             assert reflections_visible_to(u).count() == 1
+
+
+# ── Path 7c: per-reflection team_visibility (3.22) ───────────────────────────
+
+
+class TestPrivateReflection:
+    """Step 3.22 adds ``Reflection.team_visibility``. A reflection marked
+    ``supervisors_only`` opts out of two visibility paths:
+
+      - direct-peer access (path 4-direct in ``reflections_visible_to``)
+      - the wellness-template shortcut (path 6)
+
+    Author, subject (with subject_visible), ancestor-group authors,
+    unit-scoped supervisors, and admins still see private reflections --
+    "supervisors only" is the literal name of the gate.
+    """
+
+    def _bunk_with_two_counselors(self, org, program):
+        """Seed two counselors as co-authors of a single bunk group."""
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Bunk Maple",
+            slug="bunk-maple-priv", group_type="bunk",
+        )
+        u_a = _make_user("counselor-a@a.com")
+        p_a = _make_person(org, "Co", "A", u_a)
+        Membership.all_objects.create(
+            program=program, person=p_a, role="counselor", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=p_a, role_in_group="author", is_active=True,
+        )
+        u_b = _make_user("counselor-b@a.com")
+        p_b = _make_person(org, "Co", "B", u_b)
+        Membership.all_objects.create(
+            program=program, person=p_b, role="counselor", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=p_b, role_in_group="author", is_active=True,
+        )
+        return bunk, (u_a, p_a), (u_b, p_b)
+
+    def test_peer_author_cannot_see_supervisors_only(self, org_a, program_a):
+        bunk, (u_a, p_a), (u_b, p_b) = self._bunk_with_two_counselors(org_a, program_a)
+        camper = _make_person(org_a, "Cam", "Per")
+        tpl = _make_template(
+            org_a, slug="bunk-obs-priv",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+        )
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=camper, author=p_a, assignment_group=bunk,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=camper, author=p_a, assignment_group=bunk,
+            team_visibility=Reflection.TeamVisibility.TEAM,
+        )
+        with organization_context(org_a):
+            # Counselor B can see the team one (peer path) but NOT the private one.
+            visible = reflections_visible_to(u_b)
+            assert visible.count() == 1
+            assert visible.first().team_visibility == Reflection.TeamVisibility.TEAM
+            # Counselor A (the author) still sees both via the author path.
+            assert reflections_visible_to(u_a).count() == 2
+
+    def test_ancestor_author_sees_supervisors_only(self, org_a, program_a):
+        u_uh = _make_user("uh@a.com")
+        uh = _make_person(org_a, "U", "H", u_uh)
+        Membership.all_objects.create(
+            program=program_a, person=uh, role="unit_head", is_active=True,
+        )
+        unit = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Unit",
+            slug="u-priv", group_type="unit",
+        )
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Bunk",
+            slug="b-priv", group_type="bunk", parent=unit,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=unit, person=uh, role_in_group="author", is_active=True,
+        )
+        counselor = _make_person(org_a, "Cn", "Sl")
+        camper = _make_person(org_a, "Cam", "Per")
+        tpl = _make_template(
+            org_a, slug="bunk-obs-priv2",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+        )
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=camper, author=counselor, assignment_group=bunk,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=camper, author=counselor, assignment_group=bunk,
+            team_visibility=Reflection.TeamVisibility.TEAM,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u_uh).count() == 2
+
+    def test_unit_scoped_supervisor_sees_supervisors_only(self, org_a, program_a):
+        u_cc = _make_user("cc@a.com")
+        cc = _make_person(org_a, "Cc", "User", u_cc)
+        Membership.all_objects.create(
+            program=program_a, person=cc, role="camper_care", is_active=True,
+            metadata={"assigned_unit_slugs": ["pioneers"]},
+        )
+        subject = _make_person(org_a, "Sub", "Ject")
+        Membership.all_objects.create(
+            program=program_a, person=subject, role="counselor", is_active=True,
+            metadata={"unit_slug": "pioneers"},
+        )
+        author = _make_person(org_a, "Au", "Thor")
+        tpl = _make_template(org_a, role="counselor")
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=subject, author=author,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u_cc).count() == 1
+
+    def test_admin_sees_supervisors_only(self, org_a, program_a):
+        u_admin = _make_user("admin@a.com")
+        admin_p = _make_person(org_a, "Ad", "Min", u_admin)
+        Membership.all_objects.create(
+            program=program_a, person=admin_p, role="admin", is_active=True,
+        )
+        author = _make_person(org_a, "Au", "Thor")
+        subject = _make_person(org_a, "Sub", "Ject")
+        tpl = _make_template(org_a, role="counselor")
+        _make_reflection(
+            org_a, program_a, tpl, subject=subject, author=author,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u_admin).count() == 1
+
+    def test_subject_visible_overrides_supervisors_only(self, org_a, program_a):
+        u = _make_user("camper@a.com")
+        camper = _make_person(org_a, "Cam", "Per", u)
+        Membership.all_objects.create(
+            program=program_a, person=camper, role="camper", is_active=True,
+        )
+        author = _make_person(org_a, "Coun", "Selor")
+        tpl = _make_template(
+            org_a, slug="tpl-vis-priv",
+            subject_visible=True,
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+        )
+        _make_reflection(
+            org_a, program_a, tpl, subject=camper, author=author,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            # The "supervisors only" flag is about peers, not subjects.
+            # A camper still sees data about themselves when the template
+            # opts into subject visibility.
+            assert reflections_visible_to(u).count() == 1
+
+    def test_author_sees_own_supervisors_only(self, org_a, program_a):
+        u = _make_user("author@a.com")
+        author = _make_person(org_a, "Au", "Thor", u)
+        Membership.all_objects.create(
+            program=program_a, person=author, role="counselor", is_active=True,
+        )
+        subject = _make_person(org_a, "Sub", "Ject")
+        tpl = _make_template(org_a, role="counselor")
+        _make_reflection(
+            org_a, program_a, tpl, subject=subject, author=author,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 1
+
+    def test_wellness_viewer_does_not_see_private_camper_care_reflection(
+        self, org_a, program_a,
+    ):
+        u_nurse = _make_user("nurse@a.com")
+        nurse = _make_person(org_a, "Nu", "Rse", u_nurse)
+        Membership.all_objects.create(
+            program=program_a, person=nurse, role="health_center", is_active=True,
+        )
+        author = _make_person(org_a, "Au", "Thor")
+        subject = _make_person(org_a, "Sub", "Ject")
+        cc_tpl = _make_template(org_a, slug="cc-tpl-priv", role="camper_care")
+        # Two camper-care reflections; one team, one private.
+        _make_reflection(
+            org_a, program_a, cc_tpl, subject=subject, author=author,
+            team_visibility=Reflection.TeamVisibility.TEAM,
+        )
+        _make_reflection(
+            org_a, program_a, cc_tpl, subject=subject, author=author,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            visible = reflections_visible_to(u_nurse)
+            assert visible.count() == 1
+            assert visible.first().team_visibility == Reflection.TeamVisibility.TEAM
 
 
 # ── Path 8: cross-org isolation holds for every code path ───────────────────
