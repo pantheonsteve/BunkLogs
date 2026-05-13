@@ -258,6 +258,7 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "period_end",
             "answers",
             "language",
+            "team_visibility",
             "submitted_at",
             "updated_at",
             "is_complete",

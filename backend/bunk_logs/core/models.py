@@ -622,6 +622,10 @@ class ReflectionTemplate(models.Model):
 
 
 class Reflection(models.Model):
+    class TeamVisibility(models.TextChoices):
+        TEAM = "team", "Visible to team"
+        SUPERVISORS_ONLY = "supervisors_only", "Supervisors only"
+
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -689,6 +693,19 @@ class Reflection(models.Model):
         max_length=10,
         default="en",
         help_text="Language used to fill out this reflection",
+    )
+    team_visibility = models.CharField(
+        max_length=24,
+        choices=TeamVisibility.choices,
+        default=TeamVisibility.TEAM,
+        db_index=True,
+        help_text=(
+            "Who else (beyond author + admin + ancestor-group authors + "
+            "unit-scoped supervisors of the subject) can read this reflection. "
+            "Default 'team' keeps peer authors in the loop; 'supervisors_only' "
+            "hides it from same-group peers and from the wellness-template "
+            "shortcut."
+        ),
     )
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

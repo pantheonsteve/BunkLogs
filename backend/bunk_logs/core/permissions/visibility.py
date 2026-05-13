@@ -124,7 +124,15 @@ def _wellness_q(person: Person) -> Q | None:
     ).exists()
     if not has_wellness:
         return None
-    return Q(template__role__in=WELLNESS_TEMPLATE_ROLES)
+    # The wellness shortcut is a peer-collaboration path -- a private
+    # reflection (team_visibility="supervisors_only") must NOT leak through
+    # it. Supervisors still see private wellness reflections via paths 1
+    # (admin), 2 (author), 4-descendant (ancestor groups), or 5 (unit-scoped
+    # supervisor); the gate here only suppresses the cross-program peek.
+    return Q(
+        template__role__in=WELLNESS_TEMPLATE_ROLES,
+        team_visibility=Reflection.TeamVisibility.TEAM,
+    )
 
 
 def _author_group_ids_with_descendants(person: Person) -> set[int]:
@@ -134,6 +142,24 @@ def _author_group_ids_with_descendants(person: Person) -> set[int]:
     Resolved with two bulk queries followed by an in-memory BFS over a parent
     map, so total queries stay constant regardless of group tree depth/size.
     """
+    direct, descendants = _author_group_ids_split(person)
+    return direct | descendants
+
+
+def _author_group_ids_split(person: Person) -> tuple[set[int], set[int]]:
+    """Return ``(direct_ids, descendant_only_ids)`` for the person's authoring memberships.
+
+    ``direct_ids`` is the set of groups where the person is a direct author --
+    they're a peer of anyone else authoring in the same group.
+    ``descendant_only_ids`` is the set of groups that are children /
+    grandchildren / ... of a direct-author group BUT are themselves not
+    directly authored by the person. They represent the supervisor pipe (unit
+    head -> bunk; division head -> unit) and are kept separate so step 3.22
+    can gate peer visibility independently of supervisor visibility.
+
+    Same two-query BFS as ``_author_group_ids_with_descendants``; the split is
+    bookkeeping over the visited set.
+    """
     direct_ids = set(
         AssignmentGroupMembership.all_objects.filter(
             person=person,
@@ -142,9 +168,8 @@ def _author_group_ids_with_descendants(person: Person) -> set[int]:
         ).values_list("group_id", flat=True),
     )
     if not direct_ids:
-        return direct_ids
+        return set(), set()
 
-    # Build parent_id -> [child_id, ...] for ALL active groups in the person's org once.
     children_map: dict[int, list[int]] = {}
     rows = AssignmentGroup.all_objects.filter(
         organization_id=person.organization_id,
@@ -162,7 +187,8 @@ def _author_group_ids_with_descendants(person: Person) -> set[int]:
             if child_id not in visited:
                 visited.add(child_id)
                 queue.append(child_id)
-    return visited
+    descendant_only_ids = visited - direct_ids
+    return direct_ids, descendant_only_ids
 
 
 def reflections_visible_to(
@@ -176,14 +202,19 @@ def reflections_visible_to(
     1. Superuser or active org-admin Membership -> everything in current org.
     2. Author of the reflection -> always.
     3. Subject of the reflection AND template.subject_visible=True -> always.
-    4. Author in the reflection's AssignmentGroup, or in any ancestor group
-       (unit heads see their bunks via the descendant walk).
+    4. Either (a) author of an ANCESTOR of the reflection's AssignmentGroup
+       (the supervisor pipe -- unit head sees their bunks via the descendant
+       walk), or (b) direct author of the same group when the reflection's
+       ``team_visibility == "team"`` (the peer-collaboration path; private
+       entries opt out).
     5. Unit-scoped supervisor membership (faculty / leadership_team /
        camper_care) -> reflections about subjects whose Membership.metadata
        declares one of the assigned unit slugs; or the whole program when
        ``assigned_unit_slugs`` is empty.
     6. Wellness membership (health_center / special_diets) -> reflections
-       whose template carries one of the wellness roles.
+       whose template carries one of the wellness roles AND
+       ``team_visibility == "team"`` (private wellness entries are gated to
+       paths 1/2/4-descendant/5).
 
     All paths are scoped to ``request.organization`` (or whatever the current
     org context is). Cross-tenant rows are unreachable because the base queryset
@@ -212,9 +243,19 @@ def reflections_visible_to(
 
     parts: list[Q] = [Q(author=person), Q(subject=person, template__subject_visible=True)]
 
-    author_group_ids = _author_group_ids_with_descendants(person)
-    if author_group_ids:
-        parts.append(Q(assignment_group_id__in=author_group_ids))
+    direct_group_ids, descendant_group_ids = _author_group_ids_split(person)
+    if direct_group_ids:
+        # Peer visibility: same-group co-authors see each other only when
+        # the reflection is team-visible.
+        parts.append(Q(
+            assignment_group_id__in=direct_group_ids,
+            team_visibility=Reflection.TeamVisibility.TEAM,
+        ))
+    if descendant_group_ids:
+        # Supervisor pipe: authors of ancestor groups always see, regardless
+        # of team_visibility -- that's the whole point of marking something
+        # "supervisors only".
+        parts.append(Q(assignment_group_id__in=descendant_group_ids))
 
     sq = _unit_scoped_supervisor_q(person, org_id)
     if sq is not None:

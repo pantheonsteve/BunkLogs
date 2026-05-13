@@ -147,6 +147,60 @@ def test_person_can_submit(api, org_a, program_a, counselor_template, counselor_
 
 
 @pytest.mark.django_db
+def test_team_visibility_defaults_to_team(
+    api, org_a, program_a, counselor_template, counselor_user,
+):
+    user, _person = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"note": "default"},
+            "language": "en",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["team_visibility"] == "team"
+    assert Reflection.all_objects.get(pk=body["id"]).team_visibility == "team"
+
+
+@pytest.mark.django_db
+def test_team_visibility_round_trip(
+    api, org_a, program_a, counselor_template, counselor_user,
+):
+    user, _person = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"note": "private"},
+            "language": "en",
+            "team_visibility": "supervisors_only",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 201, resp.content
+    assert resp.json()["team_visibility"] == "supervisors_only"
+
+    rid = resp.json()["id"]
+    g = api.get(f"/api/v1/reflections/{rid}/", **_hdr_org(org_a.slug))
+    assert g.status_code == 200
+    assert g.json()["team_visibility"] == "supervisors_only"
+
+
+@pytest.mark.django_db
 def test_person_cannot_see_other_reflection(
     api,
     org_a,
