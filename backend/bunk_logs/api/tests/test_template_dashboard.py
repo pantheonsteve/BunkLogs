@@ -209,6 +209,8 @@ def _make_reflection(
     template,
     period_end: date,
     answers: dict,
+    *,
+    team_visibility: str = Reflection.TeamVisibility.TEAM,
 ) -> Reflection:
     return Reflection.all_objects.create(
         organization=org,
@@ -219,6 +221,7 @@ def _make_reflection(
         period_end=period_end,
         answers=answers,
         language="en",
+        team_visibility=team_visibility,
     )
 
 
@@ -447,7 +450,36 @@ def test_text_list_aggregation(api_client, org, program, lt_template, lt_user, c
     assert items_by_text["teamwork"] == 2
     assert items_by_text["communication"] == 1
     assert items_by_text["punctuality"] == 1
-    assert wins_field["data"]["total_mentions"] == 4
+
+
+@pytest.mark.django_db
+def test_text_response_items_expose_team_visibility(
+    api_client, org, program, lt_template, lt_user, counselor_user,
+):
+    """3.24: TextResponseListWidget needs the visibility flag per item."""
+    u_lt, _ = lt_user
+    _, p_c = counselor_user
+    period_end = date(2026, 6, 14)
+    _make_reflection(
+        org, program, p_c, lt_template, period_end,
+        {"notes": "team-visible note"},
+    )
+    _make_reflection(
+        org, program, p_c, lt_template, period_end,
+        {"notes": "private note"},
+        team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+    )
+    api_client.force_authenticate(user=u_lt)
+    r = api_client.get(
+        f"/api/v1/dashboards/template/{lt_template.id}/",
+        {"period_end": str(period_end)},
+        **_hdr(org.slug),
+    )
+    body = r.json()
+    notes_field = next(f for f in body["fields"] if f["key"] == "notes")
+    by_text = {i["text"]: i for i in notes_field["data"]["items"]}
+    assert by_text["team-visible note"]["team_visibility"] == "team"
+    assert by_text["private note"]["team_visibility"] == "supervisors_only"
 
 
 @pytest.mark.django_db

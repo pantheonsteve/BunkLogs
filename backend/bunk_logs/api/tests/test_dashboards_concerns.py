@@ -104,16 +104,37 @@ def setup(org, program):
     return bunk, camper, counselor_user, counselor
 
 
-def _make_reflection(org, program, template, *, subject, author, group, day, answers):
+def _make_reflection(
+    org, program, template, *, subject, author, group, day, answers,
+    team_visibility=Reflection.TeamVisibility.TEAM,
+):
     return Reflection.all_objects.create(
         organization=org, program=program, template=template,
         subject=subject, author=author, assignment_group=group,
         period_start=day, period_end=day,
         answers=answers, language="en", is_complete=True,
+        team_visibility=team_visibility,
     )
 
 
 # ── Listing ──────────────────────────────────────────────────────────────────
+
+
+def test_concern_items_expose_team_visibility(api_client, org, program, setup):
+    """3.24: ConcernsInbox renders the PrivacyChip beside the KindBadge."""
+    bunk, camper, counselor_user, counselor = setup
+    tpl = _bunk_obs(org)
+    today = date.today()
+    _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "private worry"},
+        team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+    )
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get("/api/v1/dashboards/concerns/", **_hdr(org.slug))
+    body = r.json()
+    private = next(i for i in body["items"] if i["value"] == "private worry")
+    assert private["team_visibility"] == "supervisors_only"
 
 
 def test_open_concern_text_appears(api_client, org, program, setup):

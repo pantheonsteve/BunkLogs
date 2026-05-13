@@ -104,12 +104,14 @@ def _wellness_template(org):
 
 def _make_reflection(
     org, program, template, *, subject, author, group=None, day, answers,
+    team_visibility=Reflection.TeamVisibility.TEAM,
 ):
     return Reflection.all_objects.create(
         organization=org, program=program, template=template,
         subject=subject, author=author, assignment_group=group,
         period_start=day, period_end=day,
         answers=answers, language="en", is_complete=True,
+        team_visibility=team_visibility,
     )
 
 
@@ -171,6 +173,41 @@ def test_supervisor_sees_cross_template_aggregation(api_client, org, program, se
     # Recent text response surfaced
     texts = body["recent_texts"]
     assert any(t["text"] == "missed mom" for t in texts)
+
+
+def test_subject_payload_exposes_team_visibility(api_client, org, program, setup):
+    """3.24: SubjectDetail renders PrivacyChip across patterns, recent_texts,
+    rating_series points, and per-template reflection rows -- so each surface
+    needs the flag in its payload."""
+    _, camper, counselor_user, counselor = setup
+    pulse = _bunk_pulse_template(org)
+    today = date.today()
+    _make_reflection(
+        org, program, pulse, subject=camper, author=counselor,
+        day=today, answers={"overall": 1, "concerns": "private worry"},
+        team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+    )
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug),
+    )
+    body = r.json()
+    # patterns
+    low_rating = next(
+        p for p in body["concerning_patterns"] if p["kind"] == "low_rating"
+    )
+    assert low_rating["team_visibility"] == "supervisors_only"
+    # recent_texts
+    assert any(
+        t["text"] == "private worry" and t["team_visibility"] == "supervisors_only"
+        for t in body["recent_texts"]
+    )
+    # rating_series points
+    series = body["templates"][0]["rating_series"]
+    overall = next(s for s in series if s["label"] == "overall")
+    assert overall["points"][0]["team_visibility"] == "supervisors_only"
+    # per-template reflections list
+    assert body["templates"][0]["reflections"][0]["team_visibility"] == "supervisors_only"
 
 
 def test_low_rating_surfaces_concerning_pattern(api_client, org, program, setup):
