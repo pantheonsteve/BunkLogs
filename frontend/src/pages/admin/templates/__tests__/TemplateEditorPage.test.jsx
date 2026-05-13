@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import TemplateEditorPage from '../TemplateEditorPage';
@@ -294,5 +294,113 @@ describe('TemplateEditorPage', () => {
     await waitFor(() => {
       expect(screen.getAllByRole('option').length).toBe(initialCount - 1);
     });
+  });
+
+  // ──────────────────────────────────────────────────────────────────
+  // Routing / Settings panel
+  // ──────────────────────────────────────────────────────────────────
+
+  async function openSettings() {
+    const toggle = screen.getByRole('button', { name: /Settings/i });
+    await userEvent.click(toggle);
+  }
+
+  it('settings panel renders existing routing values from the loaded template', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/api/v1/templates/')) {
+        return Promise.resolve({
+          data: {
+            ...baseTemplate,
+            cadence: 'daily',
+            subject_mode: 'single_subject',
+            assignment_scope: 'per_subject_in_group',
+            assignment_group_types: ['bunk'],
+            author_role_filter: ['counselor'],
+            subject_role_filter: ['camper'],
+            subject_visible: true,
+          },
+        });
+      }
+      if (url.includes('/api/v1/reflections/')) return Promise.resolve({ data: { count: 0 } });
+      return Promise.resolve({ data: [] });
+    });
+    renderEditor();
+    await waitFor(() => screen.getByDisplayValue('Test Template'));
+    await openSettings();
+
+    expect(screen.getByLabelText('Cadence')).toHaveValue('daily');
+    expect(screen.getByLabelText(/Who is each submission about/i)).toHaveValue('single_subject');
+
+    // Selected chips report aria-pressed=true
+    const bunkChip = screen.getByRole('button', { name: 'Bunk' });
+    expect(bunkChip).toHaveAttribute('aria-pressed', 'true');
+
+    const counselorChips = screen.getAllByRole('button', { name: 'Counselor' });
+    expect(counselorChips.some((b) => b.getAttribute('aria-pressed') === 'true')).toBe(true);
+
+    const camperChips = screen.getAllByRole('button', { name: 'Camper' });
+    expect(camperChips.some((b) => b.getAttribute('aria-pressed') === 'true')).toBe(true);
+
+    expect(
+      screen.getByLabelText(/Subject can see reflections about themselves/i),
+    ).toBeChecked();
+  });
+
+  it('switching subject_mode to single_subject reveals group/subject controls', async () => {
+    renderEditor();
+    await waitFor(() => screen.getByDisplayValue('Test Template'));
+    await openSettings();
+
+    // Default 'self' hides group-only controls
+    expect(
+      screen.queryByLabelText('Assignment group types'),
+    ).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Who is each submission about/i),
+      'single_subject',
+    );
+
+    expect(screen.getByLabelText('Assignment group types')).toBeInTheDocument();
+    expect(screen.getByLabelText('Subject role filter')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Subject can see reflections about themselves/i),
+    ).toBeInTheDocument();
+  });
+
+  it('save sends routing fields and auto-derived assignment_scope', async () => {
+    patchMock.mockResolvedValue({
+      data: { ...baseTemplate, version: 1, created_new_version: false },
+    });
+    renderEditor();
+    await waitFor(() => screen.getByDisplayValue('Test Template'));
+    await openSettings();
+
+    await userEvent.selectOptions(screen.getByLabelText('Cadence'), 'daily');
+    await userEvent.selectOptions(
+      screen.getByLabelText(/Who is each submission about/i),
+      'single_subject',
+    );
+
+    const groupTypes = screen.getByLabelText('Assignment group types');
+    await userEvent.click(within(groupTypes).getByRole('button', { name: 'Bunk' }));
+
+    const authorRoles = screen.getByLabelText('Author role filter');
+    await userEvent.click(within(authorRoles).getByRole('button', { name: 'Counselor' }));
+
+    const subjectRoles = screen.getByLabelText('Subject role filter');
+    await userEvent.click(within(subjectRoles).getByRole('button', { name: 'Camper' }));
+
+    await userEvent.click(screen.getByTestId('save-btn'));
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalled());
+    const payload = patchMock.mock.calls[0][1];
+    expect(payload.cadence).toBe('daily');
+    expect(payload.subject_mode).toBe('single_subject');
+    expect(payload.assignment_scope).toBe('per_subject_in_group');
+    expect(payload.assignment_group_types).toEqual(['bunk']);
+    expect(payload.author_role_filter).toContain('counselor');
+    expect(payload.subject_role_filter).toContain('camper');
+    expect(payload.subject_visible).toBe(false);
   });
 });

@@ -11,10 +11,18 @@ function getPromptText(field, language) {
   return field.prompts[language] || Object.values(field.prompts)[0] || field.key || '';
 }
 
+/** Stable option identifier — templates may use `key` or legacy `value`. */
+function optionAnswerValue(opt) {
+  if (!opt || typeof opt !== 'object') return '';
+  const id = opt.key ?? opt.value;
+  return typeof id === 'string' ? id : id != null ? String(id) : '';
+}
+
 function getOptionLabel(opt, language) {
   if (!opt) return '';
-  if (!opt.labels || typeof opt.labels !== 'object') return opt.key || '';
-  return opt.labels[language] || Object.values(opt.labels)[0] || opt.key || '';
+  const fallback = optionAnswerValue(opt);
+  if (!opt.labels || typeof opt.labels !== 'object') return fallback;
+  return opt.labels[language] || Object.values(opt.labels)[0] || fallback;
 }
 
 function getCategoryLabel(cat, language) {
@@ -250,18 +258,22 @@ export default function ReflectionField({ field, language, answer, onChange, err
       <div className={wrapClass}>
         {commonLabel}
         <div className="space-y-2">
-          {options.map((opt) => (
-            <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name={`choice_${field.key}`}
-                checked={answer === opt.key}
-                onChange={() => onChange(opt.key)}
-                disabled={readonly}
-              />
-              <span>{getOptionLabel(opt, language)}</span>
-            </label>
-          ))}
+          {options.map((opt, idx) => {
+            const optId = optionAnswerValue(opt);
+            const reactKey = optId || `single_choice_${field.key}_${idx}`;
+            return (
+              <label key={reactKey} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name={`choice_${field.key}`}
+                  checked={answer === optId}
+                  onChange={() => onChange(optId)}
+                  disabled={readonly}
+                />
+                <span>{getOptionLabel(opt, language)}</span>
+              </label>
+            );
+          })}
         </div>
         {error && <p className="text-red-600 text-xs mt-1">{error}</p>}
       </div>
@@ -271,25 +283,29 @@ export default function ReflectionField({ field, language, answer, onChange, err
   if (field.type === 'multiple_choice') {
     const options = Array.isArray(field.options) ? field.options : [];
     const v = Array.isArray(answer) ? answer : [];
-    const toggle = (key) => {
+    const toggle = (choiceId) => {
       if (readonly) return;
-      onChange(v.includes(key) ? v.filter((x) => x !== key) : [...v, key]);
+      onChange(v.includes(choiceId) ? v.filter((x) => x !== choiceId) : [...v, choiceId]);
     };
     return (
       <div className={wrapClass}>
         {commonLabel}
         <div className="space-y-2">
-          {options.map((opt) => (
-            <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={v.includes(opt.key)}
-                onChange={() => toggle(opt.key)}
-                disabled={readonly}
-              />
-              <span>{getOptionLabel(opt, language)}</span>
-            </label>
-          ))}
+          {options.map((opt, idx) => {
+            const optId = optionAnswerValue(opt);
+            const reactKey = optId || `multiple_choice_${field.key}_${idx}`;
+            return (
+              <label key={reactKey} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={v.includes(optId)}
+                  onChange={() => toggle(optId)}
+                  disabled={readonly}
+                />
+                <span>{getOptionLabel(opt, language)}</span>
+              </label>
+            );
+          })}
         </div>
         {error && <p className="text-red-600 text-xs mt-1">{error}</p>}
       </div>

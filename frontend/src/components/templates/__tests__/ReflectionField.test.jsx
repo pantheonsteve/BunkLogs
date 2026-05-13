@@ -65,6 +65,26 @@ describe('ReflectionField', () => {
     expect(screen.getAllByRole('radio').length).toBe(2);
   });
 
+  it('single_choice uses legacy option.value when key is absent', async () => {
+    const onChange = vi.fn();
+    renderField(
+      {
+        key: 'flag',
+        type: 'single_choice',
+        prompts: { en: 'Flag?' },
+        options: [
+          { value: 'no', labels: { en: 'No' } },
+          { value: 'yes', labels: { en: 'Yes' } },
+        ],
+      },
+      '',
+      onChange,
+    );
+    const radios = screen.getAllByRole('radio');
+    await userEvent.click(radios[1]);
+    expect(onChange).toHaveBeenCalledWith('yes');
+  });
+
   it('renders multiple_choice as checkboxes', () => {
     renderField(
       {

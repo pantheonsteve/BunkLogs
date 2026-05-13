@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Calendar, FileText, Plus, User, Clock, CheckCircle, Eye } from 'lucide-react';
 
 import Header from '../partials/Header';
@@ -8,6 +8,7 @@ import SingleDatePicker from '../components/ui/SingleDatePicker';
 import CounselorLogFormModal from '../components/modals/CounselorLogFormModal';
 import CounselorLogForm from '../components/form/CounselorLogForm';
 import CounselorReflectionsGrid from '../components/CounselorReflectionsGrid';
+import ReflectionTasksPanel from '../partials/tasks/ReflectionTasksPanel';
 import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 
@@ -212,7 +213,6 @@ function CounselorDashboard() {
   };
 
   const isStaffMember = STAFF_LOG_ROLES.includes(user?.role);
-  const isCounselor = user?.role === 'Counselor';
   const { title: dashboardTitle, subtitle: dashboardSubtitle } =
     ROLE_LABELS[user?.role] ?? { title: 'My Reflection', subtitle: 'Record your daily reflection' };
 
@@ -306,6 +306,34 @@ function CounselorDashboard() {
                 </button>
               </div>
             </div>
+
+            {/* Same roster-aware task list as /tasks — counselors land here after login */}
+            {isStaffMember && (
+              <section className="mb-8" aria-labelledby="counselor-program-tasks-heading">
+                <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 border border-gray-100 dark:border-gray-700/80">
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div>
+                      <h2
+                        id="counselor-program-tasks-heading"
+                        className="text-xl font-semibold text-gray-800 dark:text-white"
+                      >
+                        Today&apos;s tasks
+                      </h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Program reflections and camper check-ins due today — tap a card or name to continue.
+                      </p>
+                    </div>
+                    <Link
+                      to="/tasks"
+                      className="shrink-0 text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      Open full-screen
+                    </Link>
+                  </div>
+                  <ReflectionTasksPanel variant="embedded" />
+                </div>
+              </section>
+            )}
 
             {/* Date selector */}
             <div className="mb-6">
