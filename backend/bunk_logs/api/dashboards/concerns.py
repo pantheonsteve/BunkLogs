@@ -144,6 +144,7 @@ class ConcernsInboxView(APIView):
                     "subject_name": r.subject.full_name if r.subject else None,
                     "author_name": r.author.full_name if r.author else None,
                     "template_name": r.template.name,
+                    "team_visibility": r.team_visibility,
                     "assignment_group": (
                         {"id": r.assignment_group_id, "name": r.assignment_group.name}
                         if r.assignment_group_id else None
