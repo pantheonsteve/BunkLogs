@@ -149,6 +149,48 @@ describe('ReflectionFormPage', () => {
     await waitFor(() => expect(screen.getByTestId('summary')).toBeInTheDocument());
   });
 
+  it('defaults team_visibility to team in the submit payload', async () => {
+    const user = userEvent.setup();
+    postMock.mockResolvedValue({ data: { id: 101 } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    await user.type(screen.getByTestId('reflect-input-note'), 'team default');
+    await user.type(screen.getByTestId('reflect-period-start'), '2026-06-01');
+    await user.type(screen.getByTestId('reflect-period-end'), '2026-06-07');
+    const effortButtons = screen.getAllByRole('button', { name: '2' });
+    await user.click(effortButtons[0]);
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    expect(postMock.mock.calls[0][1].team_visibility).toBe('team');
+  });
+
+  it('sends team_visibility=supervisors_only when toggled', async () => {
+    const user = userEvent.setup();
+    postMock.mockResolvedValue({ data: { id: 102 } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    await user.click(screen.getByTestId('reflect-visibility-supervisors_only'));
+    await user.type(screen.getByTestId('reflect-input-note'), 'private note');
+    await user.type(screen.getByTestId('reflect-period-start'), '2026-06-01');
+    await user.type(screen.getByTestId('reflect-period-end'), '2026-06-07');
+    const effortButtons = screen.getAllByRole('button', { name: '2' });
+    await user.click(effortButtons[0]);
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    expect(postMock.mock.calls[0][1].team_visibility).toBe('supervisors_only');
+  });
+
+  it('shows the supervisors-only helper text only when selected', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    expect(screen.queryByTestId('reflect-visibility-helper')).toBeNull();
+    await user.click(screen.getByTestId('reflect-visibility-supervisors_only'));
+    expect(screen.getByTestId('reflect-visibility-helper')).toBeInTheDocument();
+    await user.click(screen.getByTestId('reflect-visibility-team'));
+    expect(screen.queryByTestId('reflect-visibility-helper')).toBeNull();
+  });
+
   it('passes program and role query params to template endpoint', async () => {
     renderPage('?program=prog-b&role=kitchen_staff');
     await waitFor(() => expect(getMock).toHaveBeenCalled());

@@ -44,6 +44,7 @@ export default function ReflectionFormPage() {
   const [answers, setAnswers] = useState({});
   const [periodStart, setPeriodStart] = useState(periodStartParam);
   const [periodEnd, setPeriodEnd] = useState(periodEndParam);
+  const [teamVisibility, setTeamVisibility] = useState('team');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -110,15 +111,18 @@ export default function ReflectionFormPage() {
       }
       return mergeAnswers(defaults, prev);
     });
+    if (draft?.teamVisibility === 'supervisors_only' || draft?.teamVisibility === 'team') {
+      setTeamVisibility(draft.teamVisibility);
+    }
   }, [meta?.id, schema, periodStart, periodEnd]);
 
   useEffect(() => {
     if (!draftKey || !schema) return;
     const t = setTimeout(() => {
-      saveReflectionDraft(draftKey, { answers, updatedAt: Date.now() });
+      saveReflectionDraft(draftKey, { answers, teamVisibility, updatedAt: Date.now() });
     }, 300);
     return () => clearTimeout(t);
-  }, [answers, draftKey, schema]);
+  }, [answers, teamVisibility, draftKey, schema]);
 
   const updateAnswer = (key, value) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
@@ -169,6 +173,7 @@ export default function ReflectionFormPage() {
         period_end: periodEnd,
         answers,
         language,
+        team_visibility: teamVisibility,
       };
       if (subjectParam) payload.subject = Number(subjectParam);
       if (assignmentGroupParam) payload.assignment_group = Number(assignmentGroupParam);
@@ -287,6 +292,44 @@ export default function ReflectionFormPage() {
                 />
               </div>
             </div>
+
+            <fieldset
+              className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-3"
+              data-testid="reflect-visibility"
+            >
+              <legend className="text-xs font-medium text-gray-600 dark:text-gray-400 px-1">
+                Visible to
+              </legend>
+              <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden mt-1">
+                {[
+                  { value: 'team', label: 'My team' },
+                  { value: 'supervisors_only', label: 'Supervisors only' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={teamVisibility === opt.value}
+                    data-testid={`reflect-visibility-${opt.value}`}
+                    onClick={() => setTeamVisibility(opt.value)}
+                    className={`flex-1 px-3 py-2 text-sm font-medium min-h-[44px] ${
+                      teamVisibility === opt.value
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {teamVisibility === 'supervisors_only' ? (
+                <p
+                  className="mt-2 text-xs text-gray-600 dark:text-gray-400"
+                  data-testid="reflect-visibility-helper"
+                >
+                  Hidden from peer authors. Unit Heads, Camper Care, and admins can still see this entry.
+                </p>
+              ) : null}
+            </fieldset>
 
             {(schema?.fields || []).map((field) => renderField(field))}
 
