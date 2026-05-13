@@ -370,6 +370,7 @@ class TestMembershipCapability:
             "unit_head",
             "leadership_team",
             "camper_care",
+            "health_center",
             "admin",
         ]
         for r in roles_in_program:
@@ -379,11 +380,13 @@ class TestMembershipCapability:
                 role=r,
             )
 
+        # After 3.21, camper_care lives on the supervisor capability (unit-scoped)
+        # while health_center keeps the domain_specialist (wellness-template) shortcut.
         expected_by_capability = {
             "participant": {"camper", "counselor"},
-            "supervisor": {"unit_head"},
+            "supervisor": {"unit_head", "camper_care"},
             "program_lead": {"leadership_team"},
-            "domain_specialist": {"camper_care"},
+            "domain_specialist": {"health_center"},
             "admin": {"admin"},
         }
         for cap, expected_roles in expected_by_capability.items():
