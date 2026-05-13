@@ -164,11 +164,23 @@ Implementation references:
   `backend/bunk_logs/core/permissions/visibility.py`
 - The form toggle in `frontend/src/pages/ReflectionFormPage.jsx`
 
-The flag is a per-reflection decision; there is no template-level "no, you
-can't make this private" gate yet. If a template needs to forbid the toggle
-(e.g. a self-reflection where privacy makes no sense), gate the UI -- the
-backend will still accept either value because the data model is permissive
-on purpose.
+The flag is a per-reflection decision, gated at the template level by
+`ReflectionTemplate.supports_privacy` (step 3.23). When that flag is
+`False`, the form hides the toggle AND the backend rejects any POST/PATCH
+that sets `team_visibility="supervisors_only"` against that template:
+
+- Migration `0021_backfill_template_supports_privacy` backfills
+  `supports_privacy=True` for every existing template whose `subject_mode`
+  is `single_subject`, `multi_subject`, or `group` -- the peer-authored
+  cases where the toggle is meaningful. Self-reflection templates stay
+  opt-out so a counselor can't accidentally hide their own self-reflection
+  from the team feed.
+- Admins flip the flag in the template editor's Settings panel; the
+  checkbox is only visible on non-self templates.
+- The server-side guard lives in `ReflectionSerializer.validate` and
+  raises a 400 with a `team_visibility` error key, so a third-party
+  client that bypasses the editor can't sneak a private entry past the
+  rule.
 
 ## When to revisit
 

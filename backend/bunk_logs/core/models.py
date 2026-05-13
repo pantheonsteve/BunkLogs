@@ -591,6 +591,16 @@ class ReflectionTemplate(models.Model):
         default=False,
         help_text="Whether the subject can see reflections about themselves",
     )
+    supports_privacy = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether this template offers the per-reflection 'supervisors "
+            "only' privacy toggle (Reflection.team_visibility). Off for "
+            "self-reflection templates by default; on for templates where "
+            "peer authors of the same AssignmentGroup would otherwise see "
+            "the entry."
+        ),
+    )
 
     objects = ReflectionTemplateScopedManager()
     all_objects = models.Manager()  # noqa: DJ012

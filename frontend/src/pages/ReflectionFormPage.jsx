@@ -71,6 +71,7 @@ export default function ReflectionFormPage() {
         cadence: data.cadence,
         languages: data.languages || [],
         subject_mode: data.subject_mode || 'self',
+        supports_privacy: Boolean(data.supports_privacy),
       });
       setSchema(data.schema);
       setProgramSlug(data.program_slug || '');
@@ -111,10 +112,12 @@ export default function ReflectionFormPage() {
       }
       return mergeAnswers(defaults, prev);
     });
-    if (draft?.teamVisibility === 'supervisors_only' || draft?.teamVisibility === 'team') {
+    if (meta?.supports_privacy && (draft?.teamVisibility === 'supervisors_only' || draft?.teamVisibility === 'team')) {
       setTeamVisibility(draft.teamVisibility);
+    } else if (!meta?.supports_privacy) {
+      setTeamVisibility('team');
     }
-  }, [meta?.id, schema, periodStart, periodEnd]);
+  }, [meta?.id, meta?.supports_privacy, schema, periodStart, periodEnd]);
 
   useEffect(() => {
     if (!draftKey || !schema) return;
@@ -173,8 +176,10 @@ export default function ReflectionFormPage() {
         period_end: periodEnd,
         answers,
         language,
-        team_visibility: teamVisibility,
       };
+      if (meta?.supports_privacy) {
+        payload.team_visibility = teamVisibility;
+      }
       if (subjectParam) payload.subject = Number(subjectParam);
       if (assignmentGroupParam) payload.assignment_group = Number(assignmentGroupParam);
       if (subjectGroupParam) payload.subject_group = Number(subjectGroupParam);
@@ -293,6 +298,7 @@ export default function ReflectionFormPage() {
               </div>
             </div>
 
+            {meta?.supports_privacy ? (
             <fieldset
               className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-3"
               data-testid="reflect-visibility"
@@ -330,6 +336,7 @@ export default function ReflectionFormPage() {
                 </p>
               ) : null}
             </fieldset>
+            ) : null}
 
             {(schema?.fields || []).map((field) => renderField(field))}
 

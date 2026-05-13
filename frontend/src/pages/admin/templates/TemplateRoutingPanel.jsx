@@ -78,6 +78,10 @@ export default function TemplateRoutingPanel({ value, onChange, defaultOpen = fa
       updates.assignment_group_types = [];
       updates.subject_role_filter = [];
       updates.subject_visible = false;
+      // supports_privacy is only meaningful when peer co-authors exist; a
+      // self-mode template has nobody to hide from. Clear it so we don't
+      // leave a meaningless True flag on collapse.
+      updates.supports_privacy = false;
     }
     patch(updates);
   }
@@ -201,6 +205,23 @@ export default function TemplateRoutingPanel({ value, onChange, defaultOpen = fa
                   aria-label="Subject can see reflections about themselves"
                 />
                 <span>Subject can see reflections about themselves</span>
+              </label>
+
+              <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-gray-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 dark:border-gray-600 mt-0.5"
+                  checked={Boolean(value.supports_privacy)}
+                  onChange={(e) => patch({ supports_privacy: e.target.checked })}
+                  aria-label="Allow 'supervisors only' privacy on individual entries"
+                />
+                <span>
+                  Allow &lsquo;supervisors only&rsquo; privacy on individual entries
+                  <span className="block text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                    Authors can mark a single entry as hidden from peer authors.
+                    Supervisors, admins, and (when subject_visible is on) subjects still see it.
+                  </span>
+                </span>
               </label>
             </>
           )}
