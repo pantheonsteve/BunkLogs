@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Signup</title>
+</head>
+<body>
+    <h1>Test User Signup</h1>
+    <div id="result"></div>
+    
+    <script>
+        async function testSignup() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Test user data
+                const userData = {
+                    email: `testuser${Date.now()}@example.com`,
+                    first_name: 'Test',
+                    last_name: 'User',
+                    password: 'testpassword123'
+                };
+                
+                // Make signup request (no CSRF token needed)
+                const response = await fetch('http://localhost:8000/api/v1/users/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(userData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<h2>✅ Success!</h2><pre>${JSON.stringify(result, null, 2)}</pre>`;
+                } else {
+                    resultDiv.innerHTML = `<h2>❌ Error!</h2><pre>Status: ${response.status}\n${JSON.stringify(result, null, 2)}</pre>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<h2>❌ Network Error!</h2><pre>${error.message}</pre>`;
+            }
+        }
+        
+        // Run test when page loads
+        testSignup();
+    </script>
+</body>
+</html>

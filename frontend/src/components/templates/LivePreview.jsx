@@ -69,12 +69,16 @@ export default function LivePreview({ schema, language, selectedFieldId }) {
                       language={language}
                       answer={undefined}
                       onChange={() => {}}
-                      readonly
                       dimmed={dimmed}
                     />
                   );
                 }
 
+                // Preview is interactive (not readonly) so authors can try
+                // selecting score buttons, toggling yes_no, typing into the
+                // Quill editor, etc. Submit stays disabled below; the phone
+                // frame + "Preview only" status bar make it clear nothing
+                // gets persisted.
                 return (
                   <ReflectionField
                     key={field._id || field.key || idx}
@@ -82,7 +86,6 @@ export default function LivePreview({ schema, language, selectedFieldId }) {
                     language={language}
                     answer={answers[field.key]}
                     onChange={(val) => handleChange(field.key, val)}
-                    readonly
                     dimmed={dimmed}
                   />
                 );

@@ -56,11 +56,14 @@ function Dashboard() {
           const formattedDateCare = `${yearCare}-${monthCare}-${dayCare}`;
           navigate(`/campercare/${user.id}/${formattedDateCare}`, { replace: true });
           return;
-        case 'Counselor':
-          // Counselors stay on the main dashboard by default
-          // They can navigate to CounselorDashboard via "My Reflections" link
-          console.log('📍 Counselor staying on main dashboard');
-          break;
+        case 'Counselor': {
+          const todayC = new Date();
+          const yc = todayC.getFullYear();
+          const mc = String(todayC.getMonth() + 1).padStart(2, '0');
+          const dc = String(todayC.getDate()).padStart(2, '0');
+          navigate(`/counselor-dashboard/${yc}-${mc}-${dc}`, { replace: true });
+          return;
+        }
         case 'Leadership':
         case 'Kitchen Staff': {
           const todayStaff = new Date();

@@ -76,3 +76,99 @@ describe('localizedOptionLabel', () => {
     expect(localizedOptionLabel({ key: 'k', labels: { en: 'Hello' } }, 'k')).toBe('Hello');
   });
 });
+
+describe('validateReflectionAnswers — extended field types', () => {
+  it('accepts a valid number, date, yes_no, single_rating answer set', () => {
+    const schema = {
+      fields: [
+        { key: 'n', type: 'number', prompts: { en: 'N' } },
+        { key: 'd', type: 'date', prompts: { en: 'D' } },
+        { key: 'y', type: 'yes_no', prompts: { en: 'Y' } },
+        {
+          key: 's',
+          type: 'single_rating',
+          prompts: { en: 'S' },
+          scale: [1, 5],
+        },
+      ],
+    };
+    const r = validateReflectionAnswers(schema, {
+      n: 7,
+      d: '2026-06-01',
+      y: 'yes',
+      s: 4,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('rejects a non-numeric number answer', () => {
+    const schema = { fields: [{ key: 'n', type: 'number', prompts: { en: 'N' } }] };
+    const r = validateReflectionAnswers(schema, { n: 'abc' });
+    expect(r.ok).toBe(false);
+    expect(r.errors.n).toMatch(/number/i);
+  });
+
+  it('rejects a malformed date answer', () => {
+    const schema = { fields: [{ key: 'd', type: 'date', prompts: { en: 'D' } }] };
+    const r = validateReflectionAnswers(schema, { d: 'not-a-date' });
+    expect(r.ok).toBe(false);
+    expect(r.errors.d).toMatch(/date/i);
+  });
+
+  it('accepts the compound { value, follow_up } shape for yes_no', () => {
+    const schema = {
+      fields: [
+        {
+          key: 'y',
+          type: 'yes_no',
+          prompts: { en: 'Y' },
+          follow_up_prompt: { en: 'Why?' },
+        },
+      ],
+    };
+    const r = validateReflectionAnswers(schema, { y: { value: 'yes', follow_up: 'because' } });
+    expect(r.ok).toBe(true);
+  });
+
+  it('skips answer validation for section_header and instructions fields', () => {
+    const schema = {
+      fields: [
+        { key: 'sec', type: 'section_header', prompts: { en: 'Section' }, required: true },
+        { key: 'inst', type: 'instructions', prompts: { en: 'Read me' }, required: true },
+      ],
+    };
+    const r = validateReflectionAnswers(schema, {});
+    expect(r.ok).toBe(true);
+  });
+
+  it('reports missing required answer for single_rating', () => {
+    const schema = {
+      fields: [{ key: 's', type: 'single_rating', prompts: { en: 'S' }, scale: [1, 5] }],
+    };
+    const r = validateReflectionAnswers(schema, { s: '' });
+    expect(r.ok).toBe(false);
+    expect(r.errors.s).toMatch(/required/i);
+  });
+});
+
+describe('buildDefaultAnswers — extended field types', () => {
+  it('seeds empty defaults for new types and skips meta fields', () => {
+    const schema = {
+      fields: [
+        { key: 'n', type: 'number', prompts: { en: 'N' } },
+        { key: 'd', type: 'date', prompts: { en: 'D' } },
+        { key: 'y', type: 'yes_no', prompts: { en: 'Y' } },
+        { key: 's', type: 'single_rating', prompts: { en: 'S' }, scale: [1, 5] },
+        { key: 'sec', type: 'section_header', prompts: { en: 'Section' } },
+        { key: 'inst', type: 'instructions', prompts: { en: 'Read me' } },
+      ],
+    };
+    const a = buildDefaultAnswers(schema);
+    expect(a.n).toBe('');
+    expect(a.d).toBe('');
+    expect(a.y).toBe('');
+    expect(a.s).toBe('');
+    expect(a.sec).toBeUndefined();
+    expect(a.inst).toBeUndefined();
+  });
+});

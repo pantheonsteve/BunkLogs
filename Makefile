@@ -1,6 +1,6 @@
 .PHONY: help up down restart logs shell ps \
-        migrate makemigrations superuser seed setup-crane-lake onboard-clc \
-        test test-backend test-frontend \
+        migrate makemigrations superuser seed seed-rbac setup-crane-lake onboard-clc \
+        test test-backend test-frontend test-e2e \
         lint lint-backend lint-frontend \
         frontend-install frontend-dev \
         sync-prod-db reset-db clean
@@ -23,6 +23,7 @@ help:
 	@echo "  make makemigrations  Generate new migrations"
 	@echo "  make superuser       Create Django superuser"
 	@echo "  make seed            Seed local DB with synthetic test data (--reset)"
+	@echo "  make seed-rbac       Seed RBAC test bench (10 users, password 'rbacpass123'; see docs/rbac-test-plan.md)"
 	@echo "  make setup-crane-lake  New tenant models: ensure CLC org + Summer 2026 program"
 	@echo "  make onboard-clc       Full CLC Summer 2026 onboarding (org+templates; pass CSV_PATH=... for staff)"
 	@echo "  make shell           Open Django shell (shell_plus if available)"
@@ -33,6 +34,7 @@ help:
 	@echo ""
 	@echo "Quality:"
 	@echo "  make test            Run backend + frontend tests"
+	@echo "  make test-e2e        Run Playwright RBAC suite (requires make up + make frontend-dev + make seed-rbac)"
 	@echo "  make lint            Lint backend + frontend"
 	@echo ""
 	@echo "Database:"
@@ -71,6 +73,9 @@ superuser:
 seed:
 	$(DJANGO_EXEC) python manage.py seed_dev_data --reset
 
+seed-rbac:
+	$(DJANGO_EXEC) python manage.py seed_rbac_test_users --reset
+
 setup-crane-lake:
 	$(DJANGO_EXEC) python manage.py setup_crane_lake
 
@@ -95,6 +100,9 @@ test-backend:
 
 test-frontend:
 	cd frontend && npm run test
+
+test-e2e:
+	cd frontend && npm run test:e2e
 
 lint: lint-backend lint-frontend
 

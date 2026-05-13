@@ -12,11 +12,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from bunk_logs.core.models import FieldKey
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.permissions import _is_org_admin
 from bunk_logs.core.permissions import _person_for_request
+from bunk_logs.core.validators.template_schema import validate_template_coherence
 
 
 class ReflectionTemplateSerializer(serializers.ModelSerializer):
@@ -37,8 +39,24 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
             "version",
             "parent_template",
             "created_at",
+            "subject_mode",
+            "assignment_scope",
+            "assignment_group_types",
+            "author_role_filter",
+            "subject_role_filter",
+            "subject_visible",
+            "required_per_subject_per_period",
         ]
         read_only_fields = ["id", "organization", "version", "parent_template", "created_at"]
+
+    _COHERENCE_FIELDS = (
+        "subject_mode",
+        "assignment_scope",
+        "assignment_group_types",
+        "author_role_filter",
+        "subject_role_filter",
+        "subject_visible",
+    )
 
     def validate(self, attrs):
         schema = attrs.get("schema", getattr(self.instance, "schema", None))
@@ -50,6 +68,33 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
 
             try:
                 validate_template_schema(schema, languages)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(
+                    exc.message_dict if hasattr(exc, "message_dict") else str(exc),
+                )
+
+        # Coherence: re-run the model-level cross-field check whenever any of the
+        # routing fields appear in the patch (or on create). Uses incoming values
+        # falling back to the existing instance values for partial updates.
+        if any(f in attrs for f in self._COHERENCE_FIELDS) or self.instance is None:
+
+            def _value(name, *, default):
+                if name in attrs:
+                    return attrs[name]
+                if self.instance is not None:
+                    return getattr(self.instance, name) or default
+                return default
+
+            try:
+                validate_template_coherence(
+                    subject_mode=_value("subject_mode", default="self"),
+                    assignment_scope=_value("assignment_scope", default="none"),
+                    assignment_group_types=_value("assignment_group_types", default=[]) or [],
+                    author_role_filter=_value("author_role_filter", default=[]) or [],
+                    subject_role_filter=_value("subject_role_filter", default=[]) or [],
+                    subject_visible=bool(_value("subject_visible", default=False)),
+                    valid_roles=frozenset(role for role, _ in Membership.ROLES),
+                )
             except DjangoValidationError as exc:
                 raise serializers.ValidationError(
                     exc.message_dict if hasattr(exc, "message_dict") else str(exc),
@@ -267,6 +312,21 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
             is_active=patch.get("is_active", True),
             version=new_version,
             parent_template=old,
+            subject_mode=patch.get("subject_mode", old.subject_mode),
+            assignment_scope=patch.get("assignment_scope", old.assignment_scope),
+            assignment_group_types=patch.get(
+                "assignment_group_types", list(old.assignment_group_types or []),
+            ),
+            author_role_filter=patch.get(
+                "author_role_filter", list(old.author_role_filter or []),
+            ),
+            subject_role_filter=patch.get(
+                "subject_role_filter", list(old.subject_role_filter or []),
+            ),
+            subject_visible=patch.get("subject_visible", old.subject_visible),
+            required_per_subject_per_period=patch.get(
+                "required_per_subject_per_period", old.required_per_subject_per_period,
+            ),
         )
         try:
             new_tpl.full_clean()
@@ -343,6 +403,13 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
             is_active=False,
             version=new_version,
             parent_template=source,
+            subject_mode=source.subject_mode,
+            assignment_scope=source.assignment_scope,
+            assignment_group_types=list(source.assignment_group_types or []),
+            author_role_filter=list(source.author_role_filter or []),
+            subject_role_filter=list(source.subject_role_filter or []),
+            subject_visible=source.subject_visible,
+            required_per_subject_per_period=source.required_per_subject_per_period,
         )
         try:
             clone.full_clean()

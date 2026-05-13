@@ -29,12 +29,14 @@ describe('ReflectionField', () => {
     expect(onChange).toHaveBeenCalled();
   });
 
-  it('renders textarea with character count', () => {
+  it('renders textarea as a Wysiwyg editor wrapper', () => {
     renderField(
       { key: 'bio', type: 'textarea', prompts: { en: 'Bio' }, max_length: 200 },
       'hello',
     );
-    expect(screen.getByText('5/200')).toBeInTheDocument();
+    expect(screen.getByText('Bio')).toBeInTheDocument();
+    expect(screen.getByTestId('reflect-input-bio')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-wysiwyg')).toBeInTheDocument();
   });
 
   it('renders text_list with add/remove buttons', () => {
@@ -63,6 +65,26 @@ describe('ReflectionField', () => {
     expect(screen.getAllByRole('radio').length).toBe(2);
   });
 
+  it('single_choice uses legacy option.value when key is absent', async () => {
+    const onChange = vi.fn();
+    renderField(
+      {
+        key: 'flag',
+        type: 'single_choice',
+        prompts: { en: 'Flag?' },
+        options: [
+          { value: 'no', labels: { en: 'No' } },
+          { value: 'yes', labels: { en: 'Yes' } },
+        ],
+      },
+      '',
+      onChange,
+    );
+    const radios = screen.getAllByRole('radio');
+    await userEvent.click(radios[1]);
+    expect(onChange).toHaveBeenCalledWith('yes');
+  });
+
   it('renders multiple_choice as checkboxes', () => {
     renderField(
       {
@@ -79,10 +101,31 @@ describe('ReflectionField', () => {
     expect(screen.getAllByRole('checkbox').length).toBe(2);
   });
 
-  it('renders yes_no as two buttons', () => {
+  it('renders yes_no as a styled checkbox with the prompt as its label', () => {
     renderField({ key: 'ok', type: 'yes_no', prompts: { en: 'OK?' } }, null);
-    expect(screen.getByRole('button', { name: /^Yes$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^No$/i })).toBeInTheDocument();
+    const cb = screen.getByTestId('reflect-input-ok');
+    expect(cb).toHaveAttribute('type', 'checkbox');
+    expect(cb).not.toBeChecked();
+    expect(screen.getByLabelText(/OK\?/i)).toBe(cb);
+  });
+
+  it('yes_no checkbox toggles the answer between yes and no', async () => {
+    const onChange = vi.fn();
+    renderField({ key: 'ok', type: 'yes_no', prompts: { en: 'OK?' } }, 'no', onChange);
+    await userEvent.click(screen.getByTestId('reflect-input-ok'));
+    expect(onChange).toHaveBeenLastCalledWith('yes');
+  });
+
+  it('yes_no readonly view shows a faux checkbox without an input', () => {
+    renderField(
+      { key: 'ok', type: 'yes_no', prompts: { en: 'OK?' } },
+      'yes',
+      vi.fn(),
+      { readonly: true },
+    );
+    const view = screen.getByTestId('reflect-input-ok');
+    expect(view.tagName).toBe('DIV');
+    expect(view.className).toMatch(/bg-blue-600/);
   });
 
   it('renders rating_group with category buttons', () => {
@@ -113,6 +156,37 @@ describe('ReflectionField', () => {
     );
     expect(screen.getByText('Overall?')).toBeInTheDocument();
     expect(screen.getAllByRole('button').length).toBe(5);
+  });
+
+  it('uses BunkLog traffic-light styling for a 1–5 single_rating', () => {
+    renderField(
+      {
+        key: 'sr',
+        type: 'single_rating',
+        prompts: { en: 'Overall?' },
+        scale: [1, 5],
+      },
+      3,
+    );
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBe(5);
+    expect(buttons[2].className).toContain('bg-[#e5e825]');
+    expect(buttons[2].className).toContain('flex-1');
+    expect(screen.getByText('Poor')).toBeInTheDocument();
+    expect(screen.getByText('Excellent')).toBeInTheDocument();
+  });
+
+  it('renders an info tooltip when field.hint is provided', () => {
+    renderField(
+      {
+        key: 'note',
+        type: 'text',
+        prompts: { en: 'Note' },
+        hint: { en: 'Write at least one sentence.' },
+      },
+      '',
+    );
+    expect(screen.getByRole('button', { name: /info/i })).toBeInTheDocument();
   });
 
   it('renders section_header as heading without answer input', () => {

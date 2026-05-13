@@ -5,7 +5,15 @@ const FIELD_TYPES = new Set([
   'rating_group',
   'multiple_choice',
   'single_choice',
+  'number',
+  'date',
+  'yes_no',
+  'single_rating',
+  'section_header',
+  'instructions',
 ]);
+
+const META_FIELD_TYPES = new Set(['section_header', 'instructions']);
 
 /**
  * Client-side validation aligned with backend validate_reflection_answers.
@@ -37,6 +45,10 @@ export function validateReflectionAnswers(schema, answers) {
     }
     if (!FIELD_TYPES.has(ftype)) {
       errors[key] = 'Unknown field type.';
+      continue;
+    }
+
+    if (META_FIELD_TYPES.has(ftype)) {
       continue;
     }
 
@@ -123,6 +135,44 @@ export function validateReflectionAnswers(schema, answers) {
           }
         }
       }
+    } else if (ftype === 'number') {
+      if (value === '' || value === null || value === undefined) {
+        if (required) errors[key] = 'This field is required.';
+        continue;
+      }
+      const num = typeof value === 'string' ? Number(value) : value;
+      if (typeof num !== 'number' || !Number.isFinite(num)) {
+        errors[key] = 'Must be a number.';
+      }
+    } else if (ftype === 'date') {
+      if (typeof value !== 'string' || !value.trim()) {
+        if (required) errors[key] = 'This field is required.';
+        continue;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        errors[key] = 'Use the date picker to choose a valid date.';
+      }
+    } else if (ftype === 'yes_no') {
+      let raw = value;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        raw = raw.value;
+      }
+      if (raw === undefined || raw === null || raw === '') {
+        if (required) errors[key] = 'This field is required.';
+        continue;
+      }
+      if (raw !== 'yes' && raw !== 'no' && raw !== true && raw !== false) {
+        errors[key] = 'Answer must be Yes or No.';
+      }
+    } else if (ftype === 'single_rating') {
+      if (value === '' || value === null || value === undefined) {
+        if (required) errors[key] = 'This field is required.';
+        continue;
+      }
+      const num = typeof value === 'string' ? Number(value) : value;
+      if (typeof num !== 'number' || !Number.isFinite(num)) {
+        errors[key] = 'Rating must be a number.';
+      }
     }
   }
 
@@ -136,7 +186,13 @@ export function buildDefaultAnswers(schema) {
   for (const field of fields) {
     if (!field?.key) continue;
     const { key, type: ftype } = field;
-    if (ftype === 'text' || ftype === 'textarea' || ftype === 'single_choice') {
+    if (META_FIELD_TYPES.has(ftype)) continue;
+    if (
+      ftype === 'text' ||
+      ftype === 'textarea' ||
+      ftype === 'single_choice' ||
+      ftype === 'date'
+    ) {
       out[key] = '';
     } else if (ftype === 'text_list') {
       const n = Math.max(1, field.min_items || 1);
@@ -146,6 +202,10 @@ export function buildDefaultAnswers(schema) {
       out[key] = [];
     } else if (ftype === 'rating_group') {
       out[key] = {};
+    } else if (ftype === 'number' || ftype === 'single_rating') {
+      out[key] = '';
+    } else if (ftype === 'yes_no') {
+      out[key] = '';
     }
   }
   return out;

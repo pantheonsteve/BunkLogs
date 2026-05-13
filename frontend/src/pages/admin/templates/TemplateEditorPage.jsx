@@ -7,6 +7,8 @@ import FieldInspector from '../../../components/templates/FieldInspector';
 import FieldTypePicker from '../../../components/templates/FieldTypePicker';
 import LivePreview from '../../../components/templates/LivePreview';
 import DashboardPreviewModal from '../../../dashboards/DashboardPreviewModal';
+import TemplateRoutingPanel from './TemplateRoutingPanel';
+import { assignmentScopeFor } from './templateRouting';
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
@@ -165,6 +167,14 @@ export default function TemplateEditorPage() {
   const [fields, setFields] = useState([]);
   const [languages, setLanguages] = useState(['en']);
   const [isActive, setIsActive] = useState(true);
+  const [routing, setRouting] = useState({
+    cadence: 'weekly',
+    subject_mode: 'self',
+    assignment_group_types: [],
+    author_role_filter: [],
+    subject_role_filter: [],
+    subject_visible: false,
+  });
   const [dirty, setDirty] = useState(false);
 
   // UI state
@@ -194,6 +204,14 @@ export default function TemplateEditorPage() {
         setLanguages(data.languages?.length ? data.languages : ['en']);
         setIsActive(data.is_active !== false);
         setLanguage((data.languages || ['en'])[0]);
+        setRouting({
+          cadence: data.cadence || 'weekly',
+          subject_mode: data.subject_mode || 'self',
+          assignment_group_types: data.assignment_group_types || [],
+          author_role_filter: data.author_role_filter || [],
+          subject_role_filter: data.subject_role_filter || [],
+          subject_visible: Boolean(data.subject_visible),
+        });
         setDirty(false);
         // Count responses
         return api.get('/api/v1/reflections/', { params: { template: id } });
@@ -221,7 +239,7 @@ export default function TemplateEditorPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [dirty, fields, name, languages, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dirty, fields, name, languages, isActive, routing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const markDirty = useCallback(() => setDirty(true), []);
 
@@ -252,6 +270,11 @@ export default function TemplateEditorPage() {
 
   const selectedField = fields.find((f) => f._id === selectedFieldId) || null;
 
+  const handleRoutingChange = useCallback((next) => {
+    setRouting(next);
+    markDirty();
+  }, [markDirty]);
+
   const handleSave = useCallback(async (stayOnPage = false) => {
     const errs = clientValidate({ fields: stripIds(fields) }, languages);
     if (errs.length > 0) {
@@ -266,6 +289,13 @@ export default function TemplateEditorPage() {
         schema: { fields: stripIds(fields) },
         languages,
         is_active: isActive,
+        cadence: routing.cadence,
+        subject_mode: routing.subject_mode,
+        assignment_scope: assignmentScopeFor(routing.subject_mode),
+        assignment_group_types: routing.assignment_group_types || [],
+        author_role_filter: routing.author_role_filter || [],
+        subject_role_filter: routing.subject_role_filter || [],
+        subject_visible: Boolean(routing.subject_visible),
       };
       const { data } = await api.patch(`/api/v1/templates/${id}/`, payload);
       const versionMsg = data.created_new_version
@@ -282,12 +312,18 @@ export default function TemplateEditorPage() {
       const msg =
         typeof body === 'string' ? body :
         body?.schema ? `Schema error: ${JSON.stringify(body.schema)}` :
+        body?.subject_mode ? `Settings: ${body.subject_mode}` :
+        body?.assignment_scope ? `Settings: ${body.assignment_scope}` :
+        body?.assignment_group_types ? `Settings: ${body.assignment_group_types}` :
+        body?.author_role_filter ? `Settings: ${body.author_role_filter}` :
+        body?.subject_role_filter ? `Settings: ${body.subject_role_filter}` :
+        body?.subject_visible ? `Settings: ${body.subject_visible}` :
         body?.detail || 'Save failed.';
       showToast(msg);
     } finally {
       setSaving(false);
     }
-  }, [fields, languages, name, isActive, id, navigate, showToast]);
+  }, [fields, languages, name, isActive, routing, id, navigate, showToast]);
 
   const addLanguage = useCallback((code) => {
     setLanguages((prev) => [...prev, code]);
@@ -462,6 +498,11 @@ export default function TemplateEditorPage() {
 
         {/* Right pane — ~42% */}
         <div className="flex-[42] min-w-0 overflow-y-auto p-5 space-y-5">
+          <TemplateRoutingPanel
+            value={routing}
+            onChange={handleRoutingChange}
+          />
+
           <LivePreview
             schema={schemaWithIds}
             language={language}

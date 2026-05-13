@@ -248,6 +248,186 @@ function Sidebar({
                   </NavLink>
                 </li>
               )}
+
+              {/* Tests — admin-only group with quick links to the new
+                  multi-tenant template / roster / dashboard surfaces so
+                  admins can walk through the full daily-per-camper flow. */}
+              {user && (user.role === 'Admin' || user.is_staff || user.is_superuser) && (
+                <SidebarLinkGroup
+                  activecondition={
+                    pathname.startsWith('/admin/templates') ||
+                    pathname.startsWith('/admin/groups') ||
+                    pathname.startsWith('/dashboards/') ||
+                    pathname === '/tasks' ||
+                    pathname === '/reflect'
+                  }
+                >
+                  {(handleClick, open) => (
+                    <React.Fragment>
+                      <a
+                        href="#0"
+                        aria-expanded={open}
+                        className="block text-gray-800 dark:text-gray-100 truncate transition duration-150 hover:text-gray-900 dark:hover:text-white"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleClick();
+                          setSidebarExpanded(true);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth="1.5"
+                              stroke="currentColor"
+                              className="w-6 h-6"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23-.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"
+                              />
+                            </svg>
+                            <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                              Tests
+                            </span>
+                          </div>
+                          <div className="flex shrink-0 ml-2">
+                            <svg
+                              className={`w-3 h-3 shrink-0 ml-1 fill-current text-gray-400 dark:text-gray-500 ${
+                                open ? 'rotate-180' : ''
+                              }`}
+                              viewBox="0 0 12 12"
+                              aria-hidden="true"
+                            >
+                              <path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </a>
+                      <div className="lg:hidden lg:sidebar-expanded:block 2xl:block">
+                        <ul className={`pl-9 mt-1 ${!open ? 'hidden' : ''}`}>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/admin/templates"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                Templates
+                              </span>
+                            </NavLink>
+                          </li>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/admin/groups"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                Assignment groups
+                              </span>
+                            </NavLink>
+                          </li>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/tasks"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                My tasks
+                              </span>
+                            </NavLink>
+                          </li>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/reflect"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                Reflection form
+                              </span>
+                            </NavLink>
+                          </li>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/dashboards/coverage"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                Coverage dashboard
+                              </span>
+                            </NavLink>
+                          </li>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/dashboards/authors"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                Author attribution
+                              </span>
+                            </NavLink>
+                          </li>
+                          <li className="mb-1 last:mb-0">
+                            <NavLink
+                              to="/dashboards/concerns"
+                              className={({ isActive }) =>
+                                `block transition duration-150 truncate ${
+                                  isActive
+                                    ? 'text-violet-600 dark:text-violet-400 font-medium'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }`
+                              }
+                            >
+                              <span className="text-sm lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                                Concerns inbox
+                              </span>
+                            </NavLink>
+                          </li>
+                        </ul>
+                      </div>
+                    </React.Fragment>
+                  )}
+                </SidebarLinkGroup>
+              )}
               {user && REFLECTION_FORM_ROLES.includes(user.role) && (
                 <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
                   <NavLink

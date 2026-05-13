@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../../api';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
+import InfoTooltip from '../common/InfoTooltip';
 import { useAuth, AuthContext } from '../../auth/AuthContext';
 
 function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToken, currentCounselorId }) {
@@ -513,51 +514,6 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
   };
 
   console.log('useAuth:', useAuth()); // Debug
-
-  // InfoTooltip component for score explanations
-  const InfoTooltip = ({ text }) => {
-    const [visible, setVisible] = useState(false);
-    const tooltipRef = useRef(null);
-
-    // Hide tooltip on outside click (for mobile)
-    useEffect(() => {
-      if (!visible) return;
-      const handleClick = (e) => {
-        if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
-          setVisible(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClick);
-      return () => document.removeEventListener('mousedown', handleClick);
-    }, [visible]);
-
-    return (
-      <span className="relative inline-block align-middle ml-1">
-        <button
-          type="button"
-          aria-label="Info"
-          tabIndex={0}
-          className="text-blue-500 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full p-0.5"
-          onMouseEnter={() => setVisible(true)}
-          onMouseLeave={() => setVisible(false)}
-          onClick={() => setVisible(v => !v)}
-        >
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 8a1 1 0 112 0v4a1 1 0 11-2 0V8zm1-4a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
-          </svg>
-        </button>
-        {visible && (
-          <div
-            ref={tooltipRef}
-            className="absolute z-20 left-1/2 -translate-x-1/2 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg p-2 text-xs text-gray-800 dark:text-gray-100"
-            style={{ minWidth: '180px' }}
-          >
-            {text}
-          </div>
-        )}
-      </span>
-    );
-  };
 
   return (
     <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6">
