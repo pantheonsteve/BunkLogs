@@ -53,6 +53,49 @@ in sync via `Membership.save()`. Surface `capability` in the admin
 Permission code (starting in prompt 3.4) branches on `capability`, never on
 `role`. Template / label / reporting code may still branch on `role`.
 
+## Capability assignments
+
+The post-3.21 mapping is the source of truth in
+`backend/bunk_logs/core/models.py::ROLE_TO_CAPABILITY`. Reproduced here for
+quick reference:
+
+| capability | role(s) | visibility shape |
+|---|---|---|
+| `participant` | `camper`, `counselor`, `junior_counselor`, `specialist`, `general_counselor`, `kitchen_staff`, `maintenance`, `housekeeping`, `madrich` | sees own reflections + reflections in AssignmentGroups they author |
+| `supervisor` | `unit_head`, `faculty`, `camper_care` | unit-scoped: `unit_head` via AssignmentGroup descendants; `faculty` / `camper_care` via `Membership.metadata.assigned_unit_slugs` |
+| `program_lead` | `leadership_team` | program-wide, sliceable by `assigned_unit_slugs` |
+| `domain_specialist` | `health_center`, `special_diets` | cross-unit wellness shortcut: sees every reflection whose template carries one of these roles |
+| `admin` | `admin` | full org visibility |
+
+Two important nuances:
+
+1. **"Supervisor" means "unit-scoped".** Any role whose access boundary is "a
+   set of units" maps to `supervisor`, regardless of *how* those units are
+   resolved. `unit_head` resolves via the AssignmentGroup descendant walk
+   (which catches dynamic per-bunk membership without slug discipline);
+   `faculty` and `camper_care` resolve via `Membership.metadata.assigned_unit_slugs`
+   (which is cheap and explicit but requires the importer to keep slugs in
+   sync). Both produce the same effective filter in `reflections_visible_to`.
+2. **`camper_care` is intentionally NOT a `domain_specialist`** even though
+   the wellness dashboard groups it alongside `health_center` and
+   `special_diets`. Camper-care staff are senior pastoral/clinical *leads*
+   for their units, so they need read access to *every* reflection about a
+   subject in those units — not just reflections that happen to be tagged
+   with a wellness-role template. The wellness dashboard route gate
+   (`api/wellness_dashboard.py::WELLNESS_ACCESS_ROLES`) is intentionally
+   independent of `core.permissions.visibility.WELLNESS_ROLES` for exactly
+   this reason: route access ≠ reflection visibility.
+3. **`WELLNESS_ROLES` vs. `WELLNESS_TEMPLATE_ROLES`** (both in
+   `core.permissions.visibility`). The first is the membership-side gate —
+   who gets the wellness shortcut. The second is the template-side filter —
+   which template flavors fall under the wellness umbrella, and is a strict
+   superset of the first. `camper_care` belongs in
+   `WELLNESS_TEMPLATE_ROLES` (so nurses and dietitians can see pastoral
+   notes during cross-discipline care) but NOT in `WELLNESS_ROLES` (so
+   camper-care staff themselves are scoped to their assigned units, not
+   given a cross-program peek into every health-center / special-diets
+   reflection).
+
 ## Why not collapse `role` down to 5 values?
 
 Tempting, but it makes multi-tenancy *harder*, not easier. Concrete costs:
@@ -120,7 +163,8 @@ If none of these become true, leave it alone.
   `ROLE_TO_CAPABILITY`, `Membership.save()`.
 - `backend/bunk_logs/core/migrations/0015_membership_capability.py`,
   `0016_backfill_membership_capability.py`,
-  `0017_alter_membership_capability_nonnull.py`.
+  `0017_alter_membership_capability_nonnull.py`,
+  `0018_recalibrate_camper_care_capability.py` (step 3.21).
 - `backend/bunk_logs/core/tests.py::TestMembershipCapability` — coverage and
   behavior tests.
 - `migration_prompts/3_4_reflection_submission_api.md` — first downstream

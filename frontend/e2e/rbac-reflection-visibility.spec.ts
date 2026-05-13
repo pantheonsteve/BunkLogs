@@ -4,8 +4,16 @@
  * Covers the visibility paths in
  * backend/bunk_logs/core/permissions/visibility.py:
  *   - Author of a reflection always sees their own.
- *   - Wellness role sees reflections whose template.role is in WELLNESS_ROLES.
- *   - Counselors do NOT see camper-care reflections (no wellness path).
+ *   - WELLNESS_ROLES (health_center / special_diets) see reflections whose
+ *     template.role is in that set.
+ *   - Counselors do NOT see camper-care reflections (no wellness path, not
+ *     the author, not in the camper-care assignment-group hierarchy).
+ *
+ * Note (3.21): camper_care moved off the wellness shortcut and onto the
+ * unit-scoped supervisor capability. The "camper_care sees the wellness
+ * reflection that counselor cannot" assertion below now passes via the
+ * author path (the seeded camper-care reflection is authored by the
+ * camper-care fixture user), not the WELLNESS_ROLES shortcut.
  *
  * Plus the i18n contract in ReflectionViewSet.template_for_me: requesting
  * ?language=es returns Spanish prompts and labels for templates that declare

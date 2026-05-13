@@ -214,7 +214,7 @@ TEST_USERS: list[dict[str, Any]] = [
         "org_slug": CLC_ORG_SLUG,
         "program_slug": CLC_PROGRAM_SLUG,
         "membership_role": "camper_care",
-        "purpose": "domain_specialist (wellness); /wellness/dashboard",
+        "purpose": "supervisor (unit-scoped); /wellness/dashboard + unit-scoped reflection feed",
     },
     {
         "key": "health_center",
