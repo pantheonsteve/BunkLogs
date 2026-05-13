@@ -403,4 +403,48 @@ describe('TemplateEditorPage', () => {
     expect(payload.subject_role_filter).toContain('camper');
     expect(payload.subject_visible).toBe(false);
   });
+
+  it('supports_privacy round-trips through the editor (load + checkbox + save)', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/api/v1/templates/')) {
+        return Promise.resolve({
+          data: {
+            ...baseTemplate,
+            subject_mode: 'single_subject',
+            assignment_scope: 'per_subject_in_group',
+            assignment_group_types: ['bunk'],
+            supports_privacy: false,
+          },
+        });
+      }
+      if (url.includes('/api/v1/reflections/')) return Promise.resolve({ data: { count: 0 } });
+      return Promise.resolve({ data: [] });
+    });
+    patchMock.mockResolvedValue({
+      data: { ...baseTemplate, version: 1, created_new_version: false },
+    });
+
+    renderEditor();
+    await waitFor(() => screen.getByDisplayValue('Test Template'));
+    await openSettings();
+
+    const checkbox = screen.getByLabelText(/Allow .supervisors only. privacy/i);
+    expect(checkbox).not.toBeChecked();
+    await userEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    await userEvent.click(screen.getByTestId('save-btn'));
+    await waitFor(() => expect(patchMock).toHaveBeenCalled());
+    const payload = patchMock.mock.calls[0][1];
+    expect(payload.supports_privacy).toBe(true);
+  });
+
+  it('does not show supports_privacy checkbox on self-mode templates', async () => {
+    renderEditor();
+    await waitFor(() => screen.getByDisplayValue('Test Template'));
+    await openSettings();
+    expect(
+      screen.queryByLabelText(/Allow .supervisors only. privacy/i),
+    ).not.toBeInTheDocument();
+  });
 });

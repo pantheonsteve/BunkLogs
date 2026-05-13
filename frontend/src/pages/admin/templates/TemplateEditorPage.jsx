@@ -174,6 +174,7 @@ export default function TemplateEditorPage() {
     author_role_filter: [],
     subject_role_filter: [],
     subject_visible: false,
+    supports_privacy: false,
   });
   const [dirty, setDirty] = useState(false);
 
@@ -211,6 +212,7 @@ export default function TemplateEditorPage() {
           author_role_filter: data.author_role_filter || [],
           subject_role_filter: data.subject_role_filter || [],
           subject_visible: Boolean(data.subject_visible),
+          supports_privacy: Boolean(data.supports_privacy),
         });
         setDirty(false);
         // Count responses
@@ -296,6 +298,7 @@ export default function TemplateEditorPage() {
         author_role_filter: routing.author_role_filter || [],
         subject_role_filter: routing.subject_role_filter || [],
         subject_visible: Boolean(routing.subject_visible),
+        supports_privacy: Boolean(routing.supports_privacy),
       };
       const { data } = await api.patch(`/api/v1/templates/${id}/`, payload);
       const versionMsg = data.created_new_version
