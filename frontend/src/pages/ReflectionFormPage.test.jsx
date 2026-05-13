@@ -20,6 +20,7 @@ const templatePayload = {
   cadence: 'weekly',
   languages: ['en', 'es'],
   program_slug: 'prog-a',
+  supports_privacy: true,
   schema: {
     fields: [
       { key: 'note', type: 'text', prompts: { en: 'Note?' } },
@@ -189,6 +190,33 @@ describe('ReflectionFormPage', () => {
     expect(screen.getByTestId('reflect-visibility-helper')).toBeInTheDocument();
     await user.click(screen.getByTestId('reflect-visibility-team'));
     expect(screen.queryByTestId('reflect-visibility-helper')).toBeNull();
+  });
+
+  it('hides the privacy toggle when the template does not support it', async () => {
+    getMock.mockResolvedValue({
+      data: { ...templatePayload, supports_privacy: false },
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    expect(screen.queryByTestId('reflect-visibility')).toBeNull();
+  });
+
+  it('omits team_visibility from payload when the template does not support it', async () => {
+    const user = userEvent.setup();
+    getMock.mockResolvedValue({
+      data: { ...templatePayload, supports_privacy: false },
+    });
+    postMock.mockResolvedValue({ data: { id: 103 } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    await user.type(screen.getByTestId('reflect-input-note'), 'no flag');
+    await user.type(screen.getByTestId('reflect-period-start'), '2026-06-01');
+    await user.type(screen.getByTestId('reflect-period-end'), '2026-06-07');
+    const effortButtons = screen.getAllByRole('button', { name: '2' });
+    await user.click(effortButtons[0]);
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    expect(postMock.mock.calls[0][1]).not.toHaveProperty('team_visibility');
   });
 
   it('passes program and role query params to template endpoint', async () => {
