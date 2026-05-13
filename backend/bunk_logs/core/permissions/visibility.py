@@ -1,7 +1,7 @@
 """Visibility helpers for Reflection querysets.
 
 The single source of truth for "which reflections is this user allowed to see?"
-Combines author / subject / supervisor / admin / leadership / wellness paths
+Combines author / subject / admin / unit-scoped supervisor / wellness paths
 into one composable Q-builder so that every list / dashboard / export endpoint
 applies the same rules.
 """
@@ -24,8 +24,28 @@ from bunk_logs.core.models import Reflection
 
 User = get_user_model()
 
-WELLNESS_ROLES = frozenset({"camper_care", "health_center", "special_diets"})
-LEADERSHIP_ROLES = frozenset({"faculty", "leadership_team"})
+# Roles whose reflection visibility is scoped to a set of units via
+# ``Membership.metadata.assigned_unit_slugs`` (with ``metadata.unit_slugs`` as a
+# legacy alias). ``unit_head`` is intentionally NOT in this set -- unit heads
+# get their cross-bunk visibility through the AssignmentGroup descendant walk
+# in ``_author_group_ids_with_descendants``, which is a finer-grained mechanism
+# than slug matching. After step 3.21 ``camper_care`` is treated as one of
+# these supervisors: senior pastoral/clinical leads for the units they're
+# assigned to, not a cross-program wellness specialist.
+UNIT_SCOPED_SUPERVISOR_ROLES = frozenset({"faculty", "leadership_team", "camper_care"})
+
+# Memberships in these roles get the wellness-template visibility shortcut:
+# they see any reflection whose template carries a role in
+# ``WELLNESS_TEMPLATE_ROLES``. Reserved for roles whose work is cross-unit by
+# nature (nurses, dietitians). ``camper_care`` is intentionally NOT here -- it
+# moved to the unit-scoped supervisor capability in step 3.21.
+WELLNESS_ROLES = frozenset({"health_center", "special_diets"})
+
+# Template.role values that the wellness team can read collectively. Includes
+# ``camper_care`` so a nurse / dietitian still has visibility into pastoral
+# notes about a camper they're co-caring for, even though camper-care staff
+# themselves no longer get this shortcut.
+WELLNESS_TEMPLATE_ROLES = frozenset({"camper_care", "health_center", "special_diets"})
 
 
 def _person_for_user(user) -> Person | None:
@@ -41,11 +61,20 @@ def _has_org_admin_membership(person: Person, organization_id: int | None) -> bo
     return qs.exists()
 
 
-def _leadership_q(person: Person, organization_id: int | None) -> Q | None:
-    """Q filter scoping reflections to the unit slugs assigned to a leadership/faculty user."""
+def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q | None:
+    """Q filter scoping reflections to the unit slugs a supervisor is assigned to.
+
+    Applies to memberships in ``UNIT_SCOPED_SUPERVISOR_ROLES`` (faculty,
+    leadership_team, camper_care). Empty / missing ``assigned_unit_slugs`` is
+    interpreted as "no unit restriction" -- the supervisor sees every
+    reflection in the program. Otherwise we resolve each slug to the set of
+    Persons whose Membership in that program declares ``metadata.unit_slug``
+    matching one of those slugs, and scope visibility to reflections about
+    those subjects.
+    """
     qs = Membership.all_objects.filter(
         person=person,
-        role__in=LEADERSHIP_ROLES,
+        role__in=UNIT_SCOPED_SUPERVISOR_ROLES,
         is_active=True,
     )
     if organization_id is not None:
@@ -95,7 +124,7 @@ def _wellness_q(person: Person) -> Q | None:
     ).exists()
     if not has_wellness:
         return None
-    return Q(template__role__in=WELLNESS_ROLES)
+    return Q(template__role__in=WELLNESS_TEMPLATE_ROLES)
 
 
 def _author_group_ids_with_descendants(person: Person) -> set[int]:
@@ -147,9 +176,14 @@ def reflections_visible_to(
     1. Superuser or active org-admin Membership -> everything in current org.
     2. Author of the reflection -> always.
     3. Subject of the reflection AND template.subject_visible=True -> always.
-    4. Author in the reflection's AssignmentGroup, or in any ancestor group.
-    5. Leadership/faculty membership -> reflections in their assigned units.
-    6. Wellness membership -> reflections of wellness-role templates.
+    4. Author in the reflection's AssignmentGroup, or in any ancestor group
+       (unit heads see their bunks via the descendant walk).
+    5. Unit-scoped supervisor membership (faculty / leadership_team /
+       camper_care) -> reflections about subjects whose Membership.metadata
+       declares one of the assigned unit slugs; or the whole program when
+       ``assigned_unit_slugs`` is empty.
+    6. Wellness membership (health_center / special_diets) -> reflections
+       whose template carries one of the wellness roles.
 
     All paths are scoped to ``request.organization`` (or whatever the current
     org context is). Cross-tenant rows are unreachable because the base queryset
@@ -182,9 +216,9 @@ def reflections_visible_to(
     if author_group_ids:
         parts.append(Q(assignment_group_id__in=author_group_ids))
 
-    lq = _leadership_q(person, org_id)
-    if lq is not None:
-        parts.append(lq)
+    sq = _unit_scoped_supervisor_q(person, org_id)
+    if sq is not None:
+        parts.append(sq)
 
     wq = _wellness_q(person)
     if wq is not None:
@@ -216,7 +250,8 @@ def has_supervisor_role(user) -> bool:
 
     Used by author-attribution view to lock that view down to supervisors only.
     Specifically: org admin, OR author of a group with at least one descendant
-    (parent of a child group), OR leadership team / faculty.
+    (parent of a child group), OR any unit-scoped supervisor role
+    (faculty / leadership_team / camper_care).
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return False
@@ -227,7 +262,7 @@ def has_supervisor_role(user) -> bool:
         return False
     if _has_org_admin_membership(person, person.organization_id):
         return True
-    if _leadership_q(person, person.organization_id) is not None:
+    if _unit_scoped_supervisor_q(person, person.organization_id) is not None:
         return True
 
     direct_ids = list(
