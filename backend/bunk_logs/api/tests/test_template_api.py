@@ -527,6 +527,7 @@ class TestTemplateRoutingFields:
             "author_role_filter": ["counselor"],
             "subject_role_filter": ["camper"],
             "subject_visible": True,
+            "supports_privacy": True,
         }
         res = admin_client.patch(detail_url(tpl.pk), payload, format="json")
         assert res.status_code == 200, res.data
@@ -537,6 +538,8 @@ class TestTemplateRoutingFields:
         assert tpl.author_role_filter == ["counselor"]
         assert tpl.subject_role_filter == ["camper"]
         assert tpl.subject_visible is True
+        assert tpl.supports_privacy is True
+        assert res.data["supports_privacy"] is True
 
     def test_patch_with_responses_propagates_routing_fields_to_new_version(
         self, admin_client, org, program,

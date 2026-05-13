@@ -175,6 +175,13 @@ def test_team_visibility_defaults_to_team(
 def test_team_visibility_round_trip(
     api, org_a, program_a, counselor_template, counselor_user,
 ):
+    # The 3.23 gate rejects ``supervisors_only`` against a template that
+    # doesn't opt in. The fixture is a self-mode template, so flip the flag
+    # for this round-trip case (separate test below pins the rejection
+    # path).
+    counselor_template.supports_privacy = True
+    counselor_template.save(update_fields=["supports_privacy"])
+
     user, _person = counselor_user
     api.force_authenticate(user=user)
     resp = api.post(
@@ -198,6 +205,53 @@ def test_team_visibility_round_trip(
     g = api.get(f"/api/v1/reflections/{rid}/", **_hdr_org(org_a.slug))
     assert g.status_code == 200
     assert g.json()["team_visibility"] == "supervisors_only"
+
+
+@pytest.mark.django_db
+def test_supports_privacy_blocks_self_template_supervisors_only(
+    api, org_a, program_a, counselor_template, counselor_user,
+):
+    """``counselor_template`` ships with ``supports_privacy=False`` because
+    the data-migration backfill (0021) leaves self-mode templates opt-out.
+    The 3.23 server-side guard must reject ``supervisors_only`` POSTs."""
+    assert counselor_template.supports_privacy is False
+    user, _person = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.post(
+        "/api/v1/reflections/",
+        {
+            "program_slug": program_a.slug,
+            "template": counselor_template.id,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-07",
+            "answers": {"note": "leak"},
+            "language": "en",
+            "team_visibility": "supervisors_only",
+        },
+        format="json",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 400
+    assert "team_visibility" in resp.json()
+
+
+@pytest.mark.django_db
+def test_supports_privacy_summary_payload_exposes_flag(
+    api, org_a, program_a, counselor_template, counselor_user,
+):
+    """The form fetches the template via ``/template-for-me/`` and reads
+    ``supports_privacy`` off the response to decide whether to render the
+    privacy toggle. Pin that contract here."""
+    counselor_template.supports_privacy = True
+    counselor_template.save(update_fields=["supports_privacy"])
+    user, _person = counselor_user
+    api.force_authenticate(user=user)
+    resp = api.get(
+        "/api/v1/reflections/template-for-me/",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["supports_privacy"] is True
 
 
 @pytest.mark.django_db
