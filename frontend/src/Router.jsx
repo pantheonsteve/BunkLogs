@@ -35,6 +35,11 @@ import GroupListPage from './pages/admin/groups/GroupListPage';
 import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
 import TasksPage from './pages/TasksPage';
 import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
+import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
+import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
+import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
+import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
+import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -340,6 +345,48 @@ function Router() {
           element={
             <ProtectedRoute>
               <WellnessDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Step 3.20: Coverage / trends / subject / authors / concerns dashboards */}
+        <Route
+          path="/dashboards/coverage"
+          element={
+            <ProtectedRoute>
+              <CoverageDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/subject-trends/:groupId"
+          element={
+            <ProtectedRoute>
+              <SubjectTrendsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/subject/:personId"
+          element={
+            <ProtectedRoute>
+              <SubjectDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/authors"
+          element={
+            <ProtectedRoute>
+              <AuthorAttributionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/concerns"
+          element={
+            <ProtectedRoute>
+              <ConcernsInboxPage />
             </ProtectedRoute>
           }
         />

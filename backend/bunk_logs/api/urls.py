@@ -9,10 +9,15 @@ from . import field_keys as field_keys_api
 from . import memberships
 from . import reflections
 from . import team_dashboard
-from . import template_dashboard
 from . import templates as templates_api
 from . import views
 from . import wellness_dashboard
+from .dashboards import authors as authors_dashboard
+from .dashboards import concerns as concerns_dashboard
+from .dashboards import coverage as coverage_dashboard
+from .dashboards import subject as subject_dashboard
+from .dashboards import template as template_dashboard
+from .dashboards import trends as trends_dashboard
 
 router = DefaultRouter()
 
@@ -87,6 +92,46 @@ urlpatterns = [
         "dashboards/template/<int:template_id>/export/",
         template_dashboard.TemplateDashboardExportView.as_view(),
         name="template-dashboard-export",
+    ),
+
+    # Cross-roster coverage heatmap (commit 3 of 3.20)
+    path(
+        "dashboards/coverage/",
+        coverage_dashboard.CoverageDashboardView.as_view(),
+        name="dashboard-coverage",
+    ),
+
+    # Subject Trend Grid (commit 4 of 3.20)
+    path(
+        "dashboards/subject-trends/",
+        trends_dashboard.SubjectTrendGridView.as_view(),
+        name="dashboard-subject-trends",
+    ),
+
+    # Per-subject detail (commit 5 of 3.20)
+    path(
+        "dashboards/subject/<int:person_id>/",
+        subject_dashboard.SubjectDetailView.as_view(),
+        name="dashboard-subject-detail",
+    ),
+
+    # Author attribution (commit 6 of 3.20)
+    path(
+        "dashboards/authors/",
+        authors_dashboard.AuthorAttributionView.as_view(),
+        name="dashboard-authors",
+    ),
+
+    # Concerns Inbox (commit 7 of 3.20)
+    path(
+        "dashboards/concerns/",
+        concerns_dashboard.ConcernsInboxView.as_view(),
+        name="dashboard-concerns",
+    ),
+    path(
+        "dashboards/concerns/<int:reflection_id>/<str:field_key>/read/",
+        concerns_dashboard.ConcernMarkReadView.as_view(),
+        name="dashboard-concerns-mark-read",
     ),
 
     # Unit head and camper care dashboard endpoints

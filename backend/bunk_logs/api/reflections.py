@@ -4,8 +4,6 @@ import calendar
 import hashlib
 from datetime import date
 from datetime import timedelta
-from functools import reduce
-from operator import or_
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Exists
@@ -26,9 +24,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import validate_reflection_answers
-
-WELLNESS_ROLES = frozenset({"camper_care", "health_center", "special_diets"})
-LEADERSHIP_ROLES = frozenset({"faculty", "leadership_team"})
+from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 
 def _person_for_request(request):
@@ -39,14 +35,6 @@ def _person_for_request(request):
 
 def _has_tenant_admin(person: Person) -> bool:
     return Membership.objects.filter(person=person, role="admin", is_active=True).exists()
-
-
-def _has_wellness_membership(person: Person) -> bool:
-    return Membership.objects.filter(
-        person=person,
-        role__in=WELLNESS_ROLES,
-        is_active=True,
-    ).exists()
 
 
 def _privileged_reflection_actor(request) -> bool:
@@ -156,46 +144,6 @@ def _localize_schema(schema: dict, lang: str) -> dict:
                 f["prompts"] = {lang: pr[lang]}
         out["fields"].append(f)
     return out
-
-
-def leadership_visibility_q(viewer: Person) -> Q | None:
-    memberships = list(
-        Membership.objects.filter(
-            person=viewer,
-            role__in=LEADERSHIP_ROLES,
-            is_active=True,
-        ),
-    )
-    if not memberships:
-        return None
-    program_specs: dict[int, dict] = {}
-    for m in memberships:
-        pid = m.program_id
-        raw = m.metadata.get("assigned_unit_slugs")
-        if raw is None:
-            raw = m.metadata.get("unit_slugs")
-        entry = program_specs.setdefault(pid, {"unrestricted": False, "units": set()})
-        if not raw:
-            entry["unrestricted"] = True
-        else:
-            entry["units"].update(str(x) for x in raw)
-
-    q_acc = Q(pk__in=[])
-    for pid, spec in program_specs.items():
-        if spec["unrestricted"]:
-            q_acc |= Q(program_id=pid)
-            continue
-        unit_slugs = spec["units"]
-        if not unit_slugs:
-            continue
-        person_ids = [
-            mem.person_id
-            for mem in Membership.all_objects.filter(program_id=pid, is_active=True)
-            if str(mem.metadata.get("unit_slug") or "") in unit_slugs
-        ]
-        if person_ids:
-            q_acc |= Q(program_id=pid, subject_id__in=person_ids)
-    return q_acc
 
 
 def _current_period(today: date, cadence: str) -> tuple[date, date]:
@@ -444,21 +392,8 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             "subject", "author", "program", "template", "organization",
             "assignment_group", "subject_group",
         )
-        viewer = _person_for_request(self.request)
-        if viewer is None:
-            return qs.none()
-        if _has_tenant_admin(viewer):
-            return self._filter_query_params(qs)
-
-        parts: list[Q] = [Q(subject=viewer), Q(author=viewer)]
-        lq = leadership_visibility_q(viewer)
-        if lq is not None:
-            parts.append(lq)
-        if _has_wellness_membership(viewer):
-            parts.append(Q(template__role__in=WELLNESS_ROLES))
-
-        expr = reduce(or_, parts)
-        return self._filter_query_params(qs.filter(expr).distinct())
+        qs = reflections_visible_to(self.request.user, qs)
+        return self._filter_query_params(qs)
 
     def _filter_query_params(self, qs):
         p = self.request.query_params

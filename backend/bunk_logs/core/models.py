@@ -686,6 +686,45 @@ class Reflection(models.Model):
             self.validate_answers()
 
 
+class ConcernReadState(models.Model):
+    """Tracks per-user "I've read this concern" state for the Concerns Inbox.
+
+    A concern is a (reflection, field_key) pair where the field's
+    ``dashboard_role`` is ``open_concern`` and the answer is non-empty (text)
+    OR the answer crosses a numeric threshold (rating ≤ 1 in the prior 14d
+    window — surfaced in the per-subject view too).
+
+    We don't denormalize the concern itself; instead the dashboard query joins
+    this table to filter out already-read items per viewer.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="concern_read_states",
+    )
+    reflection = models.ForeignKey(
+        Reflection,
+        on_delete=models.CASCADE,
+        related_name="concern_read_states",
+    )
+    field_key = models.CharField(
+        max_length=64,
+        help_text="Schema field key the concern came from (e.g. 'concerns', 'overall').",
+    )
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("user", "reflection", "field_key")]
+        ordering = ["-read_at"]
+        indexes = [
+            models.Index(fields=["user", "reflection"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} read {self.reflection_id}/{self.field_key}"
+
+
 class FieldKey(models.Model):
     organization = models.ForeignKey(
         Organization,
