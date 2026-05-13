@@ -44,7 +44,7 @@ from bunk_logs.core.models import ReflectionTemplate
 
 User = get_user_model()
 
-SHARED_PASSWORD = "rbacpass123"  # noqa: S105 — local dev fixture password
+SHARED_PASSWORD = "rbacpass123"  # local dev fixture password
 
 CLC_ORG_SLUG = "clc"
 CLC_PROGRAM_SLUG = "summer-2026"
@@ -449,9 +449,6 @@ class Command(BaseCommand):
     # -------------------------------------------------- supervisor template
 
     def _upsert_supervisor_template(self, org: Organization) -> ReflectionTemplate:
-        existing = ReflectionTemplate.all_objects.filter(
-            organization=org, slug=SUPERVISOR_TEMPLATE_SLUG, version=1,
-        ).first()
         defaults = {
             "role": "counselor",
             "name": SUPERVISOR_TEMPLATE["name"],
