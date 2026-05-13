@@ -89,11 +89,11 @@ export const RBAC_USERS: Record<UserKey, RbacUser> = {
     key: 'camper_care',
     email: 'rbac-camper-care@example.test',
     password: SHARED_PASSWORD,
-    capability: 'domain_specialist',
+    capability: 'supervisor',
     membershipRole: 'camper_care',
     userRole: 'Camper Care',
     hasPersonInClc: true,
-    notes: '/wellness/dashboard via wellness role visibility',
+    notes: '/wellness/dashboard route gate + unit-scoped reflection feed (3.21)',
   },
   health_center: {
     key: 'health_center',

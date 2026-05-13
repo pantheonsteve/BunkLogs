@@ -453,6 +453,136 @@ class TestWellnessScope:
             assert "kitchen_staff" not in ids
 
 
+# ── Path 7b: camper_care is a unit-scoped supervisor (3.21) ─────────────────
+
+
+class TestCamperCareScope:
+    """Step 3.21 moves camper_care from domain_specialist -> supervisor.
+
+    Visibility now flows through ``Membership.metadata.assigned_unit_slugs``
+    (the leadership_team / faculty convention), NOT the wellness-template
+    shortcut. These cases pin that contract.
+    """
+
+    def test_unrestricted_camper_care_sees_all_program_reflections(
+        self, org_a, program_a,
+    ):
+        u = _make_user("cc@a.com")
+        cc = _make_person(org_a, "Cc", "User", u)
+        Membership.all_objects.create(
+            program=program_a, person=cc, role="camper_care", is_active=True,
+            metadata={},
+        )
+        # A reflection authored by someone the cc user has no AssignmentGroup
+        # or wellness path to. With an unrestricted unit-scope, cc still sees
+        # it because they're effectively a program-wide supervisor.
+        author = _make_person(org_a, "Au", "Thor")
+        subject = _make_person(org_a, "Sub", "Ject")
+        tpl = _make_template(org_a, role="counselor")
+        _make_reflection(org_a, program_a, tpl, subject=subject, author=author)
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 1
+
+    def test_unit_scoped_camper_care_only_sees_assigned_units(
+        self, org_a, program_a,
+    ):
+        u = _make_user("cc@a.com")
+        cc = _make_person(org_a, "Cc", "User", u)
+        Membership.all_objects.create(
+            program=program_a, person=cc, role="camper_care", is_active=True,
+            metadata={"assigned_unit_slugs": ["tsofim"]},
+        )
+        in_unit = _make_person(org_a, "In", "Unit")
+        Membership.all_objects.create(
+            program=program_a, person=in_unit, role="counselor", is_active=True,
+            metadata={"unit_slug": "tsofim"},
+        )
+        not_in_unit = _make_person(org_a, "Not", "Unit")
+        Membership.all_objects.create(
+            program=program_a, person=not_in_unit, role="counselor", is_active=True,
+            metadata={"unit_slug": "other"},
+        )
+        tpl = _make_template(org_a, role="counselor")
+        _make_reflection(org_a, program_a, tpl, subject=in_unit, author=in_unit)
+        _make_reflection(org_a, program_a, tpl, subject=not_in_unit, author=not_in_unit)
+        with organization_context(org_a):
+            visible = reflections_visible_to(u)
+            assert visible.count() == 1
+            assert visible.first().subject_id == in_unit.id
+
+    def test_camper_care_does_not_get_wellness_shortcut(
+        self, org_a, program_a,
+    ):
+        """A wellness-template reflection about a subject in a different unit
+        is NOT visible to a camper_care user — they lost the wellness shortcut
+        when they moved to the supervisor capability."""
+        u = _make_user("cc@a.com")
+        cc = _make_person(org_a, "Cc", "User", u)
+        Membership.all_objects.create(
+            program=program_a, person=cc, role="camper_care", is_active=True,
+            metadata={"assigned_unit_slugs": ["unit-a"]},
+        )
+        # Subject lives in unit-b, so unit-scope path won't grant access.
+        subject = _make_person(org_a, "Sub", "Ject")
+        Membership.all_objects.create(
+            program=program_a, person=subject, role="counselor", is_active=True,
+            metadata={"unit_slug": "unit-b"},
+        )
+        author = _make_person(org_a, "Au", "Thor")
+        # Wellness-tagged template (health_center). Pre-3.21 this would
+        # have been visible via _wellness_q; post-3.21 it must not be.
+        wellness_tpl = _make_template(org_a, slug="wellness-tpl", role="health_center")
+        _make_reflection(
+            org_a, program_a, wellness_tpl, subject=subject, author=author,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 0
+
+    def test_health_center_keeps_wellness_shortcut(self, org_a, program_a):
+        """Regression check: dropping camper_care from WELLNESS_ROLES must not
+        affect health_center, which is still a domain_specialist."""
+        u = _make_user("hc@a.com")
+        hc = _make_person(org_a, "Hc", "User", u)
+        Membership.all_objects.create(
+            program=program_a, person=hc, role="health_center", is_active=True,
+        )
+        author = _make_person(org_a, "Au", "Thor")
+        subject = _make_person(org_a, "Sub", "Ject")
+        Membership.all_objects.create(
+            program=program_a, person=subject, role="counselor", is_active=True,
+            metadata={"unit_slug": "anywhere"},
+        )
+        wellness_tpl = _make_template(org_a, slug="wellness-tpl", role="health_center")
+        _make_reflection(
+            org_a, program_a, wellness_tpl, subject=subject, author=author,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 1
+
+    def test_wellness_viewer_still_sees_camper_care_templates(
+        self, org_a, program_a,
+    ):
+        """The wellness team collaborates: a nurse must still see
+        camper-care-tagged reflections about subjects in their org, even
+        though ``camper_care`` no longer triggers the wellness shortcut on
+        the *membership* side. This is enforced by ``WELLNESS_TEMPLATE_ROLES``
+        being a superset of ``WELLNESS_ROLES``.
+        """
+        u = _make_user("nurse@a.com")
+        nurse = _make_person(org_a, "Nu", "Rse", u)
+        Membership.all_objects.create(
+            program=program_a, person=nurse, role="health_center", is_active=True,
+        )
+        cc_tpl = _make_template(org_a, slug="cc-tpl", role="camper_care")
+        author = _make_person(org_a, "Au", "Thor")
+        subject = _make_person(org_a, "Sub", "Ject")
+        _make_reflection(
+            org_a, program_a, cc_tpl, subject=subject, author=author,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 1
+
+
 # ── Path 8: cross-org isolation holds for every code path ───────────────────
 
 
