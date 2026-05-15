@@ -142,6 +142,53 @@ fail in CI if you forget step 2.
   `SupervisorScope` join table may show up in a later prompt when TBE
   Tier 2 forces it.
 
+## Super Admin (`is_staff` or `is_superuser`)
+
+`Membership.capability` and `Membership.role` decide what an **org user**
+can do. They sit above the legacy single-tenant code's `User.role` enum
+and below a top-level "Super Admin" gate that lives on Django's
+`AbstractUser`. Anyone with `is_staff` OR `is_superuser` set on the
+`User` row is a Super Admin and bypasses every org-level RBAC check the
+new code applies.
+
+Canonical helpers:
+
+- Backend: [`bunk_logs.core.permissions.is_super_admin`](../backend/bunk_logs/core/permissions/super_admin.py)
+- Frontend: [`frontend/src/utils/auth/isSuperAdmin.js`](../frontend/src/utils/auth/isSuperAdmin.js)
+
+What a Super Admin bypasses today:
+
+- `reflections_visible_to` returns every reflection in the active org,
+  regardless of authorship or assignment-group membership.
+- `IsOrgAdminOrSuperuser` and `MembershipPermission` grant access to
+  org-admin endpoints without an `admin` Membership.
+- Dashboards (coverage, template, wellness, team) skip the
+  Person/Membership scope checks and aggregate across the whole org.
+- `api/templates.py` and `api/field_keys.py` cross tenant boundaries:
+  Super Admins see other orgs' templates, edit global (org-less) rows,
+  and manage the shared FieldKey registry.
+- `_privileged_reflection_actor` in `api/reflections.py` lets a Super
+  Admin mutate any reflection (used by the API permission class so
+  authors aren't the only ones who can edit).
+
+**Why `is_staff` *and* `is_superuser`, not just one?** `is_staff` is the
+flag Crane Lake's legacy admin staff already have set (it grants access
+to the Django admin site). When the new multi-tenant code was written it
+defaulted to `is_superuser`-only checks; this skew left BunkLogs
+operators locked out of support workflows on the new surfaces. Unifying
+on either-flag-is-fine restores parity with the legacy code and with the
+React frontend, which has always accepted either.
+
+**When NOT to add a third tier.** A small handful of checks today gate
+cross-tenant writes (editing the global FieldKey registry, mutating
+global templates). These look like they want a stricter "platform
+superuser" tier separate from `is_staff`, but the audit unifies them
+because we don't have a real use case that requires the split and the
+extra tier would invent a security boundary nobody asked for. If that
+ever changes, introduce a *separate* helper named
+`is_platform_superuser` so the intent is loud in code review; do not
+quietly tighten `is_super_admin`.
+
 ## Per-reflection visibility (`team_visibility`)
 
 `Membership.capability` and `Membership.metadata.assigned_unit_slugs` decide
