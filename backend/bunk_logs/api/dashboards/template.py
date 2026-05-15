@@ -19,6 +19,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.core.permissions.visibility import reflections_visible_to
 
@@ -51,7 +52,7 @@ def _viewer_can_access_template(viewer: Person, user, template: ReflectionTempla
     get an empty dashboard rather than 403).
     """
     user_role = getattr(user, "role", "") or ""
-    if user.is_superuser or user_role == User.ADMIN:
+    if is_super_admin(user) or user_role == User.ADMIN:
         return True
     if Membership.objects.filter(
         person=viewer, role="admin", is_active=True,

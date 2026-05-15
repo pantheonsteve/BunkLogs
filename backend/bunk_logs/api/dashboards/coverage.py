@@ -24,6 +24,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.core.permissions.visibility import is_org_admin
 from bunk_logs.core.permissions.visibility import reflections_visible_to
@@ -74,7 +75,7 @@ class CoverageDashboardView(APIView):
             return Response({"detail": "Organization context required."}, status=403)
 
         viewer = Person.objects.filter(user=request.user).first()
-        if viewer is None and not request.user.is_superuser:
+        if viewer is None and not is_super_admin(request.user):
             return Response({"detail": "Person profile required."}, status=403)
 
         # Time window
