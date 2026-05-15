@@ -3,6 +3,7 @@ import api from '../../api';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
 import { useAuth } from '../../auth/AuthContext';
+import isSuperAdmin from '../../utils/auth/isSuperAdmin';
 
 // Roles that are allowed to author staff reflections
 const STAFF_LOG_ROLES = ['Counselor', 'Leadership', 'Kitchen Staff', 'Unit Head', 'Camper Care'];
@@ -29,8 +30,8 @@ function CounselorLogForm({ date, existingLog, onClose, token: propsToken, viewO
       return false;
     }
     
-    // Admin and Django staff can always edit
-    if (currentUser.is_staff || currentUser.role === 'Admin') {
+    // Super Admin / Admin can always edit.
+    if (isSuperAdmin(currentUser) || currentUser.role === 'Admin') {
       return true;
     }
     

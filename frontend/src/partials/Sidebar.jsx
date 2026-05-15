@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import isSuperAdmin from "../utils/auth/isSuperAdmin";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 
@@ -252,7 +253,7 @@ function Sidebar({
               {/* Tests — admin-only group with quick links to the new
                   multi-tenant template / roster / dashboard surfaces so
                   admins can walk through the full daily-per-camper flow. */}
-              {user && (user.role === 'Admin' || user.is_staff || user.is_superuser) && (
+              {user && (user.role === 'Admin' || isSuperAdmin(user)) && (
                 <SidebarLinkGroup
                   activecondition={
                     pathname.startsWith('/admin/templates') ||

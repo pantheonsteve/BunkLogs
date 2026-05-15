@@ -1,12 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
+import isSuperAdmin from '../../../../utils/auth/isSuperAdmin';
 
-// Minimal re-implementation of AdminRoute for isolation testing
+// Minimal re-implementation of AdminRoute that matches the production check in
+// frontend/src/Router.jsx -- both share the canonical isSuperAdmin helper.
 function AdminRoute({ user, loading, isAuthenticated, children }) {
   if (loading) return <div>Loading...</div>;
   if (!isAuthenticated) return <Navigate to="/signin" replace />;
-  const isAdmin = user?.is_staff || user?.is_superuser || user?.role === 'admin';
+  const isAdmin = isSuperAdmin(user) || user?.role === 'admin';
   if (!isAdmin) return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   return children;
 }
