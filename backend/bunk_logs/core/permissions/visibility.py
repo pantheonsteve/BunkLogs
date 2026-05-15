@@ -21,6 +21,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.permissions.super_admin import is_super_admin
 
 User = get_user_model()
 
@@ -228,8 +229,8 @@ def reflections_visible_to(
 
     person = _person_for_user(user)
     if person is None:
-        # Superuser without a Person profile still gets full org visibility
-        if getattr(user, "is_superuser", False):
+        # Super Admin without a Person profile still gets full org visibility.
+        if is_super_admin(user):
             org = get_current_organization()
             if org is None:
                 return queryset.none()
@@ -238,7 +239,7 @@ def reflections_visible_to(
 
     org_id = person.organization_id
 
-    if getattr(user, "is_superuser", False) or _has_org_admin_membership(person, org_id):
+    if is_super_admin(user) or _has_org_admin_membership(person, org_id):
         return queryset.filter(organization_id=org_id)
 
     parts: list[Q] = [Q(author=person), Q(subject=person, template__subject_visible=True)]
@@ -270,10 +271,10 @@ def reflections_visible_to(
 
 
 def is_org_admin(user) -> bool:
-    """Helper: True if user is superuser or has an active admin Membership in their org."""
+    """True if user is a Super Admin or has an active admin Membership in their org."""
     if user is None or not getattr(user, "is_authenticated", False):
         return False
-    if getattr(user, "is_superuser", False):
+    if is_super_admin(user):
         return True
     person = _person_for_user(user)
     if person is None:
@@ -296,7 +297,7 @@ def has_supervisor_role(user) -> bool:
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return False
-    if getattr(user, "is_superuser", False):
+    if is_super_admin(user):
         return True
     person = _person_for_user(user)
     if person is None:
