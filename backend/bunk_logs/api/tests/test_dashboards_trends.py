@@ -101,12 +101,16 @@ def _category_rating_template(org):
     )
 
 
-def _make_reflection(org, program, template, *, subject, author, group, day, answers):
+def _make_reflection(
+    org, program, template, *, subject, author, group, day, answers,
+    team_visibility=Reflection.TeamVisibility.TEAM,
+):
     return Reflection.all_objects.create(
         organization=org, program=program, template=template,
         subject=subject, author=author, assignment_group=group,
         period_start=day, period_end=day,
         answers=answers, language="en", is_complete=True,
+        team_visibility=team_visibility,
     )
 
 
@@ -316,3 +320,36 @@ def test_response_includes_author_for_each_filled_cell(api_client, org, program,
     assert c0_today["author_id"] == counselor.id
     assert c0_today["author_name"] == counselor.full_name
     assert c0_today["reflection_id"] is not None
+
+
+def test_cell_payload_exposes_team_visibility(api_client, org, program, setup_bunk):
+    """3.24: TrendCell needs the visibility flag to render the lock chip."""
+    bunk, campers, counselor_user, counselor = setup_bunk
+    tpl = _primary_rating_template(org)
+    today = date.today()
+    _make_reflection(
+        org, program, tpl, subject=campers[0], author=counselor, group=bunk,
+        day=today, answers={"overall": 3},
+        team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+    )
+    _make_reflection(
+        org, program, tpl, subject=campers[1], author=counselor, group=bunk,
+        day=today, answers={"overall": 4},
+    )
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get(
+        f"/api/v1/dashboards/subject-trends/?assignment_group={bunk.id}&template={tpl.id}"
+        f"&date_start={today.isoformat()}&date_end={today.isoformat()}",
+        **_hdr(org.slug),
+    )
+    body = r.json()
+    by_id = {s["person_id"]: s for s in body["subjects"]}
+    c0 = next(c for c in by_id[campers[0].id]["cells"] if c["date"] == today.isoformat())
+    c1 = next(c for c in by_id[campers[1].id]["cells"] if c["date"] == today.isoformat())
+    assert c0["team_visibility"] == "supervisors_only"
+    assert c1["team_visibility"] == "team"
+    # No-data cells: the key is present and explicit null so the React
+    # side can lift a single helper.
+    c0_other_day = by_id[campers[0].id]["cells"][0]
+    if c0_other_day["reflection_id"] is None:
+        assert c0_other_day["team_visibility"] is None

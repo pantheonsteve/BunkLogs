@@ -654,6 +654,44 @@ def test_template_for_me_org_admin_requires_role_when_not_on_program(
 
 
 @pytest.mark.django_db
+def test_my_summary_history_exposes_team_visibility(
+    api, org_a, program_a, counselor_template, counselor_user,
+):
+    """3.24: MyReflectionsPage shows a "Private" chip on history rows that
+    were filed supervisors-only."""
+    counselor_template.supports_privacy = True
+    counselor_template.save(update_fields=["supports_privacy"])
+    user, person = counselor_user
+    today = date.today()
+    Reflection.all_objects.create(
+        organization=org_a, program=program_a,
+        subject=person, author=person, template=counselor_template,
+        period_start=today, period_end=today,
+        answers={"note": "private"}, language="en",
+        team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+    )
+    api.force_authenticate(user=user)
+    resp = api.get(
+        "/api/v1/reflections/my-summary/",
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200
+    history = resp.json()["history"]
+    # Find the entry whose period covers today.
+    today_entry = next(
+        h for h in history
+        if h["period_start"] <= today.isoformat() <= h["period_end"]
+        and h["submitted"]
+    )
+    assert today_entry["team_visibility"] == "supervisors_only"
+    # Empty-period entries don't have a submitted reflection -- their
+    # team_visibility is null.
+    unsubmitted = next((h for h in history if not h["submitted"]), None)
+    if unsubmitted is not None:
+        assert unsubmitted["team_visibility"] is None
+
+
+@pytest.mark.django_db
 def test_rejects_template_from_other_organization(
     api,
     org_a,

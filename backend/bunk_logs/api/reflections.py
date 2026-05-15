@@ -575,7 +575,10 @@ class ReflectionViewSet(viewsets.ModelViewSet):
                 template=tpl,
                 program=prog,
                 period_end__gte=cutoff,
-            ).values("id", "period_start", "period_end", "submitted_at", "is_complete"),
+            ).values(
+                "id", "period_start", "period_end", "submitted_at",
+                "is_complete", "team_visibility",
+            ),
         )
 
         history = []
@@ -590,6 +593,7 @@ class ReflectionViewSet(viewsets.ModelViewSet):
                 "submitted": bool(ref and ref["is_complete"]),
                 "submitted_at": ref["submitted_at"].isoformat() if ref and ref["submitted_at"] else None,
                 "reflection_id": ref["id"] if ref else None,
+                "team_visibility": ref["team_visibility"] if ref else None,
             })
 
         streak = 0

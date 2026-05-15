@@ -198,6 +198,7 @@ export default function ReflectionFormPage() {
           schema,
           answers: data.answers || answers,
           returnTo: isPrefilled ? '/tasks' : null,
+          teamVisibility: meta?.supports_privacy ? teamVisibility : 'team',
         },
       });
     } catch (err) {

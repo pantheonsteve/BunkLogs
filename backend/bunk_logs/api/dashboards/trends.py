@@ -203,6 +203,7 @@ class SubjectTrendGridView(APIView):
                     "reflection_id": r.id,
                     "author_id": r.author_id,
                     "author_name": r.author.full_name if r.author else None,
+                    "team_visibility": r.team_visibility,
                     "submitted_at": r.submitted_at,
                 }
 
@@ -222,6 +223,7 @@ class SubjectTrendGridView(APIView):
                     "reflection_id": c["reflection_id"] if c is not None else None,
                     "author_id": c["author_id"] if c is not None else None,
                     "author_name": c["author_name"] if c is not None else None,
+                    "team_visibility": c["team_visibility"] if c is not None else None,
                 })
             out_subjects.append({
                 "person_id": s["person_id"],

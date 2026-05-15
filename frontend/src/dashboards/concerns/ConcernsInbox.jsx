@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api';
+import PrivacyChip from '../../components/reflection/PrivacyChip';
 
 function shortDate(iso) {
   const d = new Date(iso + 'T00:00:00');
@@ -83,6 +84,7 @@ export default function ConcernsInbox({ payload, onChanged }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex flex-wrap items-center gap-2">
                     <KindBadge kind={it.kind} />
+                    <PrivacyChip teamVisibility={it.team_visibility} />
                     <span>{shortDate(it.date)}</span>
                     <span>·</span>
                     <span>{it.template_name}</span>

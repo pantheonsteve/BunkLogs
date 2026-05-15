@@ -269,6 +269,7 @@ def _agg_text(field: dict, refs: list[Reflection]) -> dict[str, Any]:
                     "person_id": r.subject_id,
                     "period_end": r.period_end.isoformat(),
                     "text": v.strip()[:2000],
+                    "team_visibility": r.team_visibility,
                     "is_read": False,
                 },
             )

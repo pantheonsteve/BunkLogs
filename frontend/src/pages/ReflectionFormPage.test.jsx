@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import ReflectionFormPage from './ReflectionFormPage';
+
+function SummaryProbe() {
+  const loc = useLocation();
+  return (
+    <div data-testid="summary" data-state={JSON.stringify(loc.state ?? {})}>
+      Summary
+    </div>
+  );
+}
 
 const getMock = vi.fn();
 const postMock = vi.fn();
@@ -75,7 +84,7 @@ function renderPage(search = '') {
     <MemoryRouter initialEntries={[`/reflect${search}`]}>
       <Routes>
         <Route path="/reflect" element={<ReflectionFormPage />} />
-        <Route path="/reflect/summary" element={<div data-testid="summary">Summary</div>} />
+        <Route path="/reflect/summary" element={<SummaryProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -179,6 +188,45 @@ describe('ReflectionFormPage', () => {
     await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
     await waitFor(() => expect(postMock).toHaveBeenCalled());
     expect(postMock.mock.calls[0][1].team_visibility).toBe('supervisors_only');
+    // 3.24: the summary route receives the same flag so it can render the chip.
+    await waitFor(() => expect(screen.getByTestId('summary')).toBeInTheDocument());
+    const state = JSON.parse(screen.getByTestId('summary').dataset.state);
+    expect(state.teamVisibility).toBe('supervisors_only');
+  });
+
+  it('passes teamVisibility=team to summary state for team submissions', async () => {
+    const user = userEvent.setup();
+    postMock.mockResolvedValue({ data: { id: 103 } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    await user.type(screen.getByTestId('reflect-input-note'), 'team note');
+    await user.type(screen.getByTestId('reflect-period-start'), '2026-06-01');
+    await user.type(screen.getByTestId('reflect-period-end'), '2026-06-07');
+    const effortButtons = screen.getAllByRole('button', { name: '2' });
+    await user.click(effortButtons[0]);
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(screen.getByTestId('summary')).toBeInTheDocument());
+    const state = JSON.parse(screen.getByTestId('summary').dataset.state);
+    expect(state.teamVisibility).toBe('team');
+  });
+
+  it('passes teamVisibility=team when template does not support privacy', async () => {
+    const user = userEvent.setup();
+    getMock.mockResolvedValue({
+      data: { ...templatePayload, supports_privacy: false },
+    });
+    postMock.mockResolvedValue({ data: { id: 104 } });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    await user.type(screen.getByTestId('reflect-input-note'), 'no toggle');
+    await user.type(screen.getByTestId('reflect-period-start'), '2026-06-01');
+    await user.type(screen.getByTestId('reflect-period-end'), '2026-06-07');
+    const effortButtons = screen.getAllByRole('button', { name: '2' });
+    await user.click(effortButtons[0]);
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(screen.getByTestId('summary')).toBeInTheDocument());
+    const state = JSON.parse(screen.getByTestId('summary').dataset.state);
+    expect(state.teamVisibility).toBe('team');
   });
 
   it('shows the supervisors-only helper text only when selected', async () => {

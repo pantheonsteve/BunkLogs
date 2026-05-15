@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ratingColor } from '../colors';
+import PrivacyChip from '../../components/reflection/PrivacyChip';
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -91,9 +92,12 @@ function ConcernsList({ concerns }) {
           const key = `${c.kind}-${c.field_label}-${i}`;
           if (c.kind === 'low_rating') {
             return (
-              <li key={key}>
-                <strong>{c.field_label}</strong>: rating of {c.value} on{' '}
-                {formatShortDate(c.date)}.{' '}
+              <li key={key} className="flex flex-wrap items-center gap-2">
+                <span>
+                  <strong>{c.field_label}</strong>: rating of {c.value} on{' '}
+                  {formatShortDate(c.date)}.
+                </span>
+                <PrivacyChip teamVisibility={c.team_visibility} />
                 {c.reflection_id && (
                   <Link
                     to={`/reflect/summary?reflection=${c.reflection_id}`}
@@ -177,10 +181,12 @@ export default function SubjectDetail({ payload }) {
                 </summary>
                 <ul className="text-xs text-gray-700 dark:text-gray-300 mt-2 space-y-1">
                   {t.reflections.map((r) => (
-                    <li key={r.id}>
-                      {r.date}
-                      {r.author_name ? ` · by ${r.author_name}` : ''}
-                      {' · '}
+                    <li key={r.id} className="flex flex-wrap items-center gap-2">
+                      <span>
+                        {r.date}
+                        {r.author_name ? ` · by ${r.author_name}` : ''}
+                      </span>
+                      <PrivacyChip teamVisibility={r.team_visibility} />
                       <Link
                         to={`/reflect/summary?reflection=${r.id}`}
                         className="underline"
@@ -207,9 +213,12 @@ export default function SubjectDetail({ payload }) {
                 key={`${t.reflection_id}-${t.field_key}-${i}`}
                 className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3"
               >
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  {t.template_name} · {t.field_key} · {formatShortDate(t.date)}
-                  {t.author_name ? ` · ${t.author_name}` : ''}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex flex-wrap items-center gap-2">
+                  <span>
+                    {t.template_name} · {t.field_key} · {formatShortDate(t.date)}
+                    {t.author_name ? ` · ${t.author_name}` : ''}
+                  </span>
+                  <PrivacyChip teamVisibility={t.team_visibility} />
                 </p>
                 <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                   {t.text}

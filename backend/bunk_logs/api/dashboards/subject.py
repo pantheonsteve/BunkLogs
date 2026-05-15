@@ -80,13 +80,13 @@ def _detect_concerning_patterns(
 ) -> list[dict[str, Any]]:
     """Two-rule detection: any rating==1 in last 14d, or recent half lower than prior half.
 
-    series_by_label[label] is a list of (date, value, reflection_id, scale_max).
+    series_by_label[label] is a list of (date, value, reflection_id, scale_max, team_visibility).
     """
     patterns: list[dict[str, Any]] = []
     low_cutoff = today - timedelta(days=LOW_RATING_LOOKBACK_DAYS - 1)
     for label, points in series_by_label.items():
         # Any rating of 1 in last 14 days
-        for d, v, ref_id, _scale in points:
+        for d, v, ref_id, _scale, team_visibility in points:
             if d >= low_cutoff and v is not None and v <= 1.0:
                 patterns.append({
                     "kind": "low_rating",
@@ -94,13 +94,14 @@ def _detect_concerning_patterns(
                     "date": d.isoformat(),
                     "value": v,
                     "reflection_id": ref_id,
+                    "team_visibility": team_visibility,
                 })
         # Downward trend: split last 14 days in half, require >=3 each
         recent_cutoff = today - timedelta(days=TREND_LOOKBACK_DAYS - 1)
         midpoint = today - timedelta(days=(TREND_LOOKBACK_DAYS // 2) - 1)
-        recent_vals = [v for d, v, _, _ in points if d >= midpoint and v is not None]
+        recent_vals = [v for d, v, *_ in points if d >= midpoint and v is not None]
         prior_vals = [
-            v for d, v, _, _ in points
+            v for d, v, *_ in points
             if recent_cutoff <= d < midpoint and v is not None
         ]
         if (
@@ -166,7 +167,7 @@ class SubjectDetailView(APIView):
         # Group by template
         by_template: dict[int, dict[str, Any]] = {}
         # series_by_label across ALL templates: used for concerning-pattern detection
-        all_series: dict[str, list[tuple[date, float, int, int | None]]] = defaultdict(list)
+        all_series: dict[str, list[tuple[date, float, int, int | None, str]]] = defaultdict(list)
         recent_texts: list[dict[str, Any]] = []
 
         for r in refs:
@@ -202,6 +203,7 @@ class SubjectDetailView(APIView):
                                 "text": v.strip()[:1000],
                                 "date": r.period_end.isoformat(),
                                 "author_name": r.author.full_name if r.author else None,
+                                "team_visibility": r.team_visibility,
                             })
                     continue
                 ratings = _resolve_rating(field, r.answers)
@@ -216,13 +218,17 @@ class SubjectDetailView(APIView):
                         "value": value,
                         "reflection_id": r.id,
                         "scale_max": scale_max,
+                        "team_visibility": r.team_visibility,
                     })
                     if value is not None:
-                        all_series[label].append((r.period_end, value, r.id, scale_max))
+                        all_series[label].append(
+                            (r.period_end, value, r.id, scale_max, r.team_visibility),
+                        )
             tpl_entry["reflections"].append({
                 "id": r.id,
                 "date": r.period_end.isoformat(),
                 "author_name": r.author.full_name if r.author else None,
+                "team_visibility": r.team_visibility,
                 "assignment_group": (
                     {"id": r.assignment_group_id, "name": r.assignment_group.name}
                     if r.assignment_group_id else None

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import PrivacyChip from '../../components/reflection/PrivacyChip';
 
 /**
  * TextResponseListWidget — generic widget for untagged text/textarea fields.
@@ -46,7 +47,10 @@ export default function TextResponseListWidget({ field, label }) {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{item.period_end}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-2">
+                  <span>{item.period_end}</span>
+                  <PrivacyChip teamVisibility={item.team_visibility} />
+                </p>
               </li>
             );
           })}

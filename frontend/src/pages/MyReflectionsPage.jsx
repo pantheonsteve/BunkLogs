@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../api';
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
+import PrivacyChip from '../components/reflection/PrivacyChip';
 
 function StatusBadge({ submitted }) {
   return submitted ? (
@@ -171,6 +172,7 @@ export default function MyReflectionsPage() {
                             {formatDateTime(entry.submitted_at)}
                           </span>
                         )}
+                        <PrivacyChip teamVisibility={entry.team_visibility} />
                         <StatusBadge submitted={entry.submitted} />
                       </div>
                     </li>
