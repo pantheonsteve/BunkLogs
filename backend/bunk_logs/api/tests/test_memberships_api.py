@@ -109,6 +109,29 @@ def test_non_admin_cannot_list(api, org_a, counselor_user):
 
 
 @pytest.mark.django_db
+def test_is_staff_user_can_list_without_org_admin_membership(
+    api, org_a, program_a,
+):
+    """3.25: ``is_staff=True`` without an admin Membership is treated as a Super
+    Admin by ``MembershipPermission``."""
+    from django.contrib.auth import get_user_model
+
+    user_model = get_user_model()
+    staff_user = user_model.objects.create_user(
+        email="staff-only@example.com", password="pw", is_staff=True,
+    )
+    assert staff_user.is_superuser is False
+    _make_member(org_a, program_a, last="Gamma")
+    api.force_authenticate(user=staff_user)
+    resp = api.get(
+        "/api/v1/memberships/",
+        {"program": program_a.slug},
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200, resp.content
+
+
+@pytest.mark.django_db
 def test_admin_can_patch_tags(api, org_a, program_a, admin_user):
     user, _ = admin_user
     _, m = _make_member(org_a, program_a)
