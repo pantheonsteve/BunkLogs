@@ -24,6 +24,7 @@ import AdminBunkLogs from './pages/AdminBunkLogs';
 import StaffMemberHistory from './pages/StaffMemberHistory';
 import MigrationDashboard from './pages/MigrationDashboard';
 import MyReflectionsPage from './pages/MyReflectionsPage';
+import ReflectionDetailPage from './pages/ReflectionDetailPage';
 import ReflectionFormPage from './pages/ReflectionFormPage';
 import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import TeamDashboardPage from './pages/TeamDashboardPage';
@@ -331,6 +332,19 @@ function Router() {
           element={
             <ProtectedRoute>
               <MyReflectionsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 3.27: Single-reflection read-only viewer. Replaces the broken
+            /reflect/summary?reflection=<id> deep-links from concerns /
+            subject / trends, and unblocks the coverage popover "View"
+            button on /tasks (which already routes here). */}
+        <Route
+          path="/reflections/:id"
+          element={
+            <ProtectedRoute>
+              <ReflectionDetailPage />
             </ProtectedRoute>
           }
         />
