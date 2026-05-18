@@ -100,7 +100,7 @@ function ConcernsList({ concerns }) {
                 <PrivacyChip teamVisibility={c.team_visibility} />
                 {c.reflection_id && (
                   <Link
-                    to={`/reflect/summary?reflection=${c.reflection_id}`}
+                    to={`/reflections/${c.reflection_id}`}
                     className="underline"
                   >
                     View reflection
@@ -188,7 +188,7 @@ export default function SubjectDetail({ payload }) {
                       </span>
                       <PrivacyChip teamVisibility={r.team_visibility} />
                       <Link
-                        to={`/reflect/summary?reflection=${r.id}`}
+                        to={`/reflections/${r.id}`}
                         className="underline"
                       >
                         view

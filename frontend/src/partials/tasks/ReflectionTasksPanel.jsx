@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
 
 // ---------------------------------------------------------------------------
@@ -394,12 +394,33 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
     day: 'numeric',
   });
 
+  // 3.27: surface /supervisor/coverage only when the viewer is an author of
+  // at least one roster group. Plain self-only reflectors don't see the link
+  // because the page would be empty for them.
+  const showCoverageLink = useMemo(
+    () =>
+      Array.isArray(tasks)
+      && tasks.some((t) => t.assignment_group),
+    [tasks],
+  );
+
   const inner = (
     <>
       {!embedded && (
-        <header className="mb-6">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Today</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{headingLabel}</p>
+        <header className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Today</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{headingLabel}</p>
+          </div>
+          {showCoverageLink && (
+            <Link
+              to="/supervisor/coverage"
+              data-testid="tasks-coverage-link"
+              className="shrink-0 inline-flex items-center gap-1 mt-1 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Coverage →
+            </Link>
+          )}
         </header>
       )}
 

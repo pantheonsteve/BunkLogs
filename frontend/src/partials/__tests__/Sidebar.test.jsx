@@ -63,3 +63,22 @@ describe('Sidebar admin navigation (3.26)', () => {
     expect(screen.getByText('My tasks')).toBeInTheDocument();
   });
 });
+
+describe('Sidebar wayfinding (3.27)', () => {
+  it('renames the Counselor role entry from "My Reflections" to "Counselor home"', () => {
+    renderSidebar();
+    // Counselor role link now reads "Counselor home" and is the only entry
+    // pointing at the legacy /counselor-dashboard.
+    expect(screen.getByText('Counselor home')).toBeInTheDocument();
+    expect(screen.queryByText('My Reflections')).not.toBeInTheDocument();
+    const links = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
+    expect(links).toContain('/counselor-dashboard');
+  });
+
+  it('exposes "My reflections" as a top-level entry pointing at /my-reflections', () => {
+    renderSidebar();
+    expect(screen.getByText('My reflections')).toBeInTheDocument();
+    const links = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
+    expect(links).toContain('/my-reflections');
+  });
+});
