@@ -29,6 +29,7 @@ import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import TeamDashboardPage from './pages/TeamDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
+import AdminHub from './pages/admin/AdminHub';
 import TemplateListPage from './pages/admin/templates/TemplateListPage';
 import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
@@ -41,6 +42,7 @@ import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
 import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
 import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
 import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
+import DashboardsHub from './pages/dashboards/DashboardsHub';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -333,25 +335,29 @@ function Router() {
           }
         />
 
+        {/* Legacy off-pattern dashboard URLs -- preserve as redirects so
+            existing bookmarks still land. The canonical URLs now live
+            under /dashboards/* (see below). */}
         <Route
           path="/team/dashboard"
-          element={
-            <ProtectedRoute>
-              <TeamDashboardPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/dashboards/team" replace />}
         />
-
         <Route
           path="/wellness/dashboard"
+          element={<Navigate to="/dashboards/wellness" replace />}
+        />
+
+        {/* Step 3.20 + 3.26: Coverage / trends / subject / authors /
+            concerns / team / wellness dashboards, plus the /dashboards
+            hub landing page. */}
+        <Route
+          path="/dashboards"
           element={
             <ProtectedRoute>
-              <WellnessDashboardPage />
+              <DashboardsHub />
             </ProtectedRoute>
           }
         />
-
-        {/* Step 3.20: Coverage / trends / subject / authors / concerns dashboards */}
         <Route
           path="/dashboards/coverage"
           element={
@@ -390,6 +396,32 @@ function Router() {
             <ProtectedRoute>
               <ConcernsInboxPage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/team"
+          element={
+            <ProtectedRoute>
+              <TeamDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboards/wellness"
+          element={
+            <ProtectedRoute>
+              <WellnessDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 3.26: Admin landing hub */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminHub />
+            </AdminRoute>
           }
         />
 
