@@ -292,14 +292,13 @@ export default function GroupDetailPage() {
   const authors = (group.memberships || []).filter((m) => m.role_in_group === 'author');
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-6">
-      <div className="max-w-5xl mx-auto">
-        <Link
-          to="/admin/groups"
-          className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
-        >
-          <ArrowLeft size={14} /> Groups
-        </Link>
+    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-5xl mx-auto">
+      <Link
+        to="/admin/groups"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
+      >
+        <ArrowLeft size={14} /> Groups
+      </Link>
 
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
@@ -454,15 +453,14 @@ export default function GroupDetailPage() {
               {uploading ? 'Uploading…' : 'Import'}
             </button>
           </div>
-          <ImportStatus log={lastLog} />
-        </div>
-
-        {toast && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm px-5 py-2.5 rounded-full shadow-lg z-50">
-            {toast}
-          </div>
-        )}
+        <ImportStatus log={lastLog} />
       </div>
-    </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm px-5 py-2.5 rounded-full shadow-lg z-50">
+          {toast}
+        </div>
+      )}
+    </main>
   );
 }

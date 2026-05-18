@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users,
@@ -7,9 +6,6 @@ import {
   BarChart3,
   Tag,
 } from 'lucide-react';
-
-import Header from '../../partials/Header';
-import Sidebar from '../../partials/Sidebar';
 
 const ADMIN_CARDS = [
   {
@@ -109,32 +105,25 @@ function Card({ card }) {
 }
 
 export default function AdminHub() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-          <header className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Admin
-            </h1>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Org-level tooling: people, templates, groups, dashboards, and
-              field keys.
-            </p>
-          </header>
-          <div
-            data-testid="admin-hub-grid"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          >
-            {ADMIN_CARDS.map((card) => (
-              <Card key={card.id} card={card} />
-            ))}
-          </div>
-        </main>
+    <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Admin
+        </h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          Org-level tooling: people, templates, groups, dashboards, and
+          field keys.
+        </p>
+      </header>
+      <div
+        data-testid="admin-hub-grid"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+      >
+        {ADMIN_CARDS.map((card) => (
+          <Card key={card.id} card={card} />
+        ))}
       </div>
-    </div>
+    </main>
   );
 }
