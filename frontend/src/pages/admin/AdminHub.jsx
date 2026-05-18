@@ -44,9 +44,8 @@ const ADMIN_CARDS = [
     id: 'field-keys',
     title: 'Field keys',
     blurb:
-      'Canonical field-key registry that powers cross-template reporting. CRUD UI coming soon -- backend already exists.',
-    to: null,
-    deferred: true,
+      'Canonical short keys used across reflection templates so cross-template dashboards can aggregate the same field even when it lives in different templates.',
+    to: '/admin/field-keys',
     icon: Tag,
   },
 ];

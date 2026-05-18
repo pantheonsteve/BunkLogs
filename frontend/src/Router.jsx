@@ -36,6 +36,7 @@ import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
 import GroupListPage from './pages/admin/groups/GroupListPage';
 import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
+import FieldKeyListPage from './pages/admin/field-keys/FieldKeyListPage';
 import TasksPage from './pages/TasksPage';
 import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
 import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
@@ -483,6 +484,18 @@ function Router() {
             element={
               <AdminRoute>
                 <GroupDetailPage />
+              </AdminRoute>
+            }
+          />
+          {/* 3.29: FieldKey registry CRUD. Gated AdminRoute for v1; the
+              underlying API also allows org admins via
+              IsOrgAdminOrSuperuser, so we can broaden later without
+              backend changes. */}
+          <Route
+            path="field-keys"
+            element={
+              <AdminRoute>
+                <FieldKeyListPage />
               </AdminRoute>
             }
           />
