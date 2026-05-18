@@ -223,8 +223,22 @@ class ReflectionTemplateSummarySerializer(serializers.ModelSerializer):
 
 class ReflectionSerializer(serializers.ModelSerializer):
     template_meta = ReflectionTemplateSummarySerializer(source="template", read_only=True)
+    localized_schema = serializers.SerializerMethodField()
     program_slug = serializers.SlugField(write_only=True, required=False)
     answers = serializers.JSONField()
+
+    def get_localized_schema(self, obj):
+        """Localized template schema for the reflection's saved language.
+
+        Lets a read-only viewer render prompts + answers without a second
+        round-trip to ``/api/v1/templates/<id>/``. Only returned when the
+        instance is fully hydrated (i.e. has a saved template + language).
+        """
+        template = getattr(obj, "template", None)
+        if template is None or not getattr(template, "schema", None):
+            return None
+        language = getattr(obj, "language", None) or "en"
+        return _localize_schema(template.schema, language)
     subject = serializers.PrimaryKeyRelatedField(
         queryset=Person.all_objects.all(),
         allow_null=True,
@@ -256,6 +270,7 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "submission_id",
             "template",
             "template_meta",
+            "localized_schema",
             "submitted_by",
             "period_start",
             "period_end",

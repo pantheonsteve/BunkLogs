@@ -128,7 +128,7 @@ export default function ConcernsInbox({ payload, onChanged }) {
                   )}
                   <p className="mt-2 text-xs">
                     <Link
-                      to={`/reflect/summary?reflection=${it.reflection_id}`}
+                      to={`/reflections/${it.reflection_id}?returnTo=/dashboards/concerns`}
                       className="text-indigo-700 dark:text-indigo-300 hover:underline"
                     >
                       Open reflection

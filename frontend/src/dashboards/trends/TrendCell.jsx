@@ -12,8 +12,8 @@ function formatShortDate(iso) {
  * Single colored cell for the Subject Trend Grid.
  *
  * Renders as a button so it's keyboard-reachable. When a reflection_id is
- * present, clicking navigates to /reflect/summary?reflection=<id>; otherwise
- * the button is disabled (no-data state).
+ * present, clicking navigates to /reflections/<id>; otherwise the cell is
+ * a non-interactive label (no-data state).
  */
 export default function TrendCell({
   cell,
@@ -75,7 +75,7 @@ export default function TrendCell({
   return (
     <td className={baseClass} style={{ backgroundColor: fill, color }}>
       <Link
-        to={`/reflect/summary?reflection=${cell.reflection_id}`}
+        to={`/reflections/${cell.reflection_id}`}
         aria-label={aria}
         title={tooltip}
         className={innerClass}

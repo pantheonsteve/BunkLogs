@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserPlus, Trash2, Upload, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, BarChart3, UserPlus, Trash2, Upload, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 import api from '../../../api';
 
 function PersonSearchInput({ orgContext, onSelect }) {
@@ -344,14 +344,24 @@ export default function GroupDetailPage() {
               {!group.is_active && <span className="ml-2 text-red-500">(inactive)</span>}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleDeactivate}
-            disabled={!group.is_active}
-            className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 underline disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Deactivate
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              to={`/dashboards/subject-trends/${id}`}
+              data-testid="group-subject-trends-link"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              <BarChart3 size={14} aria-hidden="true" />
+              View subject trends →
+            </Link>
+            <button
+              type="button"
+              onClick={handleDeactivate}
+              disabled={!group.is_active}
+              className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 underline disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Deactivate
+            </button>
+          </div>
         </div>
 
         {/* Add member */}
