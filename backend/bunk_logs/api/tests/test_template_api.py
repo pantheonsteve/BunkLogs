@@ -201,6 +201,22 @@ class TestTemplateListRetrieve:
         res = regular_client.get(detail_url(tpl.pk))
         assert res.status_code == 404
 
+    def test_is_staff_user_sees_cross_org_templates(self, org, other_org):
+        """3.25: ``is_staff=True`` (no superuser) sees all orgs' templates the
+        same way a Django superuser does."""
+        _make_template(org, slug="mine-3-25")
+        _make_template(other_org, slug="theirs-3-25")
+        staff_user = User.objects.create_user(
+            email="staff-tpl@example.com", password="pw", is_staff=True,
+        )
+        assert staff_user.is_superuser is False
+        client = _client_for(staff_user, org)
+        res = client.get(LIST_URL)
+        assert res.status_code == 200
+        slugs = [t["slug"] for t in res.data]
+        assert "mine-3-25" in slugs
+        assert "theirs-3-25" in slugs
+
     def test_filter_by_role(self, regular_client, org):
         _make_template(org, slug="counselor-t", role="counselor")
         _make_template(org, slug="kitchen-t", role="kitchen_staff")

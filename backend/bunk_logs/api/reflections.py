@@ -24,6 +24,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 
@@ -38,7 +39,8 @@ def _has_tenant_admin(person: Person) -> bool:
 
 
 def _privileged_reflection_actor(request) -> bool:
-    return bool(getattr(request.user, "is_superuser", False))
+    """Super Admins (``is_staff`` OR ``is_superuser``) bypass author-only mutation gates."""
+    return is_super_admin(request.user)
 
 
 def _template_matches_program(template: ReflectionTemplate, program: Program) -> bool:

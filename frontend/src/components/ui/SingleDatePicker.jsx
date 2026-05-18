@@ -5,6 +5,7 @@ import { Calendar } from "./calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { useAuth } from '../../auth/AuthContext'
 import api, { fetchStaffAssignmentSafe, getDateRangeForUser } from '../../api'
+import isSuperAdmin from '../../utils/auth/isSuperAdmin'
 
 export default function SingleDatePicker({ className, date, setDate }) {
   const { user, token } = useAuth();
@@ -134,7 +135,7 @@ export default function SingleDatePicker({ className, date, setDate }) {
         }
 
         // Check if user is camper care - if so, set a reasonable date range without API call
-        if (user?.role === 'Camper Care' || user?.is_staff === true || user?.is_superuser === true) {
+        if (user?.role === 'Camper Care' || isSuperAdmin(user)) {
           console.log('User is camper care, setting broad date range without API call');
           const adminRange = getDateRangeForUser(user);
           setAllowedRange(adminRange);

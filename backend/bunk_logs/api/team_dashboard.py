@@ -15,6 +15,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.permissions import is_super_admin
 
 User = get_user_model()
 
@@ -51,9 +52,9 @@ def _viewer_program_unit_scope(viewer: Person, user) -> dict[int, set[str] | Non
             merged[pid] = merged[pid] | units
     if merged:
         return merged
-    # Legacy app User.role "Admin" / superuser: full access to all programs in the person's org.
+    # Legacy app User.role "Admin" / Super Admin: full access to all programs in the person's org.
     role = getattr(user, "role", "") or ""
-    if user.is_superuser or role == User.ADMIN:
+    if is_super_admin(user) or role == User.ADMIN:
         return {
             p.id: None
             for p in Program.objects.filter(organization_id=viewer.organization_id, is_active=True)

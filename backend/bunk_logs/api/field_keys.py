@@ -13,6 +13,7 @@ from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.permissions import _is_org_admin
 from bunk_logs.core.permissions import _person_for_request
+from bunk_logs.core.permissions import is_super_admin
 
 
 class FieldKeySerializer(serializers.ModelSerializer):
@@ -74,7 +75,7 @@ class FieldKeyViewSet(viewsets.ModelViewSet):
         if org is None:
             return FieldKey.all_objects.none()
 
-        if self.request.user.is_superuser:
+        if is_super_admin(self.request.user):
             qs = FieldKey.all_objects.select_related("organization")
         else:
             qs = FieldKey.all_objects.select_related("organization").filter(
@@ -90,7 +91,7 @@ class FieldKeyViewSet(viewsets.ModelViewSet):
     def get_object(self):
         obj = super().get_object()
         org = getattr(self.request, "organization", None)
-        if self.request.user.is_superuser:
+        if is_super_admin(self.request.user):
             return obj
         if obj.organization_id is not None and obj.organization_id != (org.pk if org else None):
             from rest_framework.exceptions import NotFound
@@ -103,7 +104,7 @@ class FieldKeyViewSet(viewsets.ModelViewSet):
         if org is None:
             return Response({"detail": "Organization context required."}, status=status.HTTP_403_FORBIDDEN)
 
-        if not request.user.is_superuser:
+        if not is_super_admin(request.user):
             person = _person_for_request(request)
             if not _is_org_admin(person):
                 return Response(
@@ -131,11 +132,11 @@ class FieldKeyViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         org = getattr(request, "organization", None)
 
-        if not request.user.is_superuser:
+        if not is_super_admin(request.user):
             if instance.organization_id is None:
                 from rest_framework.exceptions import PermissionDenied
 
-                msg = "Global keys can only be edited by superusers."
+                msg = "Global keys can only be edited by a Super Admin."
                 raise PermissionDenied(msg)
             if org is None or instance.organization_id != org.pk:
                 from rest_framework.exceptions import NotFound
@@ -151,11 +152,11 @@ class FieldKeyViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         org = getattr(request, "organization", None)
 
-        if not request.user.is_superuser:
+        if not is_super_admin(request.user):
             if instance.organization_id is None:
                 from rest_framework.exceptions import PermissionDenied
 
-                msg = "Global keys can only be deleted by superusers."
+                msg = "Global keys can only be deleted by a Super Admin."
                 raise PermissionDenied(msg)
             if org is None or instance.organization_id != org.pk:
                 from rest_framework.exceptions import NotFound

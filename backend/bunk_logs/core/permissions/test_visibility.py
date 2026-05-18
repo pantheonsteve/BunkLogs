@@ -143,6 +143,57 @@ class TestUnauthenticatedAndNoPerson:
             assert reflections_visible_to(admin).count() == 1
 
 
+# ── Super Admin consistency (3.25): is_staff alone is enough ────────────────
+
+
+class TestSuperAdminConsistency:
+    """``is_staff=True`` (without ``is_superuser``) must behave like a superuser
+    for every bypass-all gate in the new RBAC code. See prompt 3_25 and the
+    ``is_super_admin`` helper in ``bunk_logs.core.permissions.super_admin``.
+    """
+
+    @pytest.fixture
+    def staff_user(self):
+        return User.objects.create_user(
+            email="staff@example.com", password="pw", is_staff=True,
+        )
+
+    def test_is_staff_user_without_person_sees_full_org(
+        self, staff_user, org_a, program_a,
+    ):
+        tpl = _make_template(org_a)
+        _make_reflection(org_a, program_a, tpl)
+        assert staff_user.is_superuser is False
+        with organization_context(org_a):
+            assert reflections_visible_to(staff_user).count() == 1
+
+    def test_is_staff_user_sees_all_org_reflections_regardless_of_author(
+        self, staff_user, org_a, program_a,
+    ):
+        # Reflection authored by someone unrelated to the staff user.
+        other = _make_person(org_a, "Other", "Person")
+        tpl = _make_template(org_a)
+        _make_reflection(org_a, program_a, tpl, subject=other, author=other)
+        with organization_context(org_a):
+            assert reflections_visible_to(staff_user).count() == 1
+
+    def test_is_staff_user_is_treated_as_org_admin(self, staff_user):
+        assert is_org_admin(staff_user) is True
+
+    def test_is_staff_user_has_supervisor_role(self, staff_user):
+        assert has_supervisor_role(staff_user) is True
+
+    def test_is_staff_user_does_not_see_other_org_data(
+        self, staff_user, org_a, org_b, program_b,
+    ):
+        """Staff bypass is org-scoped: org context determines which org's data shows."""
+        b_person = _make_person(org_b, "B", "Person")
+        tpl_b = _make_template(org_b, slug="tpl-b")
+        _make_reflection(org_b, program_b, tpl_b, subject=b_person, author=b_person)
+        with organization_context(org_a):
+            assert reflections_visible_to(staff_user).count() == 0
+
+
 # ── Path 2: org admin sees everything in own org, nothing in other org ───────
 
 

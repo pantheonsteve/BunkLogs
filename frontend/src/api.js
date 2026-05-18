@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getCSRFToken } from './django';
+import isSuperAdmin from './utils/auth/isSuperAdmin';
 
 // Get and clean the API URL
 const getApiUrl = () => {
@@ -200,7 +201,7 @@ export const getDateRangeForUser = (user) => {
   const todayStr = `${year}-${month}-${day}`;
   
   // For admin users and camper care team, allow a broader range
-  if (user?.role === 'Admin' || user?.role === 'Camper Care' || user?.is_staff === true || user?.is_superuser === true) {
+  if (user?.role === 'Admin' || user?.role === 'Camper Care' || isSuperAdmin(user)) {
     const startOfYearStr = `${year}-01-01`;
     return {
       start_date: startOfYearStr,

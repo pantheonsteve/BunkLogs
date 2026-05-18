@@ -8,6 +8,7 @@ imports keep working alongside the new ``visibility`` module.
 from bunk_logs.core.permissions.drf import IsOrgAdminOrSuperuser
 from bunk_logs.core.permissions.drf import _is_org_admin
 from bunk_logs.core.permissions.drf import _person_for_request
+from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.core.permissions.visibility import has_supervisor_role
 from bunk_logs.core.permissions.visibility import is_org_admin
@@ -20,5 +21,6 @@ __all__ = [
     "author_group_ids_with_descendants",
     "has_supervisor_role",
     "is_org_admin",
+    "is_super_admin",
     "reflections_visible_to",
 ]

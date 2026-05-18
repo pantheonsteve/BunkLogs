@@ -18,6 +18,7 @@ from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.permissions import _is_org_admin
 from bunk_logs.core.permissions import _person_for_request
+from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.validators.template_schema import validate_template_coherence
 
 
@@ -179,8 +180,9 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
 
         qs = ReflectionTemplate.all_objects.select_related("organization", "parent_template")
 
-        # Super admins see everything; regular users see own org + global
-        if not self.request.user.is_superuser:
+        # Super Admins (is_staff || is_superuser) see everything; regular
+        # users see own org + global templates.
+        if not is_super_admin(self.request.user):
             from django.db.models import Q
 
             qs = qs.filter(Q(organization=org) | Q(organization__isnull=True))
@@ -202,7 +204,7 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=False)
 
         include_global_str = (params.get("include_global") or "true").strip().lower()
-        if include_global_str in ("false", "0") and not self.request.user.is_superuser:
+        if include_global_str in ("false", "0") and not is_super_admin(self.request.user):
             qs = qs.filter(organization=org)
 
         return qs
@@ -211,7 +213,7 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
         """Return 404 (not 403) when accessing objects outside the current org."""
         obj = super().get_object()
         org = getattr(self.request, "organization", None)
-        if self.request.user.is_superuser:
+        if is_super_admin(self.request.user):
             return obj
         if obj.organization_id is not None and obj.organization_id != (org.pk if org else None):
             from rest_framework.exceptions import NotFound
@@ -238,9 +240,9 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
         return Response(data)
 
     def _check_edit_permission(self, instance: ReflectionTemplate) -> None:
-        """Raise 404 for cross-org edits; 403 for global-template edits by non-superusers."""
+        """Raise 404 for cross-org edits; 403 for global-template edits by non-Super-Admins."""
         org = getattr(self.request, "organization", None)
-        if self.request.user.is_superuser:
+        if is_super_admin(self.request.user):
             return
         if instance.organization_id is None:
             from rest_framework.exceptions import PermissionDenied
@@ -373,9 +375,9 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Only admins / superusers can clone (handled by get_permissions for non-list actions)
+        # Only admins / Super Admins can clone (handled by get_permissions for non-list actions)
         person = _person_for_request(request)
-        if not request.user.is_superuser and not _is_org_admin(person):
+        if not is_super_admin(request.user) and not _is_org_admin(person):
             return Response(
                 {"detail": "Organization admin membership required."},
                 status=status.HTTP_403_FORBIDDEN,

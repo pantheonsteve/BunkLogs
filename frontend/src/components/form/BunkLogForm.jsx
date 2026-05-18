@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Wysiwyg from './Wysiwyg';
 import InfoTooltip from '../common/InfoTooltip';
 import { useAuth, AuthContext } from '../../auth/AuthContext';
+import isSuperAdmin from '../../utils/auth/isSuperAdmin';
 
 function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToken, currentCounselorId }) {
   const location = useLocation();
@@ -28,8 +29,8 @@ function BunkLogForm({ bunk_id, camper_id, date, data, onClose, token: propsToke
     const currentUser = auth?.user;
     if (!currentUser) return false;
     
-    // Admin and staff can always edit
-    if (currentUser.is_staff || currentUser.role === 'Admin' || currentUser.role === 'Unit Head') {
+    // Super Admin / Admin / Unit Head can always edit.
+    if (isSuperAdmin(currentUser) || currentUser.role === 'Admin' || currentUser.role === 'Unit Head') {
       return true;
     }
     

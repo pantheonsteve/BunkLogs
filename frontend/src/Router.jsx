@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { useEffect } from 'react';
+import isSuperAdmin from './utils/auth/isSuperAdmin';
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -64,7 +65,8 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// Admin-only route: requires is_staff or is_superuser
+// Admin-only route: Super Admin (is_staff || is_superuser) or User.role === 'admin'.
+// See `frontend/src/utils/auth/isSuperAdmin.js` for the canonical helper.
 function AdminRoute({ children }) {
   const { isAuthenticated, loading, user } = useAuth();
   const location = useLocation();
@@ -78,7 +80,7 @@ function AdminRoute({ children }) {
     return <Navigate to={`/signin?next=${encodeURIComponent(next)}`} replace />;
   }
 
-  const isAdmin = user?.is_staff || user?.is_superuser || user?.role?.toLowerCase() === 'admin';
+  const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
   if (!isAdmin) {
     return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   }

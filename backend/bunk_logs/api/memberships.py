@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.permissions import is_super_admin
 
 
 def _normalize_tags(values) -> list[str]:
@@ -39,14 +40,18 @@ def _is_org_admin(person: Person | None) -> bool:
 
 
 class MembershipPermission(permissions.BasePermission):
-    """Reads + writes restricted to org admins (and Django superusers) inside an org context."""
+    """Reads + writes restricted to org admins (and Super Admins) inside an org context.
 
-    message = "Organization admin membership required."
+    See ``bunk_logs.core.permissions.is_super_admin`` for the Super Admin
+    definition (``is_staff`` OR ``is_superuser``).
+    """
+
+    message = "Organization admin membership or Super Admin status required."
 
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated and getattr(request, "organization", None)):
             return False
-        if request.user.is_superuser:
+        if is_super_admin(request.user):
             return True
         return _is_org_admin(_person_for_request(request))
 

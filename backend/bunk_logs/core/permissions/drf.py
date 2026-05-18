@@ -5,6 +5,7 @@ from rest_framework import permissions
 
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.permissions.super_admin import is_super_admin
 
 
 def _person_for_request(request) -> Person | None:
@@ -20,13 +21,18 @@ def _is_org_admin(person: Person | None) -> bool:
 
 
 class IsOrgAdminOrSuperuser(permissions.BasePermission):
-    """Allow access only to org admins (active admin Membership) or Django superusers.
+    """Allow access only to org admins (active admin Membership) or Super Admins.
 
-    Requires an organization context on the request (set by the multi-tenant
-    middleware) and an authenticated user.
+    "Super Admin" is the BunkLogs-wide concept of ``is_staff`` OR
+    ``is_superuser`` -- see ``bunk_logs.core.permissions.is_super_admin``.
+    The class name keeps the legacy ``Superuser`` suffix so downstream
+    imports don't churn, but the gate it implements is the broader one.
+
+    Requires an organization context on the request (set by the
+    multi-tenant middleware) and an authenticated user.
     """
 
-    message = "Organization admin membership or superuser status required."
+    message = "Organization admin membership or Super Admin status required."
 
     def has_permission(self, request, view):
         if not (
@@ -35,7 +41,7 @@ class IsOrgAdminOrSuperuser(permissions.BasePermission):
             and getattr(request, "organization", None)
         ):
             return False
-        if request.user.is_superuser:
+        if is_super_admin(request.user):
             return True
         return _is_org_admin(_person_for_request(request))
 
