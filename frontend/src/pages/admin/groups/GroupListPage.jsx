@@ -110,7 +110,7 @@ export default function GroupListPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-6">
       <div className="max-w-5xl mx-auto">
         <Link
-          to="/admin/memberships"
+          to="/admin"
           className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
         >
           <ArrowLeft size={14} /> Admin
