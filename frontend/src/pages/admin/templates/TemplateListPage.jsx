@@ -100,15 +100,14 @@ export default function TemplateListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Breadcrumb */}
-        <Link
-          to="/admin"
-          className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
-        >
-          <ArrowLeft size={14} /> Admin
-        </Link>
+    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-6xl mx-auto">
+      {/* Breadcrumb */}
+      <Link
+        to="/admin"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
+      >
+        <ArrowLeft size={14} /> Admin
+      </Link>
 
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -242,15 +241,14 @@ export default function TemplateListPage() {
           </div>
         )}
 
-        {toast && (
-          <div
-            role="status"
-            className="fixed bottom-6 right-6 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg shadow-lg text-sm"
-          >
-            {toast}
-          </div>
-        )}
-      </div>
-    </div>
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg shadow-lg text-sm"
+        >
+          {toast}
+        </div>
+      )}
+    </main>
   );
 }

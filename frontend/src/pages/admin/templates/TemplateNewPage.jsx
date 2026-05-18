@@ -116,51 +116,48 @@ export default function TemplateNewPage() {
   // Chooser
   if (!mode) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-6">
-        <div className="max-w-xl mx-auto">
-          <Link
-            to="/admin/templates"
-            className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6"
+      <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-xl mx-auto">
+        <Link
+          to="/admin/templates"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6"
+        >
+          <ArrowLeft size={14} /> Back
+        </Link>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">New template</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">How do you want to start?</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setMode('blank')}
+            className="group flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 bg-white dark:bg-gray-900 text-left transition-colors"
           >
-            <ArrowLeft size={14} /> Back
-          </Link>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">New template</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">How do you want to start?</p>
+            <FileText size={32} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+            <div className="text-center">
+              <p className="font-medium text-gray-900 dark:text-white">Blank template</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Start from scratch</p>
+            </div>
+          </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              type="button"
-              onClick={() => setMode('blank')}
-              className="group flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 bg-white dark:bg-gray-900 text-left transition-colors"
-            >
-              <FileText size={32} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
-              <div className="text-center">
-                <p className="font-medium text-gray-900 dark:text-white">Blank template</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Start from scratch</p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMode('clone')}
-              className="group flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 bg-white dark:bg-gray-900 text-left transition-colors"
-            >
-              <Copy size={32} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
-              <div className="text-center">
-                <p className="font-medium text-gray-900 dark:text-white">Clone existing</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Copy from a global or org template</p>
-              </div>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setMode('clone')}
+            className="group flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 bg-white dark:bg-gray-900 text-left transition-colors"
+          >
+            <Copy size={32} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+            <div className="text-center">
+              <p className="font-medium text-gray-900 dark:text-white">Clone existing</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Copy from a global or org template</p>
+            </div>
+          </button>
         </div>
-      </div>
+      </main>
     );
   }
 
   if (mode === 'clone') {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-6">
-        <div className="max-w-md mx-auto">
+      <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-md mx-auto">
           <button
             type="button"
             onClick={() => setMode(null)}
@@ -204,31 +201,29 @@ export default function TemplateNewPage() {
 
           {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
-          <button
-            type="button"
-            onClick={handleClone}
-            disabled={saving || !cloneSource}
-            className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? 'Cloning…' : 'Clone and edit'}
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={handleClone}
+          disabled={saving || !cloneSource}
+          className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Cloning…' : 'Clone and edit'}
+        </button>
+      </main>
     );
   }
 
   // Blank form
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-6">
-      <div className="max-w-md mx-auto">
-        <button
-          type="button"
-          onClick={() => setMode(null)}
-          className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6"
-        >
-          <ArrowLeft size={14} /> Back
-        </button>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">New blank template</h1>
+    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-md mx-auto">
+      <button
+        type="button"
+        onClick={() => setMode(null)}
+        className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6"
+      >
+        <ArrowLeft size={14} /> Back
+      </button>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">New blank template</h1>
 
         <div className="space-y-4">
           <div>
@@ -296,16 +291,15 @@ export default function TemplateNewPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={saving}
-            className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 mt-2"
-          >
-            {saving ? 'Creating…' : 'Create and edit'}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={saving}
+          className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 mt-2"
+        >
+          {saving ? 'Creating…' : 'Create and edit'}
+        </button>
       </div>
-    </div>
+    </main>
   );
 }

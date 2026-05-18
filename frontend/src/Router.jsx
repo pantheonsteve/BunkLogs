@@ -44,6 +44,7 @@ import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
 import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
 import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import DashboardsHub from './pages/dashboards/DashboardsHub';
+import AdminLayout from './layouts/AdminLayout';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -429,65 +430,76 @@ function Router() {
           }
         />
 
-        {/* 3.26: Admin landing hub */}
+        {/* 3.28: Admin routes share one shell via AdminLayout. Every
+            child renders inside Sidebar + Header so navigation stays in
+            place when you click between admin surfaces. AdminRoute is
+            applied per-child (not on the layout) so that
+            /admin/memberships can stay ProtectedRoute -- its in-page
+            "Access restricted" branch must keep rendering for non-admin
+            authenticated users instead of redirecting. */}
         <Route
           path="/admin"
           element={
-            <AdminRoute>
-              <AdminHub />
-            </AdminRoute>
-          }
-        />
-
-        <Route
-          path="/admin/memberships"
-          element={
             <ProtectedRoute>
-              <MembershipManagementPage />
+              <AdminLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route
+            index
+            element={
+              <AdminRoute>
+                <AdminHub />
+              </AdminRoute>
+            }
+          />
+          <Route path="memberships" element={<MembershipManagementPage />} />
+          <Route
+            path="templates"
+            element={
+              <AdminRoute>
+                <TemplateListPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="templates/new"
+            element={
+              <AdminRoute>
+                <TemplateNewPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="groups"
+            element={
+              <AdminRoute>
+                <GroupListPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="groups/:id"
+            element={
+              <AdminRoute>
+                <GroupDetailPage />
+              </AdminRoute>
+            }
+          />
+        </Route>
 
-        {/* Template admin routes */}
-        <Route
-          path="/admin/templates"
-          element={
-            <AdminRoute>
-              <TemplateListPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/templates/new"
-          element={
-            <AdminRoute>
-              <TemplateNewPage />
-            </AdminRoute>
-          }
-        />
+        {/* 3.28: Template editor is a deliberate exception. It is a
+            focused full-bleed editor with its own sticky in-page header
+            (inline name editing, language switcher, save). Pulling it
+            under AdminLayout would either double-stack stickies or
+            shrink the working pane used by the split-pane editor.
+            Future contributors: do NOT move this under the layout
+            without re-evaluating that tradeoff. */}
         <Route
           path="/admin/templates/:id/edit"
           element={
             <AdminRoute>
               <TemplateEditorPage />
-            </AdminRoute>
-          }
-        />
-
-        {/* Group admin routes */}
-        <Route
-          path="/admin/groups"
-          element={
-            <AdminRoute>
-              <GroupListPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/groups/:id"
-          element={
-            <AdminRoute>
-              <GroupDetailPage />
             </AdminRoute>
           }
         />
