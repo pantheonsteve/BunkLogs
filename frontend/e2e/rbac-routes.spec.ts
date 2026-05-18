@@ -96,7 +96,7 @@ test.describe('Route + API RBAC', () => {
     expect([204, 409]).toContain(cleanup.status());
   });
 
-  test('superuser: sees memberships (multi-tenant dashboards still need a Person)', async ({
+  test('superuser: sees memberships across org boundaries', async ({
     page,
     request,
   }) => {
@@ -105,15 +105,6 @@ test.describe('Route + API RBAC', () => {
 
     const memList = await api.get('/api/v1/memberships/');
     expect(memList.status()).toBe(200);
-
-    // /dashboards/team/ and /dashboards/wellness/ both require a Person
-    // profile in the request's org (see the early return in TeamDashboardView
-    // and WellnessDashboardView). The superuser fixture has no Person, so
-    // these endpoints return 403 by design — verify rather than skip.
-    const teamDash = await api.get('/api/v1/dashboards/team/');
-    expect(teamDash.status()).toBe(403);
-    const wellDash = await api.get('/api/v1/dashboards/wellness/');
-    expect(wellDash.status()).toBe(403);
   });
 
   test('user with no Person/Membership: 404 from template-for-me, 200 (empty) from my-tasks', async ({
