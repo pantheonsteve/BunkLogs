@@ -110,9 +110,20 @@ OUT OF SCOPE (handled in 3.33 or 3.34)
 
 - The /dashboard landing page (still auto-redirects in 3.32).
 - ?next= post-login wiring.
-- Sidebar visibility on /tasks and /reflect (those routes
-  intentionally render without the Sidebar today; revisit later).
 - Backend changes. Frontend-only PR.
+
+FOLLOW-UP COMMIT IN THIS PR
+
+- Mid-review the user reported that /tasks, /reflect, and
+  /supervisor/coverage still rendered without the new sidebar
+  (they were originally built as mobile-first single-column views
+  that mounted no chrome at all). Fixed by adding
+  `frontend/src/layouts/AppLayout.jsx` (sibling of AdminLayout)
+  and nesting the four bare routes -- /reflect, /reflect/summary,
+  /tasks, /supervisor/coverage -- under it. Per-page `min-h-screen
+  bg-gray-50` outer wrappers were stripped so the layout's scroll
+  container can own that responsibility. ReflectionSummaryPage was
+  pulled in for free.
 
 VERIFICATION
 
@@ -135,6 +146,7 @@ VERIFICATION
 - `Field keys` appears under Admin in the sidebar.
 - `extraLinks` prop is removed from Sidebar, and CamperCareDashboard no longer passes it.
 - `e2e/rbac-sidebar.spec.ts` HREFS table uses `/dashboards/team` and `/dashboards/wellness` (no more `/team/dashboard`).
+- `frontend/src/layouts/AppLayout.jsx` exists and is wired in `Router.jsx`; `/tasks`, `/reflect`, `/reflect/summary`, and `/supervisor/coverage` all render the Sidebar + Header chrome.
 
 ## Known limitation (documented, not fixed here)
 

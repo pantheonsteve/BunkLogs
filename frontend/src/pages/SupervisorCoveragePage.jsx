@@ -127,7 +127,7 @@ export default function SupervisorCoveragePage() {
   const completeGroups = (groups || []).filter((g) => g.template_coverage.every((tc) => tc.percent === 100)).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-6 pb-24">
+    <div className="px-4 py-6 pb-24">
       <div className="max-w-lg mx-auto">
         <header className="mb-6 flex items-start justify-between">
           <div>
