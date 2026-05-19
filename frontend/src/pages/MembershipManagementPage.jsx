@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import api from '../api';
+import ErrorPanel from '../components/ui/ErrorPanel';
+import LoadingState from '../components/ui/LoadingState';
 
 const ROLE_OPTIONS = [
   { value: '', label: 'All roles' },
@@ -390,7 +392,7 @@ export default function MembershipManagementPage() {
             </section>
           )}
 
-          {loading && <p className="text-gray-600 dark:text-gray-400">Loading…</p>}
+          {loading && <LoadingState>Loading…</LoadingState>}
 
           {!loading && error === 'access' && (
             <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-4 text-amber-900 dark:text-amber-100">
@@ -405,7 +407,7 @@ export default function MembershipManagementPage() {
           )}
 
           {!loading && error && error !== 'access' && (
-            <p className="text-rose-600 dark:text-rose-400">{error}</p>
+            <ErrorPanel>{error}</ErrorPanel>
           )}
 
           {!loading && !error && (

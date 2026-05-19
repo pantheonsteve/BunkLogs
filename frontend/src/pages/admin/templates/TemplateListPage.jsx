@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Copy, ChevronUp, ChevronDown, ArrowLeft } from 'lucide-react';
 import api from '../../../api';
+import EmptyState from '../../../components/ui/EmptyState';
+import ErrorPanel from '../../../components/ui/ErrorPanel';
+import LoadingState from '../../../components/ui/LoadingState';
+import Toast, { useToast } from '../../../components/ui/Toast';
 
 const STATUS_BADGE = {
   draft: 'Draft',
@@ -44,12 +48,7 @@ export default function TemplateListPage() {
   const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | 'mine' | 'global'
   const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [cloning, setCloning] = useState(null);
-  const [toast, setToast] = useState('');
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
+  const { toast, showToast } = useToast(3000);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,23 +154,25 @@ export default function TemplateListPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300 mb-4">
-            {error}
+          <div className="mb-4">
+            <ErrorPanel>{error}</ErrorPanel>
           </div>
         )}
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-sm">Loading…</div>
+          <LoadingState>Loading…</LoadingState>
         ) : filteredAndSorted.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 dark:text-gray-400">
-            <p className="text-base mb-4">No templates found.</p>
-            <Link
-              to="/admin/templates/new"
-              className="text-blue-600 dark:text-blue-400 underline text-sm"
-            >
-              Create your first template
-            </Link>
-          </div>
+          <EmptyState
+            title="No templates found"
+            action={
+              <Link
+                to="/admin/templates/new"
+                className="text-blue-600 dark:text-blue-400 underline text-sm"
+              >
+                Create your first template
+              </Link>
+            }
+          />
         ) : (
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <table className="w-full text-sm" data-testid="template-table">
@@ -241,14 +242,7 @@ export default function TemplateListPage() {
           </div>
         )}
 
-      {toast && (
-        <div
-          role="status"
-          className="fixed bottom-6 right-6 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg shadow-lg text-sm"
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </main>
   );
 }

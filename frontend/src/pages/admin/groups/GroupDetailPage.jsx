@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BarChart3, UserPlus, Trash2, Upload, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 import api from '../../../api';
+import Button from '../../../components/ui/Button';
+import ErrorPanel from '../../../components/ui/ErrorPanel';
+import LoadingState from '../../../components/ui/LoadingState';
+import Toast, { useToast } from '../../../components/ui/Toast';
 
 function PersonSearchInput({ orgContext, onSelect }) {
   const [query, setQuery] = useState('');
@@ -142,7 +146,7 @@ export default function GroupDetailPage() {
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [toast, setToast] = useState('');
+  const { toast, showToast } = useToast(3500);
 
   // Add member state
   const [addRole, setAddRole] = useState('subject');
@@ -163,11 +167,6 @@ export default function GroupDetailPage() {
   // Edit state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3500);
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -284,8 +283,8 @@ export default function GroupDetailPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-sm text-gray-400">Loading…</div>;
-  if (error) return <div className="p-8 text-sm text-red-500">{error}</div>;
+  if (loading) return <div className="p-8"><LoadingState>Loading…</LoadingState></div>;
+  if (error) return <div className="p-8"><ErrorPanel>{error}</ErrorPanel></div>;
   if (!group) return null;
 
   const subjects = (group.memberships || []).filter((m) => m.role_in_group === 'subject');
@@ -311,20 +310,12 @@ export default function GroupDetailPage() {
                   onChange={(e) => setEditName(e.target.value)}
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-lg font-bold bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
-                <button
-                  type="button"
-                  onClick={handleRename}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
+                <Button size="sm" onClick={handleRename}>
                   Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(false)}
-                  className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300"
-                >
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setEditing(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -389,14 +380,13 @@ export default function GroupDetailPage() {
                 <option value="author">Author (observer)</option>
               </select>
             </div>
-            <button
-              type="button"
+            <Button
+              size="sm"
               onClick={handleAddMember}
               disabled={!selectedPerson || addingMember}
-              className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {addingMember ? 'Adding…' : 'Add'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -456,11 +446,7 @@ export default function GroupDetailPage() {
         <ImportStatus log={lastLog} />
       </div>
 
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm px-5 py-2.5 rounded-full shadow-lg z-50">
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </main>
   );
 }

@@ -2,6 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Users, ArrowLeft, ChevronRight } from 'lucide-react';
 import api from '../../../api';
+import Button from '../../../components/ui/Button';
+import EmptyState from '../../../components/ui/EmptyState';
+import ErrorPanel from '../../../components/ui/ErrorPanel';
+import LoadingState from '../../../components/ui/LoadingState';
+import Toast, { useToast } from '../../../components/ui/Toast';
 
 const GROUP_TYPE_LABELS = {
   bunk: 'Bunk',
@@ -46,15 +51,10 @@ export default function GroupListPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('active');
   const [programFilter, setProgramFilter] = useState('');
-  const [toast, setToast] = useState('');
+  const { toast, showToast } = useToast(3000);
   const [creating, setCreating] = useState(false);
   const [newGroup, setNewGroup] = useState({ name: '', group_type: 'bunk', program: '' });
   const [programs, setPrograms] = useState([]);
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,13 +122,9 @@ export default function GroupListPage() {
               Manage bunks, classrooms, caseloads, and other assignment groups
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
+          <Button onClick={() => setCreating(true)}>
             <Plus size={16} /> New group
-          </button>
+          </Button>
         </div>
 
         {/* Create form */}
@@ -170,19 +166,12 @@ export default function GroupListPage() {
                   placeholder="Program ID"
                 />
               </div>
-              <button
-                type="submit"
-                className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-              >
+              <Button type="submit" size="sm">
                 Create
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreating(false)}
-                className="px-4 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setCreating(false)}>
                 Cancel
-              </button>
+              </Button>
             </form>
           </div>
         )}
@@ -219,18 +208,20 @@ export default function GroupListPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300 mb-4">
-            {error}
+          <div className="mb-4">
+            <ErrorPanel>{error}</ErrorPanel>
           </div>
         )}
 
         {loading ? (
-          <div className="text-sm text-gray-500 dark:text-gray-400">Loading groups…</div>
+          <LoadingState>Loading groups…</LoadingState>
         ) : groups.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 dark:text-gray-600">
-            <Users size={40} className="mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No groups found. Create one to get started.</p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="No groups found"
+          >
+            Create one to get started.
+          </EmptyState>
         ) : (
           <div className="space-y-8">
             {typesPresent.map((type) => (
@@ -267,11 +258,7 @@ export default function GroupListPage() {
           </div>
         )}
 
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm px-5 py-2.5 rounded-full shadow-lg z-50">
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </main>
   );
 }
