@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -11,6 +11,11 @@ import {
 } from 'lucide-react';
 
 import api from '../../../api';
+import Button from '../../../components/ui/Button';
+import EmptyState from '../../../components/ui/EmptyState';
+import ErrorPanel from '../../../components/ui/ErrorPanel';
+import LoadingState from '../../../components/ui/LoadingState';
+import Toast, { useToast } from '../../../components/ui/Toast';
 
 /**
  * Field key registry UI. Lists org + global keys, lets Super Admins
@@ -204,22 +209,20 @@ function EditModal({ open, initial, busy, onClose, onSubmit }) {
         >
           <FormFields form={form} onChange={setForm} lockKey />
           <div className="mt-5 flex items-center justify-end gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={onClose}
               disabled={busy}
-              className="px-4 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={busy}
-              className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
               data-testid="fk-edit-submit"
             >
               {busy ? 'Saving…' : 'Save changes'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -241,18 +244,7 @@ export default function FieldKeyListPage() {
   const [createError, setCreateError] = useState('');
   const [editing, setEditing] = useState(null);
   const [editBusy, setEditBusy] = useState(false);
-  const [toast, setToast] = useState('');
-  const toastTimer = useRef(null);
-
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 4000);
-  }, []);
-
-  useEffect(() => () => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-  }, []);
+  const { toast, showToast } = useToast();
 
   // Debounce search so we don't spam the API on every keystroke.
   useEffect(() => {
@@ -400,17 +392,16 @@ export default function FieldKeyListPage() {
             it lives in different templates.
           </p>
         </div>
-        <button
-          type="button"
+        <Button
           onClick={() => {
             setCreating((v) => !v);
             setCreateError('');
           }}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="shrink-0"
           data-testid="fk-new-btn"
         >
           <Plus size={16} /> {creating ? 'Close' : 'New field key'}
-        </button>
+        </Button>
       </div>
 
       {creating && (
@@ -429,25 +420,23 @@ export default function FieldKeyListPage() {
               </p>
             )}
             <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setCreating(false);
                   setCreateError('');
                 }}
                 disabled={createBusy}
-                className="px-4 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={createBusy}
-                className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 data-testid="fk-create-submit"
               >
                 {createBusy ? 'Creating…' : 'Create field key'}
-              </button>
+              </Button>
             </div>
           </form>
         </section>
@@ -499,22 +488,22 @@ export default function FieldKeyListPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300 mb-4">
-          {error}
+        <div className="mb-4">
+          <ErrorPanel>{error}</ErrorPanel>
         </div>
       )}
 
       {loading ? (
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading field keys…</div>
+        <LoadingState>Loading field keys…</LoadingState>
       ) : visible.length === 0 ? (
-        <div
-          className="text-center py-12 text-gray-500 dark:text-gray-400"
+        <EmptyState
+          title={keys.length === 0 ? 'No field keys yet' : 'No matches'}
           data-testid="fk-empty"
         >
           {keys.length === 0
-            ? 'No field keys yet. Create one to get started, or run `python manage.py seed_field_keys` to seed the standard global set.'
+            ? 'Create one to get started, or run `python manage.py seed_field_keys` to seed the standard global set.'
             : 'No field keys match the current filters.'}
-        </div>
+        </EmptyState>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <table className="w-full text-sm" data-testid="fk-table">
@@ -602,15 +591,7 @@ export default function FieldKeyListPage() {
         onSubmit={submitEdit}
       />
 
-      {toast && (
-        <div
-          role="status"
-          data-testid="fk-toast"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm px-5 py-2.5 rounded-full shadow-lg z-50"
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} data-testid="fk-toast" />
     </main>
   );
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, FileText } from 'lucide-react';
 import api from '../../../api';
+import Button from '../../../components/ui/Button';
+import LoadingState from '../../../components/ui/LoadingState';
 
 const ROLE_OPTIONS = [
   { value: '', label: 'No specific role' },
@@ -168,7 +170,7 @@ export default function TemplateNewPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Clone a template</h1>
 
           {loadingExisting ? (
-            <p className="text-sm text-gray-500">Loading templates…</p>
+            <LoadingState>Loading templates…</LoadingState>
           ) : (
             <div className="space-y-2 mb-6">
               {existing.map((tpl) => (
@@ -201,14 +203,13 @@ export default function TemplateNewPage() {
 
           {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
-        <button
-          type="button"
+        <Button
           onClick={handleClone}
           disabled={saving || !cloneSource}
-          className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="w-full"
         >
           {saving ? 'Cloning…' : 'Clone and edit'}
-        </button>
+        </Button>
       </main>
     );
   }
@@ -291,14 +292,13 @@ export default function TemplateNewPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="button"
+        <Button
           onClick={handleCreate}
           disabled={saving}
-          className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 mt-2"
+          className="w-full mt-2"
         >
           {saving ? 'Creating…' : 'Create and edit'}
-        </button>
+        </Button>
       </div>
     </main>
   );
