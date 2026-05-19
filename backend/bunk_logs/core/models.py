@@ -720,6 +720,14 @@ class Reflection(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_complete = models.BooleanField(default=True)
+    is_sensitive = models.BooleanField(
+        default=False,
+        null=True,
+        help_text=(
+            "When true, only the sensitive-variant audience for this content "
+            "type may read the reflection (author and org admin always can)."
+        ),
+    )
 
     objects = OrgScopedManager()
     all_objects = models.Manager()  # noqa: DJ012
@@ -767,6 +775,71 @@ class Reflection(models.Model):
                 raise ValidationError({"template": "Template must be global or belong to the same organization."})
         if self.template_id:
             self.validate_answers()
+
+
+class Note(models.Model):
+    """Free-text note attached to a subject (camper profile, ticket, etc.)."""
+
+    class NoteType(models.TextChoices):
+        CAMPER_CARE = "camper_care", "Camper Care"
+        SPECIALIST = "specialist", "Specialist"
+        MAINTENANCE = "maintenance", "Maintenance"
+
+    class MaintenanceVisibility(models.TextChoices):
+        TEAM_ONLY = "team_only", "Team only"
+        SUBMITTER_VISIBLE = "submitter_visible", "Submitter and team"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="notes",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="notes",
+    )
+    subject = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="notes_about",
+    )
+    author = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="notes_authored",
+    )
+    note_type = models.CharField(max_length=32, choices=NoteType.choices)
+    body = models.TextField()
+    is_sensitive = models.BooleanField(
+        default=False,
+        null=True,
+        help_text="Narrows audience per the visibility model sensitive-variant table.",
+    )
+    maintenance_visibility = models.CharField(
+        max_length=32,
+        choices=MaintenanceVisibility.choices,
+        default=MaintenanceVisibility.TEAM_ONLY,
+        blank=True,
+        help_text="Only used when note_type is maintenance.",
+    )
+    language = models.CharField(max_length=10, default="en")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "program", "subject", "created_at"]),
+            models.Index(fields=["note_type", "is_sensitive"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.note_type} note about {self.subject_id}"
 
 
 class ConcernReadState(models.Model):

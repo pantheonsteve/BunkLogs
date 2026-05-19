@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import ConcernReadState
 from bunk_logs.core.models import Reflection
-from bunk_logs.core.permissions.visibility import reflections_visible_to
+from bunk_logs.core.filters import reflections_visible_for_user
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60
@@ -113,7 +113,7 @@ class ConcernsInboxView(APIView):
         )
 
         refs = list(
-            reflections_visible_to(
+            reflections_visible_for_user(
                 request.user,
                 Reflection.objects.filter(
                     period_end__gte=cur_start,
@@ -174,7 +174,7 @@ class ConcernMarkReadView(APIView):
         # Reuse visibility helper so a viewer who can't see the reflection can't
         # cause read-rows to leak it via 200/4xx timing.
         ref = (
-            reflections_visible_to(
+            reflections_visible_for_user(
                 request.user,
                 Reflection.objects.filter(id=reflection_id),
             ).first()

@@ -25,7 +25,6 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.permissions import is_super_admin
-from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 
 def _person_for_request(request):
@@ -277,6 +276,7 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "answers",
             "language",
             "team_visibility",
+            "is_sensitive",
             "submitted_at",
             "updated_at",
             "is_complete",
@@ -427,7 +427,6 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             "subject", "author", "program", "template", "organization",
             "assignment_group", "subject_group",
         )
-        qs = reflections_visible_to(self.request.user, qs)
         return self._filter_query_params(qs)
 
     def _filter_query_params(self, qs):

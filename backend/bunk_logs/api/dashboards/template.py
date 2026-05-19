@@ -21,7 +21,7 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
-from bunk_logs.core.permissions.visibility import reflections_visible_to
+from bunk_logs.core.filters import reflections_visible_for_user
 
 User = get_user_model()
 
@@ -139,7 +139,7 @@ def _get_reflections(
         period_end__lte=end,
         is_complete=True,
     ).select_related("subject", "author", "assignment_group", "subject_group")
-    return list(reflections_visible_to(user, base))
+    return list(reflections_visible_for_user(user, base))
 
 
 def _eligible_person_count(template: ReflectionTemplate, org_id: int) -> int:

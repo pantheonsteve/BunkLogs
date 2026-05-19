@@ -390,6 +390,9 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",  # Keep for admin use
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_FILTER_BACKENDS": [
+        "bunk_logs.core.filters.RoleVisibilityFilterBackend",
+    ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 

@@ -23,7 +23,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
-from bunk_logs.core.permissions.visibility import reflections_visible_to
+from bunk_logs.core.filters import reflections_visible_for_user
 
 DEFAULT_WINDOW_DAYS = 30
 MAX_WINDOW_DAYS = 90
@@ -147,7 +147,7 @@ class SubjectDetailView(APIView):
 
         # Pull reflections about this subject within window, scoped to viewer
         refs = list(
-            reflections_visible_to(
+            reflections_visible_for_user(
                 request.user,
                 Reflection.objects.filter(
                     subject_id=person_id,
