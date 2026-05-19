@@ -77,14 +77,14 @@ Two important nuances:
    (which is cheap and explicit but requires the importer to keep slugs in
    sync). Both produce the same effective filter in `reflections_visible_to`.
 2. **`camper_care` is intentionally NOT a `domain_specialist`** even though
-   the wellness dashboard groups it alongside `health_center` and
-   `special_diets`. Camper-care staff are senior pastoral/clinical *leads*
-   for their units, so they need read access to *every* reflection about a
-   subject in those units — not just reflections that happen to be tagged
-   with a wellness-role template. The wellness dashboard route gate
-   (`api/wellness_dashboard.py::WELLNESS_ACCESS_ROLES`) is intentionally
-   independent of `core.permissions.visibility.WELLNESS_ROLES` for exactly
-   this reason: route access ≠ reflection visibility.
+   it sits alongside `health_center` and `special_diets` in the wellness
+   stack on the frontend. Camper-care staff are senior pastoral/clinical
+   *leads* for their units, so they need read access to *every*
+   reflection about a subject in those units — not just reflections that
+   happen to be tagged with a wellness-role template. The 3.21 change
+   re-mapped `camper_care` from `domain_specialist` to the `supervisor`
+   capability for exactly this reason: route or template scoping ≠
+   reflection visibility.
 3. **`WELLNESS_ROLES` vs. `WELLNESS_TEMPLATE_ROLES`** (both in
    `core.permissions.visibility`). The first is the membership-side gate —
    who gets the wellness shortcut. The second is the template-side filter —

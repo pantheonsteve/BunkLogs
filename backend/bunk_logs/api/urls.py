@@ -8,10 +8,8 @@ from . import assignment_groups
 from . import field_keys as field_keys_api
 from . import memberships
 from . import reflections
-from . import team_dashboard
 from . import templates as templates_api
 from . import views
-from . import wellness_dashboard
 from .dashboards import authors as authors_dashboard
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
@@ -71,16 +69,6 @@ urlpatterns = [
 
     # Camper logs history
     path("campers/<str:camper_id>/logs/", views.CamperBunkLogViewSet.as_view(), name="camper-bunklogs"),
-
-    # Leadership Team unit health (multi-tenant reflections)
-    path("dashboards/team/", team_dashboard.TeamDashboardView.as_view(), name="team-dashboard"),
-
-    # Wellness team dashboard (Camper Care, Health Center, Special Diets)
-    path(
-        "dashboards/wellness/",
-        wellness_dashboard.WellnessDashboardView.as_view(),
-        name="wellness-dashboard",
-    ),
 
     # Template-scoped aggregation dashboard and CSV export
     path(
