@@ -1,84 +1,212 @@
-import { describe, it, expect, vi } from 'vitest';
+/**
+ * Sidebar capability-aware navigation tests (3.32).
+ *
+ * Each persona test stubs `useAuth()` with a representative user
+ * (legacy User.role for now; capability.js maps role -> capability)
+ * and asserts which section headings and link hrefs appear.
+ *
+ * We assert on hrefs rather than link text where possible so a
+ * labels rewrite doesn't silently break coverage. Section headings
+ * are asserted via `getByText` against the uppercase heading string.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-// Stub the auth hook so the sidebar receives a Super Admin user.
-vi.mock('../../auth/AuthContext', () => ({
-  useAuth: () => ({
-    user: { is_staff: true, role: 'Counselor' },
-  }),
-}));
-
-// Stub the camp logo image import (jpeg) to keep the test fast.
+// Stub the logo import so the test runner doesn't try to decode JPEG.
 vi.mock('../../../src/images/clc-logo.jpeg', () => ({ default: 'logo.jpg' }));
+
+// Each test sets the mock return value before rendering.
+const mockUseAuth = vi.fn();
+vi.mock('../../auth/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
+}));
 
 import Sidebar from '../Sidebar';
 
-function renderSidebar() {
+function renderWith(user, { path = '/dashboard' } = {}) {
+  mockUseAuth.mockReturnValue({ user });
   return render(
-    <MemoryRouter initialEntries={['/admin']}>
+    <MemoryRouter initialEntries={[path]}>
       <Sidebar sidebarOpen={true} setSidebarOpen={() => {}} />
     </MemoryRouter>,
   );
 }
 
-describe('Sidebar admin navigation (3.26)', () => {
-  it('renames the legacy "Tests" group to "Admin"', () => {
-    renderSidebar();
-    expect(screen.getByText('Admin')).toBeInTheDocument();
-    expect(screen.queryByText('Tests')).not.toBeInTheDocument();
+function hrefs() {
+  return screen
+    .getAllByRole('link')
+    .map((a) => a.getAttribute('href'))
+    .filter(Boolean);
+}
+
+beforeEach(() => {
+  mockUseAuth.mockReset();
+  // Reset localStorage between tests because Sidebar.jsx persists the
+  // expanded/collapsed flag there.
+  localStorage.clear();
+});
+
+describe('Sidebar — section gating (3.32)', () => {
+  it('participant (counselor) sees My work but no Supervise / Dashboards / Admin / Legacy', () => {
+    renderWith({ role: 'Counselor' });
+
+    // Multiple "My work" headings can render (mobile + desktop variants);
+    // use getAllByText so it doesn't throw on duplicates.
+    expect(screen.getAllByText('My work').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
+
+    const links = hrefs();
+    expect(links).toContain('/dashboard');
+    expect(links).toContain('/tasks');
+    expect(links).toContain('/counselor-dashboard');
+    expect(links).toContain('/reflect');
+    expect(links).toContain('/my-reflections');
+    expect(links).toContain('/orders');
+    expect(links).not.toContain('/admin');
+    expect(links).not.toContain('/admin-bunk-logs');
   });
 
-  it('renders Admin group items (home, Memberships, Templates, Groups)', () => {
-    renderSidebar();
-    // Member is link text, scope to anchors so we don't catch page headings.
-    const adminLinks = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(adminLinks).toEqual(expect.arrayContaining([
-      '/admin',
-      '/admin/memberships',
-      '/admin/templates',
-      '/admin/groups',
-    ]));
+  it('participant (kitchen) sees My work without Counselor home or reflection forms', () => {
+    renderWith({ role: 'Kitchen Staff' });
+
+    const links = hrefs();
+    expect(links).toContain('/dashboard');
+    expect(links).toContain('/tasks');
+    expect(links).not.toContain('/counselor-dashboard');
+    expect(links).not.toContain('/reflect');
+    expect(links).not.toContain('/my-reflections');
+    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
   });
 
-  it('renders the Dashboards group with canonical /dashboards/* targets', () => {
-    renderSidebar();
-    expect(screen.getByText('Dashboards')).toBeInTheDocument();
-    const links = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(links).toEqual(expect.arrayContaining([
-      '/dashboards',
-      '/dashboards/coverage',
-      '/dashboards/authors',
-      '/dashboards/concerns',
-      '/dashboards/team',
-      '/dashboards/wellness',
-    ]));
-    // Legacy off-pattern URLs must NOT appear in the sidebar.
-    expect(links).not.toContain('/team/dashboard');
-    expect(links).not.toContain('/wellness/dashboard');
+  it('supervisor (unit_head) sees Supervise but not Dashboards or Admin', () => {
+    renderWith({ role: 'Unit Head' });
+
+    expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+
+    const links = hrefs();
+    expect(links).toContain('/supervisor/coverage');
+    expect(links).toContain('/dashboards/concerns');
+    // Supervisors don't get the role-specific Counselor-home link.
+    expect(links).not.toContain('/counselor-dashboard');
   });
 
-  it('renders "My tasks" as a top-level entry', () => {
-    renderSidebar();
-    expect(screen.getByText('My tasks')).toBeInTheDocument();
+  it('supervisor (camper_care) sees Supervise and reflection forms', () => {
+    renderWith({ role: 'Camper Care' });
+
+    expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
+    const links = hrefs();
+    expect(links).toContain('/supervisor/coverage');
+    expect(links).toContain('/dashboards/concerns');
+    expect(links).toContain('/reflect');
+    expect(links).toContain('/my-reflections');
+  });
+
+  it('program_lead (leadership) sees Dashboards and Supervise but not Admin', () => {
+    renderWith({ role: 'Leadership' });
+
+    expect(screen.getAllByText('Dashboards').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
+  });
+
+  it('admin sees every section including Crane Lake legacy', () => {
+    renderWith({ role: 'Admin' });
+
+    expect(screen.getAllByText('My work').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Dashboards').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Crane Lake legacy').length).toBeGreaterThan(0);
+  });
+
+  it('super admin via is_staff alone sees Admin + Dashboards even without a role', () => {
+    renderWith({ is_staff: true });
+
+    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Dashboards').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Crane Lake legacy').length).toBeGreaterThan(0);
   });
 });
 
-describe('Sidebar wayfinding (3.27)', () => {
-  it('renames the Counselor role entry from "My Reflections" to "Counselor home"', () => {
-    renderSidebar();
-    // Counselor role link now reads "Counselor home" and is the only entry
-    // pointing at the legacy /counselor-dashboard.
-    expect(screen.getByText('Counselor home')).toBeInTheDocument();
-    expect(screen.queryByText('My Reflections')).not.toBeInTheDocument();
-    const links = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(links).toContain('/counselor-dashboard');
+describe('Sidebar — de-duplication of Wellness / Unit head dashboard (3.32)', () => {
+  it('renders /dashboards/team and /dashboards/wellness exactly once for admins', () => {
+    renderWith({ role: 'Admin' }, { path: '/admin' });
+    // SidebarLinkGroup mounts collapsed by default but keeps the
+    // children in the DOM, so we can still query the hrefs.
+    const links = hrefs();
+    const teamMatches = links.filter((h) => h === '/dashboards/team');
+    const wellnessMatches = links.filter((h) => h === '/dashboards/wellness');
+    expect(teamMatches).toHaveLength(1);
+    expect(wellnessMatches).toHaveLength(1);
   });
 
-  it('exposes "My reflections" as a top-level entry pointing at /my-reflections', () => {
-    renderSidebar();
-    expect(screen.getByText('My reflections')).toBeInTheDocument();
-    const links = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(links).toContain('/my-reflections');
+  it('moves Concerns inbox to Supervise only — not duplicated under Dashboards', () => {
+    renderWith({ role: 'Admin' });
+    const links = hrefs();
+    const concerns = links.filter((h) => h === '/dashboards/concerns');
+    expect(concerns).toHaveLength(1);
+  });
+});
+
+describe('Sidebar — Admin submenu items (3.32)', () => {
+  it('includes Field keys under Admin (added in 3.32)', () => {
+    renderWith({ role: 'Admin' }, { path: '/admin' });
+    expect(hrefs()).toContain('/admin/field-keys');
+  });
+
+  it('still includes Memberships / Templates / Groups / Admin home', () => {
+    renderWith({ role: 'Admin' }, { path: '/admin' });
+    const links = hrefs();
+    expect(links).toEqual(
+      expect.arrayContaining([
+        '/admin',
+        '/admin/memberships',
+        '/admin/templates',
+        '/admin/groups',
+      ]),
+    );
+  });
+});
+
+describe('Sidebar — Crane Lake legacy section (3.32)', () => {
+  it('keeps /admin-bunk-logs and /admin-dashboard reachable for admins', () => {
+    renderWith({ role: 'Admin' });
+    const links = hrefs();
+    expect(links).toContain('/admin-bunk-logs');
+    expect(links).toContain('/admin-dashboard');
+  });
+
+  it('does not render the legacy section for non-admins (counselor)', () => {
+    renderWith({ role: 'Counselor' });
+    const links = hrefs();
+    expect(links).not.toContain('/admin-bunk-logs');
+    expect(links).not.toContain('/admin-dashboard');
+    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
+  });
+
+  it('does not render the legacy section for supervisors', () => {
+    renderWith({ role: 'Unit Head' });
+    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
+  });
+});
+
+describe('Sidebar — unauthenticated chrome (3.32)', () => {
+  it('renders the logo but no link sections when user is null', () => {
+    renderWith(null);
+    // Logo link to "/" should always render.
+    const links = hrefs();
+    expect(links).toContain('/');
+    // No app sections.
+    expect(screen.queryByText('My work')).not.toBeInTheDocument();
+    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 });

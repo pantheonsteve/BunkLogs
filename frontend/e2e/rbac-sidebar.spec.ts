@@ -1,122 +1,184 @@
 /**
- * Sidebar RBAC spec.
+ * Sidebar RBAC spec (3.32-aware).
  *
  * Asserts that the navigation links rendered by frontend/src/partials/Sidebar.jsx
- * match the role each user signed in as. Today the sidebar still gates on the
- * legacy User.role string (Counselor, Admin, Unit Head, Camper Care, Leadership);
- * the seed command sets that field to mirror Membership.role so this spec
- * doubles as a regression guard if/when those branches migrate to capability.
+ * match the capability each user signs in as. 3.32 introduced section
+ * groupings (My work / Supervise / Dashboards / Admin / Crane Lake
+ * legacy / Other) and switched the gates to `hasCapability` +
+ * `isSuperAdmin`. The seed command (`make seed-rbac`) maps
+ * Membership.role to User.role so the legacy gate still works while
+ * the capability helper is the actual source of truth.
  *
- * We assert on hrefs (not link text) because some link labels overlap as
- * substrings — e.g. "Bunk Logs" is the admin-only link to /admin-bunk-logs,
- * but Camper Care has a "My Bunk Logs" button that would falsely match a
- * naive `toContain('Bunk Logs')` check.
+ * Assert on hrefs (not link text) wherever there's ambiguity — some
+ * labels collide as substrings ("Bunk Logs" vs the CamperCare in-page
+ * tab "My Bunk Logs", for example).
  */
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs, readSidebarText } from './fixtures/auth';
 
 const HREFS = {
-  // Self-reflection form, shown to REFLECTION_FORM_ROLES (Counselor, Admin,
-  // Unit Head, Camper Care).
+  // My work
+  home: '/dashboard',
+  tasks: '/tasks',
   reflect: '/reflect',
-  // Counselor "My Reflections" routes to /counselor-dashboard.
-  counselorDashboard: '/counselor-dashboard',
-  // Admin-only blocks.
-  adminBunkLogs: '/admin-bunk-logs',
-  adminStaffReflections: '/admin-dashboard',
-  adminMemberships: '/admin/memberships',
-  // First child of the admin "Tests" submenu — used as a sentinel for the
-  // submenu's existence (the submenu trigger is a button, not a link).
-  adminTemplates: '/admin/templates',
-  ltUnitHealth: '/team/dashboard',
-  wellnessDashboard: '/wellness/dashboard',
+  myReflections: '/my-reflections',
+  counselorHome: '/counselor-dashboard',
   orders: '/orders',
+  // Supervise
+  supervisorCoverage: '/supervisor/coverage',
+  concernsInbox: '/dashboards/concerns',
+  // Dashboards (canonical paths — 3.27 renamed the legacy
+  // /team/dashboard / /wellness/dashboard aliases away from the
+  // sidebar).
+  dashboardsHome: '/dashboards',
+  dashboardsCoverage: '/dashboards/coverage',
+  dashboardsAuthors: '/dashboards/authors',
+  dashboardsTeam: '/dashboards/team',
+  dashboardsWellness: '/dashboards/wellness',
+  // Admin
+  adminHome: '/admin',
+  adminMemberships: '/admin/memberships',
+  adminTemplates: '/admin/templates',
+  adminGroups: '/admin/groups',
+  adminFieldKeys: '/admin/field-keys',
+  // Crane Lake legacy
+  legacyBunkLogs: '/admin-bunk-logs',
+  legacyStaffReflections: '/admin-dashboard',
 };
 
 async function hasLink(page: Page, href: string): Promise<boolean> {
   return (await page.locator(`#sidebar a[href="${href}"]`).count()) > 0;
 }
 
-test.describe('Sidebar RBAC', () => {
-  test('participant counselor sees self-reflection links, not admin tools', async ({ page }) => {
+async function countLinks(page: Page, href: string): Promise<number> {
+  return await page.locator(`#sidebar a[href="${href}"]`).count();
+}
+
+test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
+  test('counselor (participant): My work only', async ({ page }) => {
     await loginAs(page, 'counselor');
     await readSidebarText(page);
 
-    expect(await hasLink(page, HREFS.counselorDashboard)).toBe(true);
+    // My work entries
+    expect(await hasLink(page, HREFS.home)).toBe(true);
+    expect(await hasLink(page, HREFS.tasks)).toBe(true);
+    expect(await hasLink(page, HREFS.counselorHome)).toBe(true);
     expect(await hasLink(page, HREFS.reflect)).toBe(true);
+    expect(await hasLink(page, HREFS.myReflections)).toBe(true);
+    expect(await hasLink(page, HREFS.orders)).toBe(true);
+
+    // No Supervise / Dashboards / Admin / Legacy
+    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(false);
+    expect(await hasLink(page, HREFS.concernsInbox)).toBe(false);
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
-    expect(await hasLink(page, HREFS.adminTemplates)).toBe(false);
-    expect(await hasLink(page, HREFS.adminBunkLogs)).toBe(false);
-    expect(await hasLink(page, HREFS.ltUnitHealth)).toBe(false);
-    expect(await hasLink(page, HREFS.wellnessDashboard)).toBe(false);
+    expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(false);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 
-  test('unit head sees the participant links (no admin tools)', async ({ page }) => {
+  test('unit_head (supervisor): Supervise but no Dashboards / Admin', async ({ page }) => {
     await loginAs(page, 'unit_head');
     await readSidebarText(page);
 
+    expect(await hasLink(page, HREFS.home)).toBe(true);
     expect(await hasLink(page, HREFS.orders)).toBe(true);
+    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
+
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
-    expect(await hasLink(page, HREFS.adminTemplates)).toBe(false);
-    expect(await hasLink(page, HREFS.adminBunkLogs)).toBe(false);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
+    // No role-specific Counselor home for unit heads.
+    expect(await hasLink(page, HREFS.counselorHome)).toBe(false);
   });
 
-  test('leadership sees Unit health (LT) link', async ({ page }) => {
-    await loginAs(page, 'leadership');
-    await readSidebarText(page);
-
-    expect(await hasLink(page, HREFS.ltUnitHealth)).toBe(true);
-    expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
-    expect(await hasLink(page, HREFS.adminTemplates)).toBe(false);
-  });
-
-  test('camper_care sees Wellness team and not the admin Bunk Logs link', async ({ page }) => {
+  test('camper_care (supervisor): same Supervise gates as unit head + reflection forms', async ({
+    page,
+  }) => {
     await loginAs(page, 'camper_care');
     await readSidebarText(page);
 
-    expect(await hasLink(page, HREFS.wellnessDashboard)).toBe(true);
+    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
+    expect(await hasLink(page, HREFS.reflect)).toBe(true);
+    expect(await hasLink(page, HREFS.myReflections)).toBe(true);
+
+    // Camper care does NOT get admin or dashboards.
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
-    expect(await hasLink(page, HREFS.adminBunkLogs)).toBe(false);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 
-  test('admin sees Bunk Logs, Staff Reflections, Memberships, and the Tests submenu', async ({
+  test('leadership (program_lead): Supervise + Dashboards but no Admin', async ({ page }) => {
+    await loginAs(page, 'leadership');
+    await readSidebarText(page);
+
+    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsTeam)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(true);
+
+    expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
+  });
+
+  test('admin: every section including Crane Lake legacy', async ({ page }) => {
+    await loginAs(page, 'admin');
+    await readSidebarText(page);
+
+    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
+    expect(await hasLink(page, HREFS.adminHome)).toBe(true);
+    expect(await hasLink(page, HREFS.adminMemberships)).toBe(true);
+    expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
+    expect(await hasLink(page, HREFS.adminGroups)).toBe(true);
+    expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(true);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(true);
+    expect(await hasLink(page, HREFS.legacyStaffReflections)).toBe(true);
+  });
+
+  test('admin: /dashboards/team and /dashboards/wellness appear exactly once (no duplicates)', async ({
     page,
   }) => {
     await loginAs(page, 'admin');
     await readSidebarText(page);
-
-    expect(await hasLink(page, HREFS.adminBunkLogs)).toBe(true);
-    expect(await hasLink(page, HREFS.adminStaffReflections)).toBe(true);
-    expect(await hasLink(page, HREFS.adminMemberships)).toBe(true);
-    // Tests submenu (collapsed at first render — assert the child link exists
-    // in the DOM regardless of the open/closed state of the submenu).
-    expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
-    // Admin also has the LT + Wellness shortcuts via the union role list.
-    expect(await hasLink(page, HREFS.ltUnitHealth)).toBe(true);
-    expect(await hasLink(page, HREFS.wellnessDashboard)).toBe(true);
+    expect(await countLinks(page, HREFS.dashboardsTeam)).toBe(1);
+    expect(await countLinks(page, HREFS.dashboardsWellness)).toBe(1);
   });
 
-  test('superuser sees the Tests submenu via is_superuser fallback', async ({ page }) => {
+  test('admin: Concerns inbox lives only in Supervise, not duplicated under Dashboards', async ({
+    page,
+  }) => {
+    await loginAs(page, 'admin');
+    await readSidebarText(page);
+    expect(await countLinks(page, HREFS.concernsInbox)).toBe(1);
+  });
+
+  test('superuser (is_staff fallback): admin sections render even without a Membership', async ({
+    page,
+  }) => {
     await loginAs(page, 'superuser');
     await readSidebarText(page);
 
-    // Superuser User.role='Admin' so the admin branches fire; the key
-    // assertion is that the is_staff/is_superuser fallback also keeps the
-    // Tests submenu mounted.
     expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
+    expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(true);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(true);
   });
 
-  test('user without a Person/Membership still gets the base Orders link only', async ({
+  test('no_membership: only the everyone-visible items (Home, Orders) render', async ({
     page,
   }) => {
     await loginAs(page, 'no_membership');
     await readSidebarText(page);
 
+    expect(await hasLink(page, HREFS.home)).toBe(true);
+    expect(await hasLink(page, HREFS.tasks)).toBe(true);
     expect(await hasLink(page, HREFS.orders)).toBe(true);
-    expect(await hasLink(page, HREFS.counselorDashboard)).toBe(false);
+
+    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(false);
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
-    expect(await hasLink(page, HREFS.adminTemplates)).toBe(false);
-    expect(await hasLink(page, HREFS.ltUnitHealth)).toBe(false);
-    expect(await hasLink(page, HREFS.wellnessDashboard)).toBe(false);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
+    expect(await hasLink(page, HREFS.counselorHome)).toBe(false);
   });
 });
