@@ -39,7 +39,7 @@ from bunk_logs.core.translation import client as client_module
 from bunk_logs.core.translation import metrics as metrics_module
 from bunk_logs.core.translation import tasks as tasks_module
 from bunk_logs.core.translation.client import TRANSLATION_PROMPT
-from bunk_logs.core.translation.client import TranslationFailure
+from bunk_logs.core.translation.client import TranslationFailureError
 from bunk_logs.core.translation.client import TranslationResult
 from bunk_logs.core.translation.client import translate_content
 
@@ -187,12 +187,12 @@ class TestTranslateContent:
         assert TRANSLATION_PROMPT.startswith("Translate the following text")
 
     def test_empty_input_is_non_retryable(self):
-        with pytest.raises(TranslationFailure) as exc:
+        with pytest.raises(TranslationFailureError) as exc:
             translate_content("   ", source_language="es", client=_StubClient())
         assert exc.value.retryable is False
 
     def test_same_language_is_non_retryable(self):
-        with pytest.raises(TranslationFailure) as exc:
+        with pytest.raises(TranslationFailureError) as exc:
             translate_content(
                 "hello", source_language="en", target_language="en",
                 client=_StubClient(response=_StubResponse("hello")),
@@ -201,19 +201,19 @@ class TestTranslateContent:
 
     def test_sdk_error_is_retryable_by_default(self):
         stub = _StubClient(raises=RuntimeError("transient flake"))
-        with pytest.raises(TranslationFailure) as exc:
+        with pytest.raises(TranslationFailureError) as exc:
             translate_content("hola", source_language="es", client=stub)
         assert exc.value.retryable is True
 
     def test_auth_like_error_is_non_retryable(self):
         stub = _StubClient(raises=_SimulatedAuthError("bad key"))
-        with pytest.raises(TranslationFailure) as exc:
+        with pytest.raises(TranslationFailureError) as exc:
             translate_content("hola", source_language="es", client=stub)
         assert exc.value.retryable is False
 
     def test_missing_api_key_when_no_client_provided(self, settings):
         settings.ANTHROPIC_API_KEY = ""
-        with pytest.raises(TranslationFailure) as exc:
+        with pytest.raises(TranslationFailureError) as exc:
             translate_content("hola", source_language="es")
         assert exc.value.retryable is False
 
@@ -259,7 +259,7 @@ class TestTranslateReflectionTask:
     ):
         reflection = _reflection(org, program, template, author)
         with patch.object(tasks_module, "translate_content") as fake_translate:
-            fake_translate.side_effect = TranslationFailure("nope", retryable=False)
+            fake_translate.side_effect = TranslationFailureError("nope", retryable=False)
             result = tasks_module.translate_reflection_to_english.run(reflection.pk)
         record = TranslationRecord.latest_for("reflection", reflection.pk)
         assert result["status"] == "failed_terminal"
@@ -298,7 +298,7 @@ class TestTranslateReflectionTask:
                  "retry",
                  side_effect=Retry("scheduled"),
              ):
-            fake_translate.side_effect = TranslationFailure(
+            fake_translate.side_effect = TranslationFailureError(
                 "transient", retryable=True,
             )
             with pytest.raises(Retry):
@@ -377,7 +377,7 @@ def test_module_exports_are_stable():
 
     expected = {
         "TRANSLATION_PROMPT",
-        "TranslationFailure",
+        "TranslationFailureError",
         "TranslationResult",
         "enqueue_translation_for_reflection",
         "purge_expired_translations",

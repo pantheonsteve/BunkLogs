@@ -21,7 +21,7 @@ path) is a single-file change.
 """
 
 from bunk_logs.core.translation.client import TRANSLATION_PROMPT
-from bunk_logs.core.translation.client import TranslationFailure
+from bunk_logs.core.translation.client import TranslationFailureError
 from bunk_logs.core.translation.client import TranslationResult
 from bunk_logs.core.translation.client import translate_content
 from bunk_logs.core.translation.tasks import enqueue_translation_for_reflection
@@ -30,7 +30,7 @@ from bunk_logs.core.translation.tasks import translate_reflection_to_english
 
 __all__ = [
     "TRANSLATION_PROMPT",
-    "TranslationFailure",
+    "TranslationFailureError",
     "TranslationResult",
     "enqueue_translation_for_reflection",
     "purge_expired_translations",

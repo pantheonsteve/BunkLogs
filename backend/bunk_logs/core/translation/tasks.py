@@ -24,7 +24,7 @@ from django.utils import timezone
 
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import TranslationRecord
-from bunk_logs.core.translation.client import TranslationFailure
+from bunk_logs.core.translation.client import TranslationFailureError
 from bunk_logs.core.translation.client import translate_content
 from bunk_logs.core.translation.metrics import record_completed
 from bunk_logs.core.translation.metrics import record_failed
@@ -159,7 +159,7 @@ def translate_reflection_to_english(self, reflection_id: int) -> dict:
         result = translate_content(
             source_text, source_language=source_language, target_language="en",
         )
-    except TranslationFailure as exc:
+    except TranslationFailureError as exc:
         record.attempt_count = (record.attempt_count or 0) + 1
         record.last_error = str(exc)[:2000]
         attempts = record.attempt_count
@@ -265,8 +265,9 @@ def _revoke_task(task_id: str) -> None:
     (large backoff window) wins us a cheap cancellation.
     """
     try:
-        from bunk_logs.core.translation.client import logger as _ignored  # noqa: F401
         from celery.result import AsyncResult
+
+        from bunk_logs.core.translation.client import logger as _ignored  # noqa: F401
 
         AsyncResult(task_id).revoke()
     except Exception:

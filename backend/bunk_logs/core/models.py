@@ -2027,7 +2027,7 @@ class TranslationRecord(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     objects = models.Manager()
-    all_objects = models.Manager()  # noqa: DJ012
+    all_objects = models.Manager()
 
     class Meta:
         ordering = ["-created_at"]

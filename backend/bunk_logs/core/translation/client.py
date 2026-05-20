@@ -9,7 +9,7 @@ Key design choices:
 
 * The translation prompt lives at module scope (``TRANSLATION_PROMPT``) so
   tests and ``I18N.md`` can quote a single source.
-* Failures bubble as :class:`TranslationFailure` with a ``retryable`` flag
+* Failures bubble as :class:`TranslationFailureError` with a ``retryable`` flag
   set by class. Celery's autoretry hooks key off this -- non-retryable
   failures (e.g. missing API key, prompt-too-long) skip the backoff schedule
   and go straight to ``failed_terminal``.
@@ -49,12 +49,15 @@ class TranslationResult:
     tokens_used: int
 
 
-class TranslationFailure(Exception):
+class TranslationFailureError(Exception):
     """Raised when the translation call fails for any reason.
 
     ``retryable`` lets the Celery task decide between exponential backoff
     (retryable) and an immediate terminal failure (non-retryable -- e.g.
     missing credentials or invalid input).
+
+    Named with the ``Error`` suffix per ruff N818 / PEP 8 conventions even
+    though semantically the failure may be retryable.
     """
 
     def __init__(self, message: str, *, retryable: bool = True):
@@ -84,7 +87,7 @@ def translate_content(
 ) -> TranslationResult:
     """Translate ``text`` from ``source_language`` into ``target_language``.
 
-    Returns a :class:`TranslationResult`. Raises :class:`TranslationFailure`
+    Returns a :class:`TranslationResult`. Raises :class:`TranslationFailureError`
     on any error (network, API, parsing); the ``retryable`` flag tells the
     Celery wrapper which retry path to take.
 
@@ -94,13 +97,13 @@ def translate_content(
     """
     if not text or not text.strip():
         msg = "translate_content: empty input"
-        raise TranslationFailure(msg, retryable=False)
+        raise TranslationFailureError(msg, retryable=False)
     if source_language == target_language:
         msg = (
             "translate_content: source and target languages are identical "
             f"({source_language!r}); refusing to translate."
         )
-        raise TranslationFailure(msg, retryable=False)
+        raise TranslationFailureError(msg, retryable=False)
 
     model = model_id or getattr(
         settings, "ANTHROPIC_TRANSLATION_MODEL", "claude-sonnet-4-5",
@@ -116,18 +119,18 @@ def translate_content(
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
-    except Exception as exc:  # noqa: BLE001 -- intentionally broad: SDK can raise
+    except Exception as exc:
         # network / status / decoding errors all surface here. Treat as
         # retryable so the Celery backoff schedule absorbs transient flakes.
         retryable = not _looks_like_auth_error(exc)
         msg = f"Anthropic translation request failed: {exc}"
-        raise TranslationFailure(msg, retryable=retryable) from exc
+        raise TranslationFailureError(msg, retryable=retryable) from exc
 
     text_out = _extract_text(response)
     tokens_used = _extract_tokens(response)
     if not text_out:
         msg = "Anthropic returned an empty translation."
-        raise TranslationFailure(msg, retryable=True)
+        raise TranslationFailureError(msg, retryable=True)
 
     return TranslationResult(text=text_out, model_id=model, tokens_used=tokens_used)
 
@@ -135,7 +138,7 @@ def translate_content(
 def _build_client():
     """Lazily import + construct the Anthropic SDK client.
 
-    Raises :class:`TranslationFailure` with ``retryable=False`` if the SDK
+    Raises :class:`TranslationFailureError` with ``retryable=False`` if the SDK
     isn't installed or the API key is unset. Keeping the import inside the
     function means unit tests can run without ``anthropic`` on the path as
     long as they inject ``client=...``.
@@ -147,7 +150,7 @@ def _build_client():
             "run. Set it in the Django environment or pass an explicit "
             "client= argument."
         )
-        raise TranslationFailure(msg, retryable=False)
+        raise TranslationFailureError(msg, retryable=False)
     try:
         from anthropic import Anthropic  # type: ignore[import-not-found]
     except ImportError as exc:
@@ -155,7 +158,7 @@ def _build_client():
             "anthropic SDK is not installed; pip install anthropic or pass "
             "client= to translate_content for tests."
         )
-        raise TranslationFailure(msg, retryable=False) from exc
+        raise TranslationFailureError(msg, retryable=False) from exc
     return Anthropic(api_key=api_key)
 
 

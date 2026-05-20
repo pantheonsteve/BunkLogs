@@ -19,7 +19,9 @@ state), so we deliberately do NOT emit ``AuditEvent`` rows — see
 """
 from __future__ import annotations
 
-from rest_framework import permissions, serializers, status
+from rest_framework import permissions
+from rest_framework import serializers
+from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
