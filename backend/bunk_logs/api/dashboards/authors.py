@@ -20,9 +20,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.permissions.visibility import has_supervisor_role
-from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 90
@@ -77,7 +77,7 @@ class AuthorAttributionView(APIView):
         if template_q.isdigit():
             base = base.filter(template_id=int(template_q))
 
-        scoped = reflections_visible_to(request.user, base)
+        scoped = reflections_visible_for_user(request.user, base)
 
         # Per-author totals
         author_rows = list(

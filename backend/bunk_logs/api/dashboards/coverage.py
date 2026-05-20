@@ -19,6 +19,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
@@ -27,7 +28,6 @@ from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.core.permissions.visibility import is_org_admin
-from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60
@@ -158,7 +158,7 @@ class CoverageDashboardView(APIView):
         # Coverage rows: one query for per-subject reflections, one for group-mode reflections
         period_q = {"period_end__gte": cur_start, "period_end__lte": cur_end}
         per_subject_rows = list(
-            reflections_visible_to(
+            reflections_visible_for_user(
                 request.user,
                 Reflection.objects.filter(
                     assignment_group_id__in=group_ids,
@@ -172,7 +172,7 @@ class CoverageDashboardView(APIView):
             .values_list("assignment_group_id", "period_end", "c"),
         )
         group_mode_rows = list(
-            reflections_visible_to(
+            reflections_visible_for_user(
                 request.user,
                 Reflection.objects.filter(
                     subject_group_id__in=group_ids,

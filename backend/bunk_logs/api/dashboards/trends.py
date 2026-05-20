@@ -17,12 +17,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
-from bunk_logs.core.permissions.visibility import reflections_visible_to
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60
@@ -177,7 +177,7 @@ class SubjectTrendGridView(APIView):
 
         # Reflections in window for this group + template + visible to viewer
         refs = list(
-            reflections_visible_to(
+            reflections_visible_for_user(
                 request.user,
                 Reflection.objects.filter(
                     template=template,
