@@ -24,7 +24,6 @@ cache; write endpoints in 7_6c will bump the per-viewer version key.
 
 from __future__ import annotations
 
-import hashlib
 from datetime import date as date_type  # noqa: TC003 - used in helper type hints
 
 from django.core.cache import cache
@@ -45,6 +44,7 @@ from .common import bunk_camper_persons
 from .common import camper_reflection_template
 from .common import co_counselor_person_ids
 from .common import counselor_self_template
+from .common import dashboard_cache_key as _cache_key
 from .common import is_day_off_answer
 from .common import latest_camper_reflection_per_subject
 from .common import latest_self_reflection
@@ -64,11 +64,6 @@ def _section_state(*, covered: int, total: int) -> str:
     if covered >= total:
         return "complete"
     return "in_progress"
-
-
-def _cache_key(viewer_id: int, organization_id: int, today: date_type) -> str:
-    raw = f"counselor_dashboard:{organization_id}:{viewer_id}:{today.isoformat()}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:48]
 
 
 class CounselorDashboardView(APIView):

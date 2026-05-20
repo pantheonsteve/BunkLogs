@@ -112,6 +112,12 @@ def _submit(organization, program, person, template, target_date, answers):
 def test_history_empty_when_no_template(
     org, counselor_user, counselor_person, counselor_membership,
 ):
+    # See test_counselor_dashboard.py for rationale — drop the seeded
+    # global template so this exercises the "no template configured"
+    # path rather than the always-available global path.
+    ReflectionTemplate.all_objects.filter(
+        organization__isnull=True, slug="counselor-self-reflection",
+    ).delete()
     c = _client(counselor_user, org)
     with organization_context(org):
         resp = c.get("/api/v1/counselor/self-reflection/history/")

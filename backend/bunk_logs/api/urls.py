@@ -14,8 +14,10 @@ from . import reflections
 from . import supervisions as supervisions_api
 from . import templates as templates_api
 from . import views
+from .counselor import camper_care_requests as counselor_camper_care_requests
 from .counselor import camper_reflections as counselor_camper_reflections
 from .counselor import dashboard as counselor_dashboard
+from .counselor import maintenance_tickets as counselor_maintenance_tickets
 from .counselor import requests as counselor_requests
 from .counselor import self_reflection as counselor_self_reflection
 from .dashboards import authors as authors_dashboard
@@ -191,6 +193,38 @@ urlpatterns = [
         "counselor/requests/",
         counselor_requests.CounselorRequestsListView.as_view(),
         name="counselor-requests",
+    ),
+
+    # Counselor flow write endpoints (Step 7_6c)
+    path(
+        "counselor/camper-reflections/<int:reflection_id>/",
+        counselor_camper_reflections.CamperReflectionDetailView.as_view(),
+        name="counselor-camper-reflection-detail",
+    ),
+    path(
+        "counselor/self-reflection/",
+        counselor_self_reflection.SelfReflectionCreateView.as_view(),
+        name="counselor-self-reflection-create",
+    ),
+    path(
+        "counselor/self-reflection/<int:reflection_id>/",
+        counselor_self_reflection.SelfReflectionDetailView.as_view(),
+        name="counselor-self-reflection-detail",
+    ),
+    path(
+        "counselor/camper-care-requests/",
+        counselor_camper_care_requests.CamperCareRequestCreateView.as_view(),
+        name="counselor-camper-care-create",
+    ),
+    path(
+        "counselor/maintenance-tickets/",
+        counselor_maintenance_tickets.MaintenanceTicketCreateView.as_view(),
+        name="counselor-maintenance-ticket-create",
+    ),
+    path(
+        "counselor/maintenance-tickets/<uuid:ticket_id>/photos/",
+        counselor_maintenance_tickets.MaintenanceTicketPhotoCreateView.as_view(),
+        name="counselor-maintenance-ticket-photo-create",
     ),
 ]
 
