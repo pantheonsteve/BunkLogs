@@ -6,9 +6,12 @@ from datetime import date
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Case
 from django.db.models import Exists
+from django.db.models import IntegerField
 from django.db.models import OuterRef
 from django.db.models import Q
+from django.db.models import When
 from rest_framework import permissions
 from rest_framework import serializers
 from rest_framework import status
@@ -676,7 +679,19 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             tpl = (
                 ReflectionTemplate.objects.filter(role=role_for_tpl, is_active=True)
                 .filter(Q(program_type=prog.program_type) | Q(program_type__isnull=True))
-                .order_by("-version")
+                # Prefer org-specific templates over global fallbacks. Step 7_6
+                # ships a global counselor-self-reflection template that orgs
+                # may shadow with a customized version; ``org_priority`` is 0
+                # for org-scoped rows and 1 for globals, so the ORDER BY puts
+                # org-scoped first then latest version within each group.
+                .annotate(
+                    _org_priority=Case(
+                        When(organization__isnull=True, then=1),
+                        default=0,
+                        output_field=IntegerField(),
+                    ),
+                )
+                .order_by("_org_priority", "-version")
                 .first()
             )
             if tpl is None:
@@ -693,7 +708,14 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         tpl = (
             ReflectionTemplate.objects.filter(role=m.role, is_active=True)
             .filter(Q(program_type=prog.program_type) | Q(program_type__isnull=True))
-            .order_by("-version")
+            .annotate(
+                _org_priority=Case(
+                    When(organization__isnull=True, then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("_org_priority", "-version")
             .first()
         )
         if tpl is None:
@@ -719,7 +741,14 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         tpl = (
             ReflectionTemplate.objects.filter(role=m.role, is_active=True)
             .filter(Q(program_type=prog.program_type) | Q(program_type__isnull=True))
-            .order_by("-version")
+            .annotate(
+                _org_priority=Case(
+                    When(organization__isnull=True, then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("_org_priority", "-version")
             .first()
         )
         if tpl is None:
@@ -805,13 +834,39 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             ).select_related("group"),
         )
 
-        # Active templates for this org
-        templates = list(
+        # Active templates for this org. Org-scoped rows shadow globals
+        # for the same (role, cadence, subject_mode) tuple so a tenant
+        # that has customised a template doesn't double-count the global
+        # fallback (Step 7_6 ships a global counselor self-reflection
+        # template that orgs may override).
+        templates_qs = (
             ReflectionTemplate.objects.filter(
                 Q(organization=org) | Q(organization__isnull=True),
                 is_active=True,
-            ).order_by("name"),
+            )
+            .annotate(
+                _org_priority=Case(
+                    When(organization__isnull=True, then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("_org_priority", "-version", "name")
         )
+        templates: list[ReflectionTemplate] = []
+        _seen_keys: set[tuple] = set()
+        for tpl in templates_qs:
+            shadow_key = (
+                tpl.subject_mode,
+                tpl.cadence,
+                tpl.role or "",
+                tuple(sorted(tpl.author_role_filter or [])),
+                tuple(sorted(tpl.assignment_group_types or [])),
+            )
+            if shadow_key in _seen_keys:
+                continue
+            _seen_keys.add(shadow_key)
+            templates.append(tpl)
 
         tasks: list[dict] = []
 

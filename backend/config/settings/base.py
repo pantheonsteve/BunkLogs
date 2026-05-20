@@ -94,6 +94,11 @@ THIRD_PARTY_APPS = [
     "dj_rest_auth",
     "dj_rest_auth.registration",
     "drf_spectacular",
+    # ``storages`` ships the S3 backend used in production for maintenance-
+    # ticket photos (Step 7_6). It's safe to keep installed in dev too --
+    # without ``DJANGO_AWS_STORAGE_BUCKET_NAME`` set, default storage stays
+    # FileSystemStorage and ``storages`` is just an idle import.
+    "storages",
 ]
 
 LOCAL_APPS = [

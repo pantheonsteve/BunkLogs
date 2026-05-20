@@ -14,6 +14,7 @@ from bunk_logs.core.managers import AuditEventScopedManager
 from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
+from bunk_logs.core.managers import ProgramScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
 from bunk_logs.core.managers import SupervisionEventScopedManager
 from bunk_logs.core.managers import SupervisionManager
@@ -767,6 +768,18 @@ class Reflection(models.Model):
             "type may read the reflection (author and org admin always can)."
         ),
     )
+    client_submission_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Client-supplied idempotency key (Step 7_6 Story 7 criterion 6). "
+            "The frontend offline queue retries POSTs after reconnect; "
+            "the API short-circuits duplicates by returning the existing "
+            "row when (program, client_submission_id) already exists. "
+            "Null for server-side / legacy creations."
+        ),
+    )
 
     objects = OrgScopedManager()
     all_objects = models.Manager()  # noqa: DJ012
@@ -786,6 +799,11 @@ class Reflection(models.Model):
             models.CheckConstraint(
                 check=Q(period_end__gte=F("period_start")),
                 name="core_reflection_period_end_gte_period_start",
+            ),
+            models.UniqueConstraint(
+                fields=["program", "client_submission_id"],
+                condition=Q(client_submission_id__isnull=False),
+                name="core_reflection_client_submission_unique",
             ),
         ]
 
@@ -1245,7 +1263,32 @@ class Order(OrderableContent):
         related_name="cc_orders_submitted",
         help_text="Membership of the counselor / submitter.",
     )
+    item = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text=(
+            "Camper-care item requested (Story 7 criterion 2.ii). Free-text "
+            "with autocomplete on the client against ``OrderItemSuggestion`` "
+            "rows; the canonical value is stored here so admins maintaining "
+            "the suggestion list don't retroactively rewrite history."
+        ),
+    )
+    item_note = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional note from the requester (Story 7 criterion 2.iii).",
+    )
     description = models.TextField(blank=True)
+    client_submission_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Client-supplied idempotency key (Step 7_6 Story 7 criterion 6). "
+            "Unique with ``program`` so the offline queue can replay safely."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1258,6 +1301,13 @@ class Order(OrderableContent):
             models.Index(fields=["organization", "program", "status"]),
             models.Index(fields=["status", "created_at"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["program", "client_submission_id"],
+                condition=Q(client_submission_id__isnull=False),
+                name="core_order_client_submission_unique",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"Order {self.id} ({self.get_status_display()})"
@@ -1267,11 +1317,65 @@ class Order(OrderableContent):
         return "camper_care"
 
 
+class OrderItemSuggestion(models.Model):
+    """Curated camper-care item suggestion list (Story 7 criterion 2.ii, decision C6).
+
+    Admin maintains the list per ``program`` (Story 58). The Counselor form
+    pulls from here as autocomplete options; counselors can still type free
+    text. Storing per-program (not per-org) lets a TBE religious-school
+    program disable the surface entirely by leaving the table empty for
+    that program while Crane Lake summer 2026 has a populated list.
+    """
+
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="order_item_suggestions",
+    )
+    label = models.CharField(
+        max_length=120,
+        help_text="Canonical display label, e.g. 'Toothbrush'.",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Lower numbers appear first; ties break alphabetically.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ProgramScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("program", "label")]
+        ordering = ["sort_order", "label"]
+        indexes = [
+            models.Index(fields=["program", "is_active", "sort_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.label
+
+    @property
+    def organization(self):
+        return self.program.organization if self.program_id else None
+
+
 class MaintenanceTicket(OrderableContent):
     """Maintenance ticket — see Stories 30-36 and the order_state_machine spec.
 
-    Domain fields (location, photos, etc.) land in Step 7_10.
+    Counselor-side submission fields (location, category, photos, urgency
+    reason) land in Step 7_6; maintenance-team fulfillment surfaces land
+    in Step 7_10.
     """
+
+    class Category(models.TextChoices):
+        PLUMBING = "plumbing", "Clogged plumbing"
+        BROKEN_LIGHT = "broken_light", "Broken light"
+        PEST = "pest", "Pest / Insect"
+        LEAK = "leak", "Leak"
+        OTHER = "other", "Other"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(
@@ -1292,10 +1396,36 @@ class MaintenanceTicket(OrderableContent):
         related_name="maintenance_tickets_submitted",
     )
     title = models.CharField(max_length=255, blank=True)
+    location = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "Free-text camp location (Story 8 criterion 1.i). Defaults to "
+            "the submitter's bunk on the client; persisted as the canonical "
+            "value submitted so renames of bunks don't rewrite history."
+        ),
+    )
+    category = models.CharField(
+        max_length=24,
+        choices=Category.choices,
+        blank=True,
+        default="",
+        help_text="Triage category (Story 8 criterion 1.ii).",
+    )
     description = models.TextField(blank=True)
     urgent_reason = models.TextField(
         blank=True,
-        help_text="Required by API when urgency is 'urgent' (Story 32).",
+        help_text="Required by API when urgency is 'urgent' (Story 8 criterion 2).",
+    )
+    client_submission_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Client-supplied idempotency key (Step 7_6 Story 8 criterion 4). "
+            "Unique with ``program`` so the offline queue can replay safely."
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1309,13 +1439,191 @@ class MaintenanceTicket(OrderableContent):
             models.Index(fields=["organization", "program", "status"]),
             models.Index(fields=["urgency", "status", "created_at"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["program", "client_submission_id"],
+                condition=Q(client_submission_id__isnull=False),
+                name="core_maintenance_client_submission_unique",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"Ticket {self.id} ({self.get_status_display()})"
 
+    def clean(self) -> None:
+        super().clean()
+        if self.urgency == self.Urgency.URGENT and not (self.urgent_reason or "").strip():
+            raise ValidationError(
+                {"urgent_reason": "Required when urgency is 'urgent' (Story 8 criterion 2)."},
+            )
+
     @staticmethod
     def fulfilling_role() -> str:
         return "maintenance"
+
+
+def maintenance_ticket_photo_upload_path(instance: "TicketPhoto", filename: str) -> str:
+    """Per-org, per-ticket key for ticket photo uploads.
+
+    Layout keeps photos partitioned by organization so storage rules
+    (lifecycle, replication, retention) can attach at the org prefix
+    cleanly. Filename is the photo UUID + original extension so two
+    counselors uploading ``IMG_1234.jpg`` minutes apart don't collide.
+    """
+    suffix = ""
+    if "." in filename:
+        suffix = "." + filename.rsplit(".", 1)[-1].lower()
+    ticket_id = instance.ticket_id or "unknown"
+    org_slug = "unscoped"
+    if instance.ticket_id and instance.ticket.organization_id:
+        org_slug = instance.ticket.organization.slug or "unscoped"
+    return f"maintenance_tickets/{org_slug}/{ticket_id}/{instance.id}{suffix}"
+
+
+class TicketPhoto(models.Model):
+    """Photo attached to a :class:`MaintenanceTicket` (Story 8 criteria 1.iv, 3).
+
+    Stored via the configured default storage backend -- S3 in production
+    (see ``config/settings/production.py``) and the local filesystem in
+    dev / tests. Counselors can add follow-up photos to their own open
+    tickets per decision C5; the foreign key + ordering supports the
+    "follow-ups appear in order under the original" UX without us having
+    to model "primary vs follow-up" explicitly.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket = models.ForeignKey(
+        MaintenanceTicket,
+        on_delete=models.CASCADE,
+        related_name="photos",
+    )
+    image = models.ImageField(
+        upload_to=maintenance_ticket_photo_upload_path,
+        max_length=512,
+    )
+    caption = models.CharField(max_length=255, blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="maintenance_ticket_photos_uploaded",
+    )
+    is_followup = models.BooleanField(
+        default=False,
+        help_text=(
+            "True for photos added after the ticket was first submitted "
+            "(decision C5: Counselors can add follow-up photos)."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
+    all_objects = models.Manager()
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["ticket", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Photo {self.id} for ticket {self.ticket_id}"
+
+    @property
+    def organization(self):
+        return self.ticket.organization if self.ticket_id else None
+
+
+class CamperDayState(models.Model):
+    """Per-camper, per-date operational state set by UH or Camper Care.
+
+    Story 3 criterion 8 (decision C1): a camper marked "off camp today"
+    appears in a separate sub-section on the counselor's roster, does not
+    count toward "expected," and cannot have a reflection submitted for
+    them. UH and Camper Care set the flag; Counselors only read it.
+
+    Modelled as a date-keyed row rather than a flag on Membership so:
+
+    * future-dated absences (e.g. a parent calling ahead about Thursday)
+      can be recorded without affecting today's roster;
+    * Camper Care can keep a brief reason note alongside the flag;
+    * the audit trail captures who marked it via ``set_by_membership`` and
+      the cross-cutting :class:`AuditEvent` written by the view layer.
+
+    The unique ``(camper, date, organization)`` constraint makes upserts
+    safe -- toggling off-camp twice on the same date updates the existing
+    row rather than creating duplicates.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="camper_day_states",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="camper_day_states",
+    )
+    camper = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="day_states",
+        help_text="The camper (Person) whose state this row records.",
+    )
+    date = models.DateField(
+        help_text="Operational date (per org rollover). One row per camper per date.",
+    )
+    is_off_camp = models.BooleanField(
+        default=False,
+        help_text="True when the camper is marked off-camp for the date.",
+    )
+    reason = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "Optional context (e.g. 'home visit', 'medical leave'). Visible "
+            "to UH, Camper Care, Leadership Team, Admin -- not surfaced to "
+            "Counselors in the roster row."
+        ),
+    )
+    set_by_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="camper_day_states_set",
+        help_text="Membership of the UH / Camper Care who toggled the flag.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("organization", "camper", "date")]
+        ordering = ["-date", "camper_id"]
+        indexes = [
+            models.Index(fields=["program", "date", "is_off_camp"]),
+            models.Index(fields=["camper", "date"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.camper_id} on {self.date} (off_camp={self.is_off_camp})"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.program_id and self.organization_id and self.program.organization_id != self.organization_id:
+            raise ValidationError(
+                {"program": "Program must belong to the same organization."},
+            )
+        if self.camper_id and self.organization_id and self.camper.organization_id != self.organization_id:
+            raise ValidationError(
+                {"camper": "Camper must belong to the same organization."},
+            )
 
 
 class OrderActivityEvent(models.Model):

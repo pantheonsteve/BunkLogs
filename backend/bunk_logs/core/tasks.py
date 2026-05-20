@@ -11,7 +11,10 @@ from typing import Any
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.db.models import Case
+from django.db.models import IntegerField
 from django.db.models import Q
+from django.db.models import When
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -137,14 +140,41 @@ def send_reflection_reminders(self, program_id: int, role: str | None = None) ->
         logger.exception("send_reflection_reminders: program %s not found", program_id)
         return {"error": f"Program {program_id} not found"}
 
-    template_qs = ReflectionTemplate.all_objects.filter(
-        is_active=True,
-        program_type=program.program_type,
-    ).filter(
-        Q(organization=program.organization) | Q(organization__isnull=True),
+    template_qs = (
+        ReflectionTemplate.all_objects.filter(
+            is_active=True,
+            program_type=program.program_type,
+        )
+        .filter(Q(organization=program.organization) | Q(organization__isnull=True))
+        # Same shadow rule as ``ReflectionViewSet.my_tasks``: when an org
+        # has customised a template that overlaps a global one, the global
+        # is hidden so staff aren't reminded twice for the same role/cadence.
+        .annotate(
+            _org_priority=Case(
+                When(organization__isnull=True, then=1),
+                default=0,
+                output_field=IntegerField(),
+            ),
+        )
+        .order_by("_org_priority", "-version", "name")
     )
     if role:
         template_qs = template_qs.filter(Q(role=role) | Q(role__isnull=True))
+
+    seen_shadow: set[tuple] = set()
+    deduped_templates = []
+    for tpl in template_qs:
+        shadow_key = (
+            tpl.subject_mode,
+            tpl.cadence,
+            tpl.role or "",
+            tuple(sorted(tpl.author_role_filter or [])),
+            tuple(sorted(tpl.assignment_group_types or [])),
+        )
+        if shadow_key in seen_shadow:
+            continue
+        seen_shadow.add(shadow_key)
+        deduped_templates.append(tpl)
 
     membership_qs = (
         Membership.all_objects.filter(program=program, is_active=True)
@@ -156,7 +186,7 @@ def send_reflection_reminders(self, program_id: int, role: str | None = None) ->
 
     results: dict = {"sent": 0, "skipped": 0, "errors": 0}
 
-    for template in template_qs:
+    for template in deduped_templates:
         target = membership_qs.filter(role=template.role) if template.role else membership_qs
 
         already_submitted = Reflection.all_objects.filter(

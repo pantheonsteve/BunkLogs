@@ -7,6 +7,13 @@ python-dotenv==1.0.1
 celery==5.4.0  # https://github.com/celery/celery
 django-celery-beat==2.7.0  # https://github.com/celery/django-celery-beat
 
+# File storage (Step 7_6 maintenance-ticket photos)
+# ------------------------------------------------------------------------------
+# S3 backend is opt-in via DJANGO_AWS_STORAGE_BUCKET_NAME; without it the
+# default storage stays FileSystemStorage so local dev / tests don't need
+# AWS credentials. boto3 is pulled in transitively by django-storages[s3].
+django-storages[s3]==1.14.5  # https://github.com/jschneier/django-storages
+
 # Django
 # ------------------------------------------------------------------------------
 django==5.0.13  # pyup: < 5.1  # https://www.djangoproject.com/

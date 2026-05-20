@@ -60,7 +60,7 @@ class TestSeedRoleTemplateCommand:
         Organization.objects.create(name="Test Org", slug="test-org-dry")
         path = tmp_path / "t.json"
         path.write_text(json.dumps(_minimal_template_payload()), encoding="utf-8")
-        assert ReflectionTemplate.all_objects.count() == 0
+        before = ReflectionTemplate.all_objects.count()
         call_command(
             "seed_role_template",
             org_slug="test-org-dry",
@@ -69,7 +69,7 @@ class TestSeedRoleTemplateCommand:
             dry_run=True,
             stdout=StringIO(),
         )
-        assert ReflectionTemplate.all_objects.count() == 0
+        assert ReflectionTemplate.all_objects.count() == before
 
     def test_invalid_schema_clear_error(self, tmp_path: Path):
         Organization.objects.create(name="Test Org", slug="test-org-bad")
@@ -97,10 +97,7 @@ class TestSeedRoleTemplateCommand:
             template_file=str(path),
             stdout=StringIO(),
         )
-        first_pk = ReflectionTemplate.all_objects.get(
-            organization=org,
-            slug="test-weekly-seed",
-        ).pk
+        first_pk = ReflectionTemplate.all_objects.get(organization=org).pk
         assert ReflectionTemplate.all_objects.count() == 1
         out2 = StringIO()
         call_command(
@@ -111,10 +108,7 @@ class TestSeedRoleTemplateCommand:
             stdout=out2,
         )
         assert ReflectionTemplate.all_objects.count() == 1
-        second_pk = ReflectionTemplate.all_objects.get(
-            organization=org,
-            slug="test-weekly-seed",
-        ).pk
+        second_pk = ReflectionTemplate.all_objects.get(organization=org).pk
         assert first_pk == second_pk
         assert "Updated" in out2.getvalue()
 
