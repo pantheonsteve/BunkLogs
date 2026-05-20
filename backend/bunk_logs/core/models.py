@@ -13,6 +13,8 @@ from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
+from bunk_logs.core.managers import SupervisionEventScopedManager
+from bunk_logs.core.managers import SupervisionManager
 from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.state_machine import TransitionPlan
 from bunk_logs.core.validators.template_schema import ALL_FIELD_TYPES
@@ -1314,3 +1316,357 @@ class OrderActivityEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} on {self.content_type}:{self.content_id}"
+
+
+# ---------------------------------------------------------------------------
+# Supervision primitive (Step 7_3)
+# ---------------------------------------------------------------------------
+
+# Capabilities allowed to *be* supervisors. ``admin`` can supervise anything;
+# ``supervisor`` covers UH / faculty / camper_care (caseload); ``program_lead``
+# covers LT / Director-of-Madrichim. ``domain_specialist`` and ``participant``
+# capabilities are not supervisors and are rejected at validation time.
+SUPERVISOR_CAPABILITIES: frozenset[str] = frozenset(
+    {"supervisor", "program_lead", "admin"},
+)
+
+
+class Supervision(models.Model):
+    """A supervision relationship between a supervisor Membership and a target.
+
+    One primitive covers four patterns (see ``core/SUPERVISION.md``):
+
+    * UH -> Counselor (``target_type=MEMBERSHIP``)
+    * Camper Care -> Caseload Bunk (``target_type=BUNK``)
+    * LT -> team-by-role (``target_type=ROLE_IN_PROGRAM``)
+    * Director -> Madrich cohort (``target_type=ROLE_IN_PROGRAM``)
+
+    Multiple supervisors per target is supported; the model is many one-to-many
+    rows that share the same target. End-dating a row is the only modification
+    permitted after creation -- see ``api.supervisions`` for the gate.
+    """
+
+    class TargetType(models.TextChoices):
+        MEMBERSHIP = "membership", "Membership (direct supervisee)"
+        ROLE_IN_PROGRAM = "role_in_program", "Role in program (team-by-role)"
+        BUNK = "bunk", "Bunk (caseload entry)"
+
+    supervisor_membership = models.ForeignKey(
+        Membership,
+        on_delete=models.CASCADE,
+        related_name="supervises",
+        help_text="Membership of the supervising role.",
+    )
+    target_type = models.CharField(
+        max_length=24,
+        choices=TargetType.choices,
+        db_index=True,
+    )
+    target_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="supervised_by",
+        help_text="Target Membership when target_type=MEMBERSHIP.",
+    )
+    target_role = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text=(
+            "Target Membership.role string when target_type=ROLE_IN_PROGRAM. "
+            "Must be one of Membership.ROLES."
+        ),
+    )
+    target_program = models.ForeignKey(
+        Program,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="supervisions_scoped_to_role",
+        help_text="Program scoping the role; required when target_type=ROLE_IN_PROGRAM.",
+    )
+    target_bunk = models.ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="caseload_supervisions",
+        help_text=(
+            "AssignmentGroup with group_type='bunk' when target_type=BUNK. "
+            "Spec uses 'Bunk' as shorthand; new code targets AssignmentGroup."
+        ),
+    )
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = SupervisionManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["supervisor_membership", "target_type"]),
+            models.Index(fields=["target_membership"]),
+            models.Index(fields=["target_program", "target_role"]),
+            models.Index(fields=["target_bunk"]),
+            models.Index(fields=["start_date", "end_date"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(end_date__isnull=True) | Q(end_date__gte=F("start_date")),
+                name="core_supervision_end_date_gte_start_date",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.supervisor_membership} -> {self._target_repr()}"
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def _target_repr(self) -> str:
+        if self.target_type == self.TargetType.MEMBERSHIP:
+            return f"membership:{self.target_membership_id}"
+        if self.target_type == self.TargetType.ROLE_IN_PROGRAM:
+            return f"role:{self.target_role}@program:{self.target_program_id}"
+        return f"bunk:{self.target_bunk_id}"
+
+    def is_active(self, today=None) -> bool:
+        from django.utils import timezone
+
+        ref = today or timezone.now().date()
+        if self.start_date and self.start_date > ref:
+            return False
+        return not (self.end_date is not None and self.end_date < ref)
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, str] = {}
+
+        if self.supervisor_membership_id and (
+            self.supervisor_membership.capability not in SUPERVISOR_CAPABILITIES
+        ):
+            errors["supervisor_membership"] = (
+                "Supervisor must have a supervisor / program_lead / admin "
+                f"capability (got {self.supervisor_membership.capability!r})."
+            )
+
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            errors["end_date"] = "End date must be on or after start date."
+
+        # Target fields must match target_type. Exactly one set of fields is
+        # required; the others must be empty so accidental cross-wiring is
+        # caught at the model layer instead of via a runtime KeyError later.
+        if self.target_type == self.TargetType.MEMBERSHIP:
+            if not self.target_membership_id:
+                errors["target_membership"] = (
+                    "target_membership is required when target_type=MEMBERSHIP."
+                )
+            if self.target_role:
+                errors["target_role"] = (
+                    "target_role must be empty when target_type=MEMBERSHIP."
+                )
+            if self.target_program_id:
+                errors["target_program"] = (
+                    "target_program must be empty when target_type=MEMBERSHIP."
+                )
+            if self.target_bunk_id:
+                errors["target_bunk"] = (
+                    "target_bunk must be empty when target_type=MEMBERSHIP."
+                )
+        elif self.target_type == self.TargetType.ROLE_IN_PROGRAM:
+            if not self.target_role:
+                errors["target_role"] = (
+                    "target_role is required when target_type=ROLE_IN_PROGRAM."
+                )
+            elif self.target_role not in {r for r, _ in Membership.ROLES}:
+                errors["target_role"] = (
+                    f"target_role {self.target_role!r} is not a known "
+                    "Membership.role value."
+                )
+            if not self.target_program_id:
+                errors["target_program"] = (
+                    "target_program is required when target_type=ROLE_IN_PROGRAM."
+                )
+            if self.target_membership_id:
+                errors["target_membership"] = (
+                    "target_membership must be empty when target_type=ROLE_IN_PROGRAM."
+                )
+            if self.target_bunk_id:
+                errors["target_bunk"] = (
+                    "target_bunk must be empty when target_type=ROLE_IN_PROGRAM."
+                )
+        elif self.target_type == self.TargetType.BUNK:
+            if not self.target_bunk_id:
+                errors["target_bunk"] = (
+                    "target_bunk is required when target_type=BUNK."
+                )
+            elif self.target_bunk.group_type != "bunk":
+                errors["target_bunk"] = (
+                    "target_bunk must be an AssignmentGroup with group_type='bunk'."
+                )
+            if self.target_membership_id:
+                errors["target_membership"] = (
+                    "target_membership must be empty when target_type=BUNK."
+                )
+            if self.target_program_id:
+                errors["target_program"] = (
+                    "target_program must be empty when target_type=BUNK."
+                )
+            if self.target_role:
+                errors["target_role"] = (
+                    "target_role must be empty when target_type=BUNK."
+                )
+        else:
+            errors["target_type"] = f"Unknown target_type {self.target_type!r}."
+
+        # Cross-organization checks: every leg of the relationship must live
+        # in the same organization as the supervisor's program.
+        sup_org_id = (
+            self.supervisor_membership.program.organization_id
+            if self.supervisor_membership_id
+            else None
+        )
+        if sup_org_id is not None:
+            if (
+                self.target_membership_id
+                and self.target_membership.program.organization_id != sup_org_id
+            ):
+                errors["target_membership"] = (
+                    "Target Membership must belong to the same organization."
+                )
+            if (
+                self.target_program_id
+                and self.target_program.organization_id != sup_org_id
+            ):
+                errors["target_program"] = (
+                    "Target Program must belong to the same organization."
+                )
+            if (
+                self.target_bunk_id
+                and self.target_bunk.organization_id != sup_org_id
+            ):
+                errors["target_bunk"] = (
+                    "Target Bunk must belong to the same organization."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+
+class SupervisionEvent(models.Model):
+    """Append-only audit log for ``Supervision`` create / modify / end events.
+
+    Forward-compatible stand-in for the cross-cutting ``AuditEvent`` model
+    landing in Step 7_4. The column shape mirrors ``AuditEvent`` so the
+    backfill is mechanical: copy rows over, point new writes at the audit
+    module, then drop this table in a follow-up.
+    """
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Supervision created"
+        MODIFIED = "modified", "Supervision modified"
+        ENDED = "ended", "Supervision ended"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="supervision_events",
+    )
+    supervision = models.ForeignKey(
+        Supervision,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    actor_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="supervision_events_actor",
+    )
+    actor_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="supervision_events",
+    )
+    event_type = models.CharField(
+        max_length=24,
+        choices=EventType.choices,
+        db_index=True,
+    )
+    before_state = models.JSONField(default=dict, blank=True)
+    after_state = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = SupervisionEventScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["supervision", "created_at"]),
+            models.Index(fields=["organization", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} on supervision:{self.supervision_id}"
+
+
+def record_supervision_event(
+    *,
+    supervision: Supervision,
+    event_type: str,
+    actor_membership: Membership | None = None,
+    actor_user=None,
+    before_state: dict | None = None,
+    after_state: dict | None = None,
+    metadata: dict | None = None,
+) -> SupervisionEvent:
+    """Helper used by the API layer to write supervision audit rows.
+
+    Lives next to the model so call sites stay terse and Step 7_4 has a
+    single place to swap the implementation when ``AuditEvent`` lands.
+    """
+    org = supervision.supervisor_membership.program.organization
+    return SupervisionEvent.all_objects.create(
+        organization=org,
+        supervision=supervision,
+        actor_membership=actor_membership,
+        actor_user=actor_user,
+        event_type=event_type,
+        before_state=before_state or {},
+        after_state=after_state or {},
+        metadata=metadata or {},
+    )
+
+
+def supervision_snapshot(supervision: Supervision) -> dict:
+    """Compact, JSON-serializable snapshot of a Supervision row.
+
+    Used for ``before_state`` / ``after_state`` in audit events. Kept here so
+    the shape stays consistent across create / modify / end paths.
+    """
+    return {
+        "supervisor_membership_id": supervision.supervisor_membership_id,
+        "target_type": supervision.target_type,
+        "target_membership_id": supervision.target_membership_id,
+        "target_role": supervision.target_role,
+        "target_program_id": supervision.target_program_id,
+        "target_bunk_id": supervision.target_bunk_id,
+        "start_date": (
+            supervision.start_date.isoformat() if supervision.start_date else None
+        ),
+        "end_date": (
+            supervision.end_date.isoformat() if supervision.end_date else None
+        ),
+    }
