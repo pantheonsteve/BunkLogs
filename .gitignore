@@ -150,6 +150,9 @@ github-actions-key.json
 *.json
 !templates/reflection_templates/*.json
 !templates/reflection_templates/**/*.json
+# i18n locale bundles (Step 7_5) -- shipped in-repo so the Vite build can
+# import them and CI can run parity checks against the English baseline.
+!frontend/src/locales/**/*.json
 backend/.env
 llm_context/
 

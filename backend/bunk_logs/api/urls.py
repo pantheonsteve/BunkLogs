@@ -7,6 +7,7 @@ from bunk_logs.users.api.views import UserViewSet
 from . import assignment_groups
 from . import audit as audit_api
 from . import field_keys as field_keys_api
+from . import me as me_api
 from . import memberships
 from . import orders_state_machine as order_sm
 from . import reflections
@@ -89,6 +90,9 @@ urlpatterns = [
 
     # User registration (public)
     path("users/create/", views.UserCreate.as_view(), name="user-create"),
+
+    # Per-user i18n preferences (Step 7_5)
+    path("me/preferences/", me_api.MePreferencesView.as_view(), name="me-preferences"),
 
     # User lookup by email (used by several frontend components)
     path("users/email/<str:email>/", views.get_user_by_email, name="user-by-email"),

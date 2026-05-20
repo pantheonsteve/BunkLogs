@@ -1,0 +1,19 @@
+{
+  "title": "Kitchen Staff",
+  "dashboard": {
+    "heading": "Today's reflections",
+    "empty": "No reflections submitted today.",
+    "loading": "Loading reflections…",
+    "loadFailed": "Could not load reflections.",
+    "submittedBy": "Submitted by {{name}}",
+    "submittedAt": "Submitted {{time}}"
+  },
+  "form": {
+    "newReflection": "New reflection",
+    "promptHeading": "Today's question",
+    "answerPlaceholder": "Write your answer here…",
+    "submit": "Submit reflection",
+    "saved": "Saved",
+    "saveFailed": "Could not save"
+  }
+}

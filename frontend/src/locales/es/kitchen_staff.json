@@ -1,0 +1,19 @@
+{
+  "title": "Personal de cocina",
+  "dashboard": {
+    "heading": "Reflexiones de hoy",
+    "empty": "Hoy no se han enviado reflexiones.",
+    "loading": "Cargando reflexiones…",
+    "loadFailed": "No se pudieron cargar las reflexiones.",
+    "submittedBy": "Enviado por {{name}}",
+    "submittedAt": "Enviado {{time}}"
+  },
+  "form": {
+    "newReflection": "Nueva reflexión",
+    "promptHeading": "Pregunta de hoy",
+    "answerPlaceholder": "Escribe tu respuesta aquí…",
+    "submit": "Enviar reflexión",
+    "saved": "Guardado",
+    "saveFailed": "No se pudo guardar"
+  }
+}
