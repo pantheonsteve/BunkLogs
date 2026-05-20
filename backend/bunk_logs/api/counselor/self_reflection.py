@@ -13,17 +13,31 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import reflection_snapshot
+from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 from .common import counselor_self_template
+from .common import enforce_edit_window
+from .common import find_existing_by_client_submission_id
+from .common import invalidate_dashboard_for_viewers
 from .common import is_day_off_answer
 from .common import viewer_or_403
+from .responses import reflection_response
+from .serializers import SelfReflectionCreateSerializer
+from .serializers import SelfReflectionUpdateSerializer
 
 
 class SelfReflectionHistoryPagination(PageNumberPagination):
@@ -150,3 +164,195 @@ class SelfReflectionHistoryView(APIView):
             "page_size": page_size,
             "results": results,
         })
+
+
+def _day_off_answers() -> dict:
+    """Canonical "day off" answer payload (Story 5 criterion 3)."""
+    return {"day_off": True}
+
+
+def _resolve_self_program_and_template(viewer, org):
+    primary_membership = (
+        Membership.objects.filter(person=viewer, is_active=True)
+        .select_related("program")
+        .order_by("-created_at")
+        .first()
+    )
+    if primary_membership is None or primary_membership.program is None:
+        msg = "No active program membership."
+        raise PermissionDenied(msg)
+    program = primary_membership.program
+    template = counselor_self_template(viewer, org, program)
+    if template is None:
+        msg = "No counselor self-reflection template configured."
+        raise PermissionDenied(msg)
+    return primary_membership, program, template
+
+
+class SelfReflectionCreateView(APIView):
+    """POST a counselor self-reflection for today (Story 5)."""
+
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["post", "head", "options"]
+
+    def post(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        viewer, org, today = ctx.person, ctx.organization, ctx.today
+
+        serializer = SelfReflectionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+
+        membership, program, template = _resolve_self_program_and_template(viewer, org)
+
+        existing = find_existing_by_client_submission_id(
+            Reflection, program=program,
+            client_submission_id=payload["client_submission_id"],
+        )
+        if existing is not None:
+            return Response(reflection_response(existing), status=status.HTTP_200_OK)
+
+        # ``day_off`` is the documented shortcut: minimal payload, marked
+        # complete, no further validation of the rest of the schema.
+        if payload["day_off"]:
+            answers = _day_off_answers()
+        else:
+            answers = payload.get("answers") or {}
+            try:
+                validate_reflection_answers(template.schema, answers)
+            except DjangoValidationError as e:
+                return Response(
+                    e.message_dict if hasattr(e, "message_dict") else {"answers": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        with transaction.atomic():
+            reflection = Reflection(
+                organization=org,
+                program=program,
+                subject=viewer,
+                author=viewer,
+                assignment_group=None,
+                template=template,
+                submitted_by=request.user,
+                period_start=today,
+                period_end=today,
+                answers=answers,
+                language=payload["language"],
+                team_visibility=Reflection.TeamVisibility.TEAM,
+                is_complete=True,
+                client_submission_id=payload["client_submission_id"],
+            )
+            try:
+                reflection.full_clean()
+            except DjangoValidationError as e:
+                return Response(
+                    e.message_dict if hasattr(e, "message_dict") else str(e),
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            reflection.save()
+
+        audit_module.created(
+            membership,
+            reflection,
+            after_state=reflection_snapshot(reflection),
+            content_type="reflection",
+        )
+        if not payload["day_off"]:
+            enqueue_translation_for_reflection(reflection)
+        invalidate_dashboard_for_viewers(org, {viewer.id}, today)
+
+        return Response(reflection_response(reflection), status=status.HTTP_201_CREATED)
+
+
+class SelfReflectionDetailView(APIView):
+    """PATCH a self-reflection within today's edit window (Story 6)."""
+
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["patch", "head", "options"]
+
+    def patch(self, request, reflection_id: int, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        viewer, org, today = ctx.person, ctx.organization, ctx.today
+
+        reflection = (
+            Reflection.all_objects.filter(id=reflection_id, organization=org)
+            .select_related("template", "program")
+            .first()
+        )
+        if reflection is None:
+            return Response(
+                {"detail": "Reflection not found."}, status=status.HTTP_404_NOT_FOUND,
+            )
+        if reflection.author_id != viewer.id or reflection.subject_id != viewer.id:
+            msg = "You can only edit your own self-reflection."
+            raise PermissionDenied(msg)
+        enforce_edit_window(reflection, org)
+
+        serializer = SelfReflectionUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+
+        before = reflection_snapshot(reflection)
+
+        if "day_off" in payload:
+            if payload["day_off"]:
+                answers = _day_off_answers()
+            else:
+                answers = payload.get("answers") or reflection.answers or {}
+                try:
+                    validate_reflection_answers(reflection.template.schema, answers)
+                except DjangoValidationError as e:
+                    return Response(
+                        e.message_dict if hasattr(e, "message_dict") else {"answers": str(e)},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        elif "answers" in payload:
+            answers = payload["answers"]
+            try:
+                validate_reflection_answers(reflection.template.schema, answers)
+            except DjangoValidationError as e:
+                return Response(
+                    e.message_dict if hasattr(e, "message_dict") else {"answers": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            answers = reflection.answers
+
+        language = payload.get("language", reflection.language)
+
+        reflection.answers = answers
+        reflection.language = language
+        try:
+            reflection.full_clean()
+        except DjangoValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, "message_dict") else str(e),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reflection.save()
+        after = reflection_snapshot(reflection)
+
+        if before != after:
+            actor_membership = (
+                Membership.objects.filter(
+                    person=viewer, program=reflection.program, is_active=True,
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            audit_module.edited(
+                actor_membership or request.user,
+                reflection,
+                before,
+                after,
+                content_type="reflection",
+            )
+        if (
+            before.get("answers") != after.get("answers")
+            or before.get("language") != after.get("language")
+        ) and not is_day_off_answer(reflection):
+            enqueue_translation_for_reflection(reflection)
+        invalidate_dashboard_for_viewers(org, {viewer.id}, today)
+
+        return Response(reflection_response(reflection), status=status.HTTP_200_OK)

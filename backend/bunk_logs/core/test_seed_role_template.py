@@ -98,7 +98,9 @@ class TestSeedRoleTemplateCommand:
             stdout=StringIO(),
         )
         first_pk = ReflectionTemplate.all_objects.get(organization=org).pk
-        assert ReflectionTemplate.all_objects.count() == 1
+        # Filter to this org's template (the global counselor-self-reflection
+        # template seeded by migration 0029 lives at organization=None).
+        assert ReflectionTemplate.all_objects.filter(organization=org).count() == 1
         out2 = StringIO()
         call_command(
             "seed_role_template",
@@ -107,7 +109,7 @@ class TestSeedRoleTemplateCommand:
             template_file=str(path),
             stdout=out2,
         )
-        assert ReflectionTemplate.all_objects.count() == 1
+        assert ReflectionTemplate.all_objects.filter(organization=org).count() == 1
         second_pk = ReflectionTemplate.all_objects.get(organization=org).pk
         assert first_pk == second_pk
         assert "Updated" in out2.getvalue()

@@ -479,6 +479,14 @@ def test_dashboard_self_section_day_off_counts_as_complete(
 def test_dashboard_self_section_none_when_no_template(
     org, counselor_user, counselor_person, counselor_membership,
 ):
+    # Strip the global counselor self-reflection template seeded by
+    # migration 0029 so this scenario can exercise the "no template
+    # configured at all" path. Org-scoped tenants without any
+    # applicable template still hit the same branch in production
+    # (e.g. a religious-school program with no counselors).
+    ReflectionTemplate.all_objects.filter(
+        organization__isnull=True, slug="counselor-self-reflection",
+    ).delete()
     c = _client(counselor_user, org)
     with organization_context(org):
         resp = c.get("/api/v1/counselor/dashboard/?nocache=1")

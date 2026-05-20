@@ -14,6 +14,7 @@ from datetime import date  # noqa: TC003 - used in dataclass field type
 from datetime import datetime  # noqa: TC003 - used in keyword-only arg default annotation
 from typing import TYPE_CHECKING
 
+from django.core.cache import cache
 from django.db.models import Case
 from django.db.models import IntegerField
 from django.db.models import Q
@@ -317,6 +318,98 @@ def latest_self_reflection(
         .order_by("-submitted_at")
         .first()
     )
+
+
+def enforce_edit_window(
+    reflection: Reflection,
+    organization: Organization,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """Raise ``PermissionDenied`` if the reflection is outside today's edit window.
+
+    Companion to ``is_editable_today`` for write endpoints. Stories 4 & 6:
+    edits allowed iff the reflection's period still includes "today" (rollover
+    aware). The bool helper lights up the Edit affordance on the read side;
+    this helper enforces it on the write side.
+    """
+    if is_editable_today(reflection, organization, now=now):
+        return
+    msg = "This reflection can no longer be edited (the edit window has closed)."
+    raise PermissionDenied(msg)
+
+
+def viewer_can_edit_camper_reflection(
+    viewer: Person,
+    reflection: Reflection,
+) -> bool:
+    """Story 4 criterion 2: any active bunk author may edit today's submissions.
+
+    Not just the original author — the second counselor on the same bunk also
+    has Edit. Permission is gated on current author-membership of the
+    reflection's ``assignment_group``; the viewer does not need to have been
+    an author when the row was created.
+    """
+    if reflection.assignment_group_id is None:
+        return False
+    return AssignmentGroupMembership.objects.filter(
+        group_id=reflection.assignment_group_id,
+        person=viewer,
+        role_in_group="author",
+        is_active=True,
+    ).exists()
+
+
+def dashboard_cache_key(viewer_id: int, organization_id: int, today: date) -> str:
+    """Canonical key for the counselor dashboard cache.
+
+    Single source of truth so write paths can target the same keys the
+    dashboard view writes. Format mirrors the prior inline key in
+    ``dashboard.py``; the prefix exists so future flush hooks can wildcard
+    on ``counselor_dashboard:`` if we add a cache backend that supports it.
+    """
+    return f"counselor_dashboard:{organization_id}:{viewer_id}:{today.isoformat()}"
+
+
+def invalidate_dashboard_for_viewers(
+    organization: Organization,
+    viewer_ids: list[int] | set[int],
+    today: date,
+) -> None:
+    """Delete dashboard cache entries for the given viewers on ``today``.
+
+    Write endpoints call this after a successful create/update so the
+    affected counselor (and any co-counselors whose all-set state changed)
+    see fresh data within seconds. Deliberately limited to "today" — past
+    cache entries are TTL-expired well before being meaningful.
+    """
+    if not viewer_ids:
+        return
+    keys = [dashboard_cache_key(vid, organization.id, today) for vid in viewer_ids]
+    cache.delete_many(keys)
+
+
+def find_existing_by_client_submission_id(
+    manager,
+    *,
+    program,
+    client_submission_id,
+):
+    """Idempotent replay lookup for write endpoints.
+
+    Returns the existing row if ``(program, client_submission_id)`` already
+    has one, else ``None``. Callers should serialize the existing row with
+    HTTP 200 (not 201) per the 7_6 spec contract — clients retrying a flaky
+    POST get the same canonical record back instead of duplicate writes.
+
+    Uses ``all_objects`` so soft-deleted rows still match and block silent
+    duplicate creation; if you need to handle resurrection that's a separate
+    contract.
+    """
+    if not client_submission_id or program is None:
+        return None
+    base = getattr(manager, "all_objects", manager)
+    return base.filter(program=program, client_submission_id=client_submission_id).first()
 
 
 def person_display_name(person: Person | None) -> str:
