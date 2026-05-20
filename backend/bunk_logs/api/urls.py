@@ -14,6 +14,10 @@ from . import reflections
 from . import supervisions as supervisions_api
 from . import templates as templates_api
 from . import views
+from .counselor import camper_reflections as counselor_camper_reflections
+from .counselor import dashboard as counselor_dashboard
+from .counselor import requests as counselor_requests
+from .counselor import self_reflection as counselor_self_reflection
 from .dashboards import authors as authors_dashboard
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
@@ -166,6 +170,28 @@ urlpatterns = [
     # Unit head and camper care dashboard endpoints
     path("unithead/<str:unithead_id>/<str:date>/", views.get_unit_head_bunks, name="unit-head-bunks"),
     path("campercare/<str:camper_care_id>/<str:date>/", views.get_camper_care_bunks, name="camper-care-bunks"),
+
+    # Counselor flow read endpoints (Step 7_6b)
+    path(
+        "counselor/dashboard/",
+        counselor_dashboard.CounselorDashboardView.as_view(),
+        name="counselor-dashboard",
+    ),
+    path(
+        "counselor/camper-reflections/",
+        counselor_camper_reflections.CamperReflectionListView.as_view(),
+        name="counselor-camper-reflections",
+    ),
+    path(
+        "counselor/self-reflection/history/",
+        counselor_self_reflection.SelfReflectionHistoryView.as_view(),
+        name="counselor-self-reflection-history",
+    ),
+    path(
+        "counselor/requests/",
+        counselor_requests.CounselorRequestsListView.as_view(),
+        name="counselor-requests",
+    ),
 ]
 
 app_name = "api"
