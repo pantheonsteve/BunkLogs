@@ -4,6 +4,7 @@ from typing import Any
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db import transaction
 from django.db.models import F
 from django.db.models import Q
 
@@ -12,6 +13,8 @@ from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
+from bunk_logs.core.state_machine import OrderStateMachine
+from bunk_logs.core.state_machine import TransitionPlan
 from bunk_logs.core.validators.template_schema import ALL_FIELD_TYPES
 from bunk_logs.core.validators.template_schema import META_FIELD_TYPES
 from bunk_logs.core.validators.template_schema import validate_template_coherence
@@ -921,3 +924,393 @@ class FieldKey(models.Model):
     def __str__(self) -> str:
         scope = self.organization.slug if self.organization_id else "global"
         return f"{self.key} ({scope})"
+
+
+class OrderableContent(models.Model):
+    """Abstract mixin: shared status + state-machine integration for order-like content.
+
+    Concrete subclasses provide the rest of the domain model (subject, location,
+    description, photos, etc.); this mixin owns the lifecycle. State changes
+    must go through :py:meth:`transition_to` so the audit trail stays in sync.
+    """
+
+    class Status(models.TextChoices):
+        NEW = OrderStateMachine.NEW, "New"
+        IN_PROGRESS = OrderStateMachine.IN_PROGRESS, "In Progress"
+        FULFILLED = OrderStateMachine.FULFILLED, "Fulfilled"
+        UNABLE_TO_FULFILL = OrderStateMachine.UNABLE_TO_FULFILL, "Unable to Fulfill"
+
+    class Urgency(models.TextChoices):
+        LOW = "low", "Low"
+        NORMAL = "normal", "Normal"
+        URGENT = "urgent", "Urgent"
+
+    status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        default=Status.NEW,
+        db_index=True,
+    )
+    urgency = models.CharField(
+        max_length=16,
+        choices=Urgency.choices,
+        blank=True,
+        default="",
+        help_text=(
+            "Optional priority. Used by Maintenance tickets; left blank "
+            "for Camper Care orders unless the program opts in."
+        ),
+    )
+    last_transition_at = models.DateTimeField(null=True, blank=True)
+    last_transition_by = models.ForeignKey(
+        "core.Membership",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Membership of the actor who applied the most recent transition.",
+    )
+
+    class Meta:
+        abstract = True
+
+    def _content_type_label(self) -> str:
+        """Stable string identifier used by activity/audit events.
+
+        Defaults to the model's class name in snake_case (``order``,
+        ``maintenance_ticket``); subclasses may override to pin a different
+        label across renames.
+        """
+        name = self.__class__.__name__
+        out = []
+        for i, ch in enumerate(name):
+            if ch.isupper() and i > 0:
+                out.append("_")
+            out.append(ch.lower())
+        return "".join(out)
+
+    def transition_to(
+        self,
+        new_state: str,
+        *,
+        actor,
+        note: str | None = None,
+        reason: str | None = None,
+    ) -> "OrderActivityEvent":
+        """Validate via :class:`OrderStateMachine`, persist the new status,
+        and record an :class:`OrderActivityEvent`.
+
+        ``actor`` may be a :class:`Membership` or anything with ``user`` and
+        ``program`` attrs (callers in tests sometimes pass a stub). The actor's
+        program must match the order's program; cross-org actors are rejected.
+        """
+        plan: TransitionPlan = TransitionPlan.build(
+            from_state=self.status,
+            to_state=new_state,
+            note=note,
+            reason=reason,
+        )
+        actor_membership = _resolve_actor_membership(actor)
+        if actor_membership is not None and self.program_id and (
+            actor_membership.program_id != self.program_id
+        ):
+            raise ValidationError(
+                {"actor": "Actor must be a Membership in the same Program."},
+            )
+
+        with transaction.atomic():
+            event = OrderActivityEvent.all_objects.create(
+                organization=self.organization,
+                program=self.program,
+                actor_membership=actor_membership,
+                actor_user=getattr(actor_membership, "person", None) and actor_membership.person.user,
+                event_type=OrderActivityEvent.EventType.STATE_CHANGE,
+                content_type=self._content_type_label(),
+                content_id=self.id,
+                from_state=plan.from_state,
+                to_state=plan.to_state,
+                note=plan.note,
+                reason=plan.reason,
+                metadata={"requires_reason": plan.requires_reason},
+            )
+            # Pin ``last_transition_at`` to the event's ``created_at`` so the
+            # 5-minute correction window and the activity log agree to the
+            # microsecond. ``timezone.now()`` would drift slightly.
+            self.status = plan.to_state
+            self.last_transition_at = event.created_at
+            self.last_transition_by = actor_membership
+            self.save(update_fields=["status", "last_transition_at", "last_transition_by"])
+        return event
+
+    def can_correct_last_transition(self, *, now=None) -> bool:
+        """Whether the most recent transition is still inside the 5-minute window."""
+        return OrderStateMachine.is_within_correction_window(
+            self.last_transition_at, now=now,
+        )
+
+    def correct_last_transition(self, *, actor) -> "OrderActivityEvent":
+        """Revert the most recent transition; only valid inside the 5-minute window.
+
+        Returns the correction event. Raises :class:`OrderStateMachineError` /
+        :class:`ValidationError` on misuse. Does not allow correcting a
+        correction (correction events are not state changes by themselves).
+        """
+        from bunk_logs.core.state_machine import CorrectionWindowExpiredError
+        from bunk_logs.core.state_machine import NoTransitionToCorrectError
+
+        if not self.can_correct_last_transition():
+            if self.last_transition_at is None:
+                msg = "no transition to correct"
+                raise NoTransitionToCorrectError(msg)
+            msg = "the 5-minute correction window has expired"
+            raise CorrectionWindowExpiredError(msg)
+
+        last_event = (
+            OrderActivityEvent.all_objects.filter(
+                content_type=self._content_type_label(),
+                content_id=self.id,
+                event_type=OrderActivityEvent.EventType.STATE_CHANGE,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if last_event is None:
+            msg = "no state-change activity event found"
+            raise NoTransitionToCorrectError(msg)
+
+        actor_membership = _resolve_actor_membership(actor)
+        with transaction.atomic():
+            self.status = last_event.from_state
+            # Restore prior transition timestamp/actor by walking back one event.
+            prior = (
+                OrderActivityEvent.all_objects.filter(
+                    content_type=self._content_type_label(),
+                    content_id=self.id,
+                    event_type=OrderActivityEvent.EventType.STATE_CHANGE,
+                )
+                .exclude(pk=last_event.pk)
+                .order_by("-created_at")
+                .first()
+            )
+            self.last_transition_at = prior.created_at if prior else None
+            self.last_transition_by = prior.actor_membership if prior else None
+            self.save(update_fields=["status", "last_transition_at", "last_transition_by"])
+
+            return OrderActivityEvent.all_objects.create(
+                organization=self.organization,
+                program=self.program,
+                actor_membership=actor_membership,
+                actor_user=getattr(actor_membership, "person", None) and actor_membership.person.user,
+                event_type=OrderActivityEvent.EventType.CORRECTION,
+                content_type=self._content_type_label(),
+                content_id=self.id,
+                from_state=last_event.to_state,
+                to_state=last_event.from_state,
+                note="",
+                reason="",
+                correction_of=last_event,
+                metadata={"corrected_event_id": str(last_event.id)},
+            )
+
+    def available_transitions(self) -> list[str]:
+        return OrderStateMachine.available_transitions(self.status)
+
+
+def _resolve_actor_membership(actor):
+    """Coerce a Membership-or-User-like object into a Membership instance.
+
+    Returns ``None`` when no resolution is possible (e.g. tests passing
+    ``None``). Concrete views are expected to pass a Membership directly.
+    """
+    if actor is None:
+        return None
+    if isinstance(actor, Membership):
+        return actor
+    membership = getattr(actor, "membership", None)
+    if membership is not None:
+        return membership
+    return None
+
+
+class Order(OrderableContent):
+    """Camper Care order — see Stories 22-23 and the order_state_machine spec.
+
+    Domain fields (subject, requested items, etc.) are added in Step 7_8;
+    this skeleton owns the lifecycle so the state machine can be exercised
+    independently and so 7_8 can extend rather than redefine the model.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="cc_orders",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="cc_orders",
+    )
+    subject = models.ForeignKey(
+        Person,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cc_orders_about",
+        help_text="Camper this order is for. Null when the order is bunk-scoped only.",
+    )
+    submitted_by = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cc_orders_submitted",
+        help_text="Membership of the counselor / submitter.",
+    )
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "program", "status"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Order {self.id} ({self.get_status_display()})"
+
+    @staticmethod
+    def fulfilling_role() -> str:
+        return "camper_care"
+
+
+class MaintenanceTicket(OrderableContent):
+    """Maintenance ticket — see Stories 30-36 and the order_state_machine spec.
+
+    Domain fields (location, photos, etc.) land in Step 7_10.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="maintenance_tickets",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="maintenance_tickets",
+    )
+    submitted_by = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="maintenance_tickets_submitted",
+    )
+    title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    urgent_reason = models.TextField(
+        blank=True,
+        help_text="Required by API when urgency is 'urgent' (Story 32).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "program", "status"]),
+            models.Index(fields=["urgency", "status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Ticket {self.id} ({self.get_status_display()})"
+
+    @staticmethod
+    def fulfilling_role() -> str:
+        return "maintenance"
+
+
+class OrderActivityEvent(models.Model):
+    """Append-only activity log for orders and tickets.
+
+    This is a minimal, forward-compatible stand-in for the cross-cutting
+    audit trail (Step 7_4). When :class:`AuditEvent` lands, write a one-off
+    backfill that copies these rows over and points new state changes at the
+    audit module instead. Callers in this step go through
+    :py:meth:`OrderableContent.transition_to`.
+    """
+
+    class EventType(models.TextChoices):
+        STATE_CHANGE = "state_change", "State change"
+        CORRECTION = "correction", "Correction (within 5-minute window)"
+        NOTE = "note", "Note (no state change)"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="order_activity_events",
+    )
+    program = models.ForeignKey(
+        Program,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_activity_events",
+    )
+    actor_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_activity_events",
+    )
+    actor_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_activity_events",
+    )
+    event_type = models.CharField(max_length=24, choices=EventType.choices, db_index=True)
+    content_type = models.CharField(
+        max_length=64,
+        help_text="Stable label for the related model (e.g. 'order', 'maintenance_ticket').",
+    )
+    content_id = models.UUIDField()
+    from_state = models.CharField(max_length=24, blank=True)
+    to_state = models.CharField(max_length=24, blank=True)
+    note = models.TextField(blank=True)
+    reason = models.TextField(blank=True)
+    correction_of = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="corrections",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["content_type", "content_id", "created_at"]),
+            models.Index(fields=["organization", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} on {self.content_type}:{self.content_id}"

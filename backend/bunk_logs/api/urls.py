@@ -7,6 +7,7 @@ from bunk_logs.users.api.views import UserViewSet
 from . import assignment_groups
 from . import field_keys as field_keys_api
 from . import memberships
+from . import orders_state_machine as order_sm
 from . import reflections
 from . import templates as templates_api
 from . import views
@@ -44,6 +45,38 @@ router.register(r"item-categories", views.ItemCategoryViewSet, basename="item-ca
 router.register(r"order-types", views.OrderTypeViewSet, basename="order-type")
 
 urlpatterns = [
+    # Order/Ticket state machine endpoints (Step 7_2). UUID-typed paths so they
+    # do not collide with the legacy ``/api/v1/orders/<int:pk>/`` viewset above.
+    path(
+        "orders/bulk-transition/",
+        order_sm.OrderBulkTransitionView.as_view(),
+        name="cc-orders-bulk-transition",
+    ),
+    path(
+        "orders/<uuid:order_id>/transition/",
+        order_sm.OrderTransitionView.as_view(),
+        name="cc-orders-transition",
+    ),
+    path(
+        "orders/<uuid:order_id>/correct-last/",
+        order_sm.OrderCorrectLastView.as_view(),
+        name="cc-orders-correct-last",
+    ),
+    path(
+        "maintenance/bulk-transition/",
+        order_sm.MaintenanceTicketBulkTransitionView.as_view(),
+        name="maintenance-bulk-transition",
+    ),
+    path(
+        "maintenance/<uuid:ticket_id>/transition/",
+        order_sm.MaintenanceTicketTransitionView.as_view(),
+        name="maintenance-transition",
+    ),
+    path(
+        "maintenance/<uuid:ticket_id>/correct-last/",
+        order_sm.MaintenanceTicketCorrectLastView.as_view(),
+        name="maintenance-correct-last",
+    ),
     path("", include(router.urls)),
 
     # Non-standard bunk detail path used by BunkCard.jsx — kept for compat while
