@@ -46,6 +46,7 @@ import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
 import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import DashboardsHub from './pages/dashboards/DashboardsHub';
 import AdminLayout from './layouts/AdminLayout';
+import AppLayout from './layouts/AppLayout';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -312,22 +313,23 @@ function Router() {
           }
         />
 
+        {/* 3.33 follow-up: pages that originally rendered as
+            single-column mobile-first surfaces (no Sidebar / Header)
+            now share the AppLayout chrome so the new capability-aware
+            sidebar from 3.32 is always reachable. ProtectedRoute sits
+            on the layout so the gate fires once for every child. */}
         <Route
-          path="/reflect"
           element={
             <ProtectedRoute>
-              <ReflectionFormPage />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
-        <Route
-          path="/reflect/summary"
-          element={
-            <ProtectedRoute>
-              <ReflectionSummaryPage />
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route path="/reflect" element={<ReflectionFormPage />} />
+          <Route path="/reflect/summary" element={<ReflectionSummaryPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
+        </Route>
 
         <Route
           path="/my-reflections"
@@ -514,26 +516,6 @@ function Router() {
             <AdminRoute>
               <TemplateEditorPage />
             </AdminRoute>
-          }
-        />
-
-        {/* Roster-aware tasks home screen */}
-        <Route
-          path="/tasks"
-          element={
-            <ProtectedRoute>
-              <TasksPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Supervisor coverage view */}
-        <Route
-          path="/supervisor/coverage"
-          element={
-            <ProtectedRoute>
-              <SupervisorCoveragePage />
-            </ProtectedRoute>
           }
         />
 

@@ -35,7 +35,7 @@ export default function ReflectionSummaryPage() {
 
   if (!data?.reflectionId) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
+      <div className="px-4 py-8">
         <div className="max-w-lg mx-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
           <p className="text-gray-700 dark:text-gray-300 mb-4">
             No reflection summary to show. Submit a reflection from the form first.
@@ -59,7 +59,7 @@ export default function ReflectionSummaryPage() {
   const backLabel = returnTo === '/tasks' ? '← Back to tasks' : 'Submit another';
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
+    <div className="px-4 py-8">
       <div className="max-w-xl mx-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
         <div className="flex flex-wrap items-center gap-3 mb-2">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">

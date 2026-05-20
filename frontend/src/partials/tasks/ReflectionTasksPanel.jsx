@@ -463,8 +463,12 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
     return <div className="w-full">{inner}</div>;
   }
 
+  // 3.33: AppLayout owns the outer scroll container and chrome.
+  // We keep the centered single-column treatment for the page
+  // variant because the task home was designed as a focused
+  // single-column experience.
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-6 pb-24">
+    <div className="px-4 py-6 pb-24">
       <div className="max-w-lg mx-auto">{inner}</div>
     </div>
   );

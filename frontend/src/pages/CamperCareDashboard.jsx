@@ -103,23 +103,15 @@ function CamperCareDashboard() {
     <div className="flex h-[100dvh] overflow-hidden">
 
       {/* Sidebar */}
-      <Sidebar 
-        sidebarOpen={sidebarOpen} 
-        setSidebarOpen={setSidebarOpen} 
-        extraLinks={[
-          {
-            label: 'My Bunk Logs',
-            onClick: () => setActiveView('bunklogs'),
-            active: activeView === 'bunklogs',
-            role: 'Camper Care',
-          },
-          {
-            label: 'Needs Attention',
-            onClick: () => setActiveView('needsattention'),
-            active: activeView === 'needsattention',
-            role: 'Camper Care',
-          },
-        ]}
+      {/* 3.32: previously injected per-page `extraLinks` to surface
+          the "My Bunk Logs" / "Needs Attention" view tabs alongside
+          the main nav. Those tabs now live as in-page controls (see
+          the activeView toggles below); the sidebar is the shared
+          capability-aware nav and no longer accepts per-page
+          injections. */}
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
       />
 
       {/* Content area */}
@@ -165,6 +157,41 @@ function CamperCareDashboard() {
 
             {/* User profile */}
             <UserProfile user={userProfile} />
+
+            {/* 3.32: in-page view tabs. These previously lived in the
+                sidebar as Camper-Care-only `extraLinks` injections.
+                Moved here so the sidebar can stay role-agnostic and
+                we don't carry per-page sidebar plumbing. */}
+            <div
+              className="flex flex-wrap gap-2 mb-4"
+              role="tablist"
+              aria-label="Camper care view"
+            >
+              {[
+                { id: 'overview', label: 'Overview' },
+                { id: 'bunklogs', label: 'My Bunk Logs' },
+                { id: 'needsattention', label: 'Needs Attention' },
+              ].map((view) => {
+                const active = activeView === view.id;
+                return (
+                  <button
+                    key={view.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveView(view.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {view.label}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Main content view */}
             {activeView === 'overview' && <CamperCareBunkGrid selectedDate={selectedDate} />}
             {activeView === 'bunklogs' && <CamperCareBunkLogsList selectedDate={selectedDate} />}
