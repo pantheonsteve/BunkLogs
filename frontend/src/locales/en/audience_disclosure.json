@@ -1,0 +1,11 @@
+{
+  "heading": "Who can see this?",
+  "audiences": {
+    "team": "Visible to your team",
+    "supervisorsOnly": "Visible only to your supervisors",
+    "submitterAndTeam": "Visible to you and your team",
+    "teamOnly": "Visible to your team only"
+  },
+  "sensitiveBadge": "Sensitive — narrowed audience",
+  "learnMore": "Learn more about audiences"
+}

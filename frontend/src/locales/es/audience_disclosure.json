@@ -1,0 +1,11 @@
+{
+  "heading": "¿Quién puede ver esto?",
+  "audiences": {
+    "team": "Visible para tu equipo",
+    "supervisorsOnly": "Visible solo para tus supervisores",
+    "submitterAndTeam": "Visible para ti y tu equipo",
+    "teamOnly": "Visible solo para tu equipo"
+  },
+  "sensitiveBadge": "Sensible — audiencia reducida",
+  "learnMore": "Más información sobre audiencias"
+}

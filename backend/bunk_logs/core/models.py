@@ -236,10 +236,22 @@ class Program(models.Model):
 
 
 class Person(models.Model):
+    # ---- i18n (Step 7_5) ------------------------------------------------
+    # ``LANGUAGE_CHOICES`` covers UI translation targets (English + Spanish in
+    # Tier 1). ``CONTENT_LANGUAGE_CHOICES`` additionally allows Hebrew for
+    # content authored by Israeli kitchen staff -- Hebrew UI / RTL layout
+    # are deferred to Tier 2, but Hebrew *content* is supported now per
+    # ``docs/user_stories/00_cross_cutting/i18n.md``. Keep the two lists
+    # close together so adding a language is a single-file edit.
     LANGUAGE_CHOICES = [
         ("en", "English"),
         ("es", "Spanish"),
+        ("he", "Hebrew"),
     ]
+
+    class TranslationPreference(models.TextChoices):
+        TRANSLATION_FIRST = "translation_first", "Translation first"
+        ORIGINAL_FIRST = "original_first", "Original first"
 
     organization = models.ForeignKey(
         Organization,
@@ -255,7 +267,22 @@ class Person(models.Model):
         max_length=10,
         choices=LANGUAGE_CHOICES,
         default="en",
-        help_text="Language for email communications",
+        help_text=(
+            "Preferred language for UI + email communications. Tier 1 ships "
+            "English + Spanish UI; Hebrew renders natively (עברית) in the "
+            "language picker but the surrounding UI stays English -- see "
+            "docs/user_stories/00_cross_cutting/i18n.md."
+        ),
+    )
+    translation_preference = models.CharField(
+        max_length=24,
+        choices=TranslationPreference.choices,
+        default=TranslationPreference.TRANSLATION_FIRST,
+        help_text=(
+            "Per-reader preference for bilingual content (Story 44 criterion 6). "
+            "Stored on Person so it persists across sessions. Only affects "
+            "rendering when the content's language differs from English."
+        ),
     )
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -708,8 +735,13 @@ class Reflection(models.Model):
     answers = models.JSONField(help_text="Validated against template.schema")
     language = models.CharField(
         max_length=10,
+        choices=Person.LANGUAGE_CHOICES,
         default="en",
-        help_text="Language used to fill out this reflection",
+        help_text=(
+            "Language used to fill out this reflection. Non-English "
+            "submissions trigger the server-side auto-translation task "
+            "(see ``bunk_logs.core.translation``)."
+        ),
     )
     team_visibility = models.CharField(
         max_length=24,
@@ -831,7 +863,16 @@ class Note(models.Model):
         blank=True,
         help_text="Only used when note_type is maintenance.",
     )
-    language = models.CharField(max_length=10, default="en")
+    language = models.CharField(
+        max_length=10,
+        choices=Person.LANGUAGE_CHOICES,
+        default="en",
+        help_text=(
+            "Language used to author this note. Non-English notes trigger "
+            "the server-side auto-translation task once the Note edit views "
+            "land (Steps 7_8 / 7_9 / 7_10)."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1882,3 +1923,133 @@ def note_snapshot(note: "Note") -> dict:
             else None
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Auto-translation (Step 7_5)
+# ---------------------------------------------------------------------------
+
+
+class TranslationRecord(models.Model):
+    """Server-generated English translation of a non-English content row.
+
+    Per ``docs/user_stories/00_cross_cutting/i18n.md``: every Reflection /
+    Note submitted with ``language != 'en'`` enqueues an Anthropic-backed
+    Celery task that persists its result here. Readers consume the
+    *latest* row per (content_type, content_id) -- historical rows stay
+    on disk for up to 90 days so audit reviewers can see how a piece of
+    content was translated over successive edits, then the nightly GC
+    task (``bunk_logs.core.translation.tasks.purge_expired_translations``)
+    drops anything older.
+
+    Statuses follow the Story 44 reader-side state machine: ``pending``
+    -> ``completed`` for the happy path, ``failed_retryable`` while
+    Celery is backing off, ``failed_terminal`` after exhausting the
+    retry budget. The serializer in ``bunk_logs.api.reflections``
+    surfaces these directly so the frontend ``TranslationDisplay``
+    component can render the right state without further translation.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        COMPLETED = "completed", "Completed"
+        FAILED_RETRYABLE = "failed_retryable", "Failed (retrying)"
+        FAILED_TERMINAL = "failed_terminal", "Failed (terminal)"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="translation_records",
+    )
+    content_type = models.CharField(
+        max_length=64,
+        help_text="Stable label for the translated model ('reflection' or 'note').",
+    )
+    content_id = models.CharField(
+        max_length=64,
+        help_text=(
+            "PK of the translated content row, serialised as a string -- "
+            "matches the ``AuditEvent.content_id`` convention."
+        ),
+    )
+    source_language = models.CharField(
+        max_length=10,
+        choices=Person.LANGUAGE_CHOICES,
+        help_text="ISO code of the original content language ('es' or 'he').",
+    )
+    target_language = models.CharField(
+        max_length=10,
+        choices=Person.LANGUAGE_CHOICES,
+        default="en",
+        help_text="ISO code of the translation target. Tier 1 is English-only.",
+    )
+    status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    translated_text = models.TextField(
+        blank=True,
+        default="",
+        help_text="English translation. Empty while ``status='pending'``.",
+    )
+    model_id = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=(
+            "Identifier of the Anthropic model that produced the translation "
+            "(e.g. 'claude-sonnet-4-5'). Captured for reproducibility."
+        ),
+    )
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    tokens_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Total input+output tokens reported by the Anthropic response.",
+    )
+    last_error = models.TextField(
+        blank=True,
+        default="",
+        help_text="Exception message captured on the most recent failed attempt.",
+    )
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "Currently-enqueued Celery task id, so re-translation on edit "
+            "can revoke the pending task before queueing a fresh one."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = models.Manager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["content_type", "content_id", "-created_at"]),
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["organization", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"TranslationRecord({self.content_type}:{self.content_id} "
+            f"{self.source_language}->{self.target_language} {self.status})"
+        )
+
+    @classmethod
+    def latest_for(cls, content_type: str, content_id) -> "TranslationRecord | None":
+        """Return the most recent TranslationRecord for a content row, or None."""
+        return (
+            cls.all_objects.filter(
+                content_type=content_type, content_id=str(content_id),
+            )
+            .order_by("-created_at")
+            .first()
+        )

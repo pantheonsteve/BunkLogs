@@ -1,0 +1,37 @@
+{
+  "actions": {
+    "save": "Guardar",
+    "submit": "Enviar",
+    "cancel": "Cancelar",
+    "retry": "Reintentar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "close": "Cerrar"
+  },
+  "validation": {
+    "required": "Este campo es obligatorio.",
+    "invalid": "Este valor no es válido.",
+    "tooShort": "Por favor escribe un poco más."
+  },
+  "language": {
+    "label": "Idioma",
+    "ariaLabel": "Elige tu idioma",
+    "saving": "Guardando…",
+    "saved": "Idioma actualizado",
+    "saveFailed": "No se pudo actualizar el idioma"
+  },
+  "translation": {
+    "translatedHeading": "Traducción al inglés",
+    "originalHeading": "Original",
+    "showOriginal": "Ver original",
+    "hideOriginal": "Ocultar original",
+    "showTranslation": "Ver traducción",
+    "hideTranslation": "Ocultar traducción",
+    "pending": "Traduciendo al inglés — actualiza en un momento",
+    "failedRetryable": "Traducción no disponible — reintentar",
+    "failedTerminal": "No se pudo generar la traducción. Contacta al administrador",
+    "retry": "Reintentar traducción",
+    "preferTranslation": "Traducción primero",
+    "preferOriginal": "Original primero"
+  }
+}

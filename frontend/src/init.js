@@ -1,4 +1,5 @@
 import { setup } from './lib/allauth'
+import initI18n from './i18n'
 
 // Import the CSRF token functions to ensure they're available
 let cachedCSRFToken = null;
@@ -23,6 +24,12 @@ datadogRum.init({
 
 export async function init() {
   console.log('Initializing application...');
+
+  // i18n boot — sets up react-i18next with the English/Spanish/Hebrew
+  // resources and the localStorage language detector. Safe to call before
+  // the rest of the bootstrap (no network / DOM dependency).
+  initI18n();
+
   
   // Get the backend URL from environment variables
   const getBackendUrl = () => {

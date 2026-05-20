@@ -1,0 +1,37 @@
+{
+  "actions": {
+    "save": "Save",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close"
+  },
+  "validation": {
+    "required": "This field is required.",
+    "invalid": "This value is not valid.",
+    "tooShort": "Please write a bit more."
+  },
+  "language": {
+    "label": "Language",
+    "ariaLabel": "Choose your language",
+    "saving": "Saving…",
+    "saved": "Language updated",
+    "saveFailed": "Could not update language"
+  },
+  "translation": {
+    "translatedHeading": "English translation",
+    "originalHeading": "Original",
+    "showOriginal": "Show original",
+    "hideOriginal": "Hide original",
+    "showTranslation": "Show translation",
+    "hideTranslation": "Hide translation",
+    "pending": "Translating to English — refresh in a moment",
+    "failedRetryable": "Translation unavailable — retry",
+    "failedTerminal": "Translation could not be generated. Contact Admin",
+    "retry": "Retry translation",
+    "preferTranslation": "Translation first",
+    "preferOriginal": "Original first"
+  }
+}

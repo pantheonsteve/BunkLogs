@@ -24,9 +24,11 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import TranslationRecord
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.permissions import is_super_admin
+from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 
 def _person_for_request(request):
@@ -227,6 +229,40 @@ class ReflectionSerializer(serializers.ModelSerializer):
     localized_schema = serializers.SerializerMethodField()
     program_slug = serializers.SlugField(write_only=True, required=False)
     answers = serializers.JSONField()
+    translation = serializers.SerializerMethodField()
+
+    def get_translation(self, obj):
+        """Embed the latest TranslationRecord state for non-English reflections.
+
+        Returns ``None`` for English content so the frontend can short-circuit
+        on a single truthy check. Shape matches Story 44's reader-side state
+        machine; ``TranslationDisplay.jsx`` consumes it directly without
+        additional reshaping.
+        """
+        language = getattr(obj, "language", None) or "en"
+        if language == "en":
+            return None
+        record = TranslationRecord.latest_for("reflection", obj.pk)
+        if record is None:
+            return {
+                "status": "pending",
+                "source_language": language,
+                "target_language": "en",
+                "translated_text": "",
+                "model_id": "",
+                "updated_at": None,
+                "attempt_count": 0,
+            }
+        return {
+            "id": str(record.id),
+            "status": record.status,
+            "source_language": record.source_language,
+            "target_language": record.target_language,
+            "translated_text": record.translated_text,
+            "model_id": record.model_id,
+            "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+            "attempt_count": record.attempt_count,
+        }
 
     def get_localized_schema(self, obj):
         """Localized template schema for the reflection's saved language.
@@ -282,6 +318,7 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "submitted_at",
             "updated_at",
             "is_complete",
+            "translation",
         ]
         read_only_fields = [
             "id",
@@ -463,6 +500,11 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             after_state=reflection_snapshot(instance),
             content_type="reflection",
         )
+        # Auto-translation (Step 7_5): non-English submissions enqueue a
+        # Celery task that fills in TranslationRecord.translated_text and
+        # flips status from 'pending' to 'completed'. English submissions
+        # short-circuit at the helper.
+        enqueue_translation_for_reflection(instance)
 
     def perform_update(self, serializer):
         # Re-fetch from the DB so the snapshot reflects the pre-mutation row.
@@ -480,6 +522,11 @@ class ReflectionViewSet(viewsets.ModelViewSet):
                 after,
                 content_type="reflection",
             )
+        # Re-translate when the answers / language change. The helper
+        # revokes the pending Celery task (if any) before enqueueing the
+        # fresh one so we don't race two translations against each other.
+        if before.get("answers") != after.get("answers") or before.get("language") != after.get("language"):
+            enqueue_translation_for_reflection(instance)
 
     def _filter_query_params(self, qs):
         p = self.request.query_params
@@ -528,6 +575,51 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         payload["language"] = language
         payload["program_slug"] = program.slug
         return Response(payload)
+
+    @action(detail=True, methods=["post"], url_path="retry-translation")
+    def retry_translation(self, request, pk=None):
+        """Story 44 manual retry hook for failed translations.
+
+        Allowed when the reflection author OR an org admin requests it,
+        and only when the latest TranslationRecord is in a
+        ``failed_retryable`` / ``failed_terminal`` state (no point
+        re-enqueueing during a pending run). On success returns the
+        latest TranslationRecord payload so the client can surface the
+        new ``pending`` state without a follow-up GET.
+        """
+        instance = self.get_object()
+        if (instance.language or "en") == "en":
+            return Response(
+                {"detail": "Reflection is in English; no translation needed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        record = TranslationRecord.latest_for("reflection", instance.pk)
+        retryable_statuses = {
+            TranslationRecord.Status.FAILED_RETRYABLE,
+            TranslationRecord.Status.FAILED_TERMINAL,
+        }
+        if record is not None and record.status not in retryable_statuses:
+            return Response(
+                {
+                    "detail": (
+                        "Translation is not in a retryable state "
+                        f"(current status: {record.status})."
+                    ),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        # Reset the attempt counter so the fresh enqueue gets the full
+        # three-attempt budget per the spec.
+        if record is not None:
+            TranslationRecord.all_objects.filter(pk=record.pk).update(
+                attempt_count=0,
+                status=TranslationRecord.Status.PENDING,
+                last_error="",
+            )
+        enqueue_translation_for_reflection(instance)
+        return Response(
+            self.get_serializer(instance).data, status=status.HTTP_202_ACCEPTED,
+        )
 
     @action(detail=False, methods=["get"], url_path="template-for-me")
     def template_for_me(self, request):

@@ -32,5 +32,9 @@ fido2==1.1.3  # pinned for django-allauth MFA compatibility
 # Datadog APM + tracing
 # ------------------------------------------------------------------------------
 ddtrace==4.7.1  # https://github.com/DataDog/dd-trace-py
+
+# Anthropic (Step 7_5 auto-translation; see bunk_logs.core.translation)
+# ------------------------------------------------------------------------------
+anthropic==0.103.1  # https://github.com/anthropics/anthropic-sdk-python
 # # ------------------------------------------------------------------------------
 # pandas==2.1.4  # Required for CSV/Excel imports in orders app

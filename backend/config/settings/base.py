@@ -336,6 +336,28 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
+# AUTO-TRANSLATION (Step 7_5; see docs/user_stories/00_cross_cutting/i18n.md)
+# ------------------------------------------------------------------------------
+# Anthropic-backed Celery task translates non-English Reflections / Notes to
+# English so leadership readers see them in their preferred language. Keep the
+# env var optional in CI / local so test runs don't require a real API key --
+# bunk_logs.core.translation.client falls back to a no-op stub when unset.
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
+ANTHROPIC_TRANSLATION_MODEL = env(
+    "ANTHROPIC_TRANSLATION_MODEL", default="claude-sonnet-4-5",
+)
+TRANSLATION_TASK_SOFT_TIME_LIMIT_SECONDS = env.int(
+    "TRANSLATION_TASK_SOFT_TIME_LIMIT_SECONDS", default=30,
+)
+TRANSLATION_TASK_MAX_RETRIES = env.int(
+    "TRANSLATION_TASK_MAX_RETRIES", default=3,
+)
+# Retain prior TranslationRecord rows for this many days before the nightly
+# GC task drops them (i18n spec, "Audit retention" section).
+TRANSLATION_RETENTION_DAYS = env.int(
+    "TRANSLATION_RETENTION_DAYS", default=90,
+)
+
 
 # django-allauth
 # ------------------------------------------------------------------------------
