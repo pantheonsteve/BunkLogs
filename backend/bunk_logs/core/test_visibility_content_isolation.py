@@ -121,7 +121,7 @@ class TestCamperReflectionIsolation:
             org, slug="bunk-obs", role="counselor",
             subject_mode="single_subject", assignment_scope="per_subject_in_group",
         )
-        ref = _reflection(org, program, tpl, subject=camper, author=cns, assignment_group=bunk)
+        _reflection(org, program, tpl, subject=camper, author=cns, assignment_group=bunk)
 
         api.force_authenticate(user=u_cns)
         with organization_context(org):

@@ -12,7 +12,6 @@ from rest_framework.filters import BaseFilterBackend
 
 from bunk_logs.core.content_visibility import ContentType
 from bunk_logs.core.content_visibility import MaintenanceNoteVisibility
-from bunk_logs.core.content_visibility import note_content_type
 from bunk_logs.core.content_visibility import reflection_content_type
 from bunk_logs.core.content_visibility import reflection_is_private
 from bunk_logs.core.content_visibility import viewer_can_read

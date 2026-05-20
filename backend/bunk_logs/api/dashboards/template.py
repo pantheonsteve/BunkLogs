@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
@@ -21,7 +22,6 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
-from bunk_logs.core.filters import reflections_visible_for_user
 
 User = get_user_model()
 

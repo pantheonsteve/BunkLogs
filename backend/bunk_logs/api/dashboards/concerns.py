@@ -19,9 +19,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import ConcernReadState
 from bunk_logs.core.models import Reflection
-from bunk_logs.core.filters import reflections_visible_for_user
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60

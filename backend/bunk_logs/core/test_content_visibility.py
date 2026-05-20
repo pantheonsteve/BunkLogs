@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
+from bunk_logs.core.content_visibility import ROLE_LABELS
 from bunk_logs.core.content_visibility import ContentType
 from bunk_logs.core.content_visibility import MaintenanceNoteVisibility
-from bunk_logs.core.content_visibility import ROLE_LABELS
 from bunk_logs.core.content_visibility import audience_labels
 from bunk_logs.core.content_visibility import audience_roles
 from bunk_logs.core.content_visibility import gating_role_label
