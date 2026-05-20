@@ -252,3 +252,44 @@ class SupervisionEventScopedManager(models.Manager):
         if org is None:
             return qs.none()
         return qs.filter(organization=org)
+
+
+class AppendOnlyAuditEventQuerySet(models.QuerySet):
+    """QuerySet that hard-blocks application-layer mutation of audit rows.
+
+    Per the canonical spec (docs/user_stories/00_cross_cutting/audit_trail.md):
+    audit events are write-only / append-only. ``update()`` and ``delete()``
+    raise so ViewSets, shell users, and data-migration mistakes all surface
+    immediately. Migrations that genuinely need to rewrite history must use
+    raw SQL or ``_raw_update`` (see ``AuditEvent.objects.bulk_create`` for
+    the documented escape hatch).
+    """
+
+    def update(self, **kwargs):
+        msg = "AuditEvent rows are append-only; update() is not permitted."
+        raise NotImplementedError(msg)
+
+    def delete(self):
+        msg = "AuditEvent rows are append-only; delete() is not permitted."
+        raise NotImplementedError(msg)
+
+
+class AuditEventScopedManager(models.Manager.from_queryset(AppendOnlyAuditEventQuerySet)):
+    """Tenant-scoped, append-only default manager for ``core.AuditEvent``.
+
+    Scopes by direct ``organization`` FK. ``AuditEvent.all_objects`` (a
+    plain ``models.Manager``) preserves the cross-org bypass needed by
+    platform-support / migrations, with the same append-only queryset
+    methods applied -- see ``AuditEvent``.
+    """
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(organization=org)
+
+
+class AuditEventAllManager(models.Manager.from_queryset(AppendOnlyAuditEventQuerySet)):
+    """Append-only cross-tenant manager. Use for migrations / platform support."""

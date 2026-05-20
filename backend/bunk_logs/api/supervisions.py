@@ -24,6 +24,7 @@ from rest_framework import viewsets
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 
+from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Program
@@ -163,6 +164,14 @@ class SupervisionViewSet(viewsets.ModelViewSet):
             actor_user=request.user if request.user.is_authenticated else None,
             after_state=supervision_snapshot(instance),
         )
+        # Dual-write to the cross-cutting AuditEvent (Step 7_4). SupervisionEvent
+        # stays in place for query-helper continuity until backfilled & dropped.
+        audit_module.created(
+            actor_membership or (request.user if request.user.is_authenticated else None),
+            instance,
+            after_state=supervision_snapshot(instance),
+            content_type="supervision",
+        )
 
         return Response(
             self.get_serializer(instance).data,
@@ -226,5 +235,25 @@ class SupervisionViewSet(viewsets.ModelViewSet):
             before_state=before,
             after_state=after,
         )
+        audit_actor = actor_membership or (
+            request.user if request.user.is_authenticated else None
+        )
+        if instance.end_date is not None:
+            audit_module.deactivated(
+                audit_actor,
+                instance,
+                before_state=before,
+                after_state=after,
+                content_type="supervision",
+                reason=(request.data.get("reason") or "").strip(),
+            )
+        else:
+            audit_module.edited(
+                audit_actor,
+                instance,
+                before,
+                after,
+                content_type="supervision",
+            )
 
         return Response(self.get_serializer(instance).data)
