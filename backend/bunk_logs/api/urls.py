@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from bunk_logs.users.api.views import UserViewSet
 
 from . import assignment_groups
+from . import audit as audit_api
 from . import field_keys as field_keys_api
 from . import memberships
 from . import orders_state_machine as order_sm
@@ -39,6 +40,7 @@ router.register(r"supervisions", supervisions_api.SupervisionViewSet, basename="
 router.register(r"assignment-groups", assignment_groups.AssignmentGroupViewSet, basename="assignment-group")
 router.register(r"templates", templates_api.ReflectionTemplateViewSet, basename="template")
 router.register(r"field-keys", field_keys_api.FieldKeyViewSet, basename="field-key")
+router.register(r"audit", audit_api.AuditEventViewSet, basename="audit")
 
 # Ordering system
 router.register(r"orders", views.OrderViewSet, basename="order")

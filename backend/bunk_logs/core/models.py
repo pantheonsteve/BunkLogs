@@ -9,6 +9,8 @@ from django.db.models import F
 from django.db.models import Q
 
 from bunk_logs.core.managers import AssignmentGroupMembershipScopedManager
+from bunk_logs.core.managers import AuditEventAllManager
+from bunk_logs.core.managers import AuditEventScopedManager
 from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
@@ -1042,6 +1044,23 @@ class OrderableContent(models.Model):
             self.last_transition_at = event.created_at
             self.last_transition_by = actor_membership
             self.save(update_fields=["status", "last_transition_at", "last_transition_by"])
+            # Cross-cutting audit row (Step 7_4). Dual-write alongside
+            # ``OrderActivityEvent`` until the 7_2 activity table is backfilled
+            # and retired.
+            from bunk_logs.core import audit as audit_module
+
+            audit_module.state_changed(
+                actor_membership,
+                self,
+                plan.from_state,
+                plan.to_state,
+                note=plan.reason or plan.note,
+                metadata={
+                    "activity_event_id": str(event.id),
+                    "requires_reason": plan.requires_reason,
+                    "transition_note": plan.note,
+                },
+            )
         return event
 
     def can_correct_last_transition(self, *, now=None) -> bool:
@@ -1098,7 +1117,7 @@ class OrderableContent(models.Model):
             self.last_transition_by = prior.actor_membership if prior else None
             self.save(update_fields=["status", "last_transition_at", "last_transition_by"])
 
-            return OrderActivityEvent.all_objects.create(
+            correction_event = OrderActivityEvent.all_objects.create(
                 organization=self.organization,
                 program=self.program,
                 actor_membership=actor_membership,
@@ -1113,6 +1132,22 @@ class OrderableContent(models.Model):
                 correction_of=last_event,
                 metadata={"corrected_event_id": str(last_event.id)},
             )
+            # Dual-write a STATE_CHANGED audit row for the corrected transition
+            # so the cross-cutting audit log stays a faithful timeline.
+            from bunk_logs.core import audit as audit_module
+
+            audit_module.state_changed(
+                actor_membership,
+                self,
+                last_event.to_state,
+                last_event.from_state,
+                metadata={
+                    "activity_event_id": str(correction_event.id),
+                    "corrected_event_id": str(last_event.id),
+                    "correction": True,
+                },
+            )
+            return correction_event
 
     def available_transitions(self) -> list[str]:
         return OrderStateMachine.available_transitions(self.status)
@@ -1429,6 +1464,20 @@ class Supervision(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+    # Audit module fallback hooks (Step 7_4). Supervision rows have no direct
+    # ``organization`` / ``program`` FK; both are derived through the
+    # supervisor's Membership. These let ``bunk_logs.core.audit._org_program``
+    # resolve the scope without a special-case branch.
+    def _audit_organization(self):
+        membership = self.supervisor_membership
+        if membership is None or membership.program_id is None:
+            return None
+        return membership.program.organization
+
+    def _audit_program(self):
+        membership = self.supervisor_membership
+        return membership.program if membership is not None else None
+
     def _target_repr(self) -> str:
         if self.target_type == self.TargetType.MEMBERSHIP:
             return f"membership:{self.target_membership_id}"
@@ -1668,5 +1717,168 @@ def supervision_snapshot(supervision: Supervision) -> dict:
         ),
         "end_date": (
             supervision.end_date.isoformat() if supervision.end_date else None
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Audit trail (Step 7_4)
+# ---------------------------------------------------------------------------
+
+
+class AuditEvent(models.Model):
+    """Cross-cutting audit log -- the system of record for "who did what when".
+
+    Per the canonical spec
+    (``docs/user_stories/00_cross_cutting/audit_trail.md``), audit events are
+    immutable: the default manager raises on ``update()`` / ``delete()`` to
+    keep ViewSets and shell users honest. Use ``audit_module.created`` /
+    ``edited`` / ``state_changed`` etc. helpers in
+    :py:mod:`bunk_logs.core.audit` for the standard call sites; only
+    migrations should call ``AuditEvent.all_objects.create`` (or
+    ``bulk_create``) directly.
+
+    ``content_type`` is the stable string label written by the producing
+    code (e.g. ``order``, ``maintenance_ticket``, ``supervision``,
+    ``reflection``, ``note``); ``content_id`` is the related row's UUID --
+    audit rows for legacy int-PK content are out of scope until those
+    models migrate to UUIDs.
+    """
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        EDITED = "edited", "Edited"
+        STATE_CHANGED = "state_changed", "State changed"
+        DEACTIVATED = "deactivated", "Deactivated"
+        REACTIVATED = "reactivated", "Reactivated"
+        OVERRIDE_EDIT = "override_edit", "Admin override: edit"
+        OVERRIDE_CLOSE = "override_close", "Admin override: close"
+        OVERRIDE_RESOLVE = "override_resolve", "Admin override: resolve"
+        AUDIT_VIEW = "audit_view", "Audit view (meta)"
+        EXPORT = "export", "Export"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    actor_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+        help_text=(
+            "Membership of the user who performed the action. Null for "
+            "platform-support / migration writes that have no in-app actor."
+        ),
+    )
+    actor_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+        help_text=(
+            "User who performed the action -- captured even when no active "
+            "Membership exists (e.g. Super Admins without an org admin row)."
+        ),
+    )
+    event_type = models.CharField(
+        max_length=24, choices=EventType.choices, db_index=True,
+    )
+    content_type = models.CharField(
+        max_length=64,
+        help_text="Stable label for the related model (e.g. 'order', 'reflection').",
+    )
+    content_id = models.CharField(
+        max_length=64,
+        help_text=(
+            "Primary key of the related content row, serialised as a string. "
+            "UUID-keyed content (Order, MaintenanceTicket) stores the UUID; "
+            "int-keyed content (Reflection, Note, Supervision) stores the "
+            "integer id. Synthetic events (e.g. EXPORT) may store an empty string."
+        ),
+        blank=True,
+        default="",
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="audit_events",
+    )
+    program = models.ForeignKey(
+        Program,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+    )
+    before_state = models.JSONField(default=dict, blank=True)
+    after_state = models.JSONField(default=dict, blank=True)
+    reason_note = models.TextField(blank=True, default="")
+    is_admin_override = models.BooleanField(default=False, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    objects = AuditEventScopedManager()
+    all_objects = AuditEventAllManager()
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["content_type", "content_id", "created_at"]),
+            models.Index(fields=["organization", "created_at"]),
+            models.Index(fields=["actor_membership", "created_at"]),
+            models.Index(fields=["event_type", "created_at"]),
+            models.Index(fields=["is_admin_override", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} on {self.content_type}:{self.content_id}"
+
+    def save(self, *args, **kwargs):
+        # Application-layer immutability: once written, never rewritten.
+        # ``self._state.adding`` is True for an INSERT and False for any
+        # subsequent UPDATE, which is exactly what we want regardless of
+        # whether ``pk`` was assigned client-side (UUID default).
+        if not self._state.adding:
+            msg = "AuditEvent rows are append-only; save() after creation is not permitted."
+            raise NotImplementedError(msg)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        msg = "AuditEvent rows are append-only; delete() is not permitted."
+        raise NotImplementedError(msg)
+
+
+def reflection_snapshot(reflection: "Reflection") -> dict:
+    """Compact, JSON-serializable snapshot of a Reflection for audit before/after.
+
+    Captures only the fields a reviewer cares about when inspecting an edit
+    -- the answers payload, the language, the privacy toggle, completion
+    state. The template / subject / author are immutable post-create.
+    """
+    return {
+        "answers": reflection.answers,
+        "language": reflection.language,
+        "team_visibility": reflection.team_visibility,
+        "is_complete": reflection.is_complete,
+        "is_sensitive": reflection.is_sensitive,
+        "updated_at": (
+            reflection.updated_at.isoformat()
+            if getattr(reflection, "updated_at", None)
+            else None
+        ),
+    }
+
+
+def note_snapshot(note: "Note") -> dict:
+    """Compact, JSON-serializable snapshot of a Note for audit before/after."""
+    return {
+        "body": note.body,
+        "is_sensitive": note.is_sensitive,
+        "maintenance_visibility": note.maintenance_visibility,
+        "language": note.language,
+        "updated_at": (
+            note.updated_at.isoformat()
+            if getattr(note, "updated_at", None)
+            else None
         ),
     }

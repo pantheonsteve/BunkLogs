@@ -16,6 +16,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -23,6 +24,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.permissions import is_super_admin
 
@@ -428,6 +430,56 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             "assignment_group", "subject_group",
         )
         return self._filter_query_params(qs)
+
+    # -- audit-trail hooks (Step 7_4) -------------------------------------
+    #
+    # ``perform_create`` writes audit.created; ``perform_update`` snapshots
+    # the row before the in-place mutation and writes audit.edited iff the
+    # save actually changed any audit-tracked field. The actor passed to the
+    # audit helpers is the request user's most relevant active Membership in
+    # the affected program, falling back to the User row when no membership
+    # exists (Super Admins acting outside their org admin row).
+
+    def _audit_actor(self, request, instance):
+        person = _person_for_request(request)
+        if person is None:
+            return request.user if request.user.is_authenticated else None
+        membership = (
+            Membership.objects.filter(
+                person=person, program=instance.program, is_active=True,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if membership is not None:
+            return membership
+        return request.user
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        audit_module.created(
+            self._audit_actor(self.request, instance),
+            instance,
+            after_state=reflection_snapshot(instance),
+            content_type="reflection",
+        )
+
+    def perform_update(self, serializer):
+        # Re-fetch from the DB so the snapshot reflects the pre-mutation row.
+        # ``serializer.instance`` shares state with the row being patched.
+        before = reflection_snapshot(
+            Reflection.objects.get(pk=serializer.instance.pk),
+        )
+        instance = serializer.save()
+        after = reflection_snapshot(instance)
+        if before != after:
+            audit_module.edited(
+                self._audit_actor(self.request, instance),
+                instance,
+                before,
+                after,
+                content_type="reflection",
+            )
 
     def _filter_query_params(self, qs):
         p = self.request.query_params
