@@ -217,6 +217,11 @@ urlpatterns = [
         name="counselor-camper-care-create",
     ),
     path(
+        "counselor/camper-care-item-suggestions/",
+        counselor_camper_care_requests.CamperCareItemSuggestionListView.as_view(),
+        name="counselor-camper-care-item-suggestions",
+    ),
+    path(
         "counselor/maintenance-tickets/",
         counselor_maintenance_tickets.MaintenanceTicketCreateView.as_view(),
         name="counselor-maintenance-ticket-create",

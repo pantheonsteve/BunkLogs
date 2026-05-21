@@ -52,6 +52,9 @@ import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage
 import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
 import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
 import CounselorSelfReflectionHistoryPage from './pages/counselor/CounselorSelfReflectionHistoryPage';
+import CounselorRequestsListPage from './pages/counselor/CounselorRequestsListPage';
+import CamperCareRequestFormPage from './pages/counselor/CamperCareRequestFormPage';
+import MaintenanceTicketFormPage from './pages/counselor/MaintenanceTicketFormPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -373,6 +376,23 @@ function Router() {
           <Route
             path="/counselor/self-reflection/:reflectionId/edit"
             element={<CounselorSelfReflectionPage />}
+          />
+          {/* 7_6f: Camper Care + Maintenance request flow. The list view
+              accepts ``?status=open|all`` so counselors can confirm a
+              request closed without leaving the surface. Both per-type
+              forms have a stable client_submission_id ref so an offline
+              replay POSTs the same row instead of duplicating. */}
+          <Route
+            path="/counselor/requests"
+            element={<CounselorRequestsListPage />}
+          />
+          <Route
+            path="/counselor/requests/camper-care/new"
+            element={<CamperCareRequestFormPage />}
+          />
+          <Route
+            path="/counselor/requests/maintenance/new"
+            element={<MaintenanceTicketFormPage />}
           />
         </Route>
 
