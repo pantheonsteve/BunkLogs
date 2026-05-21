@@ -127,11 +127,14 @@ def test_reflection_template_includes_global_for_org(org_alpha):
         schema={"fields": [_field_schema("x")]},
     )
     with organization_context(org_alpha):
-        # The seeded global counselor-self-reflection template (migration
-        # 0029) is always present; assert subset rather than equality so
-        # this test stays focused on the org/global scoping behavior.
+        # Global role templates from migrations 0029/0030 are always present;
+        # exclude them so this test stays focused on org/global scoping.
+        seeded_global_slugs = (
+            "counselor-self-reflection",
+            "unit-head-self-reflection",
+        )
         ids = set(
-            ReflectionTemplate.objects.exclude(slug="counselor-self-reflection")
+            ReflectionTemplate.objects.exclude(slug__in=seeded_global_slugs)
             .values_list("id", flat=True),
         )
         assert ids == {global_t.id, org_t.id}
