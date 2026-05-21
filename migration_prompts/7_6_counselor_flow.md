@@ -33,6 +33,8 @@
     1. Backend: tests per acceptance criterion for each story. Particular attention to: cross-counselor edit accountability (Story 4 criteria 3, 5); all-set state derivation (Story 9 criterion 5).
     2. Frontend: Vitest tests for dashboard rendering, state transitions, form submissions. Playwright or Cypress end-to-end tests for the "submit camper reflection → return to list with state updated" flow.
 13. Documentation: `docs/role_flows/counselor.md` developer-facing reference.
+14. Step 7_6g (dual-write + backfill bridge): see `docs/role_flows/counselor.md` §2.
+    Ships in phases — dual-write defaults on; backfill is a one-off `python manage.py backfill_counselor_logs --apply` once the bridge is live. Both paths share the same deterministic UUID5 idempotency key, so any order of operations converges on the same Reflection rows.
 
 **Out of scope:**
 
