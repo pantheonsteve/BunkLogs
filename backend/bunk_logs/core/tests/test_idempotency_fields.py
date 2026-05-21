@@ -11,6 +11,7 @@ from datetime import date
 from uuid import uuid4
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 
 from bunk_logs.core.models import MaintenanceTicket
@@ -197,8 +198,6 @@ def test_maintenance_ticket_urgent_requires_reason():
         urgency=MaintenanceTicket.Urgency.URGENT,
         urgent_reason="",
     )
-    from django.core.exceptions import ValidationError  # noqa: PLC0415
-
     with pytest.raises(ValidationError):
         ticket.full_clean()
 

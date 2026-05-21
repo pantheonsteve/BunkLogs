@@ -37,9 +37,10 @@ from zoneinfo import ZoneInfoNotFoundError
 from django.conf import settings
 from django.utils import timezone
 
+from bunk_logs.core.models import Program
+
 if TYPE_CHECKING:
     from bunk_logs.core.models import Organization
-    from bunk_logs.core.models import Program
 
 
 CAMP_DEFAULT_ROLLOVER_HOUR = 4
@@ -74,16 +75,10 @@ def _resolve_timezone(name: object) -> ZoneInfo:
 def _default_rollover_for(org: Organization | None) -> int:
     """Religious-school-only orgs default to midnight; everyone else to 04:00.
 
-    Detecting "religious school only" requires hitting Program; we keep this
-    behind a lazy import so a bare ``Organization`` instance can be tested
-    without the full model graph loaded.
+    Detecting "religious school only" requires querying active Program rows
+    for the org.
     """
     if org is None:
-        return CAMP_DEFAULT_ROLLOVER_HOUR
-
-    try:
-        from bunk_logs.core.models import Program  # noqa: PLC0415 - lazy import avoids circular dep with core.models
-    except ImportError:
         return CAMP_DEFAULT_ROLLOVER_HOUR
 
     program_types = set(

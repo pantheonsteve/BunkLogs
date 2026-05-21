@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 
 from bunk_logs.core.models import CamperDayState
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -110,8 +111,6 @@ def test_camper_day_state_rejects_cross_org_program():
 def test_camper_day_state_records_setter_membership(django_assert_num_queries):
     # Light smoke-test: ``set_by_membership`` is just a nullable FK; this
     # mostly verifies the relation exists and ORM access works.
-    from bunk_logs.core.models import Membership  # noqa: PLC0415
-
     org, program = _seed_org()
     person = Person.all_objects.create(
         organization=org, first_name="UH", last_name="Person",
