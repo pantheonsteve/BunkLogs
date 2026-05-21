@@ -28,6 +28,22 @@ class MembershipScopedManager(models.Manager):
         return qs.filter(program__organization=org)
 
 
+class ProgramScopedManager(models.Manager):
+    """Scope by program.organization for models that own a ``program`` FK but no direct ``organization`` FK.
+
+    Same effective filter as :class:`MembershipScopedManager`; named for
+    readability at the call sites. Use for ``OrderItemSuggestion`` and
+    similar program-owned configuration tables.
+    """
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(program__organization=org)
+
+
 class ReflectionTemplateScopedManager(models.Manager):
     """Org-specific rows plus global templates (organization IS NULL)."""
 

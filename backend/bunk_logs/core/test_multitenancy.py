@@ -127,10 +127,8 @@ def test_reflection_template_includes_global_for_org(org_alpha):
         schema={"fields": [_field_schema("x")]},
     )
     with organization_context(org_alpha):
-        slugs = set(ReflectionTemplate.objects.values_list("slug", flat=True))
-        assert slugs == {"global-tpl-mt", "org-tpl-mt"}
-        assert global_t.slug in slugs
-        assert org_t.slug in slugs
+        ids = set(ReflectionTemplate.objects.values_list("id", flat=True))
+        assert ids == {global_t.id, org_t.id}
 
 
 @pytest.mark.django_db
