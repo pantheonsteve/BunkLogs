@@ -1,0 +1,9 @@
+# Canonical entry point for pip and GitHub's dependency graph.
+#
+# Local development and CI install from local.txt (which pulls in production
+# and base). This file exists so Dependabot recognizes the requirements tree;
+# it tracks the production lock surface.
+#
+#   pip install -r requirements/local.txt   # dev / CI
+#   pip install -r requirements/production.txt
+-r production.txt
