@@ -15,6 +15,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
+from bunk_logs.core.models import OrderItemSuggestion
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -174,6 +175,37 @@ def test_camper_care_subject_must_be_on_viewer_bunk(
              "client_submission_id": str(uuid.uuid4())}, format="json",
         )
     assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_item_suggestions_returns_active_rows_in_sort_order(
+    org, counselor_user, counselor_person, counselor_membership,
+    program,
+):
+    OrderItemSuggestion.objects.create(program=program, label="Toothpaste", sort_order=2)
+    OrderItemSuggestion.objects.create(program=program, label="Bug spray", sort_order=1)
+    OrderItemSuggestion.objects.create(
+        program=program, label="Hidden", sort_order=0, is_active=False,
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/counselor/camper-care-item-suggestions/")
+    assert resp.status_code == 200, resp.data
+    labels = [s["label"] for s in resp.data["suggestions"]]
+    assert labels == ["Bug spray", "Toothpaste"]
+    assert all("id" in s and "sort_order" in s for s in resp.data["suggestions"])
+
+
+@pytest.mark.django_db
+def test_item_suggestions_empty_when_no_program(
+    org, counselor_user, counselor_person,
+):
+    """A viewer without a program membership gets an empty list, not a 500."""
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/counselor/camper-care-item-suggestions/")
+    assert resp.status_code == 200
+    assert resp.data == {"suggestions": []}
 
 
 @pytest.mark.django_db
