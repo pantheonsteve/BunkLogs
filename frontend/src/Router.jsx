@@ -47,6 +47,19 @@ import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import DashboardsHub from './pages/dashboards/DashboardsHub';
 import AdminLayout from './layouts/AdminLayout';
 import AppLayout from './layouts/AppLayout';
+import CounselorMobileDashboard from './pages/counselor/CounselorMobileDashboard';
+import UnitHeadDashboardV2 from './pages/unit-head/UnitHeadDashboard';
+import UnitHeadBunkDashboardPage from './pages/unit-head/UnitHeadBunkDashboardPage';
+import UnitHeadCamperDashboardPage from './pages/unit-head/UnitHeadCamperDashboardPage';
+import UnitHeadSelfReflectionPage from './pages/unit-head/UnitHeadSelfReflectionPage';
+import UnitHeadSelfReflectionHistoryPage from './pages/unit-head/UnitHeadSelfReflectionHistoryPage';
+import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
+import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
+import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
+import CounselorSelfReflectionHistoryPage from './pages/counselor/CounselorSelfReflectionHistoryPage';
+import CounselorRequestsListPage from './pages/counselor/CounselorRequestsListPage';
+import CamperCareRequestFormPage from './pages/counselor/CamperCareRequestFormPage';
+import MaintenanceTicketFormPage from './pages/counselor/MaintenanceTicketFormPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -329,6 +342,89 @@ function Router() {
           <Route path="/reflect/summary" element={<ReflectionSummaryPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
+          {/* 7_6d: Counselor mobile flow. Lives under AppLayout so the
+              sidebar/header chrome (3.32 / 3.33) stays available on the
+              dashboard, roster, and form screens. The legacy
+              `/counselor-dashboard` route still serves the old
+              CounselorDashboard.jsx self-reflection surface and is
+              untouched while 7_6d/e migrate counselors over. */}
+          <Route path="/counselor" element={<CounselorMobileDashboard />} />
+          <Route
+            path="/counselor/camper-reflections"
+            element={<CamperReflectionListPage />}
+          />
+          <Route
+            path="/counselor/camper-reflections/:date"
+            element={<CamperReflectionListPage />}
+          />
+          <Route
+            path="/counselor/camper-reflections/new"
+            element={<CamperReflectionFormPage />}
+          />
+          <Route
+            path="/counselor/camper-reflections/:reflectionId/edit"
+            element={<CamperReflectionFormPage />}
+          />
+          {/* 7_6e: Counselor self-reflection. ``/self-reflection`` auto-routes
+              to today's edit URL if a submission already exists, otherwise
+              renders the create form. ``/history`` is a dedicated paginated
+              view (Story 6 criterion 6); gap days are rendered as
+              "No submission" rows by the server. */}
+          <Route
+            path="/counselor/self-reflection"
+            element={<CounselorSelfReflectionPage />}
+          />
+          <Route
+            path="/counselor/self-reflection/history"
+            element={<CounselorSelfReflectionHistoryPage />}
+          />
+          <Route
+            path="/counselor/self-reflection/:reflectionId/edit"
+            element={<CounselorSelfReflectionPage />}
+          />
+          {/* 7_6f: Camper Care + Maintenance request flow. The list view
+              accepts ``?status=open|all`` so counselors can confirm a
+              request closed without leaving the surface. Both per-type
+              forms have a stable client_submission_id ref so an offline
+              replay POSTs the same row instead of duplicating. */}
+          <Route
+            path="/counselor/requests"
+            element={<CounselorRequestsListPage />}
+          />
+          <Route
+            path="/counselor/requests/camper-care/new"
+            element={<CamperCareRequestFormPage />}
+          />
+          <Route
+            path="/counselor/requests/maintenance/new"
+            element={<MaintenanceTicketFormPage />}
+          />
+          {/* 7_7: Unit Head mobile flow. The legacy `/dashboard/unithead`
+              route is preserved above and still serves the old surface;
+              the new `/unit-head` flow renders the supervised bunk list,
+              shared Bunk/Camper Dashboards, and the UH self-reflection
+              form + history. */}
+          <Route path="/unit-head" element={<UnitHeadDashboardV2 />} />
+          <Route
+            path="/unit-head/bunks/:bunkId"
+            element={<UnitHeadBunkDashboardPage />}
+          />
+          <Route
+            path="/unit-head/campers/:camperId"
+            element={<UnitHeadCamperDashboardPage />}
+          />
+          <Route
+            path="/unit-head/self-reflection"
+            element={<UnitHeadSelfReflectionPage />}
+          />
+          <Route
+            path="/unit-head/self-reflection/history"
+            element={<UnitHeadSelfReflectionHistoryPage />}
+          />
+          <Route
+            path="/unit-head/self-reflection/:reflectionId/edit"
+            element={<UnitHeadSelfReflectionPage />}
+          />
         </Route>
 
         <Route

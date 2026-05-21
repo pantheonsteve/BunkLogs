@@ -215,3 +215,29 @@ BunkLogs is mid-way through a **Strangler Fig migration** from a single-tenant d
 **Canonical context document**: [`migration_prompts/0_0_context_prompt.md`](migration_prompts/0_0_context_prompt.md)
 
 **Ordered prompt sequence**: [`migration_prompts/`](migration_prompts/) — numbered files `1_1` through `6_3` define the full migration roadmap in execution order.
+
+## Migration step execution: lean by default
+
+Migration prompts enumerate every acceptance criterion, but **lean is the default execution mode**. Do not slice a single step into more than 1-2 PRs unless explicitly asked.
+
+**Lean mode (default):**
+- One PR per step, grouping backend + frontend + tests together. Two PRs only when the diff genuinely exceeds reviewability (~1500 lines) or when backend changes must deploy before frontend.
+- Test coverage: one happy-path, one auth/permission, one critical-edge per endpoint. Skip exhaustive per-acceptance-criterion tests unless the logic is genuinely tricky.
+- Docstrings: 5-10 lines max per module — what, why, key invariant. No long mapping tables or rationale essays in code.
+- Frontend tests: one integration-style test per page over many `vi.mock`-heavy unit tests. Skip tests that only verify "axios got called with X".
+- Skip per-role `docs/role_flows/<role>.md` files unless asked.
+- i18n: inline English for new copy. Defer `t()` wrapping to a single dedicated PR per role.
+- Don't write a backfill/dual-write bridge for new role flows that have no legacy data. Bridges are only warranted when Crane Lake's existing tables hold rows that need preserving.
+
+**Full mode (only when explicitly asked, OR when the change touches one of these):**
+- Schema migrations on tables with existing production data
+- Auth, tenancy, or `OrgScopedManager` / `organization_context` boundaries
+- Strangler-fig bridges between legacy and new models (any code that reads or writes both stores)
+- Anything that could silently corrupt Crane Lake's existing data
+
+**When ambiguous:** if a step looks like it might warrant full mode but isn't obviously in one of the trigger categories above, ask "lean or full?" before starting — don't default to full.
+
+**Don't:**
+- Re-explore the same files at the start of every sub-task. Spot-check only the files you're about to edit.
+- Add code comments that re-explain what the migration prompt already says.
+- Write tests for trivial wiring (e.g. "constants array has N entries").

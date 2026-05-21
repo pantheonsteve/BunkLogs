@@ -43,35 +43,11 @@ def _parse_date(s: str | None, default: date) -> date:
         return default
 
 
-def _resolve_rating(field: dict, answers: dict) -> dict[str, float | None]:
-    """Pull numeric ratings out of an answers blob for a given schema field.
-
-    Returns a flat dict ``{label: value}`` — for ``single_rating`` a single
-    entry under the field key, for ``rating_group`` one entry per category
-    keyed as ``"<field_key>__<cat_key>"``.
-    """
-    ftype = field.get("type")
-    fkey = field.get("key")
-    out: dict[str, float | None] = {}
-    if ftype == "single_rating":
-        v = answers.get(fkey)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            out[fkey] = float(v)
-        else:
-            out[fkey] = None
-    elif ftype == "rating_group":
-        block = answers.get(fkey) if isinstance(answers.get(fkey), dict) else {}
-        for cat in field.get("categories") or []:
-            ck = cat.get("key") if isinstance(cat, dict) else None
-            if ck is None:
-                continue
-            v = block.get(ck) if isinstance(block, dict) else None
-            label = f"{fkey}__{ck}"
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                out[label] = float(v)
-            else:
-                out[label] = None
-    return out
+# Re-export the canonical helper from ``core.reflection_scores`` so existing
+# call sites in this module keep working without touching the rest of the
+# file. New callers should import directly from
+# ``bunk_logs.core.reflection_scores``.
+from bunk_logs.core.reflection_scores import resolve_rating_cells as _resolve_rating
 
 
 def _detect_concerning_patterns(
