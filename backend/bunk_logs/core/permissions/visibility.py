@@ -8,6 +8,7 @@ applies the same rules.
 
 from __future__ import annotations
 
+from datetime import date
 from functools import reduce
 from operator import or_
 
@@ -147,6 +148,78 @@ def _author_group_ids_with_descendants(person: Person) -> set[int]:
     return direct | descendants
 
 
+def _supervision_authored_q(person: Person, organization_id: int | None) -> Q | None:
+    """Q filter for reflections reachable via the ``core.Supervision`` model.
+
+    Two patterns covered:
+
+    * ``MEMBERSHIP`` supervision (UH → Counselor, LT → Specialist, …):
+      viewer's active Memberships are supervisors of one or more target
+      Memberships. Each target Membership has a Person; that Person's
+      authored ``AssignmentGroup``s carry reflections we want to surface.
+      Visibility on those groups is supervisor-pipe semantics — we
+      ignore ``team_visibility`` because the whole point of the
+      supervisor relationship is to see "supervisors_only" content.
+    * ``BUNK`` supervision (Camper Care over caseload bunks): viewer
+      directly supervises an ``AssignmentGroup``; reflections on that
+      group flow to viewer regardless of authorship.
+
+    Returns ``None`` when the viewer has no active supervisions so the
+    OR builder in :func:`reflections_visible_to` can skip the empty
+    branch cleanly.
+    """
+    from bunk_logs.core.models import Supervision
+
+    today = date.today()
+    sup_qs = Supervision.all_objects.filter(
+        supervisor_membership__person=person,
+        supervisor_membership__is_active=True,
+        start_date__lte=today,
+    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+    if organization_id is not None:
+        sup_qs = sup_qs.filter(
+            supervisor_membership__program__organization_id=organization_id,
+        )
+
+    membership_target_person_ids: set[int] = set()
+    bunk_ids: set[int] = set()
+    for sup in sup_qs.select_related("target_membership", "target_bunk").only(
+        "id", "target_type", "target_membership__person_id", "target_bunk_id",
+    ):
+        if sup.target_type == "membership" and sup.target_membership_id:
+            person_id = getattr(sup.target_membership, "person_id", None)
+            if person_id:
+                membership_target_person_ids.add(person_id)
+        elif sup.target_type == "bunk" and sup.target_bunk_id:
+            bunk_ids.add(sup.target_bunk_id)
+
+    parts: list[Q] = []
+
+    if membership_target_person_ids:
+        # Find the authored AssignmentGroups for each supervised Person.
+        sup_group_ids = set(
+            AssignmentGroupMembership.all_objects.filter(
+                person_id__in=membership_target_person_ids,
+                role_in_group="author",
+                is_active=True,
+                group__is_active=True,
+            ).values_list("group_id", flat=True),
+        )
+        if sup_group_ids:
+            parts.append(Q(assignment_group_id__in=sup_group_ids))
+        # Also surface the supervised Persons' OWN self-reflections (UH's
+        # supervisor pipe into their counselors' self-reflections).
+        parts.append(Q(author_id__in=membership_target_person_ids,
+                       subject_id__in=membership_target_person_ids))
+
+    if bunk_ids:
+        parts.append(Q(assignment_group_id__in=bunk_ids))
+
+    if not parts:
+        return None
+    return reduce(or_, parts)
+
+
 def _author_group_ids_split(person: Person) -> tuple[set[int], set[int]]:
     """Return ``(direct_ids, descendant_only_ids)`` for the person's authoring memberships.
 
@@ -261,6 +334,14 @@ def reflections_visible_to(
     sq = _unit_scoped_supervisor_q(person, org_id)
     if sq is not None:
         parts.append(sq)
+
+    # Supervision-based supervisor pipe (Step 7_3 / 7_7). Covers UH → Counselor,
+    # LT → team-role, Camper Care → BUNK targets, etc. Independent of the
+    # AssignmentGroup descendant walk: the Supervision row is the source of
+    # truth for who supervises whom, and that's what binds visibility here.
+    supq = _supervision_authored_q(person, org_id)
+    if supq is not None:
+        parts.append(supq)
 
     wq = _wellness_q(person)
     if wq is not None:

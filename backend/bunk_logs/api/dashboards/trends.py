@@ -42,53 +42,11 @@ def _date_range(start: date, end: date) -> list[date]:
     return [start + timedelta(days=i) for i in range(days + 1)]
 
 
-def _scale_max(field: dict) -> int:
-    scale = field.get("scale") or [1, 5]
-    try:
-        return int(scale[-1])
-    except (IndexError, ValueError, TypeError):
-        return 5
-
-
-def _find_field(template: ReflectionTemplate, role: str) -> dict | None:
-    for f in (template.schema or {}).get("fields") or []:
-        if isinstance(f, dict) and f.get("dashboard_role") == role:
-            return f
-    return None
-
-
-def _rating_from_answer(
-    answers: dict,
-    primary: dict | None,
-    category: dict | None,
-    category_key: str | None,
-) -> float | None:
-    """Resolve a single numeric rating for a reflection's answers."""
-    if primary is not None:
-        v = answers.get(primary.get("key"))
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            return float(v)
-    if category is not None:
-        block = answers.get(category.get("key"))
-        if not isinstance(block, dict):
-            return None
-        if category_key:
-            v = block.get(category_key)
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                return float(v)
-            return None
-        # Average across all configured categories
-        vals: list[float] = []
-        for cat in category.get("categories") or []:
-            ck = cat.get("key") if isinstance(cat, dict) else None
-            if ck is None:
-                continue
-            v = block.get(ck)
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                vals.append(float(v))
-        if vals:
-            return sum(vals) / len(vals)
-    return None
+# Re-export from ``core.reflection_scores`` (module-local aliases keep the
+# existing call sites stable while pointing newcomers at the shared home).
+from bunk_logs.core.reflection_scores import find_field_by_dashboard_role as _find_field
+from bunk_logs.core.reflection_scores import reduce_rating as _rating_from_answer
+from bunk_logs.core.reflection_scores import scale_max as _scale_max
 
 
 class SubjectTrendGridView(APIView):
