@@ -50,6 +50,8 @@ import AppLayout from './layouts/AppLayout';
 import CounselorMobileDashboard from './pages/counselor/CounselorMobileDashboard';
 import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
 import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
+import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
+import CounselorSelfReflectionHistoryPage from './pages/counselor/CounselorSelfReflectionHistoryPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -354,6 +356,23 @@ function Router() {
           <Route
             path="/counselor/camper-reflections/:reflectionId/edit"
             element={<CamperReflectionFormPage />}
+          />
+          {/* 7_6e: Counselor self-reflection. ``/self-reflection`` auto-routes
+              to today's edit URL if a submission already exists, otherwise
+              renders the create form. ``/history`` is a dedicated paginated
+              view (Story 6 criterion 6); gap days are rendered as
+              "No submission" rows by the server. */}
+          <Route
+            path="/counselor/self-reflection"
+            element={<CounselorSelfReflectionPage />}
+          />
+          <Route
+            path="/counselor/self-reflection/history"
+            element={<CounselorSelfReflectionHistoryPage />}
+          />
+          <Route
+            path="/counselor/self-reflection/:reflectionId/edit"
+            element={<CounselorSelfReflectionPage />}
           />
         </Route>
 
