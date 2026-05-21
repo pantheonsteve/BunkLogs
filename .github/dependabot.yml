@@ -1,0 +1,17 @@
+# Dependabot version updates. The pip grapher requires a recognized manifest;
+# see backend/requirements/requirements.txt (shim that includes production.txt).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend/requirements
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
