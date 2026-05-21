@@ -2,16 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   CAMPER_REFLECTION_AUDIENCE,
   COUNSELOR_SELF_REFLECTION_AUDIENCE,
+  MAINTENANCE_CATEGORIES,
+  MAINTENANCE_URGENCY_CHOICES,
+  createCamperCareRequest,
   createCamperReflection,
+  createMaintenanceTicket,
   createSelfReflection,
+  fetchCamperCareItemSuggestions,
   fetchCamperReflections,
   fetchCounselorDashboard,
+  fetchCounselorRequests,
   fetchReflection,
   fetchSelfReflectionHistory,
   fetchTemplateById,
   newClientSubmissionId,
   patchCamperReflection,
   patchSelfReflection,
+  uploadMaintenanceTicketPhoto,
 } from '../counselor';
 
 const getMock = vi.fn();
@@ -173,6 +180,136 @@ describe('counselor API helpers', () => {
     expect(getMock.mock.calls[0]).toEqual([
       '/api/v1/counselor/self-reflection/history/',
       { params: { page: 3, page_size: 30 } },
+    ]);
+  });
+
+  it('fetchCounselorRequests defaults status=open', async () => {
+    getMock.mockResolvedValue({ data: { requests: [] } });
+    await fetchCounselorRequests();
+    expect(getMock.mock.calls[0]).toEqual([
+      '/api/v1/counselor/requests/',
+      { params: { status: 'open' } },
+    ]);
+  });
+
+  it('fetchCounselorRequests forwards status filter', async () => {
+    getMock.mockResolvedValue({ data: { requests: [] } });
+    await fetchCounselorRequests({ status: 'all' });
+    expect(getMock.mock.calls[0][1].params.status).toBe('all');
+  });
+
+  it('fetchCamperCareItemSuggestions calls the suggestions endpoint', async () => {
+    getMock.mockResolvedValue({ data: { suggestions: [] } });
+    await fetchCamperCareItemSuggestions();
+    expect(getMock.mock.calls[0][0]).toBe(
+      '/api/v1/counselor/camper-care-item-suggestions/',
+    );
+  });
+
+  it('createCamperCareRequest sends the trimmed payload', async () => {
+    postMock.mockResolvedValue({ data: { id: 'order-1' }, status: 201 });
+    await createCamperCareRequest({
+      subjectId: 42,
+      item: 'Toothbrush',
+      itemNote: 'purple',
+      description: 'after lights out',
+      clientSubmissionId: '33333333-3333-4333-8333-333333333333',
+    });
+    expect(postMock.mock.calls[0][0]).toBe('/api/v1/counselor/camper-care-requests/');
+    expect(postMock.mock.calls[0][1]).toEqual({
+      subject_id: 42,
+      item: 'Toothbrush',
+      item_note: 'purple',
+      description: 'after lights out',
+      client_submission_id: '33333333-3333-4333-8333-333333333333',
+    });
+  });
+
+  it('createCamperCareRequest omits subject_id when null/undefined', async () => {
+    postMock.mockResolvedValue({ data: { id: 'order-2' }, status: 201 });
+    await createCamperCareRequest({
+      subjectId: null,
+      item: 'Bug spray',
+      clientSubmissionId: '44444444-4444-4444-8444-444444444444',
+    });
+    const body = postMock.mock.calls[0][1];
+    expect(body).not.toHaveProperty('subject_id');
+    expect(body.item).toBe('Bug spray');
+  });
+
+  it('createMaintenanceTicket builds a multipart FormData with photos', async () => {
+    postMock.mockResolvedValue({ data: { id: 'mt-1' }, status: 201 });
+    const photo1 = new File(['fake-image-1'], 'photo1.jpg', { type: 'image/jpeg' });
+    const photo2 = new File(['fake-image-2'], 'photo2.jpg', { type: 'image/jpeg' });
+    await createMaintenanceTicket({
+      location: 'Bunk Pine',
+      category: 'leak',
+      description: 'under sink',
+      urgency: 'urgent',
+      urgentReason: 'flooding',
+      photos: [photo1, photo2],
+      clientSubmissionId: '55555555-5555-4555-8555-555555555555',
+    });
+    expect(postMock.mock.calls[0][0]).toBe('/api/v1/counselor/maintenance-tickets/');
+    const body = postMock.mock.calls[0][1];
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get('location')).toBe('Bunk Pine');
+    expect(body.get('category')).toBe('leak');
+    expect(body.get('urgency')).toBe('urgent');
+    expect(body.get('urgent_reason')).toBe('flooding');
+    expect(body.get('client_submission_id')).toBe(
+      '55555555-5555-4555-8555-555555555555',
+    );
+    expect(body.getAll('photos')).toHaveLength(2);
+
+    // ``Content-Type: undefined`` so the browser sets the multipart boundary.
+    expect(postMock.mock.calls[0][2]).toEqual({
+      headers: { 'Content-Type': undefined },
+    });
+  });
+
+  it('createMaintenanceTicket skips urgent_reason when urgency is normal', async () => {
+    postMock.mockResolvedValue({ data: { id: 'mt-2' }, status: 201 });
+    await createMaintenanceTicket({
+      location: 'Dining hall',
+      category: 'broken_light',
+      photos: [],
+      urgency: 'normal',
+      urgentReason: 'should be ignored',
+      clientSubmissionId: '66666666-6666-4666-8666-666666666666',
+    });
+    const body = postMock.mock.calls[0][1];
+    expect(body.get('urgent_reason')).toBeNull();
+    expect(body.getAll('photos')).toHaveLength(0);
+  });
+
+  it('uploadMaintenanceTicketPhoto posts to the follow-up endpoint', async () => {
+    postMock.mockResolvedValue({ data: { id: 'photo-1' } });
+    const photo = new File(['data'], 'extra.jpg', { type: 'image/jpeg' });
+    await uploadMaintenanceTicketPhoto('abc-123', {
+      image: photo,
+      caption: 'cracked',
+    });
+    expect(postMock.mock.calls[0][0]).toBe(
+      '/api/v1/counselor/maintenance-tickets/abc-123/photos/',
+    );
+    const body = postMock.mock.calls[0][1];
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get('caption')).toBe('cracked');
+    expect(body.get('image')).toBeInstanceOf(File);
+  });
+
+  it('exports stable maintenance categories + urgencies', () => {
+    expect(MAINTENANCE_CATEGORIES.map((c) => c.value)).toEqual([
+      'plumbing',
+      'broken_light',
+      'pest',
+      'leak',
+      'other',
+    ]);
+    expect(MAINTENANCE_URGENCY_CHOICES.map((u) => u.value)).toEqual([
+      'normal',
+      'urgent',
     ]);
   });
 });

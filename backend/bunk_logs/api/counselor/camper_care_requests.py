@@ -18,6 +18,7 @@ from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
+from bunk_logs.core.models import OrderItemSuggestion
 
 from .common import co_counselor_person_ids
 from .common import find_existing_by_client_submission_id
@@ -26,6 +27,47 @@ from .common import viewer_bunk_groups
 from .common import viewer_or_403
 from .responses import order_response
 from .serializers import CamperCareRequestCreateSerializer
+
+
+class CamperCareItemSuggestionListView(APIView):
+    """``GET /api/v1/counselor/camper-care-item-suggestions/`` — Story 7 criterion 2.ii.
+
+    Returns the curated camper-care item list for the viewer's primary
+    program (decision C6). The form uses this for autocomplete; counselors
+    can still submit any free-text label, so an empty list (e.g. for a
+    program that hasn't been seeded yet) just disables autocomplete on
+    the client without blocking submission.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        viewer = ctx.person
+
+        primary_membership = (
+            Membership.objects.filter(person=viewer, is_active=True)
+            .select_related("program")
+            .order_by("-created_at")
+            .first()
+        )
+        if primary_membership is None or primary_membership.program is None:
+            return Response({"suggestions": []})
+
+        program = primary_membership.program
+        rows = (
+            OrderItemSuggestion.all_objects.filter(program=program, is_active=True)
+            .order_by("sort_order", "label")
+            .values("id", "label", "sort_order")
+        )
+        # Stringify the id to match the convention used elsewhere in the
+        # counselor surface (Order/MaintenanceTicket also return string IDs).
+        return Response({
+            "suggestions": [
+                {"id": str(r["id"]), "label": r["label"], "sort_order": r["sort_order"]}
+                for r in rows
+            ],
+        })
 
 
 class CamperCareRequestCreateView(APIView):

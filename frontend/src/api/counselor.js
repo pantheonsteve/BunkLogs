@@ -222,3 +222,157 @@ export async function fetchSelfReflectionHistory({ page = 1, pageSize } = {}) {
   });
   return data;
 }
+
+// ---------------------------------------------------------------------------
+// Camper-care + maintenance requests (Stories 7 + 8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Combined open-requests list for the dashboard's request pane.
+ *
+ * Returns Orders + MaintenanceTickets the viewer + their co-counselors
+ * submitted on the viewer's bunks. Default ``status=open`` filters to
+ * NEW + IN_PROGRESS; pass ``status='all'`` for the historical view.
+ */
+export async function fetchCounselorRequests({ status = 'open' } = {}) {
+  const { data } = await api.get('/api/v1/counselor/requests/', {
+    params: { status },
+  });
+  return data;
+}
+
+/**
+ * Fetch the curated camper-care item suggestion list for the viewer's
+ * program (Story 7 criterion 2.ii). Used as autocomplete options on the
+ * camper-care request form. An empty list just disables autocomplete
+ * (a counselor can still submit any free-text label).
+ */
+export async function fetchCamperCareItemSuggestions() {
+  const { data } = await api.get(
+    '/api/v1/counselor/camper-care-item-suggestions/',
+  );
+  return data;
+}
+
+/**
+ * Submit a camper-care request (Story 7).
+ *
+ * ``subjectId`` is optional: counselors can file a bunk-scoped request
+ * (no subject) for "the whole bunk" needs. ``item`` is free text; the
+ * client surfaces an autocomplete from
+ * :func:`fetchCamperCareItemSuggestions` but never blocks on it.
+ */
+export async function createCamperCareRequest({
+  subjectId,
+  item,
+  itemNote = '',
+  description = '',
+  clientSubmissionId,
+}) {
+  const payload = {
+    item,
+    item_note: itemNote,
+    description,
+    client_submission_id: clientSubmissionId,
+  };
+  if (subjectId !== undefined && subjectId !== null) {
+    payload.subject_id = subjectId;
+  }
+  const res = await api.post(
+    '/api/v1/counselor/camper-care-requests/', payload,
+  );
+  return { data: res.data, status: res.status };
+}
+
+/**
+ * Submit a maintenance ticket (Story 8) with optional photos.
+ *
+ * Photos must be supplied as an array of ``File`` instances so we can
+ * stream them through ``FormData`` with repeated ``photos`` keys, which
+ * is the only multipart shape DRF's serializer + view actually accept
+ * (see ``MaintenanceTicketCreateSerializer`` docstring for why the
+ * serializer can't validate the list directly — the view pulls from
+ * ``request.FILES.getlist('photos')`` instead).
+ *
+ * When ``urgency === 'urgent'`` the server requires ``urgent_reason``
+ * (Story 8 criterion 2); the form already enforces this client-side so
+ * a 400 here is a genuine server-side validation surface.
+ */
+export async function createMaintenanceTicket({
+  location,
+  category,
+  description = '',
+  urgency = 'normal',
+  urgentReason = '',
+  photos = [],
+  clientSubmissionId,
+}) {
+  const form = new FormData();
+  form.append('location', location);
+  form.append('category', category);
+  form.append('description', description);
+  form.append('urgency', urgency);
+  if (urgency === 'urgent' && urgentReason) {
+    form.append('urgent_reason', urgentReason);
+  }
+  form.append('client_submission_id', clientSubmissionId);
+  for (const file of photos) {
+    if (file) form.append('photos', file);
+  }
+  // Let the browser set the multipart boundary by NOT setting
+  // Content-Type explicitly. Passing ``Content-Type: undefined`` here
+  // unsets the JSON default baked into the axios instance defaults.
+  const res = await api.post(
+    '/api/v1/counselor/maintenance-tickets/',
+    form,
+    { headers: { 'Content-Type': undefined } },
+  );
+  return { data: res.data, status: res.status };
+}
+
+/**
+ * Add a follow-up photo to a maintenance ticket the viewer submitted
+ * (decision C5). Only counselors who submitted the original ticket can
+ * call this; cross-counselor follow-ups are out of scope until bunk-team
+ * co-ownership lands.
+ */
+export async function uploadMaintenanceTicketPhoto(ticketId, { image, caption = '' }) {
+  const form = new FormData();
+  form.append('image', image);
+  if (caption) form.append('caption', caption);
+  const { data } = await api.post(
+    `/api/v1/counselor/maintenance-tickets/${ticketId}/photos/`,
+    form,
+    { headers: { 'Content-Type': undefined } },
+  );
+  return data;
+}
+
+/**
+ * Frozen list of maintenance ticket categories. Mirrors
+ * ``MaintenanceTicket.Category.choices`` in the backend model. Kept
+ * client-side because the form's category picker can't wait on a round
+ * trip to render, and because the list is stable across releases —
+ * adding a new category is a coordinated backend + frontend change.
+ *
+ * Keep in sync with ``bunk_logs/core/models.py``.
+ */
+export const MAINTENANCE_CATEGORIES = Object.freeze([
+  { value: 'plumbing', label: 'Clogged plumbing' },
+  { value: 'broken_light', label: 'Broken light' },
+  { value: 'pest', label: 'Pest / Insect' },
+  { value: 'leak', label: 'Leak' },
+  { value: 'other', label: 'Other' },
+]);
+
+/**
+ * Frozen list of maintenance urgency levels. Mirrors
+ * ``OrderableContent.Urgency`` choices. ``low`` is hidden from the
+ * counselor form: counselors only pick between ``normal`` (default) and
+ * ``urgent`` (which unlocks ``urgent_reason``). Admins on the ops side
+ * can re-grade to ``low`` if needed.
+ */
+export const MAINTENANCE_URGENCY_CHOICES = Object.freeze([
+  { value: 'normal', label: 'Normal' },
+  { value: 'urgent', label: 'Urgent' },
+]);
