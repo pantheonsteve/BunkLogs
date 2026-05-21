@@ -48,6 +48,11 @@ import DashboardsHub from './pages/dashboards/DashboardsHub';
 import AdminLayout from './layouts/AdminLayout';
 import AppLayout from './layouts/AppLayout';
 import CounselorMobileDashboard from './pages/counselor/CounselorMobileDashboard';
+import UnitHeadDashboardV2 from './pages/unit-head/UnitHeadDashboard';
+import UnitHeadBunkDashboardPage from './pages/unit-head/UnitHeadBunkDashboardPage';
+import UnitHeadCamperDashboardPage from './pages/unit-head/UnitHeadCamperDashboardPage';
+import UnitHeadSelfReflectionPage from './pages/unit-head/UnitHeadSelfReflectionPage';
+import UnitHeadSelfReflectionHistoryPage from './pages/unit-head/UnitHeadSelfReflectionHistoryPage';
 import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
 import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
 import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
@@ -393,6 +398,32 @@ function Router() {
           <Route
             path="/counselor/requests/maintenance/new"
             element={<MaintenanceTicketFormPage />}
+          />
+          {/* 7_7: Unit Head mobile flow. The legacy `/dashboard/unithead`
+              route is preserved above and still serves the old surface;
+              the new `/unit-head` flow renders the supervised bunk list,
+              shared Bunk/Camper Dashboards, and the UH self-reflection
+              form + history. */}
+          <Route path="/unit-head" element={<UnitHeadDashboardV2 />} />
+          <Route
+            path="/unit-head/bunks/:bunkId"
+            element={<UnitHeadBunkDashboardPage />}
+          />
+          <Route
+            path="/unit-head/campers/:camperId"
+            element={<UnitHeadCamperDashboardPage />}
+          />
+          <Route
+            path="/unit-head/self-reflection"
+            element={<UnitHeadSelfReflectionPage />}
+          />
+          <Route
+            path="/unit-head/self-reflection/history"
+            element={<UnitHeadSelfReflectionHistoryPage />}
+          />
+          <Route
+            path="/unit-head/self-reflection/:reflectionId/edit"
+            element={<UnitHeadSelfReflectionPage />}
           />
         </Route>
 
