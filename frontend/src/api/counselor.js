@@ -129,3 +129,96 @@ export const CAMPER_REFLECTION_AUDIENCE = Object.freeze([
   'Leadership Team',
   'Unit Head',
 ]);
+
+/**
+ * Static audience labels for a counselor self-reflection.
+ *
+ * Mirrors ``audience_labels(ContentType.COUNSELOR_SELF_REFLECTION)`` from
+ * ``bunk_logs/core/content_visibility.py``. No ``supports_privacy`` toggle
+ * applies to the seeded counselor template, so this set is fixed.
+ */
+export const COUNSELOR_SELF_REFLECTION_AUDIENCE = Object.freeze([
+  'Admin',
+  'Counselor',
+  'Leadership Team',
+  'Unit Head',
+]);
+
+// ---------------------------------------------------------------------------
+// Self-reflection (Stories 5 + 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Submit today's self-reflection (Story 5).
+ *
+ * Two payload shapes:
+ *
+ *   * ``{ dayOff: true }`` — shortcut. The server fills ``answers`` with
+ *     ``{"day_off": true}`` regardless of what we send, so the offline
+ *     queue can record a day off without knowing the schema.
+ *   * ``{ dayOff: false, answers: {...} }`` — full submission. ``answers``
+ *     must validate against the seeded counselor template schema.
+ *
+ * The view also accepts an explicit ``team_visibility`` but the seeded
+ * template ships ``supports_privacy=false``, so the server always stores
+ * ``team`` for self-reflections. We don't send the field to keep the
+ * payload minimal.
+ */
+export async function createSelfReflection({
+  dayOff = false,
+  answers,
+  language = 'en',
+  clientSubmissionId,
+}) {
+  const payload = {
+    day_off: !!dayOff,
+    language,
+    client_submission_id: clientSubmissionId,
+  };
+  if (!dayOff) {
+    payload.answers = answers || {};
+  }
+  const res = await api.post('/api/v1/counselor/self-reflection/', payload);
+  return { data: res.data, status: res.status };
+}
+
+/**
+ * Patch an existing self-reflection within today's edit window (Story 6).
+ *
+ * ``dayOff`` is a tri-state: ``true`` flips to the day-off shortcut and
+ * blanks the rest of the answers; ``false`` flips back to a normal entry
+ * (and requires ``answers``); ``undefined`` leaves the shortcut state
+ * untouched. The view enforces the rollover-aware edit window and returns
+ * 403 once "today" passes.
+ */
+export async function patchSelfReflection(reflectionId, {
+  dayOff,
+  answers,
+  language,
+}) {
+  const payload = {};
+  if (dayOff !== undefined) payload.day_off = !!dayOff;
+  if (answers !== undefined) payload.answers = answers;
+  if (language !== undefined) payload.language = language;
+  const { data } = await api.patch(
+    `/api/v1/counselor/self-reflection/${reflectionId}/`,
+    payload,
+  );
+  return data;
+}
+
+/**
+ * Paginated history view of the viewer's own self-reflections (Story 6).
+ *
+ * Returns one row per calendar day in the page window — including "no
+ * submission" gap rows — so the client can render Story 6 criterion 6
+ * without inferring missing dates client-side.
+ */
+export async function fetchSelfReflectionHistory({ page = 1, pageSize } = {}) {
+  const params = { page };
+  if (pageSize) params.page_size = pageSize;
+  const { data } = await api.get('/api/v1/counselor/self-reflection/history/', {
+    params,
+  });
+  return data;
+}

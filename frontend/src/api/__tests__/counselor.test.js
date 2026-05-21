@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   CAMPER_REFLECTION_AUDIENCE,
+  COUNSELOR_SELF_REFLECTION_AUDIENCE,
   createCamperReflection,
+  createSelfReflection,
   fetchCamperReflections,
   fetchCounselorDashboard,
   fetchReflection,
+  fetchSelfReflectionHistory,
   fetchTemplateById,
   newClientSubmissionId,
   patchCamperReflection,
+  patchSelfReflection,
 } from '../counselor';
 
 const getMock = vi.fn();
@@ -109,5 +113,66 @@ describe('counselor API helpers', () => {
     getMock.mockResolvedValue({ data: { id: 1 } });
     await fetchReflection(42);
     expect(getMock.mock.calls[0][0]).toBe('/api/v1/reflections/42/');
+  });
+
+  it('exports the canonical self-reflection audience set', () => {
+    expect(COUNSELOR_SELF_REFLECTION_AUDIENCE).toEqual([
+      'Admin',
+      'Counselor',
+      'Leadership Team',
+      'Unit Head',
+    ]);
+  });
+
+  it('createSelfReflection day-off shortcut omits answers', async () => {
+    postMock.mockResolvedValue({ data: { id: 1 }, status: 201 });
+    await createSelfReflection({
+      dayOff: true,
+      language: 'en',
+      clientSubmissionId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(postMock.mock.calls[0][0]).toBe('/api/v1/counselor/self-reflection/');
+    const body = postMock.mock.calls[0][1];
+    expect(body).toEqual({
+      day_off: true,
+      language: 'en',
+      client_submission_id: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(body).not.toHaveProperty('answers');
+  });
+
+  it('createSelfReflection sends the full answers payload otherwise', async () => {
+    postMock.mockResolvedValue({ data: { id: 2 }, status: 201 });
+    await createSelfReflection({
+      dayOff: false,
+      answers: { overall_day: 4 },
+      language: 'es',
+      clientSubmissionId: '22222222-2222-4222-8222-222222222222',
+    });
+    const body = postMock.mock.calls[0][1];
+    expect(body).toEqual({
+      day_off: false,
+      language: 'es',
+      client_submission_id: '22222222-2222-4222-8222-222222222222',
+      answers: { overall_day: 4 },
+    });
+  });
+
+  it('patchSelfReflection omits undefined fields', async () => {
+    patchMock.mockResolvedValue({ data: { id: 9 } });
+    await patchSelfReflection(9, { dayOff: true });
+    expect(patchMock.mock.calls[0]).toEqual([
+      '/api/v1/counselor/self-reflection/9/',
+      { day_off: true },
+    ]);
+  });
+
+  it('fetchSelfReflectionHistory forwards pagination params', async () => {
+    getMock.mockResolvedValue({ data: { results: [] } });
+    await fetchSelfReflectionHistory({ page: 3, pageSize: 30 });
+    expect(getMock.mock.calls[0]).toEqual([
+      '/api/v1/counselor/self-reflection/history/',
+      { params: { page: 3, page_size: 30 } },
+    ]);
   });
 });
