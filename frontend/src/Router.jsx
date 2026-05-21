@@ -47,6 +47,9 @@ import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import DashboardsHub from './pages/dashboards/DashboardsHub';
 import AdminLayout from './layouts/AdminLayout';
 import AppLayout from './layouts/AppLayout';
+import CounselorMobileDashboard from './pages/counselor/CounselorMobileDashboard';
+import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
+import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
 import { useBunk } from './contexts/BunkContext';
 
 // Protected route component
@@ -329,6 +332,29 @@ function Router() {
           <Route path="/reflect/summary" element={<ReflectionSummaryPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
+          {/* 7_6d: Counselor mobile flow. Lives under AppLayout so the
+              sidebar/header chrome (3.32 / 3.33) stays available on the
+              dashboard, roster, and form screens. The legacy
+              `/counselor-dashboard` route still serves the old
+              CounselorDashboard.jsx self-reflection surface and is
+              untouched while 7_6d/e migrate counselors over. */}
+          <Route path="/counselor" element={<CounselorMobileDashboard />} />
+          <Route
+            path="/counselor/camper-reflections"
+            element={<CamperReflectionListPage />}
+          />
+          <Route
+            path="/counselor/camper-reflections/:date"
+            element={<CamperReflectionListPage />}
+          />
+          <Route
+            path="/counselor/camper-reflections/new"
+            element={<CamperReflectionFormPage />}
+          />
+          <Route
+            path="/counselor/camper-reflections/:reflectionId/edit"
+            element={<CamperReflectionFormPage />}
+          />
         </Route>
 
         <Route
