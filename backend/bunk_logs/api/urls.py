@@ -14,8 +14,10 @@ from . import reflections
 from . import supervisions as supervisions_api
 from . import templates as templates_api
 from . import views
+from .counselor import camper_care_requests as counselor_camper_care_requests
 from .counselor import camper_reflections as counselor_camper_reflections
 from .counselor import dashboard as counselor_dashboard
+from .counselor import maintenance_tickets as counselor_maintenance_tickets
 from .counselor import requests as counselor_requests
 from .counselor import self_reflection as counselor_self_reflection
 from .dashboards import authors as authors_dashboard
@@ -24,6 +26,10 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .unit_head import bunk_dashboard as uh_bunk_dashboard
+from .unit_head import camper_dashboard as uh_camper_dashboard
+from .unit_head import dashboard as uh_dashboard
+from .unit_head import self_reflection as uh_self_reflection
 
 router = DefaultRouter()
 
@@ -191,6 +197,79 @@ urlpatterns = [
         "counselor/requests/",
         counselor_requests.CounselorRequestsListView.as_view(),
         name="counselor-requests",
+    ),
+
+    # Counselor flow write endpoints (Step 7_6c)
+    path(
+        "counselor/camper-reflections/<int:reflection_id>/",
+        counselor_camper_reflections.CamperReflectionDetailView.as_view(),
+        name="counselor-camper-reflection-detail",
+    ),
+    path(
+        "counselor/self-reflection/",
+        counselor_self_reflection.SelfReflectionCreateView.as_view(),
+        name="counselor-self-reflection-create",
+    ),
+    path(
+        "counselor/self-reflection/<int:reflection_id>/",
+        counselor_self_reflection.SelfReflectionDetailView.as_view(),
+        name="counselor-self-reflection-detail",
+    ),
+    path(
+        "counselor/camper-care-requests/",
+        counselor_camper_care_requests.CamperCareRequestCreateView.as_view(),
+        name="counselor-camper-care-create",
+    ),
+    path(
+        "counselor/camper-care-item-suggestions/",
+        counselor_camper_care_requests.CamperCareItemSuggestionListView.as_view(),
+        name="counselor-camper-care-item-suggestions",
+    ),
+    path(
+        "counselor/maintenance-tickets/",
+        counselor_maintenance_tickets.MaintenanceTicketCreateView.as_view(),
+        name="counselor-maintenance-ticket-create",
+    ),
+    path(
+        "counselor/maintenance-tickets/<uuid:ticket_id>/photos/",
+        counselor_maintenance_tickets.MaintenanceTicketPhotoCreateView.as_view(),
+        name="counselor-maintenance-ticket-photo-create",
+    ),
+    # ------------------------------------------------------------------
+    # Unit Head (Step 7_7)
+    # Hyphenated namespace ``unit-head/`` deliberately disambiguates from
+    # the legacy single-tenant ``unithead/`` route which still serves
+    # Crane Lake's old User-based path.
+    # ------------------------------------------------------------------
+    path(
+        "unit-head/dashboard/",
+        uh_dashboard.UnitHeadDashboardView.as_view(),
+        name="unit-head-dashboard",
+    ),
+    path(
+        "unit-head/bunks/<int:bunk_id>/",
+        uh_bunk_dashboard.UnitHeadBunkDashboardView.as_view(),
+        name="unit-head-bunk-dashboard",
+    ),
+    path(
+        "unit-head/campers/<int:camper_id>/",
+        uh_camper_dashboard.UnitHeadCamperDashboardView.as_view(),
+        name="unit-head-camper-dashboard",
+    ),
+    path(
+        "unit-head/self-reflection/",
+        uh_self_reflection.UnitHeadSelfReflectionCreateView.as_view(),
+        name="unit-head-self-reflection-create",
+    ),
+    path(
+        "unit-head/self-reflection/history/",
+        uh_self_reflection.UnitHeadSelfReflectionHistoryView.as_view(),
+        name="unit-head-self-reflection-history",
+    ),
+    path(
+        "unit-head/self-reflection/<int:reflection_id>/",
+        uh_self_reflection.UnitHeadSelfReflectionDetailView.as_view(),
+        name="unit-head-self-reflection-detail",
     ),
 ]
 

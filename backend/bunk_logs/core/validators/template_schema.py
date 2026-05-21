@@ -56,6 +56,15 @@ RESERVED_KEYS = frozenset(
     },
 )
 
+# Whitelisted ``option_source`` values for choice fields whose options come
+# from a server-resolved query rather than a static list in the schema. The
+# UH "bunk_concerns" field uses ``supervised_bunks`` to populate from the
+# viewer's active Supervision rows; future role flows can extend this set
+# (e.g. ``program_campers`` for Camper Care). When ``option_source`` is set
+# we skip the static-options check in ``_validate_options``; the API view
+# is responsible for validating submitted IDs against the resolved source.
+DYNAMIC_OPTION_SOURCES = frozenset({"supervised_bunks"})
+
 _NON_WORD = re.compile(r"[^a-z0-9]+")
 
 
@@ -120,6 +129,12 @@ def _validate_rating_group(field: dict, loc: str) -> None:
 
 
 def _validate_options(field: dict, ftype: str, loc: str) -> None:
+    # Server-resolved option sources (e.g. UH "supervised_bunks") skip the
+    # static list requirement; the API view validates submitted IDs at
+    # write time against the resolved set.
+    option_source = field.get("option_source")
+    if isinstance(option_source, str) and option_source in DYNAMIC_OPTION_SOURCES:
+        return
     options = field.get("options")
     if not isinstance(options, list) or not options:
         raise ValidationError(

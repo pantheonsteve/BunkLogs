@@ -186,10 +186,23 @@ def _authed_client(user, org):
 # ---------------------------------------------------------------------------
 
 
+def _drop_seeded_counselor_self_template():
+    """Strip the seeded global counselor self-reflection template.
+
+    These tests pre-date the migration 0029 seed and assert specific task
+    counts / templates by index; the global template adds an extra row that
+    isn't relevant to my-tasks behavior under test.
+    """
+    ReflectionTemplate.all_objects.filter(
+        organization__isnull=True, slug="counselor-self-reflection",
+    ).delete()
+
+
 @pytest.mark.django_db
 def test_my_tasks_self_reflection_appears(
     org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
+    _drop_seeded_counselor_self_template()
     with organization_context(org):
         client = _authed_client(counselor_user, org)
         resp = client.get("/api/v1/reflections/my-tasks/")
@@ -209,6 +222,7 @@ def test_my_tasks_self_reflection_appears(
 def test_my_tasks_self_reflection_shows_submitted(
     org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
+    _drop_seeded_counselor_self_template()
     today = date.today()
     with organization_context(org):
         Reflection.all_objects.create(
@@ -262,6 +276,7 @@ def test_my_tasks_roster_shows_subjects(
     camper_person,
     camper_person2,
 ):
+    _drop_seeded_counselor_self_template()
     with organization_context(org):
         client = _authed_client(counselor_user, org)
         resp = client.get("/api/v1/reflections/my-tasks/")
@@ -339,6 +354,7 @@ def test_my_tasks_covered_by_me_flag_accurate(
     camper_person,
 ):
     """covered_by_me is False when another counselor logged the camper."""
+    _drop_seeded_counselor_self_template()
     other_user = User.objects.create_user(email="other_counselor@test.com", password="pw")
     other_person = Person.all_objects.create(
         organization=org, first_name="Other", last_name="Counselor", user=other_user,
@@ -383,6 +399,7 @@ def test_my_tasks_multi_bunk_counselor_sees_both_bunks(
     counselor_as_author,
     camper_in_bunk,
 ):
+    _drop_seeded_counselor_self_template()
     bunk2 = AssignmentGroup.objects.create(
         organization=org,
         program=program,
