@@ -41,6 +41,32 @@ _COUNSELOR_SELF_REFLECTION_SCHEMA = {
         {"key": "wins", "type": "text_list", "required": False},
         {"key": "improvements", "type": "text_list", "required": False},
         {"key": "concern", "type": "textarea", "required": False},
+        # Bunk-concerns surface (UH2 / Step 7_7). Counselors can flag
+        # specific bunks via this multi-select; the UH bunk dashboard
+        # consumes those references.
+        {
+            "key": "bunk_concerns_bunks",
+            "type": "multiple_choice",
+            "required": False,
+            "option_source": "supervised_bunks",
+        },
+    ],
+}
+
+_UNIT_HEAD_SELF_REFLECTION_SCHEMA = {
+    "fields": [
+        {"key": "day_off", "type": "yes_no", "required": False},
+        {"key": "overall_day", "type": "single_rating", "required": False, "scale": [1, 5]},
+        {"key": "wins", "type": "text_list", "required": False},
+        {"key": "improvements", "type": "text_list", "required": False},
+        {"key": "concern", "type": "textarea", "required": False},
+        {
+            "key": "bunk_concerns_bunks",
+            "type": "multiple_choice",
+            "required": False,
+            "option_source": "supervised_bunks",
+        },
+        {"key": "bunk_concerns_note", "type": "textarea", "required": False},
     ],
 }
 
@@ -74,6 +100,41 @@ def _ensure_counselor_self_reflection_template(db):
             "subject_visible": False,
             "supports_privacy": False,
             "role": "counselor",
+            "program_type": None,
+        },
+    )
+
+
+@pytest.fixture(autouse=True)
+def _ensure_unit_head_self_reflection_template(db):
+    """Re-seed the UH self-reflection template before every test (Step 7_7).
+
+    Same rationale as the counselor seed; ``transaction=True`` tests
+    flush the seeded migration row otherwise. Keeping the schema list
+    aligned with the production migration ``core/0030`` is the test
+    author's responsibility — anything materially different should
+    land in BOTH places at once.
+    """
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug="unit-head-self-reflection",
+        version=1,
+        defaults={
+            "name": "Unit Head Self-Reflection",
+            "description": "Auto-seeded for tests via api/tests/conftest.py.",
+            "cadence": "daily",
+            "schema": _UNIT_HEAD_SELF_REFLECTION_SCHEMA,
+            "languages": ["en", "es"],
+            "is_active": True,
+            "subject_mode": "self",
+            "assignment_scope": "none",
+            "assignment_group_types": [],
+            "author_role_filter": ["unit_head"],
+            "subject_role_filter": [],
+            "required_per_subject_per_period": 1,
+            "subject_visible": False,
+            "supports_privacy": False,
+            "role": "unit_head",
             "program_type": None,
         },
     )
