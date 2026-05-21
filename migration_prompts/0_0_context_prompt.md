@@ -16,3 +16,5 @@ Completion requirements for every migration step:
 1. Run `make test-backend` (must pass) and `make test-frontend` (must pass) before committing.
 2. Commit using the step ID as a conventional-commit scope so the migration dashboard can detect it — e.g. `git commit -m "feat(1_2_resolve_duplicate_viewset): ..."`. The step ID must appear verbatim in the commit message.
 3. After committing, push the branch and open a pull request with `gh pr create`. The PR title should start with the step ID. Do not consider the step done until the PR is open.
+
+Execution mode: lean by default. See `CLAUDE.md` § "Migration step execution: lean by default" for what that means in practice and when to escalate to full mode.

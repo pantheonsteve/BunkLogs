@@ -26,6 +26,10 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .unit_head import bunk_dashboard as uh_bunk_dashboard
+from .unit_head import camper_dashboard as uh_camper_dashboard
+from .unit_head import dashboard as uh_dashboard
+from .unit_head import self_reflection as uh_self_reflection
 
 router = DefaultRouter()
 
@@ -230,6 +234,42 @@ urlpatterns = [
         "counselor/maintenance-tickets/<uuid:ticket_id>/photos/",
         counselor_maintenance_tickets.MaintenanceTicketPhotoCreateView.as_view(),
         name="counselor-maintenance-ticket-photo-create",
+    ),
+    # ------------------------------------------------------------------
+    # Unit Head (Step 7_7)
+    # Hyphenated namespace ``unit-head/`` deliberately disambiguates from
+    # the legacy single-tenant ``unithead/`` route which still serves
+    # Crane Lake's old User-based path.
+    # ------------------------------------------------------------------
+    path(
+        "unit-head/dashboard/",
+        uh_dashboard.UnitHeadDashboardView.as_view(),
+        name="unit-head-dashboard",
+    ),
+    path(
+        "unit-head/bunks/<int:bunk_id>/",
+        uh_bunk_dashboard.UnitHeadBunkDashboardView.as_view(),
+        name="unit-head-bunk-dashboard",
+    ),
+    path(
+        "unit-head/campers/<int:camper_id>/",
+        uh_camper_dashboard.UnitHeadCamperDashboardView.as_view(),
+        name="unit-head-camper-dashboard",
+    ),
+    path(
+        "unit-head/self-reflection/",
+        uh_self_reflection.UnitHeadSelfReflectionCreateView.as_view(),
+        name="unit-head-self-reflection-create",
+    ),
+    path(
+        "unit-head/self-reflection/history/",
+        uh_self_reflection.UnitHeadSelfReflectionHistoryView.as_view(),
+        name="unit-head-self-reflection-history",
+    ),
+    path(
+        "unit-head/self-reflection/<int:reflection_id>/",
+        uh_self_reflection.UnitHeadSelfReflectionDetailView.as_view(),
+        name="unit-head-self-reflection-detail",
     ),
 ]
 
