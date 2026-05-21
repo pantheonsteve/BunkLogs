@@ -26,6 +26,10 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .camper_care import dashboard as cc_dashboard
+from .camper_care import flags as cc_flags
+from .camper_care import notes as cc_notes
+from .camper_care import orders as cc_orders
 from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
 from .unit_head import dashboard as uh_dashboard
@@ -270,6 +274,65 @@ urlpatterns = [
         "unit-head/self-reflection/<int:reflection_id>/",
         uh_self_reflection.UnitHeadSelfReflectionDetailView.as_view(),
         name="unit-head-self-reflection-detail",
+    ),
+
+    # ------------------------------------------------------------------
+    # Camper Care (Step 7_8, Stories 18-23)
+    # ------------------------------------------------------------------
+    path(
+        "camper-care/dashboard/",
+        cc_dashboard.CamperCareDashboardView.as_view(),
+        name="camper-care-dashboard",
+    ),
+    path(
+        "camper-care/flags/",
+        cc_flags.FlagListView.as_view(),
+        name="camper-care-flags",
+    ),
+    path(
+        "camper-care/flags/<uuid:flag_id>/follow-up/",
+        cc_flags.FlagFollowUpView.as_view(),
+        name="camper-care-flag-follow-up",
+    ),
+    path(
+        "camper-care/flags/<uuid:flag_id>/resolve/",
+        cc_flags.FlagResolveView.as_view(),
+        name="camper-care-flag-resolve",
+    ),
+    path(
+        "camper-care/flags/<uuid:flag_id>/reopen/",
+        cc_flags.FlagReopenView.as_view(),
+        name="camper-care-flag-reopen",
+    ),
+    path(
+        "camper-care/orders/",
+        cc_orders.CamperCareOrdersListView.as_view(),
+        name="camper-care-orders",
+    ),
+    path(
+        "camper-care/orders/bulk-transition/",
+        cc_orders.CamperCareOrderBulkTransitionView.as_view(),
+        name="camper-care-orders-bulk-transition",
+    ),
+    path(
+        "camper-care/orders/<uuid:order_id>/transition/",
+        cc_orders.CamperCareOrderTransitionView.as_view(),
+        name="camper-care-order-transition",
+    ),
+    path(
+        "camper-care/notes/",
+        cc_notes.CamperCareNoteCreateView.as_view(),
+        name="camper-care-note-create",
+    ),
+    path(
+        "camper-care/notes/audience/",
+        cc_notes.CamperCareNoteAudienceView.as_view(),
+        name="camper-care-note-audience",
+    ),
+    path(
+        "camper-care/notes/<int:note_id>/",
+        cc_notes.CamperCareNoteDetailView.as_view(),
+        name="camper-care-note-detail",
     ),
 ]
 

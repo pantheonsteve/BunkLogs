@@ -874,6 +874,25 @@ class Note(models.Model):
         null=True,
         help_text="Narrows audience per the visibility model sensitive-variant table.",
     )
+
+    class Category(models.TextChoices):
+        MEDICAL = "medical", "Medical"
+        FAMILY = "family", "Family"
+        SOCIAL = "social", "Social"
+        BEHAVIORAL = "behavioral", "Behavioral"
+        OTHER = "other", "Other"
+
+    category = models.CharField(
+        max_length=16,
+        choices=Category.choices,
+        blank=True,
+        default="",
+        help_text=(
+            "Camper Care note category (Story 21 criterion 2). Required by the "
+            "Camper Care write endpoint; left blank for specialist / maintenance "
+            "notes that don't use the enum."
+        ),
+    )
     maintenance_visibility = models.CharField(
         max_length=32,
         choices=MaintenanceVisibility.choices,
@@ -1700,6 +1719,189 @@ class OrderActivityEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} on {self.content_type}:{self.content_id}"
+
+
+# ---------------------------------------------------------------------------
+# Flag (Step 7_8) — Camper Care triage primitive
+# ---------------------------------------------------------------------------
+
+
+class Flag(models.Model):
+    """A flag raised on a camper for a downstream role to triage (Story 20).
+
+    Flags have a tiny three-state lifecycle separate from the order/ticket
+    state machine: Active (just raised) -> Followed Up (interim, optional
+    note) -> Resolved (terminal, required closing note). Resolved/Followed
+    Up flags can be Reopened back to Active (requires a reason). State
+    transitions write :class:`AuditEvent` rows so the timeline on the camper
+    dashboard stays a faithful history.
+
+    ``trigger_content_type`` + ``trigger_content_id`` point at the
+    content (specialist note, counselor reflection, UH manual flag) that
+    raised the flag, so Camper Care can jump straight to the source from
+    the workspace. The triple is intentionally loose-typed
+    (``CharField`` + ``UUIDField``) to avoid a fan-out of GenericForeignKey
+    machinery for what's effectively a workspace pointer.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        FOLLOWED_UP = "followed_up", "Followed Up"
+        RESOLVED = "resolved", "Resolved"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="flags",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="flags",
+    )
+    subject_camper = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="flags_about",
+        help_text="The camper this flag is raised on.",
+    )
+    raised_by_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="flags_raised",
+        help_text="Membership of the role who raised this flag.",
+    )
+    flagged_for_role = models.CharField(
+        max_length=32,
+        default="camper_care",
+        help_text=(
+            "Role responsible for triaging this flag. Tier 1 only routes to "
+            "``camper_care``; future expansion keeps the field open."
+        ),
+    )
+    trigger_content_type = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=(
+            "Stable label of the model that raised the flag "
+            "(e.g. ``specialist_note``, ``reflection``)."
+        ),
+    )
+    trigger_content_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="PK of the trigger row, serialised as a string.",
+    )
+    status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by_membership = models.ForeignKey(
+        Membership,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="flags_resolved",
+    )
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "program", "status"]),
+            models.Index(fields=["subject_camper", "status"]),
+            models.Index(fields=["flagged_for_role", "status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Flag {self.id} on camper {self.subject_camper_id} ({self.status})"
+
+    # -- state machine -----------------------------------------------------
+
+    # (from_state, to_state) -> requires_reason (True for closing/reopen)
+    _TRANSITIONS: dict[tuple[str, str], bool] = {
+        (Status.ACTIVE, Status.FOLLOWED_UP): False,
+        (Status.FOLLOWED_UP, Status.FOLLOWED_UP): False,
+        (Status.ACTIVE, Status.RESOLVED): True,
+        (Status.FOLLOWED_UP, Status.RESOLVED): True,
+        (Status.RESOLVED, Status.ACTIVE): True,
+        (Status.FOLLOWED_UP, Status.ACTIVE): True,
+    }
+
+    @classmethod
+    def transition_requires_reason(cls, from_state: str, to_state: str) -> bool:
+        return cls._TRANSITIONS.get((from_state, to_state), False)
+
+    @classmethod
+    def can_transition(cls, from_state: str, to_state: str) -> bool:
+        return (from_state, to_state) in cls._TRANSITIONS
+
+    def transition_to(
+        self,
+        new_state: str,
+        *,
+        actor,
+        note: str = "",
+    ) -> "AuditEvent":
+        """Apply a state transition + write an audit row.
+
+        ``note`` doubles as the closing note for ``RESOLVED`` and the reason
+        for ``ACTIVE`` (reopen). For ``FOLLOWED_UP`` the note is optional and
+        captured in metadata.
+        """
+        if not self.can_transition(self.status, new_state):
+            msg = f"transition {self.status!r} -> {new_state!r} is not allowed"
+            raise ValidationError({"to_state": msg})
+        if self.transition_requires_reason(self.status, new_state):
+            if not (note or "").strip():
+                msg = "A note is required for this transition."
+                raise ValidationError({"note": msg})
+
+        from bunk_logs.core import audit as audit_module
+
+        prior = self.status
+        actor_membership = _resolve_actor_membership(actor)
+        if actor_membership is not None and self.program_id and (
+            actor_membership.program_id != self.program_id
+        ):
+            raise ValidationError(
+                {"actor": "Actor must be a Membership in the same Program."},
+            )
+
+        with transaction.atomic():
+            self.status = new_state
+            update_fields = ["status", "updated_at"]
+            if new_state == self.Status.RESOLVED:
+                from django.utils import timezone
+                self.resolved_at = timezone.now()
+                self.resolved_by_membership = actor_membership
+                update_fields += ["resolved_at", "resolved_by_membership"]
+            elif new_state == self.Status.ACTIVE and prior == self.Status.RESOLVED:
+                self.resolved_at = None
+                self.resolved_by_membership = None
+                update_fields += ["resolved_at", "resolved_by_membership"]
+            self.save(update_fields=update_fields)
+
+            return audit_module.state_changed(
+                actor_membership,
+                self,
+                prior,
+                new_state,
+                note=note,
+                content_type="flag",
+            )
 
 
 # ---------------------------------------------------------------------------
