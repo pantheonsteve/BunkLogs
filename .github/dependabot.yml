@@ -1,17 +1,49 @@
-# Dependabot version updates. The pip grapher requires a recognized manifest;
-# see backend/requirements/requirements.txt (shim that includes production.txt).
+# Dependabot version updates.
+#
+# Our pip deps live in base.txt / production.txt / local.txt (not a flat
+# requirements.txt lockfile). Major bumps (vitest 4, mypy 2, ruff 0.15, etc.)
+# need dedicated upgrade PRs with code changes — ignore them here.
+#
+# backend/requirements/requirements.txt is only for GitHub's dependency-graph
+# shim (-r production.txt); Dependabot version PRs edit the *.txt files in
+# that directory directly.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /backend/requirements
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    ignore:
+      # No automated major bumps — too many breaking changes at once.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # Pinned toolchain / framework — upgrade manually.
+      - dependency-name: "django"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "mypy"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "ruff"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "redis"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # vitest 4 + vite 6 need a dedicated test-infra refresh (see CLAUDE.md).
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
