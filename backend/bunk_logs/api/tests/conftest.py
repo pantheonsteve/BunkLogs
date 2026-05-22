@@ -70,6 +70,23 @@ _UNIT_HEAD_SELF_REFLECTION_SCHEMA = {
     ],
 }
 
+_CAMPER_CARE_SELF_REFLECTION_SCHEMA = {
+    "fields": [
+        {"key": "day_off", "type": "yes_no", "required": False},
+        {"key": "overall_day", "type": "single_rating", "required": False, "scale": [1, 5]},
+        {"key": "wins", "type": "text_list", "required": False},
+        {"key": "improvements", "type": "text_list", "required": False},
+        {"key": "concern", "type": "textarea", "required": False},
+        {
+            "key": "bunk_concerns_bunks",
+            "type": "multiple_choice",
+            "required": False,
+            "option_source": "caseload_bunks",
+        },
+        {"key": "bunk_concerns_note", "type": "textarea", "required": False},
+    ],
+}
+
 
 @pytest.fixture(autouse=True)
 def _ensure_counselor_self_reflection_template(db):
@@ -135,6 +152,39 @@ def _ensure_unit_head_self_reflection_template(db):
             "subject_visible": False,
             "supports_privacy": False,
             "role": "unit_head",
+            "program_type": None,
+        },
+    )
+
+
+@pytest.fixture(autouse=True)
+def _ensure_camper_care_self_reflection_template(db):
+    """Re-seed the CC self-reflection template before every test (Step 7_8d).
+
+    Same rationale as counselor and UH seeds — ``transaction=True`` tests
+    flush the migration-seeded row, breaking CC self-reflection tests that
+    run later in the session. Aligned with production migration ``core/0032``.
+    """
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug="camper-care-self-reflection",
+        version=1,
+        defaults={
+            "name": "Camper Care Self-Reflection",
+            "description": "Auto-seeded for tests via api/tests/conftest.py.",
+            "cadence": "daily",
+            "schema": _CAMPER_CARE_SELF_REFLECTION_SCHEMA,
+            "languages": ["en", "es"],
+            "is_active": True,
+            "subject_mode": "self",
+            "assignment_scope": "none",
+            "assignment_group_types": [],
+            "author_role_filter": ["camper_care"],
+            "subject_role_filter": [],
+            "required_per_subject_per_period": 1,
+            "subject_visible": False,
+            "supports_privacy": False,
+            "role": "camper_care",
             "program_type": None,
         },
     )

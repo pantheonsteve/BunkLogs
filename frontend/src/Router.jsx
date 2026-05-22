@@ -61,6 +61,12 @@ import CamperCareOrdersPage from './pages/camper-care/Orders';
 import CamperCareNoteFormPage from './pages/camper-care/NoteForm';
 import CamperCareSelfReflectionPage from './pages/camper-care/SelfReflectionPage';
 import CamperCareSelfReflectionHistoryPage from './pages/camper-care/SelfReflectionHistoryPage';
+import SpecialistDashboard from './pages/specialist/Dashboard';
+import SpecialistNoteForm from './pages/specialist/NoteForm';
+import SpecialistCamperView from './pages/specialist/CamperView';
+import SpecialistSelfReflectionPage from './pages/specialist/SelfReflectionPage';
+import MaintenanceQueue from './pages/maintenance/Queue';
+import MaintenanceTicketDetail from './pages/maintenance/TicketDetail';
 import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
 import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
 import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
@@ -470,7 +476,70 @@ function Router() {
             path="/camper-care/self-reflection/:reflectionId/edit"
             element={<CamperCareSelfReflectionPage />}
           />
+          {/* 7_10: Maintenance staff flow. The queue is the post-login landing
+              page for maintenance staff (Story 30 criterion 2). No self-
+              reflection card — maintenance has no reflection requirement
+              (Story 30 criterion 9). The ticket detail preserves the active
+              queue filter via the `from` query param so back navigation
+              restores the correct view. */}
+          <Route path="/maintenance" element={<MaintenanceQueue />} />
+          <Route
+            path="/maintenance/tickets/:ticketId"
+            element={<MaintenanceTicketDetail />}
+          />
         </Route>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* Specialist (Step 7_9, Stories 24-29)                               */}
+        {/* ------------------------------------------------------------------ */}
+        <Route
+          path="/specialist"
+          element={
+            <ProtectedRoute>
+              <SpecialistDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/specialist/notes/new"
+          element={
+            <ProtectedRoute>
+              <SpecialistNoteForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/specialist/notes/:noteId/edit"
+          element={
+            <ProtectedRoute>
+              <SpecialistNoteForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/specialist/campers/:camperId"
+          element={
+            <ProtectedRoute>
+              <SpecialistCamperView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/specialist/self-reflection/new"
+          element={
+            <ProtectedRoute>
+              <SpecialistSelfReflectionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/specialist/self-reflection/:reflectionId/edit"
+          element={
+            <ProtectedRoute>
+              <SpecialistSelfReflectionPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/my-reflections"

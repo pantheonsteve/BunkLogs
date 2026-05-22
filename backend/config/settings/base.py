@@ -72,6 +72,7 @@ DJANGO_APPS = [
     "django.contrib.staticfiles",
     # "django.contrib.humanize", # Handy template tags
     "django.contrib.admin",
+    "django.contrib.postgres",
     "django.forms",
 ]
 THIRD_PARTY_APPS = [
@@ -340,6 +341,11 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+# MAINTENANCE DIGEST
+# ------------------------------------------------------------------------------
+# Base URL used in deep-links inside the daily digest email.
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="https://clc.bunklogs.net")
 
 # AUTO-TRANSLATION (Step 7_5; see docs/user_stories/00_cross_cutting/i18n.md)
 # ------------------------------------------------------------------------------

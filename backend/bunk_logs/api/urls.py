@@ -33,6 +33,12 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .maintenance import views as maint_views
+from .specialist import camper_view as sp_camper_view
+from .specialist import campers as sp_campers
+from .specialist import dashboard as sp_dashboard
+from .specialist import notes as sp_notes
+from .specialist import self_reflection as sp_self_reflection
 from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
 from .unit_head import dashboard as uh_dashboard
@@ -98,6 +104,34 @@ urlpatterns = [
         "maintenance/<uuid:ticket_id>/correct-last/",
         order_sm.MaintenanceTicketCorrectLastView.as_view(),
         name="maintenance-correct-last",
+    ),
+    # ------------------------------------------------------------------
+    # Maintenance staff queue (Step 7_10, Stories 30-35)
+    # ------------------------------------------------------------------
+    path(
+        "maintenance/queue/",
+        maint_views.MaintenanceQueueView.as_view(),
+        name="maintenance-queue",
+    ),
+    path(
+        "maintenance/tickets/<uuid:ticket_id>/",
+        maint_views.MaintenanceTicketDetailView.as_view(),
+        name="maintenance-ticket-detail",
+    ),
+    path(
+        "maintenance/tickets/<uuid:ticket_id>/notes/",
+        maint_views.MaintenanceNoteCreateView.as_view(),
+        name="maintenance-note-create",
+    ),
+    path(
+        "maintenance/tickets/<uuid:ticket_id>/notes/<uuid:note_id>/",
+        maint_views.MaintenanceNoteDetailView.as_view(),
+        name="maintenance-note-detail",
+    ),
+    path(
+        "maintenance/notes/audience/",
+        maint_views.MaintenanceNoteAudienceView.as_view(),
+        name="maintenance-note-audience",
     ),
     path("", include(router.urls)),
 
@@ -361,6 +395,55 @@ urlpatterns = [
         "camper-care/self-reflection/<int:reflection_id>/",
         cc_self_reflection.CamperCareSelfReflectionDetailView.as_view(),
         name="camper-care-self-reflection-detail",
+    ),
+
+    # ------------------------------------------------------------------
+    # Specialist (Step 7_9, Stories 24-29)
+    # ------------------------------------------------------------------
+    path(
+        "specialist/dashboard/",
+        sp_dashboard.SpecialistDashboardView.as_view(),
+        name="specialist-dashboard",
+    ),
+    path(
+        "specialist/campers/",
+        sp_campers.SpecialistCamperPickerView.as_view(),
+        name="specialist-campers",
+    ),
+    path(
+        "specialist/campers/<int:camper_id>/",
+        sp_camper_view.SpecialistCamperView.as_view(),
+        name="specialist-camper-view",
+    ),
+    path(
+        "specialist/notes/audience/",
+        sp_notes.SpecialistNoteAudienceView.as_view(),
+        name="specialist-note-audience",
+    ),
+    path(
+        "specialist/notes/",
+        sp_notes.SpecialistNoteCreateView.as_view(),
+        name="specialist-note-create",
+    ),
+    path(
+        "specialist/notes/<int:note_id>/",
+        sp_notes.SpecialistNoteDetailView.as_view(),
+        name="specialist-note-detail",
+    ),
+    path(
+        "specialist/self-reflection/",
+        sp_self_reflection.SpecialistSelfReflectionCreateView.as_view(),
+        name="specialist-self-reflection-create",
+    ),
+    path(
+        "specialist/self-reflection/history/",
+        sp_self_reflection.SpecialistSelfReflectionHistoryView.as_view(),
+        name="specialist-self-reflection-history",
+    ),
+    path(
+        "specialist/self-reflection/<int:reflection_id>/",
+        sp_self_reflection.SpecialistSelfReflectionDetailView.as_view(),
+        name="specialist-self-reflection-detail",
     ),
 ]
 
