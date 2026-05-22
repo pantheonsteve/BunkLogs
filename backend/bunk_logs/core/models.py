@@ -637,6 +637,24 @@ class ReflectionTemplate(models.Model):
         ),
     )
 
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PUBLISHED = "published", "Published"
+        ARCHIVED = "archived", "Archived"
+
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PUBLISHED,
+        help_text=(
+            "Lifecycle state. 'published' templates can collect responses, "
+            "'draft' are LT-builder work-in-progress, 'archived' are "
+            "preserved read-only for historical reflections. Old code that "
+            "only inspects ``is_active`` keeps working because the default "
+            "is 'published' (matches is_active=True)."
+        ),
+    )
+
     objects = ReflectionTemplateScopedManager()
     all_objects = models.Manager()  # noqa: DJ012
 
@@ -663,6 +681,99 @@ class ReflectionTemplate(models.Model):
             subject_role_filter=self.subject_role_filter or [],
             subject_visible=bool(self.subject_visible),
             valid_roles=valid_roles,
+        )
+
+
+class TemplateAssignment(models.Model):
+    """A Leadership Team's binding of a ReflectionTemplate to a set of roles/people.
+
+    LT users assign a published template to either a role (dynamic — new
+    members joining mid-window get the template), a static list of
+    individual Memberships (snapshotted at creation), or a tag-based
+    group. Each assignment has its own date window and may override the
+    template's cadence.
+
+    Conflict resolution: when a new assignment overlaps an existing one
+    on the same (template, target), the LT may ``"replace"`` (sets
+    ``replaces`` FK and ends the prior assignment day-before),
+    ``"run_both"`` (no coupling), or ``"cancel"`` (no record created;
+    handled at API layer).
+    """
+
+    class TargetType(models.TextChoices):
+        ROLE = "role", "Role (dynamic)"
+        INDIVIDUALS = "individuals", "Individual memberships (static)"
+        TAG_GROUP = "tag_group", "Tag group (dynamic)"
+
+    class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "Scheduled"
+        ACTIVE = "active", "Active"
+        ENDED = "ended", "Ended"
+        CANCELLED = "cancelled", "Cancelled"
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="template_assignments",
+    )
+    program = models.ForeignKey(
+        Program, on_delete=models.CASCADE, related_name="template_assignments",
+    )
+    template = models.ForeignKey(
+        ReflectionTemplate, on_delete=models.CASCADE, related_name="assignments",
+    )
+    target_type = models.CharField(max_length=16, choices=TargetType.choices)
+    target_payload = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Shape depends on target_type. role: {'role': 'kitchen_staff'}. "
+            "individuals: {'membership_ids': [<int>...]}. "
+            "tag_group: {'tag': 'kitchen-lead'}."
+        ),
+    )
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    cadence_override = models.CharField(
+        max_length=32,
+        null=True,
+        blank=True,
+        choices=ReflectionTemplate.CADENCES,
+        help_text="If set, overrides template.cadence for this assignment.",
+    )
+    replaces = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="replaced_by",
+        help_text="Set when this assignment ended a prior one (conflict_resolution='replace').",
+    )
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.SCHEDULED,
+    )
+    created_by = models.ForeignKey(
+        Membership,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="template_assignments_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-start_date", "-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "template", "status"]),
+            models.Index(fields=["program", "start_date", "end_date"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"assignment template:{self.template_id} -> {self.target_type} "
+            f"({self.start_date}-{self.end_date or 'open'})"
         )
 
 
