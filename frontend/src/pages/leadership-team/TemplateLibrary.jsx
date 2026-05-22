@@ -58,7 +58,8 @@ export default function LeadershipTeamTemplateLibrary() {
         status: statusFilter || undefined,
         role: roleFilter || undefined,
       });
-      const rows = Array.isArray(data?.results) ? data.results
+      const rows = Array.isArray(data?.templates) ? data.templates
+        : Array.isArray(data?.results) ? data.results
         : Array.isArray(data) ? data : [];
       setTemplates(rows);
     } catch (err) {
