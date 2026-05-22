@@ -70,6 +70,24 @@ _UNIT_HEAD_SELF_REFLECTION_SCHEMA = {
     ],
 }
 
+_KITCHEN_STAFF_SELF_REFLECTION_SCHEMA = {
+    "fields": [
+        {"key": "day_off", "type": "yes_no", "required": False},
+        {
+            "key": "service_summary",
+            "type": "textarea",
+            "required": False,
+            "prompts": {"en": "Summarize today's service.", "es": "Resume el servicio de hoy."},
+        },
+        {
+            "key": "highlight",
+            "type": "textarea",
+            "required": False,
+            "prompts": {"en": "What went well?", "es": "¿Qué salió bien?"},
+        },
+    ],
+}
+
 _CAMPER_CARE_SELF_REFLECTION_SCHEMA = {
     "fields": [
         {"key": "day_off", "type": "yes_no", "required": False},
@@ -185,6 +203,34 @@ def _ensure_camper_care_self_reflection_template(db):
             "subject_visible": False,
             "supports_privacy": False,
             "role": "camper_care",
+            "program_type": None,
+        },
+    )
+
+
+@pytest.fixture(autouse=True)
+def _ensure_kitchen_staff_self_reflection_template(db):
+    """Re-seed the kitchen_staff self-reflection template before every test (Step 7_11)."""
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug="kitchen-staff-self-reflection",
+        version=1,
+        defaults={
+            "name": "Kitchen Staff Self-Reflection",
+            "description": "Auto-seeded for tests via api/tests/conftest.py.",
+            "cadence": "daily",
+            "schema": _KITCHEN_STAFF_SELF_REFLECTION_SCHEMA,
+            "languages": ["en", "es"],
+            "is_active": True,
+            "subject_mode": "self",
+            "assignment_scope": "none",
+            "assignment_group_types": [],
+            "author_role_filter": ["kitchen_staff"],
+            "subject_role_filter": [],
+            "required_per_subject_per_period": 1,
+            "subject_visible": False,
+            "supports_privacy": False,
+            "role": "kitchen_staff",
             "program_type": None,
         },
     )

@@ -1,19 +1,61 @@
 {
   "title": "Personal de cocina",
+  "roleLabel": "Personal de cocina",
   "dashboard": {
     "heading": "Reflexiones de hoy",
-    "empty": "Hoy no se han enviado reflexiones.",
-    "loading": "Cargando reflexiones…",
-    "loadFailed": "No se pudieron cargar las reflexiones.",
-    "submittedBy": "Enviado por {{name}}",
-    "submittedAt": "Enviado {{time}}"
+    "empty": "No se ha enviado ninguna reflexión hoy.",
+    "loading": "Cargando…",
+    "loadFailed": "No se pudo cargar el panel.",
+    "myReflection": "Mi reflexión",
+    "myReflections": "Mis reflexiones",
+    "viewHistory": "Ver historial",
+    "editReflection": "Editar reflexión",
+    "startReflection": "Iniciar reflexión",
+    "status": {
+      "missing": "Aún no enviada",
+      "complete": "Enviada",
+      "day_off": "Día libre",
+      "no_template": "Sin plantilla configurada"
+    }
   },
   "form": {
     "newReflection": "Nueva reflexión",
+    "editReflection": "Editar reflexión",
     "promptHeading": "Pregunta de hoy",
     "answerPlaceholder": "Escribe tu respuesta aquí…",
     "submit": "Enviar reflexión",
+    "save": "Guardar",
+    "cancel": "Cancelar",
     "saved": "Guardado",
-    "saveFailed": "No se pudo guardar"
+    "saveFailed": "No se pudo guardar",
+    "submitting": "Enviando…",
+    "dayOff": "Marcar como día libre",
+    "languageNote": "(Solo en inglés)",
+    "languageChangedTitle": "¿Cambiar idioma?",
+    "languageChangedBody": "¿Cambiar el idioma de esta reflexión a {{lang}}? Esto reemplazará el contenido original.",
+    "languageChangedConfirm": "Sí, cambiar",
+    "languageChangedCancel": "Mantener original",
+    "audienceDisclosure": "Esta reflexión será visible para: Equipo de liderazgo, tu supervisor de cocina, Administración. El original en {{language}} estará disponible junto a la traducción al inglés."
+  },
+  "history": {
+    "heading": "Mis reflexiones",
+    "empty": "Aún no hay reflexiones.",
+    "loading": "Cargando historial…",
+    "loadFailed": "No se pudo cargar el historial.",
+    "submitted": "Enviada",
+    "notSubmitted": "No enviada",
+    "dayOff": "Día libre",
+    "edit": "Editar",
+    "language": "Idioma",
+    "preview": "Vista previa",
+    "readOnly": "Solo lectura"
+  },
+  "translation": {
+    "badge": "Traducido automáticamente del {{language}}",
+    "pending": "Traduciendo al inglés — actualiza en un momento",
+    "failedRetryable": "Traducción no disponible — reintentar",
+    "failedTerminal": "No se pudo generar la traducción. Contacta al administrador.",
+    "originalSection": "Original ({{language}})",
+    "retry": "Reintentar traducción"
   }
 }

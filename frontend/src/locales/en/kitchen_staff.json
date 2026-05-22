@@ -1,19 +1,61 @@
 {
   "title": "Kitchen Staff",
+  "roleLabel": "Kitchen Staff",
   "dashboard": {
     "heading": "Today's reflections",
-    "empty": "No reflections submitted today.",
-    "loading": "Loading reflections…",
-    "loadFailed": "Could not load reflections.",
-    "submittedBy": "Submitted by {{name}}",
-    "submittedAt": "Submitted {{time}}"
+    "empty": "No reflection submitted today.",
+    "loading": "Loading…",
+    "loadFailed": "Could not load dashboard.",
+    "myReflection": "My reflection",
+    "myReflections": "My reflections",
+    "viewHistory": "View history",
+    "editReflection": "Edit reflection",
+    "startReflection": "Start reflection",
+    "status": {
+      "missing": "Not yet submitted",
+      "complete": "Submitted",
+      "day_off": "Day off",
+      "no_template": "No template configured"
+    }
   },
   "form": {
     "newReflection": "New reflection",
+    "editReflection": "Edit reflection",
     "promptHeading": "Today's question",
     "answerPlaceholder": "Write your answer here…",
     "submit": "Submit reflection",
+    "save": "Save",
+    "cancel": "Cancel",
     "saved": "Saved",
-    "saveFailed": "Could not save"
+    "saveFailed": "Could not save",
+    "submitting": "Submitting…",
+    "dayOff": "Mark as day off",
+    "languageNote": "(English only)",
+    "languageChangedTitle": "Change language?",
+    "languageChangedBody": "Switch this reflection's language to {{lang}}? This will replace your original content.",
+    "languageChangedConfirm": "Yes, switch",
+    "languageChangedCancel": "Keep original",
+    "audienceDisclosure": "This reflection will be visible to: Leadership Team, your Kitchen supervisor, Admin. Original written in {{language}} will be available alongside the English translation."
+  },
+  "history": {
+    "heading": "My reflections",
+    "empty": "No reflections yet.",
+    "loading": "Loading history…",
+    "loadFailed": "Could not load history.",
+    "submitted": "Submitted",
+    "notSubmitted": "Not submitted",
+    "dayOff": "Day off",
+    "edit": "Edit",
+    "language": "Language",
+    "preview": "Preview",
+    "readOnly": "Read-only"
+  },
+  "translation": {
+    "badge": "Auto-translated from {{language}}",
+    "pending": "Translating to English — refresh in a moment",
+    "failedRetryable": "Translation unavailable — retry",
+    "failedTerminal": "Translation could not be generated. Contact Admin.",
+    "originalSection": "Original ({{language}})",
+    "retry": "Retry translation"
   }
 }
