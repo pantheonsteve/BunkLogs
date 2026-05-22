@@ -10,6 +10,7 @@ import {
   inviteAdminPerson,
   listAdminPrograms,
 } from '../../api/admin';
+import BulkImportModal from '../../components/admin/BulkImportModal';
 
 /**
  * Step 7_13 PR2 — People + Memberships management (Story 55).
@@ -474,6 +475,7 @@ export default function AdminPeople() {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [invitedStatus, setInvitedStatus] = useState({});
 
   const load = useCallback(async () => {
@@ -527,14 +529,24 @@ export default function AdminPeople() {
     <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-6xl mx-auto" data-testid="admin-people">
       <header className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">People</h1>
-        <button
-          type="button"
-          data-testid="open-add-person"
-          onClick={() => setAdding(true)}
-          className="px-3 py-1.5 rounded-md text-sm bg-indigo-600 text-white"
-        >
-          Add Person
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="open-bulk-import"
+            onClick={() => setImporting(true)}
+            className="px-3 py-1.5 rounded-md text-sm border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+          >
+            Bulk import
+          </button>
+          <button
+            type="button"
+            data-testid="open-add-person"
+            onClick={() => setAdding(true)}
+            className="px-3 py-1.5 rounded-md text-sm bg-indigo-600 text-white"
+          >
+            Add Person
+          </button>
+        </div>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
         <FieldInput label="Search name or email" value={search} onChange={setSearch} />
@@ -623,6 +635,12 @@ export default function AdminPeople() {
             load();
             if (person?.id) setSelectedId(person.id);
           }}
+        />
+      )}
+      {importing && (
+        <BulkImportModal
+          programs={programs}
+          onClose={() => { setImporting(false); load(); }}
         />
       )}
     </main>

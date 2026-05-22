@@ -296,18 +296,25 @@ def _int_setting(settings_dict: dict, key: str, fallback: int) -> int:
 
 
 def _pending_template_review_count(*, organization, cutoff) -> int:
-    """Templates in this org published in the last N days.
+    """Templates published in the last N days that aren't yet marked reviewed.
 
-    The "marked reviewed" / "needs revision" flag is added in PR3 of
-    this step (admin templates wrapper); until then the badge counts
-    every recently-published template, which is the correct upper
-    bound for an Admin to triage. PR3 will subtract already-flagged
-    rows via the storage location it adds.
+    PR3 adds the ``ReflectionTemplate.metadata.review_status`` annotation
+    flow (``reviewed`` / ``needs_revision``). We filter those out here so
+    the dashboard badge only counts genuinely-stale rows. ``published_at``
+    is the canonical recency anchor; templates without it (older rows
+    pre-migration) fall back to ``created_at`` for backward compatibility.
     """
-    return ReflectionTemplate.all_objects.filter(
+    base = ReflectionTemplate.all_objects.filter(
         organization=organization,
         status=ReflectionTemplate.Status.PUBLISHED,
-        created_at__gte=cutoff,
+    )
+    candidates = base.filter(published_at__gte=cutoff) | base.filter(
+        published_at__isnull=True, created_at__gte=cutoff,
+    )
+    # JSONField key lookups are Postgres-specific but we already require
+    # Postgres for the rest of the admin search surface, so this is safe.
+    return candidates.exclude(
+        metadata__review_status__in=("reviewed", "needs_revision"),
     ).count()
 
 

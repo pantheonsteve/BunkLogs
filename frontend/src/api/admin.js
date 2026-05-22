@@ -130,3 +130,44 @@ export async function patchAdminSettings(patch) {
   const resp = await api.patch(`${ADMIN_BASE}/settings/`, patch);
   return resp?.data ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// PR3 — Global search, Templates oversight, Bulk import
+// ---------------------------------------------------------------------------
+
+export async function searchAdmin(query) {
+  const resp = await api.get(`${ADMIN_BASE}/search/`, { params: { q: query } });
+  return resp?.data ?? { groups: {} };
+}
+
+export async function listAdminTemplates() {
+  const resp = await api.get(`${ADMIN_BASE}/templates/`);
+  return resp?.data ?? { results: [], grouped: {} };
+}
+
+export async function reviewAdminTemplate(templateId, payload) {
+  const resp = await api.post(`${ADMIN_BASE}/templates/${templateId}/review/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function previewAdminPeopleImport(source, programSlug, file) {
+  const fd = new FormData();
+  fd.append('source', source);
+  fd.append('program_slug', programSlug);
+  fd.append('csv', file);
+  const resp = await api.post(`${ADMIN_BASE}/people/import/preview/`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return resp?.data ?? null;
+}
+
+export async function commitAdminPeopleImport(source, programSlug, file) {
+  const fd = new FormData();
+  fd.append('source', source);
+  fd.append('program_slug', programSlug);
+  fd.append('csv', file);
+  const resp = await api.post(`${ADMIN_BASE}/people/import/commit/`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return resp?.data ?? null;
+}

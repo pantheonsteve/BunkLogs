@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
+import GlobalSearch from '../components/admin/GlobalSearch';
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
 
@@ -27,6 +28,11 @@ export default function AdminLayout() {
         className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-gray-950"
       >
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        {/* 7_13 PR3 — Admin global search (Story 60). Mounted at layout
+            level so every /admin/* surface shares the affordance. */}
+        <div className="px-4 sm:px-6 lg:px-8 pt-3 flex justify-end">
+          <GlobalSearch />
+        </div>
         <Outlet />
       </div>
     </div>

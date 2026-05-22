@@ -35,6 +35,7 @@ import AdminDashboardV2 from './pages/admin/Dashboard';
 import AdminPeople from './pages/admin/People';
 import AdminAssignments from './pages/admin/Assignments';
 import AdminSettingsPage from './pages/admin/Settings';
+import AdminTemplatesPage from './pages/admin/Templates';
 import TemplateListPage from './pages/admin/templates/TemplateListPage';
 import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
@@ -833,8 +834,21 @@ function Router() {
               </AdminRoute>
             }
           />
+          {/* 7_13 PR3 — Admin Templates oversight wrapper. Story 57 surfaces
+              pending Reviewed/Needs revision actions across every template
+              in the org. The legacy admin template list (sort + filter)
+              stays reachable at /admin/templates/library so existing
+              bookmarks keep working. */}
           <Route
             path="templates"
+            element={
+              <AdminRoute>
+                <AdminTemplatesPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="templates/library"
             element={
               <AdminRoute>
                 <TemplateListPage />

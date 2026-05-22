@@ -673,6 +673,28 @@ class ReflectionTemplate(models.Model):
             "is 'published' (matches is_active=True)."
         ),
     )
+    published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the template most recently transitioned to 'published'. "
+            "Used by the Admin Templates oversight surface (Step 7_13 PR3, "
+            "Story 57) to highlight templates published in the last 14 days "
+            "that haven't yet been marked as reviewed."
+        ),
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Free-form bag of admin-level annotations. Currently used by "
+            "Step 7_13 PR3 to store Admin review status (``review_status`` "
+            "is 'reviewed' or 'needs_revision' plus reviewed_at / "
+            "reviewed_by_membership_id / review_note). Schema definition is "
+            "documented in ``docs/role_flows/admin.md`` rather than here so "
+            "future annotations don't require a column migration."
+        ),
+    )
 
     objects = ReflectionTemplateScopedManager()
     all_objects = models.Manager()  # noqa: DJ012
