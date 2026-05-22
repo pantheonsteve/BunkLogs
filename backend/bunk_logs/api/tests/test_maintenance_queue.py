@@ -6,12 +6,12 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -221,7 +221,6 @@ class TestUrgencyValidation:
             urgency=MaintenanceTicket.Urgency.URGENT,
             urgent_reason="",
         )
-        from django.core.exceptions import ValidationError
         with pytest.raises(ValidationError, match="urgent_reason"):
             t.full_clean()
 

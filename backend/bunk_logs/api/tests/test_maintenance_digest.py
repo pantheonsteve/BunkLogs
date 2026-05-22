@@ -2,23 +2,24 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core import mail
 from django.utils import timezone
 
+from bunk_logs.api.maintenance.digest import _build_digest_context
+from bunk_logs.api.maintenance.digest import send_maintenance_digest
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
-from bunk_logs.api.maintenance.digest import send_maintenance_digest
-from bunk_logs.api.maintenance.digest import _build_digest_context
 
 pytestmark = pytest.mark.django_db
 
@@ -49,7 +50,6 @@ def program(org):
 
 @pytest.fixture
 def maint_person(org, program):
-    from django.contrib.auth import get_user_model
     User = get_user_model()
     user = User.objects.create_user(email="dstaff@camp.test", password="pw")
     person = Person.all_objects.create(
@@ -91,7 +91,7 @@ def urgent_ticket(org, program):
 @pytest.fixture
 def closed_ticket(org, program):
     with organization_context(org):
-        t = MaintenanceTicket.objects.create(
+        return MaintenanceTicket.objects.create(
             organization=org,
             program=program,
             location="Bunk 5",
@@ -100,7 +100,6 @@ def closed_ticket(org, program):
             urgency=MaintenanceTicket.Urgency.LOW,
             status=MaintenanceTicket.Status.FULFILLED,
         )
-        return t
 
 
 class TestDigestGeneration:
@@ -148,7 +147,6 @@ class TestDigestGeneration:
         assert org.settings.get("maintenance_digest_consecutive_failures", 0) >= 1
 
     def test_consecutive_failures_logged(self, org, program, open_ticket, caplog):
-        import logging
         org.settings["maintenance_digest_consecutive_failures"] = 2
         org.save()
 

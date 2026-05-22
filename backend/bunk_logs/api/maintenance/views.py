@@ -20,6 +20,7 @@ from datetime import timedelta
 
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import status as http_status
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import PermissionDenied
@@ -29,7 +30,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.models import MaintenanceTicket
-from bunk_logs.core.models import Membership
 from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import TicketPhoto
 
@@ -112,13 +112,11 @@ def _apply_closed_filters(qs, request):
     date_to_raw = request.query_params.get("date_to")
 
     if date_from_raw:
-        from django.utils.dateparse import parse_date
         d = parse_date(date_from_raw)
         if d is None:
             raise ValidationError({"date_from": "Expected YYYY-MM-DD."})
         qs = qs.filter(updated_at__date__gte=d)
     if date_to_raw:
-        from django.utils.dateparse import parse_date
         d = parse_date(date_to_raw)
         if d is None:
             raise ValidationError({"date_to": "Expected YYYY-MM-DD."})
@@ -131,13 +129,13 @@ def _apply_closed_filters(qs, request):
                 content_type="maintenance_ticket",
                 event_type=OrderActivityEvent.EventType.NOTE,
                 note__icontains=search,
-            ).values_list("content_id", flat=True).distinct()
+            ).values_list("content_id", flat=True).distinct(),
         )
         qs = qs.filter(
             Q(description__icontains=search)
             | Q(location__icontains=search)
             | Q(category__icontains=search)
-            | Q(id__in=note_ticket_ids)
+            | Q(id__in=note_ticket_ids),
         )
 
     return qs
@@ -209,19 +207,20 @@ class MaintenanceTicketDetailView(APIView):
             pk=ticket_id, program=ctx.program,
         ).select_related("submitted_by__person", "last_transition_by__person").first()
         if ticket is None:
-            raise NotFound("Ticket not found.")
+            msg = "Ticket not found."
+            raise NotFound(msg)
 
         photos = list(
             TicketPhoto.all_objects.filter(ticket=ticket)
             .select_related("uploaded_by__person")
-            .order_by("created_at")
+            .order_by("created_at"),
         )
         activity = list(
             OrderActivityEvent.objects.filter(
                 content_type="maintenance_ticket", content_id=ticket.id,
             )
             .select_related("actor_membership__person")
-            .order_by("created_at")
+            .order_by("created_at"),
         )
 
         return Response({
@@ -365,13 +364,16 @@ class MaintenanceNoteDetailView(APIView):
             event_type=OrderActivityEvent.EventType.NOTE,
         ).first()
         if event is None:
-            raise NotFound("Note not found.")
+            msg = "Note not found."
+            raise NotFound(msg)
 
         if event.actor_membership_id != ctx.membership.id:
-            raise PermissionDenied("Only the original author may edit a note.")
+            msg = "Only the original author may edit a note."
+            raise PermissionDenied(msg)
 
         if (timezone.now() - event.created_at) > NOTE_EDIT_WINDOW:
-            raise PermissionDenied("This note can no longer be edited (24h window has closed).")
+            msg = "This note can no longer be edited (24h window has closed)."
+            raise PermissionDenied(msg)
 
         data = request.data or {}
         if "body" in data:
@@ -423,5 +425,6 @@ def _get_ticket_or_404(ticket_id, program) -> MaintenanceTicket:
         pk=ticket_id, program=program,
     ).first()
     if ticket is None:
-        raise NotFound("Ticket not found.")
+        msg = "Ticket not found."
+        raise NotFound(msg)
     return ticket

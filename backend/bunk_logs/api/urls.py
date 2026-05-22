@@ -33,16 +33,16 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
-from .unit_head import bunk_dashboard as uh_bunk_dashboard
-from .unit_head import camper_dashboard as uh_camper_dashboard
-from .unit_head import dashboard as uh_dashboard
-from .unit_head import self_reflection as uh_self_reflection
+from .maintenance import views as maint_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
 from .specialist import dashboard as sp_dashboard
 from .specialist import notes as sp_notes
 from .specialist import self_reflection as sp_self_reflection
-from .maintenance import queue as maint_queue
+from .unit_head import bunk_dashboard as uh_bunk_dashboard
+from .unit_head import camper_dashboard as uh_camper_dashboard
+from .unit_head import dashboard as uh_dashboard
+from .unit_head import self_reflection as uh_self_reflection
 
 router = DefaultRouter()
 
@@ -110,27 +110,27 @@ urlpatterns = [
     # ------------------------------------------------------------------
     path(
         "maintenance/queue/",
-        maint_queue.MaintenanceQueueView.as_view(),
+        maint_views.MaintenanceQueueView.as_view(),
         name="maintenance-queue",
     ),
     path(
         "maintenance/tickets/<uuid:ticket_id>/",
-        maint_queue.MaintenanceTicketDetailView.as_view(),
+        maint_views.MaintenanceTicketDetailView.as_view(),
         name="maintenance-ticket-detail",
     ),
     path(
         "maintenance/tickets/<uuid:ticket_id>/notes/",
-        maint_queue.MaintenanceNoteCreateView.as_view(),
+        maint_views.MaintenanceNoteCreateView.as_view(),
         name="maintenance-note-create",
     ),
     path(
         "maintenance/tickets/<uuid:ticket_id>/notes/<uuid:note_id>/",
-        maint_queue.MaintenanceNoteDetailView.as_view(),
+        maint_views.MaintenanceNoteDetailView.as_view(),
         name="maintenance-note-detail",
     ),
     path(
         "maintenance/notes/audience/",
-        maint_queue.MaintenanceNoteAudienceView.as_view(),
+        maint_views.MaintenanceNoteAudienceView.as_view(),
         name="maintenance-note-audience",
     ),
     path("", include(router.urls)),

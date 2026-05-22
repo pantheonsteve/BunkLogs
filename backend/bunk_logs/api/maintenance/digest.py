@@ -26,8 +26,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone as dt_timezone
-from typing import TYPE_CHECKING
 
 from celery import shared_task
 from django.conf import settings
@@ -40,9 +38,6 @@ from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Program
 from bunk_logs.core.time_utils import get_org_timezone
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -130,12 +125,13 @@ def send_maintenance_digest(self, org_id: str, program_id: str) -> None:
         msg.send()
         _reset_failure_count(org)
         logger.info("maintenance digest sent to %s for program %s", recipient, program_id)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:
         _increment_failure_count(org)
-        logger.error(
-            "maintenance digest send failure",
-            exc_info=exc,
-            extra={"org_id": org_id, "program_id": program_id, "recipient": recipient},
+        logger.exception(
+            "maintenance digest send failure — org %s program %s recipient %s",
+            org_id,
+            program_id,
+            recipient,
         )
 
 
@@ -156,14 +152,14 @@ def _build_digest_context(
         all_qs.filter(
             status__in=("new", "in_progress"),
             urgency="urgent",
-        ).select_related("submitted_by__person").order_by("created_at")
+        ).select_related("submitted_by__person").order_by("created_at"),
     )
 
     new_in_window = list(
         all_qs.filter(
             created_at__gte=window_start,
             created_at__lt=window_end,
-        ).select_related("submitted_by__person").order_by("created_at")
+        ).select_related("submitted_by__person").order_by("created_at"),
     )
 
     closed_in_window = list(
@@ -171,7 +167,7 @@ def _build_digest_context(
             status__in=("fulfilled", "unable_to_fulfill"),
             updated_at__gte=window_start,
             updated_at__lt=window_end,
-        ).select_related("submitted_by__person").order_by("updated_at")
+        ).select_related("submitted_by__person").order_by("updated_at"),
     )
 
     reopened_in_window = list(
@@ -181,7 +177,7 @@ def _build_digest_context(
             to_state="in_progress",
             created_at__gte=window_start,
             created_at__lt=window_end,
-        ).select_related("actor_membership__person")
+        ).select_related("actor_membership__person"),
     )
     reopened_ticket_ids = [str(e.content_id) for e in reopened_in_window]
     reopened_tickets = {
@@ -192,7 +188,7 @@ def _build_digest_context(
     still_open = list(
         all_qs.filter(status__in=("new", "in_progress"))
         .select_related("submitted_by__person")
-        .order_by("created_at")
+        .order_by("created_at"),
     )
 
     def _closing_note(ticket):
