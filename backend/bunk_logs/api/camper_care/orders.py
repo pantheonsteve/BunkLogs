@@ -22,7 +22,6 @@ criterion 6).
 from __future__ import annotations
 
 from django.utils.dateparse import parse_date
-from rest_framework import status as http_status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response

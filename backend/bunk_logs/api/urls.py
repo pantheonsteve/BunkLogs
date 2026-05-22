@@ -14,6 +14,12 @@ from . import reflections
 from . import supervisions as supervisions_api
 from . import templates as templates_api
 from . import views
+from .camper_care import bunk_dashboard as cc_bunk_dashboard
+from .camper_care import camper_dashboard as cc_camper_dashboard
+from .camper_care import dashboard as cc_dashboard
+from .camper_care import flags as cc_flags
+from .camper_care import notes as cc_notes
+from .camper_care import orders as cc_orders
 from .counselor import camper_care_requests as counselor_camper_care_requests
 from .counselor import camper_reflections as counselor_camper_reflections
 from .counselor import dashboard as counselor_dashboard
@@ -26,12 +32,6 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
-from .camper_care import bunk_dashboard as cc_bunk_dashboard
-from .camper_care import camper_dashboard as cc_camper_dashboard
-from .camper_care import dashboard as cc_dashboard
-from .camper_care import flags as cc_flags
-from .camper_care import notes as cc_notes
-from .camper_care import orders as cc_orders
 from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
 from .unit_head import dashboard as uh_dashboard

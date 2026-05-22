@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from datetime import date
 from datetime import timedelta
-from uuid import uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
