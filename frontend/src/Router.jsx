@@ -54,6 +54,8 @@ import UnitHeadCamperDashboardPage from './pages/unit-head/UnitHeadCamperDashboa
 import UnitHeadSelfReflectionPage from './pages/unit-head/UnitHeadSelfReflectionPage';
 import UnitHeadSelfReflectionHistoryPage from './pages/unit-head/UnitHeadSelfReflectionHistoryPage';
 import CamperCareDashboardV2 from './pages/camper-care/Dashboard';
+import CamperCareBunkDashboardPage from './pages/camper-care/BunkDashboardPage';
+import CamperCareCamperDashboardPage from './pages/camper-care/CamperDashboardPage';
 import CamperCareFlagsPage from './pages/camper-care/Flags';
 import CamperCareOrdersPage from './pages/camper-care/Orders';
 import CamperCareNoteFormPage from './pages/camper-care/NoteForm';
@@ -435,10 +437,18 @@ function Router() {
               `/dashboard/campercare` route still serves the old
               CamperCareDashboard.jsx surface and is untouched while
               wave 5 migration progresses. Bunk + camper drill-down
-              endpoints (Story 18 c.9) are not yet wired; a follow-up
-              PR will add `/api/v1/camper-care/bunks/<id>/` plus the
-              corresponding page wrappers. */}
+              pages (Story 18 c.9 + Story 21 in-context note CTA) were
+              shipped in 7_8c and reuse the shared BunkDashboard +
+              CamperDashboard components with caseload-scoped CC views. */}
           <Route path="/camper-care" element={<CamperCareDashboardV2 />} />
+          <Route
+            path="/camper-care/bunks/:bunkId"
+            element={<CamperCareBunkDashboardPage />}
+          />
+          <Route
+            path="/camper-care/campers/:camperId"
+            element={<CamperCareCamperDashboardPage />}
+          />
           <Route path="/camper-care/flags" element={<CamperCareFlagsPage />} />
           <Route path="/camper-care/orders" element={<CamperCareOrdersPage />} />
           <Route path="/camper-care/notes/new" element={<CamperCareNoteFormPage />} />

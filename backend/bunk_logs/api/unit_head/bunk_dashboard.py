@@ -91,85 +91,117 @@ class UnitHeadBunkDashboardView(APIView):
             msg = "Bunk not found."
             raise NotFound(msg)
 
-        campers = bunk_camper_persons([bunk]).get(bunk.id, [])
-        camper_ids = [c.id for c in campers]
-
-        off_camp = off_camp_camper_ids(ctx.organization, target_date, camper_ids)
-        off_camp_payload = [
-            _camper_brief(c, off_camp=True) for c in campers if c.id in off_camp
-        ]
-
-        # Today's camper reflections (visibility-filtered) for help
-        # surface + score grid.
-        camper_template = camper_reflection_template(ctx.organization, ctx.program)
-        reflections_by_subject: dict[int, Reflection] = {}
-        if camper_template is not None and campers:
-            visible_qs = reflections_visible_for_user(
-                request.user,
-                Reflection.all_objects.filter(
-                    template=camper_template,
-                    assignment_group=bunk,
-                    period_start=target_date,
-                    period_end=target_date,
-                    is_complete=True,
-                ).select_related("template", "author"),
-            )
-            for r in visible_qs:
-                if r.subject_id is not None:
-                    reflections_by_subject[r.subject_id] = r
-
-        help_ids = help_requested_camper_ids_from(reflections_by_subject)
-        help_payload = [
-            _camper_brief(c) for c in campers if c.id in help_ids
-        ]
-
-        # Bunk-concerns referencing this bunk today.
-        bc_map = bunk_concerns_referencing(
+        return Response(build_bunk_dashboard_payload(
+            request=request,
+            bunk=bunk,
+            target_date=target_date,
             organization=ctx.organization,
             program=ctx.program,
-            target_date=target_date,
-        )
-        bc_payload = _serialize_bunk_concerns(bc_map.get(bunk.id, []))
+            today=ctx.today,
+        ))
 
-        # Score grid (Story 12).
-        score_grid_payload = (
-            build_score_grid(
+
+# ---------------------------------------------------------------------------
+# Shared payload builder (role-agnostic; reused by Camper Care 7_8c)
+# ---------------------------------------------------------------------------
+
+
+def build_bunk_dashboard_payload(
+    *,
+    request,
+    bunk: AssignmentGroup,
+    target_date: date,
+    organization,
+    program,
+    today: date,
+) -> dict:
+    """Compose the per-bunk dashboard payload, viewer-visibility-filtered.
+
+    Pulled out of the UH view so Camper Care (7_8c), LT, and Admin
+    can call it with their own role-specific viewer + supervision
+    gates while sharing the same payload contract. Visibility is
+    enforced inside via ``request.user`` so the caller cannot widen
+    audience by handing in a different organization or program.
+    """
+    campers = bunk_camper_persons([bunk]).get(bunk.id, [])
+    camper_ids = [c.id for c in campers]
+
+    off_camp = off_camp_camper_ids(organization, target_date, camper_ids)
+    off_camp_payload = [
+        _camper_brief(c, off_camp=True) for c in campers if c.id in off_camp
+    ]
+
+    # Today's camper reflections (visibility-filtered) for help
+    # surface + score grid.
+    camper_template = camper_reflection_template(organization, program)
+    reflections_by_subject: dict[int, Reflection] = {}
+    if camper_template is not None and campers:
+        visible_qs = reflections_visible_for_user(
+            request.user,
+            Reflection.all_objects.filter(
                 template=camper_template,
-                campers=campers,
-                reflections_by_subject=reflections_by_subject,
-            ) if camper_template else {"columns": [], "rows": []}
+                assignment_group=bunk,
+                period_start=target_date,
+                period_end=target_date,
+                is_complete=True,
+            ).select_related("template", "author"),
         )
+        for r in visible_qs:
+            if r.subject_id is not None:
+                reflections_by_subject[r.subject_id] = r
 
-        # Orders + Maintenance Tickets for the bunk (Story 14).
-        orders_payload = _orders_for_bunk(
-            bunk=bunk, target_date=target_date, organization=ctx.organization,
-            program=ctx.program,
-        )
+    help_ids = help_requested_camper_ids_from(reflections_by_subject)
+    help_payload = [
+        _camper_brief(c) for c in campers if c.id in help_ids
+    ]
 
-        # Specialist reports (Story 15).
-        spec_payload = _specialist_reports_for_bunk(
-            request=request, camper_ids=camper_ids, target_date=target_date,
-        )
+    # Bunk-concerns referencing this bunk today.
+    bc_map = bunk_concerns_referencing(
+        organization=organization,
+        program=program,
+        target_date=target_date,
+    )
+    bc_payload = _serialize_bunk_concerns(bc_map.get(bunk.id, []))
 
-        return Response({
-            "header": {
-                "bunk": {
-                    "id": bunk.id,
-                    "name": bunk.name,
-                    "slug": bunk.slug,
-                    "unit_name": (bunk.parent.name if bunk.parent_id else None),
-                },
-                "date": target_date.isoformat(),
-                "today": ctx.today.isoformat(),
-                "counselor_names": _counselor_names(bunk),
+    # Score grid (Story 12).
+    score_grid_payload = (
+        build_score_grid(
+            template=camper_template,
+            campers=campers,
+            reflections_by_subject=reflections_by_subject,
+        ) if camper_template else {"columns": [], "rows": []}
+    )
+
+    # Orders + Maintenance Tickets for the bunk (Story 14).
+    orders_payload = _orders_for_bunk(
+        bunk=bunk, target_date=target_date, organization=organization,
+        program=program,
+    )
+
+    # Specialist reports (Story 15).
+    spec_payload = _specialist_reports_for_bunk(
+        request=request, camper_ids=camper_ids, target_date=target_date,
+    )
+
+    return {
+        "header": {
+            "bunk": {
+                "id": bunk.id,
+                "name": bunk.name,
+                "slug": bunk.slug,
+                "unit_name": (bunk.parent.name if bunk.parent_id else None),
             },
-            "help_requested": help_payload,
-            "off_camp": off_camp_payload,
-            "bunk_concerns": bc_payload,
-            "score_grid": score_grid_payload,
-            "orders": orders_payload,
-            "specialist_reports": spec_payload,
-        })
+            "date": target_date.isoformat(),
+            "today": today.isoformat(),
+            "counselor_names": _counselor_names(bunk),
+        },
+        "help_requested": help_payload,
+        "off_camp": off_camp_payload,
+        "bunk_concerns": bc_payload,
+        "score_grid": score_grid_payload,
+        "orders": orders_payload,
+        "specialist_reports": spec_payload,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,37 @@ export async function fetchCamperCareDashboard({ date, noCache = false } = {}) {
   return data;
 }
 
+/** Bunk drill-down payload (Story 18 c.9) for a bunk on a date. */
+export async function fetchBunkDashboard(bunkId, { date } = {}) {
+  const params = date ? { date } : {};
+  const { data } = await api.get(
+    `/api/v1/camper-care/bunks/${bunkId}/`,
+    { params },
+  );
+  return data;
+}
+
+/**
+ * Camper drill-down payload (Story 18 c.9 + Story 21 in-context notes).
+ * Reuses the role-agnostic shape served by the shared payload builder.
+ */
+export async function fetchCamperDashboard(camperId, {
+  date,
+  range = 'last_4_weeks',
+  dateStart,
+  dateEnd,
+} = {}) {
+  const params = { range };
+  if (date) params.date = date;
+  if (dateStart) params.date_start = dateStart;
+  if (dateEnd) params.date_end = dateEnd;
+  const { data } = await api.get(
+    `/api/v1/camper-care/campers/${camperId}/`,
+    { params },
+  );
+  return data;
+}
+
 /**
  * Flag workspace listing (Story 20).
  *
