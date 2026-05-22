@@ -21,6 +21,7 @@ spec order (criterion 1) and collapse them when empty (criterion 2):
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from django.utils.dateparse import parse_date
@@ -44,6 +45,7 @@ from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.state_machine import OrderStateMachine
+from bunk_logs.core.time_utils import get_org_timezone
 
 from .common import build_score_grid
 from .common import bunk_concerns_referencing
@@ -55,6 +57,7 @@ from .common import viewer_or_403
 if TYPE_CHECKING:
     from datetime import date
     from datetime import datetime
+    from zoneinfo import ZoneInfo
 
 OPEN_STATUSES = (OrderStateMachine.NEW, OrderStateMachine.IN_PROGRESS)
 RESOLVED_STATUSES = (OrderStateMachine.FULFILLED, OrderStateMachine.UNABLE_TO_FULFILL)
@@ -280,6 +283,7 @@ def _orders_for_bunk(
             "counts": {"open": 0, "in_progress": 0, "resolved": 0},
         }
 
+    org_tz = get_org_timezone(organization)
     orders = (
         Order.all_objects.filter(
             organization=organization,
@@ -307,11 +311,11 @@ def _orders_for_bunk(
 
     for o in orders:
         item = _serialize_order(o)
-        _bucket_request(item, o.created_at, o.status, target_date, today_items, carried_over)
+        _bucket_request(item, o.created_at, o.status, target_date, today_items, carried_over, tz=org_tz)
         _bucket_count(o.status, counts)
     for t in tickets:
         item = _serialize_ticket(t)
-        _bucket_request(item, t.created_at, t.status, target_date, today_items, carried_over)
+        _bucket_request(item, t.created_at, t.status, target_date, today_items, carried_over, tz=org_tz)
         _bucket_count(t.status, counts)
 
     today_items.sort(key=lambda r: r["submitted_at"], reverse=True)
@@ -322,24 +326,36 @@ def _orders_for_bunk(
 def _date_window(target_date: date):
     """Filter spanning ``target_date`` plus open carry-overs from before.
 
-    We need rows submitted ON ``target_date`` AND rows submitted
-    before that are still open. The simplest correct filter is "any
-    row whose date <= target_date AND (date == target_date OR status
-    is open)". We materialize both conditions in the Python loop
-    rather than at SQL level so the carried-over bucket can include
-    arbitrarily old rows without an unbounded date range.
+    Postgres extracts ``created_at__date`` in UTC, but the org's "today"
+    is in the org's local timezone, so a row created at, say,
+    2026-07-04 02:00 UTC may belong to 2026-07-03 in US Eastern. We
+    widen the SQL filter by one UTC day on the high side to capture
+    overflow; the Python bucketer (:func:`_bucket_request`) re-checks
+    in the org's tz to assign rows to ``today`` vs ``carried_over``.
     """
     from django.db.models import Q
-    return Q(created_at__date__lte=target_date)
+    return Q(created_at__date__lte=target_date + timedelta(days=1))
 
 
 def _bucket_request(
     item: dict, submitted_at: datetime, status: str, target_date: date,
     today_items: list[dict], carried_over: list[dict],
+    *,
+    tz: ZoneInfo | None = None,
 ) -> None:
-    submitted_date = submitted_at.date() if submitted_at else target_date
+    if submitted_at is None:
+        submitted_date = target_date
+    elif tz is not None and submitted_at.tzinfo is not None:
+        submitted_date = submitted_at.astimezone(tz).date()
+    else:
+        submitted_date = submitted_at.date()
     if submitted_date == target_date:
         today_items.append(item)
+    elif submitted_date > target_date:
+        # Future relative to org-local today — date_window widened by a
+        # UTC day to capture timezone overflow, so a row that's actually
+        # *tomorrow* in the org's tz must be dropped.
+        return
     elif status in OPEN_STATUSES:
         carried_over.append(item)
     # else: resolved + submitted on a prior date — drop
