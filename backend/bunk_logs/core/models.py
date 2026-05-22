@@ -391,6 +391,17 @@ class Membership(models.Model):
             ) from exc
         super().save(*args, **kwargs)
 
+    # Audit module fallback hooks (Step 7_4 + 7_13). Membership has no
+    # direct ``organization`` FK — both org and program are derived
+    # through the related Program. These let
+    # ``bunk_logs.core.audit._org_program`` resolve the scope without a
+    # special-case branch when admin People CRUD writes audit rows.
+    def _audit_organization(self):
+        return self.program.organization if self.program_id else None
+
+    def _audit_program(self):
+        return self.program if self.program_id else None
+
 
 class AssignmentGroup(models.Model):
     GROUP_TYPES = [
@@ -491,6 +502,14 @@ class AssignmentGroupMembership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.person} as {self.get_role_in_group_display()} in {self.group}"
+
+    # Audit hooks (Step 7_13). AssignmentGroupMembership has no direct
+    # org/program FK -- both flow through the related ``AssignmentGroup``.
+    def _audit_organization(self):
+        return self.group.organization if self.group_id else None
+
+    def _audit_program(self):
+        return self.group.program if self.group_id else None
 
 
 class RosterImportLog(models.Model):
