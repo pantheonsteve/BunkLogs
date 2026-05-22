@@ -61,19 +61,25 @@ export default function KitchenStaffReflectionForm() {
       try {
         const uiLang = i18n.language || 'en';
         let tpl;
+        let prefillAnswers = null;
         if (isEdit) {
-          // For edits load the existing reflection to populate answers
-          const reflection = await fetchReflection(reflectionId, orgSlug);
-          if (!cancelled) setExistingReflection(reflection);
-          setReflectionLanguage(reflection.language || uiLang);
-          tpl = await fetchTemplateById(reflection.template, orgSlug);
+          // Load existing reflection to pre-fill form
+          const reflection = await fetchReflection(reflectionId);
+          if (!cancelled) {
+            setExistingReflection(reflection);
+            setReflectionLanguage(reflection.language || uiLang);
+            prefillAnswers = reflection.answers || {};
+          }
+          tpl = await fetchTemplateById(reflection.template);
         } else {
           tpl = await fetchTemplate(orgSlug, uiLang);
         }
         if (!cancelled) {
           setTemplate(tpl);
-          if (isEdit && existingReflection) {
-            setAnswers(existingReflection.answers || {});
+          // Use local variable (not state) — setState is async so existingReflection
+          // is still null here even though we just called setExistingReflection above.
+          if (prefillAnswers !== null) {
+            setAnswers(prefillAnswers);
           } else if (tpl?.schema?.fields) {
             setAnswers(buildDefaultAnswers(tpl.schema.fields));
           }
@@ -196,16 +202,13 @@ export default function KitchenStaffReflectionForm() {
           {/* Reflection fields */}
           {!isDayOff && fields.map(field => (
             <div key={field.key} className="mb-6">
-              {/* Story 39 criterion 4: show "(English only)" on untranslated fields */}
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {field.prompts?.[i18n.language] ?? field.prompts?.en ?? field.key}
-                {field.prompts && !field.prompts[i18n.language] && i18n.language !== 'en' && (
-                  <span className="ml-2 text-xs text-gray-400">{t('form.languageNote')}</span>
-                )}
-              </label>
+              {/* "(English only)" note when prompt isn't translated for the current language */}
+              {field.prompts && !field.prompts[i18n.language] && i18n.language !== 'en' && (
+                <span className="block text-xs text-gray-400 mb-1">{t('form.languageNote')}</span>
+              )}
               <ReflectionField
                 field={field}
-                value={answers[field.key]}
+                answer={answers[field.key]}
                 onChange={val => handleFieldChange(field.key, val)}
                 error={fieldErrors[field.key]}
                 language={i18n.language}
