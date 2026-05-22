@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
             fields=[
                 (
                     "id",
-                    models.AutoField(
+                    models.BigAutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
@@ -61,11 +61,11 @@ class Migration(migrations.Migration):
                 "indexes": [
                     models.Index(
                         fields=["reflection", "created_at"],
-                        name="core_reflec_reflect_82d2c2_idx",
+                        name="core_reflec_reflect_577903_idx",
                     ),
                     models.Index(
                         fields=["marker_membership", "created_at"],
-                        name="core_reflec_marker__a7c2e0_idx",
+                        name="core_reflec_marker__e89c3f_idx",
                     ),
                 ],
                 "unique_together": {("reflection", "marker_membership")},
