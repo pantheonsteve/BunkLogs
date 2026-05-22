@@ -55,7 +55,7 @@ def _clear_cache():
 
 @pytest.fixture
 def org(db):
-    return Organization.objects.create(name="CD Camp", slug="cd-camp")
+    return Organization.objects.create(name="CD Camp", slug="cd-camp", settings={"rollover_hour": 0, "timezone": "UTC"})
 
 
 @pytest.fixture
