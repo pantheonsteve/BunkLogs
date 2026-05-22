@@ -25,6 +25,7 @@ import {
   createTicketNote,
   editTicketNote,
   fetchNoteAudience,
+  uploadTicketPhoto,
 } from '../../api/maintenance';
 
 const STATUS_BADGE = {
@@ -263,6 +264,69 @@ function NoteForm({ ticketId, onNoteAdded }) {
   );
 }
 
+function PhotoUploadForm({ ticketId, onPhotoAdded }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const inputRef = useRef(null);
+
+  const handleFile = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setError('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) { setError('Choose a photo first.'); return; }
+    setUploading(true);
+    try {
+      const photo = await uploadTicketPhoto(ticketId, file);
+      onPhotoAdded(photo);
+      setFile(null);
+      setPreview(null);
+      if (inputRef.current) inputRef.current.value = '';
+    } catch (err) {
+      setError(err?.response?.data?.image?.[0] || err?.response?.data?.detail || err?.message || 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2" data-testid="photo-upload-form">
+      <div className="flex items-center gap-3">
+        <label className="flex-1">
+          <span className="sr-only">Choose photo</span>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFile}
+            data-testid="photo-file-input"
+            className="block w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-gray-300 dark:file:border-gray-600 file:text-sm file:bg-white dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-200 hover:file:bg-gray-50"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={uploading || !file}
+          data-testid="photo-upload-submit"
+          className="inline-flex items-center px-3 min-h-[36px] rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+        >
+          {uploading ? 'Uploading…' : 'Upload'}
+        </button>
+      </div>
+      {preview && (
+        <img src={preview} alt="Preview" className="h-20 w-20 rounded-lg object-cover border border-gray-200 dark:border-gray-700" />
+      )}
+      {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+    </form>
+  );
+}
+
 function TransitionActions({ ticket, onTransition, onUndo }) {
   const isTerminal = ['fulfilled', 'unable_to_fulfill'].includes(ticket.status);
   const canUndo = ticket.is_within_correction_window;
@@ -414,6 +478,13 @@ export default function TicketDetail() {
 
   const handleTransitionSubmitted = () => { setModal(null); load(); };
 
+  const handlePhotoAdded = (photo) => {
+    setData((prev) => ({
+      ...prev,
+      photos: [...(prev?.photos ?? []), photo],
+    }));
+  };
+
   const handleUndo = async () => {
     try {
       await correctLastTransition(ticketId);
@@ -439,6 +510,11 @@ export default function TicketDetail() {
 
   const { ticket, photos = [], activity = [] } = data || {};
   const isOpen = ticket && ['new', 'in_progress'].includes(ticket.status);
+  // After a closing transition the ticket leaves the "open" queue — send the
+  // user to "closed" so they can still find it.
+  const backFilter = (ticket && ['fulfilled', 'unable_to_fulfill'].includes(ticket.status))
+    ? 'closed'
+    : fromFilter;
 
   return (
     <div className="max-w-2xl mx-auto pb-32" data-testid="ticket-detail">
@@ -446,7 +522,7 @@ export default function TicketDetail() {
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate(`/maintenance?filter=${fromFilter}`)}
+          onClick={() => navigate(`/maintenance?filter=${backFilter}`)}
           className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
           data-testid="back-button"
         >
@@ -497,17 +573,18 @@ export default function TicketDetail() {
             </section>
           )}
 
-          {/* Photos — original submission */}
-          {photos.filter((p) => !p.is_followup).length > 0 && (
+          {/* Photos — original submission + follow-ups */}
+          {photos.length > 0 && (
             <section data-testid="ticket-photos">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Photos</h2>
               <div className="flex flex-wrap gap-2">
-                {photos.filter((p) => !p.is_followup).map((p) => (
+                {photos.map((p) => (
                   <a
                     key={p.id}
                     href={p.image_url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    title={p.caption || (p.is_followup ? 'Follow-up photo' : 'Ticket photo')}
                     className="block w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"
                   >
                     <img src={p.image_url} alt={p.caption || 'Ticket photo'} className="w-full h-full object-cover" />
@@ -540,6 +617,14 @@ export default function TicketDetail() {
               <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Add note</h3>
                 <NoteForm ticketId={ticketId} onNoteAdded={handleNoteAdded} />
+              </div>
+            )}
+
+            {/* Follow-up photo upload */}
+            {isOpen && (
+              <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Add photo</h3>
+                <PhotoUploadForm ticketId={ticketId} onPhotoAdded={handlePhotoAdded} />
               </div>
             )}
           </section>

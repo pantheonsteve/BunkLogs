@@ -430,7 +430,7 @@ export default function MaintenanceQueue() {
               selected={selected.has(t.id)}
               onSelectToggle={handleSelectToggle}
               onTransition={handleTransition}
-              onClick={(id) => navigate(`/maintenance/tickets/${id}`)}
+              onClick={(id) => navigate(`/maintenance/tickets/${id}?from=${filter}`)}
             />
           ))}
         </ul>

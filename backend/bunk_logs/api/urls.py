@@ -33,6 +33,8 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .kitchen_staff import dashboard as ks_dashboard
+from .kitchen_staff import self_reflection as ks_self_reflection
 from .maintenance import views as maint_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
@@ -106,6 +108,29 @@ urlpatterns = [
         name="maintenance-correct-last",
     ),
     # ------------------------------------------------------------------
+    # Kitchen Staff (Step 7_11, Stories 37-44)
+    # ------------------------------------------------------------------
+    path(
+        "kitchen-staff/dashboard/",
+        ks_dashboard.KitchenStaffDashboardView.as_view(),
+        name="kitchen-staff-dashboard",
+    ),
+    path(
+        "kitchen-staff/reflection/",
+        ks_self_reflection.KitchenStaffReflectionCreateView.as_view(),
+        name="kitchen-staff-reflection-create",
+    ),
+    path(
+        "kitchen-staff/reflection/history/",
+        ks_self_reflection.KitchenStaffReflectionHistoryView.as_view(),
+        name="kitchen-staff-reflection-history",
+    ),
+    path(
+        "kitchen-staff/reflection/<int:reflection_id>/",
+        ks_self_reflection.KitchenStaffReflectionDetailView.as_view(),
+        name="kitchen-staff-reflection-detail",
+    ),
+    # ------------------------------------------------------------------
     # Maintenance staff queue (Step 7_10, Stories 30-35)
     # ------------------------------------------------------------------
     path(
@@ -132,6 +157,11 @@ urlpatterns = [
         "maintenance/notes/audience/",
         maint_views.MaintenanceNoteAudienceView.as_view(),
         name="maintenance-note-audience",
+    ),
+    path(
+        "maintenance/tickets/<uuid:ticket_id>/photos/",
+        maint_views.MaintenanceTicketPhotoCreateView.as_view(),
+        name="maintenance-ticket-photo-create",
     ),
     path("", include(router.urls)),
 

@@ -61,6 +61,9 @@ import CamperCareOrdersPage from './pages/camper-care/Orders';
 import CamperCareNoteFormPage from './pages/camper-care/NoteForm';
 import CamperCareSelfReflectionPage from './pages/camper-care/SelfReflectionPage';
 import CamperCareSelfReflectionHistoryPage from './pages/camper-care/SelfReflectionHistoryPage';
+import KitchenStaffDashboard from './pages/kitchen-staff/Dashboard';
+import KitchenStaffReflectionForm from './pages/kitchen-staff/ReflectionForm';
+import KitchenStaffHistory from './pages/kitchen-staff/History';
 import SpecialistDashboard from './pages/specialist/Dashboard';
 import SpecialistNoteForm from './pages/specialist/NoteForm';
 import SpecialistCamperView from './pages/specialist/CamperView';
@@ -537,6 +540,40 @@ function Router() {
           element={
             <ProtectedRoute>
               <SpecialistSelfReflectionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Kitchen Staff (Step 7_11, Stories 37-44)                             */}
+        <Route
+          path="/kitchen-staff"
+          element={
+            <ProtectedRoute>
+              <KitchenStaffDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kitchen-staff/history"
+          element={
+            <ProtectedRoute>
+              <KitchenStaffHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kitchen-staff/reflection/new"
+          element={
+            <ProtectedRoute>
+              <KitchenStaffReflectionForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kitchen-staff/reflection/:reflectionId/edit"
+          element={
+            <ProtectedRoute>
+              <KitchenStaffReflectionForm />
             </ProtectedRoute>
           }
         />

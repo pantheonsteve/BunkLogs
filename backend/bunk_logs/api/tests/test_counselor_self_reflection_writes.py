@@ -36,7 +36,7 @@ def _clear_cache():
 
 @pytest.fixture
 def org(db):
-    return Organization.objects.create(name="SR Camp", slug="sr-camp")
+    return Organization.objects.create(name="SR Camp", slug="sr-camp", settings={"rollover_hour": 0, "timezone": "UTC"})
 
 
 @pytest.fixture
