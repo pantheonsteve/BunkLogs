@@ -2563,3 +2563,54 @@ class TranslationRecord(models.Model):
             .order_by("-created_at")
             .first()
         )
+
+
+# ---------------------------------------------------------------------------
+# Leadership Team — attention markers (Step 7_12)
+# ---------------------------------------------------------------------------
+
+
+class ReflectionAttentionMarker(models.Model):
+    """Per-supervisor "needs attention" annotation on a Reflection (Story 46 c5).
+
+    Markers are visible to the supervisor who placed them AND to anyone
+    sharing a same-target Supervision (co-supervisor scope). They do NOT
+    mutate the reflection itself and do NOT notify the author. The
+    canonical product spec is ``docs/user_stories/07_leadership_team/STORIES.md``.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="reflection_attention_markers",
+    )
+    reflection = models.ForeignKey(
+        Reflection,
+        on_delete=models.CASCADE,
+        related_name="attention_markers",
+    )
+    marker_membership = models.ForeignKey(
+        Membership,
+        on_delete=models.CASCADE,
+        related_name="attention_markers_placed",
+        help_text="Supervisor Membership that placed the marker.",
+    )
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("reflection", "marker_membership")]
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["reflection", "created_at"]),
+            models.Index(fields=["marker_membership", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"attention marker on reflection:{self.reflection_id} "
+            f"by membership:{self.marker_membership_id}"
+        )

@@ -35,6 +35,11 @@ from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
+from .leadership_team import dashboard as lt_dashboard
+from .leadership_team import mark_attention as lt_mark_attention
+from .leadership_team import member_reflection as lt_member_reflection
+from .leadership_team import self_reflection as lt_self_reflection
+from .leadership_team import team_dashboard as lt_team_dashboard
 from .maintenance import views as maint_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
@@ -474,6 +479,40 @@ urlpatterns = [
         "specialist/self-reflection/<int:reflection_id>/",
         sp_self_reflection.SpecialistSelfReflectionDetailView.as_view(),
         name="specialist-self-reflection-detail",
+    ),
+
+    # ------------------------------------------------------------------
+    # Leadership Team (Step 7_12, Stories 45-53)
+    # ------------------------------------------------------------------
+    path(
+        "leadership-team/dashboard/",
+        lt_dashboard.LeadershipTeamDashboardView.as_view(),
+        name="leadership-team-dashboard",
+    ),
+    path(
+        "leadership-team/teams/<str:team_role>/",
+        lt_team_dashboard.LeadershipTeamTeamDashboardView.as_view(),
+        name="leadership-team-team-dashboard",
+    ),
+    path(
+        "leadership-team/teams/<str:team_role>/members/<int:membership_id>/reflection/",
+        lt_member_reflection.LeadershipTeamMemberReflectionView.as_view(),
+        name="leadership-team-member-reflection",
+    ),
+    path(
+        "leadership-team/reflections/<int:reflection_id>/mark-attention/",
+        lt_mark_attention.LeadershipTeamMarkAttentionView.as_view(),
+        name="leadership-team-mark-attention",
+    ),
+    path(
+        "leadership-team/self-reflection/",
+        lt_self_reflection.LeadershipTeamSelfReflectionCreateView.as_view(),
+        name="leadership-team-self-reflection-create",
+    ),
+    path(
+        "leadership-team/self-reflection/<int:reflection_id>/",
+        lt_self_reflection.LeadershipTeamSelfReflectionDetailView.as_view(),
+        name="leadership-team-self-reflection-detail",
     ),
 ]
 

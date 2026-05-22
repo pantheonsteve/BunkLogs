@@ -234,3 +234,66 @@ def _ensure_kitchen_staff_self_reflection_template(db):
             "program_type": None,
         },
     )
+
+
+_LEADERSHIP_TEAM_SELF_REFLECTION_SCHEMA = {
+    "fields": [
+        {
+            "key": "overall_period",
+            "type": "single_rating",
+            "required": False,
+            "scale": [1, 5],
+            "prompts": {"en": "How did the period feel overall?"},
+            "dashboard_role": "primary_rating",
+        },
+        {
+            "key": "wins",
+            "type": "text_list",
+            "required": False,
+            "prompts": {"en": "What went well?"},
+            "dashboard_role": "wins",
+        },
+        {
+            "key": "improvements",
+            "type": "text_list",
+            "required": False,
+            "prompts": {"en": "What needs more attention?"},
+            "dashboard_role": "improvements",
+        },
+        {
+            "key": "concern",
+            "type": "textarea",
+            "required": False,
+            "prompts": {"en": "Anything to flag?"},
+            "dashboard_role": "open_concern",
+        },
+    ],
+}
+
+
+@pytest.fixture(autouse=True)
+def _ensure_leadership_team_self_reflection_template(db):
+    """Re-seed the LT self-reflection template before every test (Step 7_12)."""
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug="leadership-team-self-reflection",
+        version=1,
+        defaults={
+            "name": "Leadership Team Self-Reflection",
+            "description": "Auto-seeded for tests via api/tests/conftest.py.",
+            "cadence": "biweekly",
+            "schema": _LEADERSHIP_TEAM_SELF_REFLECTION_SCHEMA,
+            "languages": ["en", "es"],
+            "is_active": True,
+            "subject_mode": "self",
+            "assignment_scope": "none",
+            "assignment_group_types": [],
+            "author_role_filter": ["leadership_team"],
+            "subject_role_filter": [],
+            "required_per_subject_per_period": 1,
+            "subject_visible": False,
+            "supports_privacy": True,
+            "role": "leadership_team",
+            "program_type": None,
+        },
+    )
