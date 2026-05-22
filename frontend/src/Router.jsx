@@ -64,6 +64,13 @@ import CamperCareSelfReflectionHistoryPage from './pages/camper-care/SelfReflect
 import KitchenStaffDashboard from './pages/kitchen-staff/Dashboard';
 import KitchenStaffReflectionForm from './pages/kitchen-staff/ReflectionForm';
 import KitchenStaffHistory from './pages/kitchen-staff/History';
+import LeadershipTeamDashboard from './pages/leadership-team/Dashboard';
+import LeadershipTeamTeamDashboard from './pages/leadership-team/TeamDashboard';
+import LeadershipTeamMemberReflection from './pages/leadership-team/MemberReflection';
+import LeadershipTeamSelfReflectionPage from './pages/leadership-team/SelfReflectionPage';
+import LeadershipTeamTemplateLibrary from './pages/leadership-team/TemplateLibrary';
+import LeadershipTeamTemplateBuilderPage from './pages/leadership-team/TemplateBuilder/TemplateBuilderPage';
+import LeadershipTeamResponses from './pages/leadership-team/Responses';
 import SpecialistDashboard from './pages/specialist/Dashboard';
 import SpecialistNoteForm from './pages/specialist/NoteForm';
 import SpecialistCamperView from './pages/specialist/CamperView';
@@ -574,6 +581,80 @@ function Router() {
           element={
             <ProtectedRoute>
               <KitchenStaffReflectionForm />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Leadership Team (Step 7_12, Stories 45-53) */}
+        <Route
+          path="/leadership-team"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/teams/:teamRole"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamTeamDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/teams/:teamRole/members/:membershipId"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamMemberReflection />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/self-reflection"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamSelfReflectionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/self-reflection/:reflectionId/edit"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamSelfReflectionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/templates"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamTemplateLibrary />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/templates/new"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamTemplateBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/templates/:id"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamTemplateBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leadership-team/templates/:id/responses"
+          element={
+            <ProtectedRoute>
+              <LeadershipTeamResponses />
             </ProtectedRoute>
           }
         />

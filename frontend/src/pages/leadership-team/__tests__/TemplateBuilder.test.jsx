@@ -1,0 +1,85 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import TemplateBuilderPage from '../TemplateBuilder/TemplateBuilderPage';
+
+const getMock = vi.fn();
+const postMock = vi.fn();
+const patchMock = vi.fn();
+
+vi.mock('../../../api', () => ({
+  default: {
+    get: (...args) => getMock(...args),
+    post: (...args) => postMock(...args),
+    patch: (...args) => patchMock(...args),
+  },
+}));
+
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => ({ orgSlug: 'test-org' }),
+}));
+
+vi.mock('../../../components/templates/ReflectionField', () => ({
+  default: ({ field }) => (
+    <div data-testid={`stub-field-${field.key || 'unset'}`}>{field.prompts?.en ?? ''}</div>
+  ),
+}));
+
+beforeEach(() => {
+  getMock.mockReset();
+  postMock.mockReset();
+  patchMock.mockReset();
+});
+
+function renderNew() {
+  return render(
+    <MemoryRouter initialEntries={['/leadership-team/templates/new']}>
+      <Routes>
+        <Route path="/leadership-team/templates/new" element={<TemplateBuilderPage />} />
+        <Route path="/leadership-team/templates/:id" element={<div data-testid="builder-redirect" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('TemplateBuilderPage', () => {
+  it('lets the LT user add a text field and post the new draft', async () => {
+    postMock.mockResolvedValue({ data: { id: 99 } });
+    renderNew();
+    fireEvent.change(screen.getByTestId('lt-builder-name'), { target: { value: 'New LT template' } });
+    fireEvent.click(screen.getByTestId('lt-builder-add-text'));
+    const keyInput = await screen.findByText(/Prompt \(en\)/);
+    expect(keyInput).toBeInTheDocument();
+    // Fill the first added field
+    const keyField = screen.getAllByPlaceholderText('field_key')[0];
+    fireEvent.change(keyField, { target: { value: 'reflection_summary' } });
+    const promptField = screen.getAllByRole('textbox').find(
+      (el) => el !== keyField && el !== screen.getByTestId('lt-builder-name'),
+    );
+    fireEvent.change(promptField, { target: { value: 'How was your week?' } });
+    fireEvent.click(screen.getByTestId('lt-builder-save'));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    expect(postMock.mock.calls[0][1].schema.fields[0].key).toBe('reflection_summary');
+  });
+
+  it('flags missing prompts as a validation issue before save', async () => {
+    renderNew();
+    fireEvent.click(screen.getByTestId('lt-builder-add-text'));
+    fireEvent.click(screen.getByTestId('lt-builder-save'));
+    await waitFor(() => expect(screen.getByTestId('lt-builder-issues')).toBeInTheDocument());
+    expect(postMock).not.toHaveBeenCalled();
+  });
+
+  it('lists Tier 1 field types in the add menu and not Tier 2', () => {
+    renderNew();
+    expect(screen.getByTestId('lt-builder-add-text')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-builder-add-textarea')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-builder-add-text_list')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-builder-add-single_choice')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-builder-add-multiple_choice')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-builder-add-rating_group')).toBeInTheDocument();
+    expect(screen.queryByTestId('lt-builder-add-yes_no')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('lt-builder-add-date')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('lt-builder-add-number')).not.toBeInTheDocument();
+  });
+});
