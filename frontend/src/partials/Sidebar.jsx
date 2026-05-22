@@ -139,6 +139,7 @@ function Sidebar({
 
   const canSupervise = hasCapability(user, SUPERVISOR_PLUS) || isSuperAdmin(user);
   const canSeeDashboards = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
+  const canSeeLeadershipTeam = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
   const canSeeLegacy = canAdmin;
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
@@ -209,6 +210,21 @@ function Sidebar({
                 icon={IconAlert}
               />
             </Section>
+          )}
+
+          {canSeeLeadershipTeam && (
+            <CollapsibleSection
+              heading="Leadership Team"
+              activeWhen={
+                pathname === '/leadership-team' || pathname.startsWith('/leadership-team/')
+              }
+              icon={IconGrid}
+              setSidebarExpanded={setSidebarExpanded}
+            >
+              <SubItem to="/leadership-team" label="Overview" end />
+              <SubItem to="/leadership-team/templates" label="Templates" />
+              <SubItem to="/leadership-team/self-reflection" label="My reflection" />
+            </CollapsibleSection>
           )}
 
           {canSeeDashboards && (
