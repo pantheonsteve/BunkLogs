@@ -122,9 +122,9 @@ export default function KitchenStaffReflectionForm() {
     setSubmitError('');
     setFieldErrors({});
 
-    if (!isDayOff && template?.schema?.fields) {
-      const errors = validateReflectionAnswers(template.schema.fields, answers);
-      if (Object.keys(errors).length > 0) {
+    if (!isDayOff && template?.schema) {
+      const { ok, errors } = validateReflectionAnswers(template.schema, answers);
+      if (!ok) {
         setFieldErrors(errors);
         return;
       }
