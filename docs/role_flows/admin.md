@@ -237,12 +237,131 @@ Sidebar gets three new entries under the Admin section: People, Assignments, Set
 - **Tag vocabulary** tab: one-tag-per-line textarea persisted to `settings.tag_vocabulary`.
 - **Programs** tab: list + Create Program form + End Program modal. The End Program modal requires the admin to type the program `slug` *and* enter a reason. On success it shows a summary card (memberships deactivated, orders closed, tickets closed, ended_at).
 
-## Out of scope for PR2
+## Backend endpoints (PR3)
 
-- Global search (PR3)
-- Bulk Person import UI + invitation flow (PR3)
-- Templates wrapper + Mark Reviewed / Needs revision flag (PR3)
-- Admin self-reflection card (deferred — already supported via the
-  shared self-reflection pipeline once an Admin template is assigned)
-- Cross-org Admin (Decision A1 — not a customer-facing role)
-- Performance indexes for FTS (Step 7_17)
+| Method | Path | Story |
+|--------|------|-------|
+| GET | `/api/v1/admin/search/?q=` | 60 |
+| GET | `/api/v1/admin/templates/` | 57 |
+| POST | `/api/v1/admin/templates/<id>/review/` | 57 |
+| POST | `/api/v1/admin/people/import/preview/` | 55 + import flow |
+| POST | `/api/v1/admin/people/import/commit/` | 55 + import flow |
+
+### Global search (Story 60)
+
+`GET /admin/search/?q=` runs a query-time
+`django.contrib.postgres.search.SearchVector` across six content types,
+all scoped to the active organization:
+
+| Group | Source columns |
+|-------|----------------|
+| `people` | `Person.full_name + email`; `external_ids` JSON matched with `icontains` so `campminder_id` / `tbe_id` work |
+| `reflections` | `Reflection.answers` text-cast (Postgres `::text`) |
+| `notes` | `Note.body` |
+| `orders` | `Order.title + Order.body` |
+| `tickets` | `MaintenanceTicket.title + MaintenanceTicket.body` |
+| `templates` | `ReflectionTemplate.name + schema` text-cast |
+
+Up to 25 rows per group, sorted by `SearchRank` desc (then `created_at`).
+Each row carries `{id, label, secondary, deep_link, content_type}` so
+the frontend dropdown can deep-link without a second roundtrip.
+Short queries (< 2 chars) are rejected with 400 to avoid scanning the
+whole catalogue while the user is mid-type. Performance indexes
+(GIN over `to_tsvector(...)`) are deferred to **Step 7_17** — the
+search surface already returns under 200ms at TBE Fall 2026 scale
+without them and we don't want to ship indexes the perf pass might
+re-tune.
+
+### Templates oversight (Story 57)
+
+`GET /admin/templates/` returns **every** template the active org owns
+(plus system templates surfaced read-only), regardless of who authored
+them, grouped by status (`draft` / `published` / `archived`). Each row
+includes a derived `pending_review` flag — `True` when the template
+status is `published`, was published in the last 14 days
+(`published_at` is the anchor; falls back to `created_at` for legacy
+rows that pre-date the field), and has **not** been marked
+`reviewed` / `needs_revision` in `metadata.review_status`.
+
+`POST /admin/templates/<id>/review/` writes `metadata.review_status`,
+`metadata.reviewed_at`, `metadata.reviewed_by_membership_id`, and
+`metadata.review_note`. Allowed `review_status` values are
+`reviewed`, `needs_revision`, or `cleared` (un-marks). The action is
+captured as an `EDITED` AuditEvent with a `reason_note` so reviewers
+can see the conversation history.
+
+The `ReflectionTemplate.metadata` JSONField schema is intentionally
+defined here rather than in a constants module: this is the only
+caller and the shape is admin-facing UX, not a public contract.
+
+### Bulk import (Story 55 + roster import flow)
+
+`POST /admin/people/import/preview/` and `/admin/people/import/commit/`
+are thin wrappers around the existing
+`backend/bunk_logs/core/management/commands/import_campminder_roster.py`
+and `import_tbe_roster.py` management commands. The wrappers:
+
+1. Validate `source ∈ {campminder, tbe}` + `program_slug` resolves to
+   an active program in the active org.
+2. Stream the uploaded CSV to a temp file (the management commands
+   take a path argument).
+3. For `/preview/`, run with `--dry-run` and parse the command's
+   summary stdout into `{summary: {row_count, add, change, noop, skip,
+   conflict}, rows: [...first 100 classified rows...]}`.
+4. For `/commit/`, run inside `transaction.atomic` so a mid-import
+   failure rolls everything back. Returns the `RosterImportLog` row
+   id + summary so the UI can deep-link to the log entry.
+
+Idempotence: re-running the same CSV is a no-op (the underlying
+management commands key on `external_ids.{campminder,tbe}_id`).
+
+## Frontend (PR3)
+
+| Route / mount | Component | Story |
+|---------------|-----------|-------|
+| `AdminLayout` header | `components/admin/GlobalSearch.jsx` | 60 |
+| `/admin/templates` | `pages/admin/Templates.jsx` (oversight wrapper) | 57 |
+| `/admin/templates/library` | existing `TemplateListPage.jsx` (kept for bookmarks) | 57 |
+| `/admin/people` | `pages/admin/People.jsx` + `BulkImportModal.jsx` | 55 |
+
+### Global search
+
+- Header-mounted search box (debounced 300ms, minimum 2 chars).
+- Results dropdown groups by content type with a deep-link `Link` per
+  row. Clicking a result navigates to that detail surface.
+- Closes on outside click / `Esc`.
+- Only mounted inside `AdminLayout`, so non-admin routes never see the
+  affordance even if a non-admin role somehow lands inside an admin URL.
+
+### Templates oversight wrapper
+
+- Top banner shows a count + list of `pending_review` templates.
+- Each row exposes a collapsible "Review" panel with an optional note,
+  `Mark reviewed` / `Needs revision` / `Clear` buttons that post to
+  `/admin/templates/<id>/review/` and refetch.
+- The legacy `TemplateListPage` (sort + filter library view) stays at
+  `/admin/templates/library` so existing bookmarks keep working.
+- Authoring (`new`, `edit`) routes are unchanged.
+
+### People bulk import
+
+- `pages/admin/People.jsx` gets a "Bulk import" button next to "Add
+  Person" that opens `components/admin/BulkImportModal.jsx`.
+- Modal walks the admin through: pick source (`campminder` / `tbe`) →
+  pick program → upload CSV → run preview → confirm commit.
+- Preview surfaces the per-classification counts and the first ~100
+  rows so the admin can spot-check. Commit surfaces the
+  `RosterImportLog` id + counts for traceability.
+
+## Out of scope for 7_13 entirely
+
+- Admin self-reflection card (Story 60 — deferred. Already supported
+  via the shared self-reflection pipeline once an Admin template is
+  assigned via Story 52.)
+- Performance indexes for full-text search (Step 7_17 — perf pass).
+- Cross-org Admin (Decision A1 — not a customer-facing role).
+- Approval gating for template review (Decision LT8 — Admin oversight
+  is annotation-only, not a publish gate).
+- Anything touching the legacy
+  `Session/Unit/Bunk/CamperBunkAssignment/BunkLog` hierarchy
+  (Crane Lake production single-tenant data).

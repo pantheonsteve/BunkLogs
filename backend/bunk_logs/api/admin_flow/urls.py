@@ -12,6 +12,8 @@ from bunk_logs.api.audit import AuditEventViewSet
 from .assignments import AdminAssignmentDetailView
 from .assignments import AdminAssignmentsListCreateView
 from .dashboard import AdminDashboardView
+from .imports import AdminBulkImportCommitView
+from .imports import AdminBulkImportPreviewView
 from .override import AdminOverrideEditView
 from .people import AdminMembershipDeactivateView
 from .people import AdminMembershipDetailView
@@ -23,6 +25,9 @@ from .programs import AdminProgramDetailView
 from .programs import AdminProgramEndView
 from .programs import AdminProgramsListCreateView
 from .programs import AdminSettingsView
+from .search import AdminGlobalSearchView
+from .templates import AdminTemplateReviewView
+from .templates import AdminTemplatesListView
 
 # Reuse the existing AuditEventViewSet so /admin/audit/ shares the
 # audit-view meta-event and pagination behaviour with /audit/. The
@@ -89,4 +94,24 @@ urlpatterns = [
         name="admin-program-end",
     ),
     path("settings/", AdminSettingsView.as_view(), name="admin-settings"),
+    # ------------------------------------------------------------------
+    # Global search + Templates oversight + Bulk import (PR3)
+    # ------------------------------------------------------------------
+    path("search/", AdminGlobalSearchView.as_view(), name="admin-search"),
+    path("templates/", AdminTemplatesListView.as_view(), name="admin-templates"),
+    path(
+        "templates/<int:template_id>/review/",
+        AdminTemplateReviewView.as_view(),
+        name="admin-template-review",
+    ),
+    path(
+        "people/import/preview/",
+        AdminBulkImportPreviewView.as_view(),
+        name="admin-people-import-preview",
+    ),
+    path(
+        "people/import/commit/",
+        AdminBulkImportCommitView.as_view(),
+        name="admin-people-import-commit",
+    ),
 ]
