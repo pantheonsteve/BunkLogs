@@ -59,6 +59,8 @@ TEMPLATE_MANIFEST: list[dict[str, str]] = [
     {"role": "kitchen_staff", "file": f"{TEMPLATE_FILE_BASE}/kitchen_staff.json"},
     {"role": "leadership_team", "file": f"{TEMPLATE_FILE_BASE}/leadership_team.json"},
     {"role": "camper_care", "file": f"{TEMPLATE_FILE_BASE}/camper_care.json"},
+    {"role": "specialist", "file": f"{TEMPLATE_FILE_BASE}/specialist.json"},
+    {"role": "maintenance", "file": f"{TEMPLATE_FILE_BASE}/maintenance.json"},
 ]
 
 # Per-camper "bunk log" template defined inline (subject_mode=single_subject).
@@ -281,6 +283,33 @@ TEST_USERS: list[dict[str, Any]] = [
         "membership_role": "admin",
         "purpose": "admin of a different org; cross-tenant isolation",
     },
+    {
+        "key": "specialist",
+        "email": "rbac-specialist@example.test",
+        "first_name": "RBAC",
+        "last_name": "Specialist",
+        "user_role": "Counselor",
+        "is_staff": False,
+        "is_superuser": False,
+        "org_slug": CLC_ORG_SLUG,
+        "program_slug": CLC_PROGRAM_SLUG,
+        "membership_role": "specialist",
+        "membership_tags": ["specialist:waterfront"],
+        "purpose": "participant; waterfront specialist; /specialist/dashboard + self-reflect",
+    },
+    {
+        "key": "maintenance",
+        "email": "rbac-maintenance@example.test",
+        "first_name": "RBAC",
+        "last_name": "Maintenance",
+        "user_role": "Counselor",
+        "is_staff": False,
+        "is_superuser": False,
+        "org_slug": CLC_ORG_SLUG,
+        "program_slug": CLC_PROGRAM_SLUG,
+        "membership_role": "maintenance",
+        "purpose": "participant; /maintenance/dashboard + self-reflect + digest",
+    },
 ]
 
 UNIT_GROUP_NAME = "RBAC Unit Pioneers"
@@ -385,6 +414,10 @@ class Command(BaseCommand):
             camper_care_user=users_by_key["camper_care"]["user"],
             leadership_person=users_by_key["leadership"]["person"],
             leadership_user=users_by_key["leadership"]["user"],
+            specialist_person=users_by_key["specialist"]["person"],
+            specialist_user=users_by_key["specialist"]["user"],
+            maintenance_person=users_by_key["maintenance"]["person"],
+            maintenance_user=users_by_key["maintenance"]["user"],
             bunk_group=bunk_group,
             subject_persons=subject_persons,
             supervisor_template=supervisor_template,
@@ -555,9 +588,17 @@ class Command(BaseCommand):
             role=spec["membership_role"],
             defaults={"is_active": True},
         )
+        update_fields: list[str] = []
         if not membership.is_active:
             membership.is_active = True
-            membership.save(update_fields=["is_active"])
+            update_fields.append("is_active")
+        # Sync membership_tags (e.g. specialist sub-type) when provided.
+        tags = spec.get("membership_tags")
+        if tags is not None and membership.tags != tags:
+            membership.tags = tags
+            update_fields.append("tags")
+        if update_fields:
+            membership.save(update_fields=update_fields)
 
         verb = "Created" if created else "Synced"
         m_verb = "new membership" if m_created else "existing membership"
@@ -650,6 +691,10 @@ class Command(BaseCommand):
         camper_care_user: User,
         leadership_person: Person,
         leadership_user: User,
+        specialist_person: Person,
+        specialist_user: User,
+        maintenance_person: Person,
+        maintenance_user: User,
         bunk_group: AssignmentGroup,
         subject_persons: list[Person],
         supervisor_template: ReflectionTemplate,
@@ -725,6 +770,46 @@ class Command(BaseCommand):
                 answers={
                     "unit_pulse": "RBAC fixture: unit morale steady.",
                     "wins_and_risks": "RBAC fixture: programming wins; staffing risk.",
+                },
+                language="en",
+            )
+
+        # 4. Specialist daily self-reflection.
+        sp_tpl = _by_slug("clc-2026-specialist-daily")
+        if sp_tpl is not None:
+            self._upsert_reflection(
+                template=sp_tpl,
+                organization=clc_org,
+                program=clc_program,
+                subject=specialist_person,
+                author=specialist_person,
+                submitted_by=specialist_user,
+                period_start=today,
+                period_end=today,
+                answers={
+                    "program_delivery": "RBAC fixture: waterfront ran smoothly; all safety checks passed.",
+                    "collaboration": "RBAC fixture: coordinated with Pioneers unit head on swim schedule.",
+                    "tomorrow_focus": "RBAC fixture: sailboat rigging inspection before breakfast.",
+                },
+                language="en",
+            )
+
+        # 5. Maintenance daily self-reflection.
+        mt_tpl = _by_slug("clc-2026-maintenance-daily")
+        if mt_tpl is not None:
+            self._upsert_reflection(
+                template=mt_tpl,
+                organization=clc_org,
+                program=clc_program,
+                subject=maintenance_person,
+                author=maintenance_person,
+                submitted_by=maintenance_user,
+                period_start=today,
+                period_end=today,
+                answers={
+                    "work_completed": "RBAC fixture: repaired dining hall screen door; cleared clogged drain in Cabin Birch.",
+                    "open_issues": "RBAC fixture: leaky pipe in Cabin Maple — temporary fix applied, parts on order.",
+                    "priority_areas": {"grounds_facilities": 3},
                 },
                 language="en",
             )
