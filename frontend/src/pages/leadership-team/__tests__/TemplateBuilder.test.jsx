@@ -59,7 +59,12 @@ describe('TemplateBuilderPage', () => {
     fireEvent.change(promptField, { target: { value: 'How was your week?' } });
     fireEvent.click(screen.getByTestId('lt-builder-save'));
     await waitFor(() => expect(postMock).toHaveBeenCalled());
-    expect(postMock.mock.calls[0][1].schema.fields[0].key).toBe('reflection_summary');
+    const body = postMock.mock.calls[0][1];
+    expect(body.schema.fields[0].key).toBe('reflection_summary');
+    expect(body.name).toBe('New LT template');
+    // Slug must be derived client-side so the backend doesn't 400 on
+    // missing slug (the LT builder UI never asks the user for one).
+    expect(body.slug).toMatch(/^new-lt-template-[a-z0-9]+$/);
   });
 
   it('flags missing prompts as a validation issue before save', async () => {

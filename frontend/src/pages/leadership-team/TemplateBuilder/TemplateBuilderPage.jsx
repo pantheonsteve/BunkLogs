@@ -40,6 +40,28 @@ const SUPPORTED_LANGUAGES = ['en', 'es', 'he'];
 let _localUid = 0;
 const newLocalId = () => `lt_fid_${++_localUid}`;
 
+/**
+ * Derive a Django SlugField-friendly slug from a human name.
+ *
+ * The LT builder hides slugs from the LT user; we pick one for them
+ * so the POST body always carries one (the backend rejects missing
+ * slug with 400). A short base36 timestamp suffix avoids accidentally
+ * appending a "v2" to someone else's template that happened to share
+ * the same kebab-cased name in the same org.
+ */
+function deriveSlug(name) {
+  const base = (name || '')
+    .toString()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'lt-template';
+  const suffix = Date.now().toString(36).slice(-6);
+  return `${base}-${suffix}`;
+}
+
 function defaultsFor(type, lang = 'en') {
   const base = { _id: newLocalId(), type, key: '', required: true };
   if (type === 'rating_group' || type === 'single_rating') {
@@ -72,6 +94,7 @@ function clientValidate(template, fields) {
   const issues = [];
   const seenKeys = new Set();
   const languages = template.languages?.length ? template.languages : ['en'];
+  if (!template.name?.trim()) issues.push('Template name is required.');
   fields.forEach((f, idx) => {
     const loc = `Field ${idx + 1}`;
     if (!f.key?.trim()) issues.push(`${loc}: key is required.`);
@@ -389,13 +412,21 @@ export default function TemplateBuilderPage() {
     [template, fields],
   );
 
-  const buildPayload = () => ({
-    name: template.name,
-    role: template.role,
-    languages: template.languages,
-    cadence: template.cadence,
-    schema: { fields: stripLocalIds(fields) },
-  });
+  const buildPayload = () => {
+    const payload = {
+      name: template.name,
+      role: template.role,
+      languages: template.languages,
+      cadence: template.cadence,
+      schema: { fields: stripLocalIds(fields) },
+    };
+    if (!isEdit) {
+      payload.slug = template.slug || deriveSlug(template.name);
+    } else if (template.slug) {
+      payload.slug = template.slug;
+    }
+    return payload;
+  };
 
   const save = async ({ forceNewVersion = false } = {}) => {
     setError('');
