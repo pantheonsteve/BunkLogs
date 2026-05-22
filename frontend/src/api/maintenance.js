@@ -82,3 +82,16 @@ export async function fetchNoteAudience(visibility = 'team_only') {
   });
   return data;
 }
+
+/** Upload a follow-up photo to a ticket (maintenance team). */
+export async function uploadTicketPhoto(ticketId, file, caption = '') {
+  const form = new FormData();
+  form.append('image', file);
+  if (caption) form.append('caption', caption);
+  const { data } = await api.post(
+    `/api/v1/maintenance/tickets/${ticketId}/photos/`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+}

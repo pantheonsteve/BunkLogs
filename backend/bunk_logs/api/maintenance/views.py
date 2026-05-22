@@ -25,10 +25,13 @@ from rest_framework import status as http_status
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import FormParser
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.counselor.serializers import MaintenanceTicketPhotoUploadSerializer
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import TicketPhoto
@@ -413,6 +416,41 @@ class MaintenanceNoteAudienceView(APIView):
         if visibility not in VALID_VISIBILITY:
             visibility = "team_only"
         return Response({"visibility": visibility, "label": self._LABELS[visibility]})
+
+
+# ---------------------------------------------------------------------------
+# Follow-up photo upload (maintenance team)
+# ---------------------------------------------------------------------------
+
+
+class MaintenanceTicketPhotoCreateView(APIView):
+    """``POST /api/v1/maintenance/tickets/<id>/photos/`` — upload a follow-up photo.
+
+    Accepts multipart/form-data with ``image`` (required) and ``caption``
+    (optional). Marks the photo ``is_followup=True`` so the detail view can
+    render it in activity order distinct from the original submission photos.
+    """
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    http_method_names = ["post", "head", "options"]
+
+    def post(self, request, ticket_id, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        ticket = _get_ticket_or_404(ticket_id, ctx.program)
+
+        serializer = MaintenanceTicketPhotoUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+
+        photo = TicketPhoto.objects.create(
+            ticket=ticket,
+            image=payload["image"],
+            caption=payload.get("caption", ""),
+            uploaded_by=ctx.membership,
+            is_followup=True,
+        )
+        return Response(_photo_payload(photo), status=http_status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------

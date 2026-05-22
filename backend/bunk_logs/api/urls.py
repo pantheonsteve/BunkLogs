@@ -158,6 +158,11 @@ urlpatterns = [
         maint_views.MaintenanceNoteAudienceView.as_view(),
         name="maintenance-note-audience",
     ),
+    path(
+        "maintenance/tickets/<uuid:ticket_id>/photos/",
+        maint_views.MaintenanceTicketPhotoCreateView.as_view(),
+        name="maintenance-ticket-photo-create",
+    ),
     path("", include(router.urls)),
 
     # Non-standard bunk detail path used by BunkCard.jsx — kept for compat while
