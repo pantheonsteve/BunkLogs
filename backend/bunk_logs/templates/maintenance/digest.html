@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maintenance Digest</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 15px; color: #1a1a1a; background: #f5f5f5; margin: 0; padding: 0; }
+  .wrap { max-width: 600px; margin: 0 auto; background: #fff; }
+  .header { background: #1e3a5f; color: #fff; padding: 20px 24px; }
+  .header h1 { margin: 0; font-size: 20px; }
+  .header p { margin: 4px 0 0; font-size: 13px; opacity: .8; }
+  .summary { background: #f0f4f8; padding: 16px 24px; border-bottom: 1px solid #dde; }
+  .summary-row { display: inline-block; margin-right: 16px; font-size: 14px; font-weight: 600; }
+  .summary-row .num { font-size: 20px; display: block; }
+  .section { padding: 16px 24px; border-bottom: 1px solid #eee; }
+  .section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .5px; color: #555; margin: 0 0 12px; }
+  .ticket { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; }
+  .ticket .meta { font-size: 12px; color: #666; margin-bottom: 4px; }
+  .ticket .desc { font-size: 14px; color: #222; }
+  .ticket .link { font-size: 12px; margin-top: 6px; }
+  .ticket .link a { color: #1e3a5f; }
+  .badge-urgent { background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+  .none { color: #888; font-size: 14px; font-style: italic; }
+  .footer { padding: 16px 24px; font-size: 12px; color: #999; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; }
+    .wrap { background: #222; color: #eee; }
+    .summary { background: #2a2a2a; }
+    .ticket { border-color: #444; background: #2a2a2a; }
+    .ticket .desc { color: #ddd; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>Maintenance Digest</h1>
+    <p>{{ window_end|date:"N j, Y" }} &mdash; {{ program.name }}</p>
+  </div>
+
+  <div class="summary">
+    <span class="summary-row"><span class="num">{{ summary.new_in_window }}</span>new</span>
+    <span class="summary-row"><span class="num">{{ summary.closed_in_window }}</span>closed</span>
+    <span class="summary-row"><span class="num">{{ summary.still_open }}</span>still open</span>
+    <span class="summary-row"><span class="num">{{ summary.urgent_open }}</span>urgent open</span>
+  </div>
+
+  {% if urgent_open %}
+  <div class="section">
+    <h2>Urgent Open ({{ urgent_open|length }})</h2>
+    {% for t in urgent_open %}
+    <div class="ticket">
+      <div class="meta">{{ t.location }} / {{ t.category }} &mdash; {{ t.age_days }}d old <span class="badge-urgent">URGENT</span></div>
+      <div class="desc">{{ t.description }}</div>
+      <div class="link"><a href="{{ t.deep_link }}">View ticket &rarr;</a></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <h2>New in Window ({{ new_in_window|length }})</h2>
+    {% if new_in_window %}
+      {% for t in new_in_window %}
+      <div class="ticket">
+        <div class="meta">
+          {{ t.location }} / {{ t.category }}
+          {% if t.urgency == "urgent" %}<span class="badge-urgent">URGENT</span>{% endif %}
+          &mdash; by {{ t.submitter_name }}
+        </div>
+        <div class="desc">{{ t.description }}</div>
+        <div class="link"><a href="{{ t.deep_link }}">View ticket &rarr;</a></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="none">None.</p>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>Closed in Window ({{ closed_in_window|length }})</h2>
+    {% if closed_in_window %}
+      {% for t in closed_in_window %}
+      <div class="ticket">
+        <div class="meta">{{ t.location }} / {{ t.category }} &mdash; {{ t.status }}</div>
+        <div class="desc">{{ t.description }}</div>
+        {% if t.closing_note %}<div class="desc" style="color:#555;font-size:13px;margin-top:4px;">Note: {{ t.closing_note }}</div>{% endif %}
+        <div class="link"><a href="{{ t.deep_link }}">View ticket &rarr;</a></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="none">None.</p>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>Reopened in Window ({{ reopened_in_window|length }})</h2>
+    {% if reopened_in_window %}
+      {% for r in reopened_in_window %}
+      <div class="ticket">
+        <div class="meta">{{ r.ticket.location }} / {{ r.ticket.category }}</div>
+        {% if r.reopen_reason %}<div class="desc">Reason: {{ r.reopen_reason }}</div>{% endif %}
+        <div class="link"><a href="{{ r.ticket.deep_link }}">View ticket &rarr;</a></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="none">None.</p>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>Still Open ({{ still_open|length }})</h2>
+    {% if still_open %}
+      {% for t in still_open %}
+      <div class="ticket">
+        <div class="meta">[{{ t.status }}] {{ t.location }} / {{ t.category }} &mdash; {{ t.age_days }}d old</div>
+        <div class="desc">{{ t.description }}</div>
+        <div class="link"><a href="{{ t.deep_link }}">View ticket &rarr;</a></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="none">All clear &mdash; no open tickets.</p>
+    {% endif %}
+  </div>
+
+  <div class="footer">
+    Sent by BunkLogs for {{ org.name }}. To configure digest preferences, contact your admin.
+  </div>
+</div>
+</body>
+</html>

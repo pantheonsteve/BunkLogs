@@ -1,0 +1,69 @@
+Maintenance Digest — {{ window_end|date:"N j, Y" }}
+{{ program.name }}
+
+SUMMARY
+-------
+{{ summary.new_in_window }} new  •  {{ summary.closed_in_window }} closed  •  {{ summary.still_open }} still open  •  {{ summary.urgent_open }} urgent open
+
+
+{% if urgent_open %}
+URGENT OPEN ({{ urgent_open|length }})
+-----------
+{% for t in urgent_open %}
+[URGENT] {{ t.location }} / {{ t.category }}
+  {{ t.description }}
+  Age: {{ t.age_days }} day{{ t.age_days|pluralize }}
+  {{ t.deep_link }}
+{% endfor %}
+{% endif %}
+
+
+NEW IN WINDOW ({{ new_in_window|length }})
+-------------
+{% if new_in_window %}{% for t in new_in_window %}
+{{ t.location }} / {{ t.category }}{% if t.urgency == "urgent" %} [URGENT]{% endif %}
+  {{ t.description }}
+  Submitted by: {{ t.submitter_name }}
+  {{ t.deep_link }}
+{% endfor %}{% else %}
+None.
+{% endif %}
+
+
+CLOSED IN WINDOW ({{ closed_in_window|length }})
+----------------
+{% if closed_in_window %}{% for t in closed_in_window %}
+{{ t.location }} / {{ t.category }} — {{ t.status }}
+  {{ t.description }}
+  {% if t.closing_note %}Closing note: {{ t.closing_note }}{% endif %}
+  {{ t.deep_link }}
+{% endfor %}{% else %}
+None.
+{% endif %}
+
+
+REOPENED IN WINDOW ({{ reopened_in_window|length }})
+------------------
+{% if reopened_in_window %}{% for r in reopened_in_window %}
+{{ r.ticket.location }} / {{ r.ticket.category }}
+  Reason: {{ r.reopen_reason }}
+  {{ r.ticket.deep_link }}
+{% endfor %}{% else %}
+None.
+{% endif %}
+
+
+STILL OPEN AT WINDOW END ({{ still_open|length }})
+------------------------
+{% if still_open %}{% for t in still_open %}
+[{{ t.status }}] {{ t.location }} / {{ t.category }}  ({{ t.age_days }}d old)
+  {{ t.description }}
+  {{ t.deep_link }}
+{% endfor %}{% else %}
+All clear — no open tickets.
+{% endif %}
+
+
+---
+Sent by BunkLogs for {{ org.name }}.
+To configure digest preferences, contact your admin.
