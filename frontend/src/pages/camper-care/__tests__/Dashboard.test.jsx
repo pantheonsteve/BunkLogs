@@ -100,4 +100,20 @@ describe('CamperCareDashboard', () => {
       expect(screen.getByTestId('cc-dashboard-error')).toHaveTextContent('Forbidden');
     });
   });
+
+  it('links bunk rows to the per-bunk Camper Care dashboard (Story 18 c.9)', async () => {
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    render(
+      <MemoryRouter>
+        <CamperCareDashboard />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-bunk-link-11')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('cc-bunk-link-11')).toHaveAttribute(
+      'href',
+      '/camper-care/bunks/11',
+    );
+  });
 });

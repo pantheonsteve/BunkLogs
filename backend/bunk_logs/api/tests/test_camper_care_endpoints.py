@@ -695,3 +695,146 @@ class TestCamperCareNotes:
         assert "Camper Care" in body["audience"]
         assert "Leadership Team" in body["audience"]
         assert "Health Center" not in body["audience"]
+
+
+# ---------------------------------------------------------------------------
+# Bunk + Camper drill-down (Step 7_8c) — Story 18 c.9 + Story 21 in-context
+# ---------------------------------------------------------------------------
+
+
+class TestCamperCareBunkDashboard:
+    """``GET /api/v1/camper-care/bunks/<id>/`` — Story 18 criterion 9.
+
+    Reuses the shared `build_bunk_dashboard_payload` extracted from the
+    UH view, so we only test the CC-specific gate + payload shape here.
+    The UH bunk dashboard tests already cover the section contracts.
+    """
+
+    def test_returns_payload_for_bunk_on_caseload(
+        self, api, org, cc_person_user, cc_membership, cc_caseload,
+        bunk, unit, camper, camper_in_bunk,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/bunks/{bunk.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["header"]["bunk"]["id"] == bunk.id
+        assert body["header"]["bunk"]["name"] == bunk.name
+        assert body["header"]["bunk"]["unit_name"] == unit.name
+        # Section keys present (shape contract from the shared helper).
+        for key in (
+            "help_requested", "off_camp", "bunk_concerns",
+            "score_grid", "orders", "specialist_reports",
+        ):
+            assert key in body, f"missing section {key!r}"
+
+    def test_bunk_off_caseload_rejected(
+        self, api, org, cc_person_user, cc_membership, cc_caseload,
+        other_bunk,
+    ):
+        """CC member with `bunk` on caseload cannot open `other_bunk`."""
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/bunks/{other_bunk.id}/",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 403
+
+    def test_requires_camper_care_role(
+        self, api, org, counselor_person_user, counselor_membership, bunk,
+    ):
+        _, user = counselor_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/bunks/{bunk.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 403
+
+    def test_future_date_rejected(
+        self, api, org, cc_person_user, cc_membership, cc_caseload, bunk,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        future = (date.today() + timedelta(days=30)).isoformat()
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/bunks/{bunk.id}/?date={future}",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 400
+
+
+class TestCamperCareCamperDashboard:
+    """``GET /api/v1/camper-care/campers/<id>/`` — Story 18 c.9 + Story 21."""
+
+    def test_returns_payload_for_camper_on_caseload(
+        self, api, org, cc_person_user, cc_membership, cc_caseload,
+        bunk, camper, camper_in_bunk,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["header"]["camper"]["id"] == camper.id
+        # Section keys present (shape contract from the shared helper).
+        for key in (
+            "trend", "today_reflection", "today_scores", "today_flags",
+            "specialist_reports", "camper_care_notes",
+        ):
+            assert key in body, f"missing section {key!r}"
+
+    def test_camper_off_caseload_rejected(
+        self, api, org, cc_person_user, cc_membership, cc_caseload,
+        other_bunk,
+    ):
+        """Camper rostered to a bunk NOT on viewer's caseload -> 403."""
+        # Camper is in `other_bunk`, which is not on cc_membership's caseload.
+        outsider = Person.all_objects.create(
+            organization=org, first_name="Quinn", last_name="Out",
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=other_bunk, person=outsider,
+            role_in_group="subject", is_active=True,
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{outsider.id}/",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 403
+
+    def test_camper_not_found(
+        self, api, org, cc_person_user, cc_membership, cc_caseload,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                "/api/v1/camper-care/campers/99999999/", **_hdr(org.slug),
+            )
+        assert r.status_code == 404
+
+    def test_requires_camper_care_role(
+        self, api, org, counselor_person_user, counselor_membership,
+        camper, camper_in_bunk,
+    ):
+        _, user = counselor_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 403

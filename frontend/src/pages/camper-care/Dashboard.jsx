@@ -6,10 +6,10 @@
  *   2. Workspace entries — Flagged campers, Orders, My reflection
  *   3. Caseload tree — Units expand to Bunks with completion + attention badges
  *
- * The bunk-tap drill-down (Story 18 criterion 9 → Bunk Dashboard) is
- * deferred to a follow-up PR that wires `/api/v1/camper-care/bunks/<id>/`;
- * for now bunk rows are informational (completion + badges) without a
- * clickable target.
+ * Bunk rows link to the per-bunk Camper Care drill-down (Story 18
+ * criterion 9). Tapping a bunk navigates to `/camper-care/bunks/<id>`
+ * which reuses the shared BunkDashboard component, scoped to the CC
+ * caseload by the backend.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -86,30 +86,33 @@ function CompletionLabel({ completion }) {
 
 function BunkRow({ bunk }) {
   return (
-    <li
-      data-testid={`cc-bunk-row-${bunk.id}`}
-      className="rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{bunk.name}</p>
-          {bunk.counselor_names?.length > 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-              {bunk.counselor_names.join(' · ')}
-            </p>
-          )}
+    <li data-testid={`cc-bunk-row-${bunk.id}`}>
+      <Link
+        to={`/camper-care/bunks/${bunk.id}`}
+        data-testid={`cc-bunk-link-${bunk.id}`}
+        className="block rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{bunk.name}</p>
+            {bunk.counselor_names?.length > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {bunk.counselor_names.join(' · ')}
+              </p>
+            )}
+          </div>
+          <div className="text-xs text-right shrink-0 text-gray-700 dark:text-gray-200">
+            <CompletionLabel completion={bunk.completion} />
+          </div>
         </div>
-        <div className="text-xs text-right shrink-0 text-gray-700 dark:text-gray-200">
-          <CompletionLabel completion={bunk.completion} />
-        </div>
-      </div>
-      {bunk.badges?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {bunk.badges.map((b) => (
-            <Badge key={b} kind={b} />
-          ))}
-        </div>
-      )}
+        {bunk.badges?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {bunk.badges.map((b) => (
+              <Badge key={b} kind={b} />
+            ))}
+          </div>
+        )}
+      </Link>
     </li>
   );
 }

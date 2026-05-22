@@ -26,6 +26,8 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .camper_care import bunk_dashboard as cc_bunk_dashboard
+from .camper_care import camper_dashboard as cc_camper_dashboard
 from .camper_care import dashboard as cc_dashboard
 from .camper_care import flags as cc_flags
 from .camper_care import notes as cc_notes
@@ -283,6 +285,16 @@ urlpatterns = [
         "camper-care/dashboard/",
         cc_dashboard.CamperCareDashboardView.as_view(),
         name="camper-care-dashboard",
+    ),
+    path(
+        "camper-care/bunks/<int:bunk_id>/",
+        cc_bunk_dashboard.CamperCareBunkDashboardView.as_view(),
+        name="camper-care-bunk-dashboard",
+    ),
+    path(
+        "camper-care/campers/<int:camper_id>/",
+        cc_camper_dashboard.CamperCareCamperDashboardView.as_view(),
+        name="camper-care-camper-dashboard",
     ),
     path(
         "camper-care/flags/",
