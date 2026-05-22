@@ -59,6 +59,8 @@ import CamperCareCamperDashboardPage from './pages/camper-care/CamperDashboardPa
 import CamperCareFlagsPage from './pages/camper-care/Flags';
 import CamperCareOrdersPage from './pages/camper-care/Orders';
 import CamperCareNoteFormPage from './pages/camper-care/NoteForm';
+import CamperCareSelfReflectionPage from './pages/camper-care/SelfReflectionPage';
+import CamperCareSelfReflectionHistoryPage from './pages/camper-care/SelfReflectionHistoryPage';
 import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
 import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
 import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
@@ -455,6 +457,18 @@ function Router() {
           <Route
             path="/camper-care/notes/:noteId/edit"
             element={<CamperCareNoteFormPage />}
+          />
+          <Route
+            path="/camper-care/self-reflection"
+            element={<CamperCareSelfReflectionPage />}
+          />
+          <Route
+            path="/camper-care/self-reflection/history"
+            element={<CamperCareSelfReflectionHistoryPage />}
+          />
+          <Route
+            path="/camper-care/self-reflection/:reflectionId/edit"
+            element={<CamperCareSelfReflectionPage />}
           />
         </Route>
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CamperCareDashboard from '../Dashboard';
 
@@ -13,6 +13,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => {
   getMock.mockReset();
+  window.sessionStorage.clear();
 });
 
 const samplePayload = {
@@ -99,6 +100,37 @@ describe('CamperCareDashboard', () => {
     await waitFor(() => {
       expect(screen.getByTestId('cc-dashboard-error')).toHaveTextContent('Forbidden');
     });
+  });
+
+  it('persists collapsed units to sessionStorage and re-applies them on remount', async () => {
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    const { unmount } = render(
+      <MemoryRouter>
+        <CamperCareDashboard />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-unit-100')).toBeInTheDocument();
+    });
+    // Initially expanded.
+    expect(screen.getByTestId('cc-unit-100')).toHaveAttribute('data-collapsed', 'false');
+    fireEvent.click(screen.getByTestId('cc-unit-toggle-100'));
+    expect(screen.getByTestId('cc-unit-100')).toHaveAttribute('data-collapsed', 'true');
+    // Persisted.
+    const stored = JSON.parse(window.sessionStorage.getItem('cc.dashboard.collapsedUnits'));
+    expect(stored).toContain('100');
+    unmount();
+    // Remount — collapse state should survive within the same session.
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    render(
+      <MemoryRouter>
+        <CamperCareDashboard />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-unit-100')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('cc-unit-100')).toHaveAttribute('data-collapsed', 'true');
   });
 
   it('links bunk rows to the per-bunk Camper Care dashboard (Story 18 c.9)', async () => {

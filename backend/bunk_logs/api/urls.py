@@ -20,6 +20,7 @@ from .camper_care import dashboard as cc_dashboard
 from .camper_care import flags as cc_flags
 from .camper_care import notes as cc_notes
 from .camper_care import orders as cc_orders
+from .camper_care import self_reflection as cc_self_reflection
 from .counselor import camper_care_requests as counselor_camper_care_requests
 from .counselor import camper_reflections as counselor_camper_reflections
 from .counselor import dashboard as counselor_dashboard
@@ -345,6 +346,21 @@ urlpatterns = [
         "camper-care/notes/<int:note_id>/",
         cc_notes.CamperCareNoteDetailView.as_view(),
         name="camper-care-note-detail",
+    ),
+    path(
+        "camper-care/self-reflection/",
+        cc_self_reflection.CamperCareSelfReflectionCreateView.as_view(),
+        name="camper-care-self-reflection",
+    ),
+    path(
+        "camper-care/self-reflection/history/",
+        cc_self_reflection.CamperCareSelfReflectionHistoryView.as_view(),
+        name="camper-care-self-reflection-history",
+    ),
+    path(
+        "camper-care/self-reflection/<int:reflection_id>/",
+        cc_self_reflection.CamperCareSelfReflectionDetailView.as_view(),
+        name="camper-care-self-reflection-detail",
     ),
 ]
 

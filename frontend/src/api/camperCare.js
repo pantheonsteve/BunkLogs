@@ -41,11 +41,15 @@ export async function fetchCamperDashboard(camperId, {
   range = 'last_4_weeks',
   dateStart,
   dateEnd,
+  notes_from,
+  notes_to,
 } = {}) {
   const params = { range };
   if (date) params.date = date;
   if (dateStart) params.date_start = dateStart;
   if (dateEnd) params.date_end = dateEnd;
+  if (notes_from) params.notes_from = notes_from;
+  if (notes_to) params.notes_to = notes_to;
   const { data } = await api.get(
     `/api/v1/camper-care/campers/${camperId}/`,
     { params },
@@ -197,3 +201,54 @@ export const NOTE_CATEGORIES = Object.freeze([
   { value: 'behavioral', label: 'Behavioral' },
   { value: 'other', label: 'Other' },
 ]);
+
+/**
+ * Submit a Camper Care self-reflection (Step 7_8d). Mirrors the UH
+ * write contract: `dayOff: true` is the canonical shortcut and a
+ * complete payload — server fills `answers: { day_off: true }`.
+ */
+export async function createCamperCareSelfReflection({
+  answers,
+  dayOff = false,
+  language = 'en',
+  clientSubmissionId,
+}) {
+  const payload = {
+    day_off: dayOff,
+    language,
+    client_submission_id: clientSubmissionId,
+  };
+  if (!dayOff && answers !== undefined) {
+    payload.answers = answers;
+  }
+  const res = await api.post('/api/v1/camper-care/self-reflection/', payload);
+  return { data: res.data, status: res.status };
+}
+
+/** Edit a CC self-reflection inside today's edit window. */
+export async function patchCamperCareSelfReflection(reflectionId, {
+  answers,
+  dayOff,
+  language,
+}) {
+  const payload = {};
+  if (answers !== undefined) payload.answers = answers;
+  if (dayOff !== undefined) payload.day_off = dayOff;
+  if (language !== undefined) payload.language = language;
+  const { data } = await api.patch(
+    `/api/v1/camper-care/self-reflection/${reflectionId}/`,
+    payload,
+  );
+  return data;
+}
+
+/** Paginated CC self-reflection history. */
+export async function fetchCamperCareSelfReflectionHistory({ page = 1, pageSize } = {}) {
+  const params = { page };
+  if (pageSize) params.page_size = pageSize;
+  const { data } = await api.get(
+    '/api/v1/camper-care/self-reflection/history/',
+    { params },
+  );
+  return data;
+}

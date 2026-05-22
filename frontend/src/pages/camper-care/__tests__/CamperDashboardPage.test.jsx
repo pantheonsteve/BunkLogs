@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CamperCareCamperDashboardPage from '../CamperDashboardPage';
 
@@ -59,6 +59,73 @@ describe('CamperCareCamperDashboardPage', () => {
     const cta = screen.getByTestId('cc-camper-add-note');
     expect(cta).toHaveTextContent(/add camper care note/i);
     expect(cta).toHaveAttribute('href', '/camper-care/notes/new?camperId=7');
+  });
+
+  it('renders the flag history section newest-first and highlights the anchored row from ?flagId=', async () => {
+    const flagId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const olderId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    getMock.mockResolvedValueOnce({
+      data: {
+        ...samplePayload,
+        flag_history: [
+          {
+            id: flagId,
+            status: 'active',
+            created_at: '2026-07-04T12:00:00Z',
+            raised_by: { name: 'Rivka G.', role: 'specialist' },
+            trigger_content_type: 'specialist_note',
+            trigger_preview: 'Crying after lights-out, asking for parent contact.',
+          },
+          {
+            id: olderId,
+            status: 'resolved',
+            created_at: '2026-06-15T12:00:00Z',
+            raised_by: { name: 'Maya R.', role: 'unit_head' },
+            trigger_content_type: '',
+            trigger_preview: '',
+          },
+        ],
+      },
+    });
+    renderAt(`/camper-care/campers/7?flagId=${encodeURIComponent(flagId)}#flag-${flagId}`);
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-camper-flag-history')).toBeInTheDocument();
+    });
+    const anchored = screen.getByTestId(`cc-camper-flag-${flagId}`);
+    expect(anchored).toHaveAttribute('data-anchored', 'true');
+    expect(anchored).toHaveTextContent(/Active/);
+    expect(anchored).toHaveTextContent(/Crying after lights-out/);
+    const older = screen.getByTestId(`cc-camper-flag-${olderId}`);
+    expect(older).toHaveAttribute('data-anchored', 'false');
+    expect(older).toHaveTextContent(/Resolved/);
+  });
+
+  it('renders the empty-state for the flag history when there are none', async () => {
+    getMock.mockResolvedValueOnce({ data: { ...samplePayload, flag_history: [] } });
+    renderAt('/camper-care/campers/7');
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-camper-flag-history-empty')).toBeInTheDocument();
+    });
+  });
+
+  it('updates URL params and re-fetches with notes_from / notes_to when the date filter is applied', async () => {
+    getMock.mockResolvedValue({ data: samplePayload });
+    renderAt('/camper-care/campers/7');
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-camper-notes-filter')).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByTestId('cc-notes-from'), { target: { value: '2026-06-01' } });
+    fireEvent.change(screen.getByTestId('cc-notes-to'), { target: { value: '2026-07-04' } });
+    fireEvent.click(screen.getByTestId('cc-notes-filter-apply'));
+    await waitFor(() => {
+      const calls = getMock.mock.calls;
+      const params = calls[calls.length - 1]?.[1]?.params || {};
+      expect(params).toMatchObject({
+        notes_from: '2026-06-01',
+        notes_to: '2026-07-04',
+      });
+    }, { timeout: 2000 });
+    expect(screen.getByTestId('cc-notes-filter-active')).toHaveTextContent(/2026-06-01/);
   });
 
   it('surfaces an error when the camper is off-caseload', async () => {
