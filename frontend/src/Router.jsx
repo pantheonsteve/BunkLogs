@@ -53,6 +53,12 @@ import UnitHeadBunkDashboardPage from './pages/unit-head/UnitHeadBunkDashboardPa
 import UnitHeadCamperDashboardPage from './pages/unit-head/UnitHeadCamperDashboardPage';
 import UnitHeadSelfReflectionPage from './pages/unit-head/UnitHeadSelfReflectionPage';
 import UnitHeadSelfReflectionHistoryPage from './pages/unit-head/UnitHeadSelfReflectionHistoryPage';
+import CamperCareDashboardV2 from './pages/camper-care/Dashboard';
+import CamperCareBunkDashboardPage from './pages/camper-care/BunkDashboardPage';
+import CamperCareCamperDashboardPage from './pages/camper-care/CamperDashboardPage';
+import CamperCareFlagsPage from './pages/camper-care/Flags';
+import CamperCareOrdersPage from './pages/camper-care/Orders';
+import CamperCareNoteFormPage from './pages/camper-care/NoteForm';
 import CamperReflectionListPage from './pages/counselor/CamperReflectionListPage';
 import CamperReflectionFormPage from './pages/counselor/CamperReflectionFormPage';
 import CounselorSelfReflectionPage from './pages/counselor/CounselorSelfReflectionPage';
@@ -424,6 +430,31 @@ function Router() {
           <Route
             path="/unit-head/self-reflection/:reflectionId/edit"
             element={<UnitHeadSelfReflectionPage />}
+          />
+          {/* 7_8b: Camper Care mobile flow. Lives under AppLayout so the
+              sidebar/header chrome stays available across the dashboard,
+              flag/order workspaces, and the note form. The legacy
+              `/dashboard/campercare` route still serves the old
+              CamperCareDashboard.jsx surface and is untouched while
+              wave 5 migration progresses. Bunk + camper drill-down
+              pages (Story 18 c.9 + Story 21 in-context note CTA) were
+              shipped in 7_8c and reuse the shared BunkDashboard +
+              CamperDashboard components with caseload-scoped CC views. */}
+          <Route path="/camper-care" element={<CamperCareDashboardV2 />} />
+          <Route
+            path="/camper-care/bunks/:bunkId"
+            element={<CamperCareBunkDashboardPage />}
+          />
+          <Route
+            path="/camper-care/campers/:camperId"
+            element={<CamperCareCamperDashboardPage />}
+          />
+          <Route path="/camper-care/flags" element={<CamperCareFlagsPage />} />
+          <Route path="/camper-care/orders" element={<CamperCareOrdersPage />} />
+          <Route path="/camper-care/notes/new" element={<CamperCareNoteFormPage />} />
+          <Route
+            path="/camper-care/notes/:noteId/edit"
+            element={<CamperCareNoteFormPage />}
           />
         </Route>
 
