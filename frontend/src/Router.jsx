@@ -31,6 +31,7 @@ import TeamDashboardPage from './pages/TeamDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
 import AdminHub from './pages/admin/AdminHub';
+import AdminDashboardV2 from './pages/admin/Dashboard';
 import TemplateListPage from './pages/admin/templates/TemplateListPage';
 import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
@@ -780,7 +781,26 @@ function Router() {
             index
             element={
               <AdminRoute>
+                <AdminDashboardV2 />
+              </AdminRoute>
+            }
+          />
+          {/* The legacy hub stays reachable at /admin/hub so anyone with a
+              bookmark still lands on a working surface. The default
+              /admin route now shows the Story 54 home dashboard. */}
+          <Route
+            path="hub"
+            element={
+              <AdminRoute>
                 <AdminHub />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="dashboard"
+            element={
+              <AdminRoute>
+                <AdminDashboardV2 />
               </AdminRoute>
             }
           />
