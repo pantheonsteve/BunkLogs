@@ -320,7 +320,7 @@ def _digest_delivery_failure_count(organization) -> int:
     failures in the last 7 days surfaces as one card-worthy event.
     """
     try:
-        from bunk_logs.messaging.models import EmailLog  # noqa: PLC0415
+        from bunk_logs.messaging.models import EmailLog
     except ImportError:  # pragma: no cover - messaging app should always be installed
         return 0
     since = timezone.now() - timedelta(days=7)
@@ -345,7 +345,7 @@ def _digest_delivery_failure_count(organization) -> int:
 def _translation_failure_count(organization) -> int:
     """Terminal translation failures in the last 24h for this org."""
     try:
-        from bunk_logs.core.models import TranslationRecord  # noqa: PLC0415
+        from bunk_logs.core.models import TranslationRecord
     except ImportError:  # pragma: no cover
         return 0
     since = timezone.now() - timedelta(hours=TRANSLATION_FAILURE_LOOKBACK_HOURS)
