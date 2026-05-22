@@ -360,8 +360,12 @@ class ReflectionTemplateViewSet(viewsets.ModelViewSet):
                 {"detail": "Cannot delete a template that has reflections. Deactivate it instead."},
                 status=status.HTTP_409_CONFLICT,
             )
+        # Keep ``status`` in lockstep with ``is_active`` for rollback safety
+        # (PR B Step 7_12). Old readers still see is_active=False; new ones
+        # see status=archived.
         instance.is_active = False
-        instance.save(update_fields=["is_active"])
+        instance.status = ReflectionTemplate.Status.ARCHIVED
+        instance.save(update_fields=["is_active", "status"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"], url_path="clone")

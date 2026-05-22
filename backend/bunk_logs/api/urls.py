@@ -35,11 +35,15 @@ from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
+from .leadership_team import assignments as lt_assignments
 from .leadership_team import dashboard as lt_dashboard
+from .leadership_team import exports as lt_exports
 from .leadership_team import mark_attention as lt_mark_attention
 from .leadership_team import member_reflection as lt_member_reflection
+from .leadership_team import responses as lt_responses
 from .leadership_team import self_reflection as lt_self_reflection
 from .leadership_team import team_dashboard as lt_team_dashboard
+from .leadership_team import templates as lt_templates
 from .maintenance import views as maint_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
@@ -513,6 +517,59 @@ urlpatterns = [
         "leadership-team/self-reflection/<int:reflection_id>/",
         lt_self_reflection.LeadershipTeamSelfReflectionDetailView.as_view(),
         name="leadership-team-self-reflection-detail",
+    ),
+    # LT template builder (Step 7_12 PR B — Story 51)
+    path(
+        "leadership-team/templates/",
+        lt_templates.LeadershipTeamTemplateListCreateView.as_view(),
+        name="leadership-team-templates",
+    ),
+    path(
+        "leadership-team/templates/<int:pk>/",
+        lt_templates.LeadershipTeamTemplateDetailView.as_view(),
+        name="leadership-team-template-detail",
+    ),
+    path(
+        "leadership-team/templates/<int:pk>/publish/",
+        lt_templates.LeadershipTeamTemplatePublishView.as_view(),
+        name="leadership-team-template-publish",
+    ),
+    path(
+        "leadership-team/templates/<int:pk>/archive/",
+        lt_templates.LeadershipTeamTemplateArchiveView.as_view(),
+        name="leadership-team-template-archive",
+    ),
+    path(
+        "leadership-team/templates/<int:pk>/clone/",
+        lt_templates.LeadershipTeamTemplateCloneView.as_view(),
+        name="leadership-team-template-clone",
+    ),
+    # LT assignments (Step 7_12 PR B — Story 52)
+    path(
+        "leadership-team/assignments/",
+        lt_assignments.LeadershipTeamAssignmentListCreateView.as_view(),
+        name="leadership-team-assignments",
+    ),
+    path(
+        "leadership-team/assignments/<int:pk>/",
+        lt_assignments.LeadershipTeamAssignmentDetailView.as_view(),
+        name="leadership-team-assignment-detail",
+    ),
+    # LT responses + exports (Story 53, Story 48 c5/c6)
+    path(
+        "leadership-team/templates/<int:template_id>/responses/",
+        lt_responses.LeadershipTeamTemplateResponsesView.as_view(),
+        name="leadership-team-template-responses",
+    ),
+    path(
+        "leadership-team/templates/<int:template_id>/responses/export/",
+        lt_exports.LeadershipTeamTemplateResponsesExportView.as_view(),
+        name="leadership-team-template-responses-export",
+    ),
+    path(
+        "leadership-team/teams/<str:team_role>/aggregate/export/",
+        lt_exports.LeadershipTeamTeamAggregateExportView.as_view(),
+        name="leadership-team-team-aggregate-export",
     ),
 ]
 

@@ -124,6 +124,23 @@ def parse_template_file(raw: dict[str, Any]) -> dict[str, Any]:
         msg = '"is_active" must be a boolean.'
         raise CommandError(msg)
 
+    # status defaults to published when is_active=True so old seed JSON
+    # without an explicit field remains backwards-compatible. Explicit
+    # status wins. Both columns are kept in sync for rollback safety.
+    raw_status = raw.get("status")
+    if raw_status is None:
+        derived_status = (
+            ReflectionTemplate.Status.PUBLISHED
+            if is_active
+            else ReflectionTemplate.Status.ARCHIVED
+        )
+    elif raw_status in {s.value for s in ReflectionTemplate.Status}:
+        derived_status = raw_status
+    else:
+        choices = ", ".join(s.value for s in ReflectionTemplate.Status)
+        msg = f"Invalid status {raw_status!r}; allowed: {choices}."
+        raise CommandError(msg)
+
     return {
         "name": name.strip(),
         "slug": slug.strip(),
@@ -133,6 +150,7 @@ def parse_template_file(raw: dict[str, Any]) -> dict[str, Any]:
         "description": description,
         "languages": languages,
         "is_active": is_active,
+        "status": derived_status,
         "schema": schema,
     }
 
@@ -199,6 +217,7 @@ class Command(BaseCommand):
             schema=parsed["schema"],
             languages=parsed["languages"],
             is_active=parsed["is_active"],
+            status=parsed["status"],
             version=parsed["version"],
         )
         try:
@@ -244,6 +263,7 @@ class Command(BaseCommand):
                 "schema": parsed["schema"],
                 "languages": parsed["languages"],
                 "is_active": parsed["is_active"],
+                "status": parsed["status"],
             },
         )
 
