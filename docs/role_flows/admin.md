@@ -146,9 +146,99 @@ home view that matches the spec. The hub is still reachable at
   representative example. PR2 wires the remaining reflection / note /
   flag detail pages.
 
-## Out of scope for PR1
+## Backend endpoints (PR2)
 
-- People / Assignments / Programs / Settings CRUD (PR2)
+| Method | Path | Story |
+|--------|------|-------|
+| GET | `/api/v1/admin/people/` | 55 |
+| POST | `/api/v1/admin/people/` | 55 c9 |
+| GET | `/api/v1/admin/people/<id>/` | 55 c5 |
+| PATCH | `/api/v1/admin/people/<id>/` | 55 |
+| POST | `/api/v1/admin/people/<id>/memberships/` | 55 |
+| POST | `/api/v1/admin/people/<id>/invite/` | 55 |
+| PATCH | `/api/v1/admin/memberships/<id>/` | 55 |
+| POST | `/api/v1/admin/memberships/<id>/deactivate/` | 55 |
+| GET | `/api/v1/admin/assignments/?sub_tab=...` | 56 |
+| POST | `/api/v1/admin/assignments/` | 56 |
+| PATCH | `/api/v1/admin/assignments/<id>/?kind=...` | 56 |
+| GET | `/api/v1/admin/programs/` | 58 |
+| POST | `/api/v1/admin/programs/` | 58 |
+| PATCH | `/api/v1/admin/programs/<id>/` | 58 |
+| POST | `/api/v1/admin/programs/<id>/end/` | 58 c5 |
+| GET | `/api/v1/admin/settings/` | 58 |
+| PATCH | `/api/v1/admin/settings/` | 58 |
+
+### People (Story 55)
+
+- `POST /people/` requires `{first_name, last_name, membership: {program_id, role}}`. Email conflict returns **409** with an `existing_person` payload (with memberships) so the UI can offer "Add a membership to the existing record" without a duplicate.
+- `Membership.role` is **immutable** post-create. `PATCH /memberships/<id>/` silently ignores `role` and `capability` because RBAC capability is derived from `role`. Use a new Membership (different role) or deactivate + recreate.
+- `POST /memberships/<id>/deactivate/` is soft-delete: `is_active=False` + `end_date=today`. Historical content stays attached to the original membership (Story 56 A4).
+- `POST /people/<id>/invite/` audits the invitation and returns a `{status: "queued"}` payload. The actual email send is wired separately so the audit row alone confirms "we know who invited who, when".
+
+### Assignments (Story 56)
+
+Single endpoint, five sub-tabs:
+
+| `sub_tab` | Underlying model | Role |
+|-----------|------------------|------|
+| `uh_counselor` | `Supervision` `target_type=MEMBERSHIP` | UH supervises a counselor |
+| `cc_caseload` | `Supervision` `target_type=BUNK` | CC owns a bunk caseload |
+| `lt_team` | `Supervision` `target_type=ROLE_IN_PROGRAM` | LT covers a role/program slice |
+| `counselor_bunk` | `AssignmentGroupMembership` `role_in_group=author` | Counselor placed on a Bunk |
+| `camper_bunk` | `AssignmentGroupMembership` `role_in_group=subject` | Camper/Student placed on a Bunk/Class |
+
+**Backdated safety invariant (Story 56 c4 + A4).** If the requested `start_date` is in the past, the server **clamps the effective start to today** and stashes the original date in `metadata.requested_start_date` on the new row. Historical reflections, notes, supervisions, and orders are *not* retroactively reattributed — they stay anchored to whichever Membership / AssignmentGroupMembership authored them at the time. The response surfaces `backdated_clamped: true` and `requested_start_date` so the UI can render an "info" banner instead of failing the form.
+
+**Conflict warnings (Story 56 c9).** Overlapping supervisions on the same target return a non-blocking `warnings` array with the prior supervisor's name + Membership id so the UI can show "Co-supervision now in place" inline.
+
+`PATCH /admin/assignments/<id>/?kind=supervision|group_membership` is intentionally narrow — only `end_date` (and `is_active` for group memberships) can be patched. To reassign, deactivate the old row and create a new one. This keeps audit attribution clean.
+
+### Programs + Settings (Story 58)
+
+`POST /admin/programs/<id>/end/` is the one **multi-table transaction** in the admin surface:
+
+1. Refuse with 400 if any `Flag.status == ACTIVE` still references the program — those need a human decision.
+2. Inside `transaction.atomic`:
+   - Deactivate every active `Membership` in the program (write `DEACTIVATED` AuditEvent per row).
+   - Close every open `Order` and `MaintenanceTicket` via the state machine's `unable_to_fulfill` transition (write `OVERRIDE_CLOSE` AuditEvent per row).
+   - Set `Program.is_active=False`. If `today >= start_date`, also set `end_date=today`; otherwise leave `end_date` alone (the model's `end_date >= start_date` check would block updates for programs ended before they started; `is_active=False` is the canonical "ended" flag).
+   - Write a `DEACTIVATED` AuditEvent on the Program itself.
+3. Any uncaught exception in the block rolls back every change. Verified by `test_end_program_rolls_back_on_unexpected_failure` (injects a RuntimeError into the `override_close` helper and confirms the program / memberships / orders are unchanged).
+
+`reason` is required (returns 422 otherwise) and lands in the audit `reason_note` on every row touched.
+
+`PATCH /admin/settings/` accepts a partial dict of `{settings, supported_languages, rollover_hour, tag_vocabulary}` and writes a manual `AuditEvent` against `content_type="organization_settings"`. (Organization itself is not org-scoped so the standard audit helpers can't auto-derive `(org, program)`.) The frontend gates `rollover_hour` changes behind a typed-confirmation modal because changing it shifts the org's "today" anchor for every dashboard.
+
+## Frontend (PR2)
+
+| Route | Component | Story |
+|-------|-----------|-------|
+| `/admin/people` | `pages/admin/People.jsx` | 55 |
+| `/admin/assignments` | `pages/admin/Assignments.jsx` | 56 |
+| `/admin/settings` | `pages/admin/Settings.jsx` (Identity / Tags / Programs) | 58 |
+
+Sidebar gets three new entries under the Admin section: People, Assignments, Settings. `Memberships`, `Templates`, `Assignment groups`, `Field keys` stay where they were so the existing admin sub-flows aren't disturbed.
+
+### People page
+
+- Two-pane layout: filters + list on the left, profile drawer with Identity / Memberships / Recent activity tabs on the right.
+- Add Person modal (Story 55 c9) renders the 409 email-conflict response inline with an "Open existing" action that jumps to the existing person.
+- Membership rows expose a "Deactivate" affordance with a required-reason inline input that posts the audit-bearing soft delete.
+
+### Assignments page
+
+- Sub-tab nav across the five relationships. Selecting a tab fires `GET /admin/assignments/?sub_tab=...`.
+- Status pill renders Active / Ending within 7d / Recently ended / Future-dated using only the row's `start_date` / `end_date` / `is_active`.
+- Create form is shape-aware per sub_tab (different field set for each). When the backend reports `backdated_clamped`, the form surfaces a yellow inline panel reminding the admin that historical content stays anchored to the prior assignment.
+
+### Settings page
+
+- **Identity & Localization** tab: edit supported languages list + day-rollover hour. Changing the rollover hour requires a confirm-twice gesture.
+- **Tag vocabulary** tab: one-tag-per-line textarea persisted to `settings.tag_vocabulary`.
+- **Programs** tab: list + Create Program form + End Program modal. The End Program modal requires the admin to type the program `slug` *and* enter a reason. On success it shows a summary card (memberships deactivated, orders closed, tickets closed, ended_at).
+
+## Out of scope for PR2
+
 - Global search (PR3)
 - Bulk Person import UI + invitation flow (PR3)
 - Templates wrapper + Mark Reviewed / Needs revision flag (PR3)

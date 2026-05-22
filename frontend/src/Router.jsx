@@ -32,6 +32,9 @@ import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
 import AdminHub from './pages/admin/AdminHub';
 import AdminDashboardV2 from './pages/admin/Dashboard';
+import AdminPeople from './pages/admin/People';
+import AdminAssignments from './pages/admin/Assignments';
+import AdminSettingsPage from './pages/admin/Settings';
 import TemplateListPage from './pages/admin/templates/TemplateListPage';
 import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
 import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
@@ -805,6 +808,31 @@ function Router() {
             }
           />
           <Route path="memberships" element={<MembershipManagementPage />} />
+          {/* 7_13 PR2 — People, Assignments, Settings (Stories 55, 56, 58). */}
+          <Route
+            path="people"
+            element={
+              <AdminRoute>
+                <AdminPeople />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="assignments"
+            element={
+              <AdminRoute>
+                <AdminAssignments />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <AdminRoute>
+                <AdminSettingsPage />
+              </AdminRoute>
+            }
+          />
           <Route
             path="templates"
             element={

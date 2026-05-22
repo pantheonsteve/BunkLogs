@@ -254,10 +254,13 @@ function Sidebar({
               setSidebarExpanded={setSidebarExpanded}
             >
               <SubItem to="/admin" label="Admin home" end />
+              <SubItem to="/admin/people" label="People" />
+              <SubItem to="/admin/assignments" label="Assignments" />
               <SubItem to="/admin/memberships" label="Memberships" />
               <SubItem to="/admin/templates" label="Templates" />
               <SubItem to="/admin/groups" label="Assignment groups" />
               <SubItem to="/admin/field-keys" label="Field keys" />
+              <SubItem to="/admin/settings" label="Settings" />
             </CollapsibleSection>
           )}
 
