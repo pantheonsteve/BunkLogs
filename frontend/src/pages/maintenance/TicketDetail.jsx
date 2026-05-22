@@ -27,6 +27,9 @@ import {
   fetchNoteAudience,
   uploadTicketPhoto,
 } from '../../api/maintenance';
+import AuditTrail from '../../components/AuditTrail';
+import AdminViewingBanner from '../../components/admin/AdminViewingBanner';
+import { useAuth } from '../../auth/AuthContext';
 
 const STATUS_BADGE = {
   new: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100',
@@ -438,6 +441,7 @@ export default function TicketDetail() {
   const { ticketId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -537,6 +541,7 @@ export default function TicketDetail() {
 
       {ticket && (
         <div className="px-4 py-4 space-y-4">
+          <AdminViewingBanner roleLabel="Maintenance" />
           {/* Ticket header section */}
           <section data-testid="ticket-header">
             <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -627,6 +632,15 @@ export default function TicketDetail() {
                 <PhotoUploadForm ticketId={ticketId} onPhotoAdded={handlePhotoAdded} />
               </div>
             )}
+          </section>
+
+          <section data-testid="ticket-audit">
+            <AuditTrail
+              user={user}
+              contentType="maintenance_ticket"
+              contentId={ticketId}
+              emptyMessage="No audit events yet for this ticket."
+            />
           </section>
         </div>
       )}

@@ -174,6 +174,10 @@ urlpatterns = [
     ),
     path("", include(router.urls)),
 
+    # Step 7_13 — Admin Flow namespace (mounted under /api/v1/admin/).
+    # See bunk_logs/api/admin_flow/__init__.py for the package layout.
+    path("admin/", include("bunk_logs.api.admin_flow.urls")),
+
     # Non-standard bunk detail path used by BunkCard.jsx — kept for compat while
     # callers are migrated to the standard /bunks/{id}/ route
     path("bunk/<str:id>/", views.BunkViewSet.as_view({"get": "retrieve"}), name="bunk-detail-compat"),
