@@ -27,21 +27,16 @@ from bunk_logs.api.unit_head.common import compute_attention_badges
 from bunk_logs.api.unit_head.common import expected_by_passed
 from bunk_logs.api.unit_head.common import help_requested_camper_ids_from
 from bunk_logs.api.unit_head.common import off_camp_camper_ids
-from bunk_logs.api.unit_head.common import unit_head_self_template  # noqa: F401 -- shape only
 from bunk_logs.core.models import Flag
 from bunk_logs.core.models import Order
 
 from .common import bunk_camper_ids
+from .common import camper_care_self_template
 from .common import caseload_bunks_with_unit
 from .common import viewer_or_403
 
 DASHBOARD_CACHE_TTL_SECONDS = 30
 LOW_COMPLETION_THRESHOLD = 0.5
-
-CC_SELF_TEMPLATE_SLUG_CANDIDATES = (
-    "camper-care-self-reflection",
-    "wellness-self-reflection",
-)
 
 
 def _cache_key(*, viewer_id: int, organization_id: int, today) -> str:
@@ -129,7 +124,7 @@ def _resolve_target_date(raw, *, default):
 
 
 def _self_reflection_state(ctx):
-    template = _camper_care_self_template(ctx.organization, ctx.program)
+    template = camper_care_self_template(ctx.organization, ctx.program)
     if template is None:
         return "missing", None, None, False
     existing = latest_self_reflection(
@@ -139,28 +134,6 @@ def _self_reflection_state(ctx):
         return "missing", None, template.id, False
     state = "day_off" if is_day_off_answer(existing) else "complete"
     return state, existing.id, template.id, True
-
-
-def _camper_care_self_template(organization, program):
-    """Daily Camper Care self-reflection template, org-shadowing-global.
-
-    Reuses the same fallback resolver the counselor / UH flows use so a
-    customer can ship a single template targeting multiple supervisor
-    roles via ``author_role_filter``.
-    """
-    from django.db.models import Q
-
-    from bunk_logs.api.counselor.common import _resolve_template
-    from bunk_logs.core.models import ReflectionTemplate
-
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="camper_care") | Q(author_role_filter__contains=["camper_care"]),
-        subject_mode="self",
-        cadence="daily",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
-    )
 
 
 def _build_caseload_tree(ctx, *, target_date) -> list[dict]:

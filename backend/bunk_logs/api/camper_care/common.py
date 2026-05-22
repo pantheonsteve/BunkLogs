@@ -17,14 +17,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
+from bunk_logs.api.counselor.common import _resolve_template
 from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re-export)
+from bunk_logs.api.counselor.common import is_day_off_answer  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-export)
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.time_utils import get_today
 
@@ -35,8 +39,17 @@ if TYPE_CHECKING:
     from bunk_logs.core.models import Program
 
 
+CC_SELF_TEMPLATE_SLUGS = (
+    "camper-care-self-reflection",
+    "wellness-self-reflection",
+)
+
+
 __all__ = [
+    "CC_SELF_TEMPLATE_SLUGS",
     "ViewerContext",
+    "camper_care_self_template",
+    "caseload_bunk_ids",
     "caseload_bunks",
     "caseload_bunks_with_unit",
     "caseload_camper_ids",
@@ -170,4 +183,38 @@ def bunk_camper_ids(bunk: AssignmentGroup) -> list[int]:
         )
         .order_by("person__last_name", "person__first_name")
         .values_list("person_id", flat=True),
+    )
+
+
+def caseload_bunk_ids(
+    membership: Membership, *, today: date | None = None,
+) -> set[int]:
+    """Bunk IDs on the Camper Care member's caseload (today).
+
+    Equivalent to ``supervised_bunk_ids`` for UH — used by write
+    endpoints that need to validate user-supplied bunk IDs against the
+    viewer's authority (e.g. ``bunk_concerns_bunks`` in a CC
+    self-reflection answer payload).
+    """
+    return {b.id for b in caseload_bunks(membership, today=today)}
+
+
+def camper_care_self_template(
+    organization: Organization, program: Program,
+) -> ReflectionTemplate | None:
+    """Daily Camper Care self-reflection template, org-shadowing-global.
+
+    Uses the same fallback resolver the counselor / UH flows use so a
+    customer can ship a single template targeting multiple supervisor
+    roles via ``author_role_filter``. Returns ``None`` when no template
+    is configured for the program type — callers must handle that case
+    (the dashboard renders a "no template configured" placeholder).
+    """
+    qs = ReflectionTemplate.all_objects.filter(
+        Q(role="camper_care") | Q(author_role_filter__contains=["camper_care"]),
+        subject_mode="self",
+        cadence="daily",
+    )
+    return _resolve_template(
+        qs, organization=organization, program_type=program.program_type,
     )

@@ -106,6 +106,39 @@ describe('CamperCareFlags', () => {
     expect(payload.note).toBe('Spoke with cabin; resolved.');
   });
 
+  it('links the camper name to the camper dashboard with anchored flag id and renders trigger_preview', async () => {
+    const enriched = {
+      ...samplePayload,
+      items: [
+        {
+          ...samplePayload.items[0],
+          trigger_content_type: 'specialist_note',
+          trigger_preview: 'Camper had a hard night, started crying after lights-out and is asking for parent contact.',
+        },
+        samplePayload.items[1],
+      ],
+    };
+    getMock.mockResolvedValueOnce({ data: enriched });
+    render(
+      <MemoryRouter>
+        <CamperCareFlags />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-flags')).toBeInTheDocument();
+    });
+    const flagId = '11111111-1111-1111-1111-111111111111';
+    const link = screen.getByTestId(`flag-camper-link-${flagId}`);
+    expect(link).toHaveAttribute(
+      'href',
+      `/camper-care/campers/1?flagId=${encodeURIComponent(flagId)}#flag-${flagId}`,
+    );
+    const preview = screen.getByTestId(`flag-trigger-preview-${flagId}`);
+    expect(preview).toHaveTextContent(/Camper had a hard night/);
+    const sourceLabel = screen.getByText(/Source: Specialist note/);
+    expect(sourceLabel).toBeInTheDocument();
+  });
+
   it('shows the resolved section when toggled and fetches with status=resolved', async () => {
     getMock.mockResolvedValueOnce({ data: samplePayload });
     getMock.mockResolvedValueOnce({

@@ -117,18 +117,43 @@ function BunkRow({ bunk }) {
   );
 }
 
-function UnitSection({ unit }) {
-  const [open, setOpen] = useState(true);
+const UNIT_COLLAPSE_KEY = 'cc.dashboard.collapsedUnits';
+
+function readCollapsedUnits() {
+  try {
+    const raw = window.sessionStorage.getItem(UNIT_COLLAPSE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistCollapsedUnits(setLike) {
+  try {
+    window.sessionStorage.setItem(
+      UNIT_COLLAPSE_KEY, JSON.stringify(Array.from(setLike)),
+    );
+  } catch {
+    /* sessionStorage unavailable (private mode etc.) — silently noop */
+  }
+}
+
+function UnitSection({ unit, collapsed, onToggle }) {
+  const open = !collapsed;
   return (
     <section
       data-testid={`cc-unit-${unit.id ?? 'unassigned'}`}
+      data-collapsed={collapsed ? 'true' : 'false'}
       className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
         aria-expanded={open}
+        data-testid={`cc-unit-toggle-${unit.id ?? 'unassigned'}`}
       >
         <div className="min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-white">{unit.name}</h3>
@@ -239,6 +264,18 @@ export default function CamperCareDashboard() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [collapsedUnits, setCollapsedUnits] = useState(() => readCollapsedUnits());
+
+  const toggleUnit = useCallback((unitId) => {
+    setCollapsedUnits((prev) => {
+      const key = String(unitId ?? 'unassigned');
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      persistCollapsedUnits(next);
+      return next;
+    });
+  }, []);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -368,9 +405,17 @@ export default function CamperCareDashboard() {
           </p>
         ) : (
           <div className="space-y-3">
-            {units.map((u) => (
-              <UnitSection key={u.id ?? 'unassigned'} unit={u} />
-            ))}
+            {units.map((u) => {
+              const key = String(u.id ?? 'unassigned');
+              return (
+                <UnitSection
+                  key={key}
+                  unit={u}
+                  collapsed={collapsedUnits.has(key)}
+                  onToggle={() => toggleUnit(u.id)}
+                />
+              );
+            })}
           </div>
         )}
       </section>

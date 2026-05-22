@@ -16,9 +16,21 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   fetchFlags, followUpFlag, resolveFlag, reopenFlag,
 } from '../../api/camperCare';
+
+const TRIGGER_LABELS = {
+  specialist_note: 'Specialist note',
+  camper_care_note: 'Camper Care note',
+  reflection: 'Reflection',
+};
+
+function triggerLabel(kind) {
+  if (!kind) return '';
+  return TRIGGER_LABELS[kind] || kind.replace(/_/g, ' ');
+}
 
 const STATUS_LABELS = {
   active: { label: 'Active', cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
@@ -57,6 +69,10 @@ function formatTimestamp(iso) {
 function FlagRow({ flag, onAction }) {
   const raisedBy = flag.raised_by?.name || 'Unknown';
   const roleLabel = flag.raised_by?.role ? ` (${flag.raised_by.role})` : '';
+  const camperId = flag.subject_camper?.id;
+  const camperHref = camperId
+    ? `/camper-care/campers/${camperId}?flagId=${encodeURIComponent(flag.id)}#flag-${flag.id}`
+    : null;
   return (
     <li
       data-testid={`flag-row-${flag.id}`}
@@ -65,9 +81,19 @@ function FlagRow({ flag, onAction }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white">
-            {camperLabel(flag.subject_camper)}
-          </h3>
+          {camperHref ? (
+            <Link
+              to={camperHref}
+              data-testid={`flag-camper-link-${flag.id}`}
+              className="font-semibold text-gray-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+            >
+              {camperLabel(flag.subject_camper)}
+            </Link>
+          ) : (
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              {camperLabel(flag.subject_camper)}
+            </h3>
+          )}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Raised by {raisedBy}{roleLabel} · {formatTimestamp(flag.created_at)}
           </p>
@@ -76,8 +102,16 @@ function FlagRow({ flag, onAction }) {
       </div>
       {flag.trigger_content_type && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Source: {flag.trigger_content_type}
+          Source: {triggerLabel(flag.trigger_content_type)}
         </p>
+      )}
+      {flag.trigger_preview && (
+        <blockquote
+          data-testid={`flag-trigger-preview-${flag.id}`}
+          className="text-sm text-gray-700 dark:text-gray-200 italic border-l-2 border-gray-300 dark:border-gray-600 pl-3 mt-2 line-clamp-3"
+        >
+          {flag.trigger_preview}
+        </blockquote>
       )}
       <div className="flex flex-wrap gap-2 mt-3">
         {(flag.status === 'active' || flag.status === 'followed_up') && (

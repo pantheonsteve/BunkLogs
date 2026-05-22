@@ -25,9 +25,20 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
+from bunk_logs.core.models import Note
 
 from .common import caseload_camper_ids
 from .common import viewer_or_403
+
+# Trigger content types we know how to preview. Adding new types is
+# a one-line addition here; the frontend renders ``trigger_preview``
+# generically (truncated snippet + source label).
+_PREVIEW_LOADERS: dict[str, str] = {
+    "specialist_note": "note",
+    "camper_care_note": "note",
+    "reflection": "reflection",
+}
+_PREVIEW_MAX_CHARS = 160
 
 ACTIVE_STATUSES: tuple[str, ...] = (Flag.Status.ACTIVE, Flag.Status.FOLLOWED_UP)
 ALL_STATUSES: tuple[str, ...] = tuple(s.value for s in Flag.Status)
@@ -157,6 +168,7 @@ def _flag_payload(flag: Flag, *, today) -> dict:
         "flagged_for_role": flag.flagged_for_role,
         "trigger_content_type": flag.trigger_content_type,
         "trigger_content_id": flag.trigger_content_id,
+        "trigger_preview": _trigger_preview(flag),
         "raised_by": {
             "membership_id": raiser.id if raiser else None,
             "role": raiser.role if raiser else None,
@@ -170,6 +182,41 @@ def _flag_payload(flag: Flag, *, today) -> dict:
         "resolved_at": flag.resolved_at.isoformat() if flag.resolved_at else None,
         "is_today": flag.created_at.date() == today,
     }
+
+
+def _trigger_preview(flag: Flag) -> str:
+    """Short snippet of the row that raised the flag.
+
+    Falls back to "" when the trigger type isn't one we know how to
+    preview, or when the underlying row is gone (deleted note, etc).
+    Camper Care reads this on the workspace row to know whether to
+    open a flag without leaving the workspace.
+    """
+    loader = _PREVIEW_LOADERS.get(flag.trigger_content_type)
+    if not loader or not flag.trigger_content_id:
+        return ""
+    try:
+        if loader == "note":
+            note = Note.all_objects.filter(id=flag.trigger_content_id).first()
+            body = (note.body or "").strip() if note else ""
+        else:
+            # Reflection trigger preview — first non-empty string answer.
+            # Lazy import keeps the test path narrow.
+            from bunk_logs.core.models import Reflection
+            refl = Reflection.all_objects.filter(id=flag.trigger_content_id).first()
+            body = ""
+            if refl and isinstance(refl.answers, dict):
+                for v in refl.answers.values():
+                    if isinstance(v, str) and v.strip():
+                        body = v.strip()
+                        break
+    except (ValueError, TypeError):
+        return ""
+    if not body:
+        return ""
+    if len(body) > _PREVIEW_MAX_CHARS:
+        return body[: _PREVIEW_MAX_CHARS - 1] + "\u2026"
+    return body
 
 
 def _audit_history(flag: Flag) -> list[dict]:

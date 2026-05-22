@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from datetime import date
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -35,6 +36,8 @@ from bunk_logs.core.models import Order
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
 
 User = get_user_model()
@@ -837,3 +840,382 @@ class TestCamperCareCamperDashboard:
                 f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
             )
         assert r.status_code == 403
+
+
+class TestCamperDashboardNotesDateFilter:
+    """`?notes_from=&notes_to=` clamps the notes lists (Step 7_8d).
+
+    Lives only on the CC endpoint; the UH camper dashboard is
+    unaffected. Defaults to the existing (unfiltered) behaviour when
+    neither bound is supplied.
+    """
+
+    def _make_note(self, *, org, program, author, subject, when, body):
+        note = Note.all_objects.create(
+            organization=org, program=program, author=author, subject=subject,
+            note_type=Note.NoteType.CAMPER_CARE, body=body,
+        )
+        Note.all_objects.filter(id=note.id).update(created_at=when)
+        return note
+
+    def test_notes_filter_clamps_camper_care_notes(
+        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
+        camper, camper_in_bunk,
+    ):
+        cc_person, user = cc_person_user
+        in_range = self._make_note(
+            org=org, program=program, author=cc_person, subject=camper,
+            when=timezone.now() - timedelta(days=5),
+            body="Recent visit — in window",
+        )
+        before_range = self._make_note(
+            org=org, program=program, author=cc_person, subject=camper,
+            when=timezone.now() - timedelta(days=60),
+            body="Old note from last month",
+        )
+        api.force_authenticate(user=user)
+        today = timezone.now().date()
+        notes_from = (today - timedelta(days=14)).isoformat()
+        notes_to = today.isoformat()
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{camper.id}/"
+                f"?notes_from={notes_from}&notes_to={notes_to}",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        body = r.json()
+        ids = [n["id"] for n in body["camper_care_notes"]["items"]]
+        assert in_range.id in ids
+        assert before_range.id not in ids
+        assert body["camper_care_notes"]["filtered_by_date_range"] is True
+        assert body["notes_filter"] == {"from": notes_from, "to": notes_to}
+
+    def test_no_filter_returns_all_notes(
+        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
+        camper, camper_in_bunk,
+    ):
+        cc_person, user = cc_person_user
+        self._make_note(
+            org=org, program=program, author=cc_person, subject=camper,
+            when=timezone.now() - timedelta(days=120),
+            body="Ancient note — not clamped by default",
+        )
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200
+        body = r.json()
+        assert len(body["camper_care_notes"]["items"]) == 1
+        assert body["notes_filter"] == {"from": None, "to": None}
+
+    def test_invalid_filter_date_rejected(
+        self, api, org, cc_person_user, cc_membership, cc_caseload,
+        camper, camper_in_bunk,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{camper.id}/?notes_from=not-a-date",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Self-reflection (Step 7_8d) — write + edit + history
+# ---------------------------------------------------------------------------
+
+
+class TestCamperCareSelfReflection:
+    """``POST/PATCH/GET /api/v1/camper-care/self-reflection/*``.
+
+    Mirrors UH self-reflection coverage: day-off shortcut, idempotent
+    replay, today-only edit window, caseload-gated bunk_concerns, and
+    history shape parity.
+    """
+
+    def _post(self, api, org, body):
+        return api.post(
+            "/api/v1/camper-care/self-reflection/",
+            data=body, format="json", **_hdr(org.slug),
+        )
+
+    def test_day_off_post_creates_complete_row(
+        self, api, org, cc_person_user, cc_membership,
+    ):
+        person, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = self._post(api, org, {
+                "day_off": True,
+                "language": "en",
+                "client_submission_id": str(uuid4()),
+            })
+        assert r.status_code == 201, r.content
+        body = r.json()
+        assert body["answers"] == {"day_off": True}
+        refl = Reflection.all_objects.get(author=person, subject=person)
+        assert refl.is_complete
+
+    def test_idempotent_replay_returns_existing(
+        self, api, org, cc_person_user, cc_membership,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        cid = str(uuid4())
+        with organization_context(org):
+            first = self._post(api, org, {"day_off": True, "client_submission_id": cid})
+            assert first.status_code == 201
+            replay = self._post(api, org, {"day_off": True, "client_submission_id": cid})
+        assert replay.status_code == 200
+        assert replay.json()["id"] == first.json()["id"]
+
+    def test_bunk_concerns_rejects_off_caseload_bunk(
+        self, api, org, cc_person_user, cc_membership, cc_caseload, other_bunk,
+    ):
+        """A CC member cannot flag a bunk that's not on their caseload."""
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = self._post(api, org, {
+                "day_off": False,
+                "answers": {
+                    "overall_day": 4,
+                    "bunk_concerns_bunks": [other_bunk.id],
+                },
+                "language": "en",
+                "client_submission_id": str(uuid4()),
+            })
+        assert r.status_code == 403
+
+    def test_bunk_concerns_accepts_caseload_bunk(
+        self, api, org, cc_person_user, cc_membership, cc_caseload, bunk,
+    ):
+        person, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = self._post(api, org, {
+                "day_off": False,
+                "answers": {
+                    "overall_day": 4,
+                    "bunk_concerns_bunks": [bunk.id],
+                    "bunk_concerns_note": "Watch sleep schedule.",
+                },
+                "language": "en",
+                "client_submission_id": str(uuid4()),
+            })
+        assert r.status_code == 201, r.content
+        refl = Reflection.all_objects.get(author=person, subject=person)
+        assert refl.answers["bunk_concerns_bunks"] == [bunk.id]
+
+    def test_patch_within_today_window(
+        self, api, org, program, cc_person_user, cc_membership,
+    ):
+        person, user = cc_person_user
+        template = ReflectionTemplate.all_objects.get(
+            slug="camper-care-self-reflection",
+        )
+        from bunk_logs.core.time_utils import get_today
+        today = get_today(org)
+        refl = Reflection.all_objects.create(
+            organization=org, program=program, template=template,
+            subject=person, author=person,
+            period_start=today, period_end=today,
+            answers={"overall_day": 3}, is_complete=True,
+        )
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.patch(
+                f"/api/v1/camper-care/self-reflection/{refl.id}/",
+                data={"answers": {"overall_day": 5}},
+                format="json", **_hdr(org.slug),
+            )
+        assert r.status_code == 200
+        refl.refresh_from_db()
+        assert refl.answers["overall_day"] == 5
+
+    def test_patch_outside_window_403(
+        self, api, org, program, cc_person_user, cc_membership,
+    ):
+        person, user = cc_person_user
+        template = ReflectionTemplate.all_objects.get(
+            slug="camper-care-self-reflection",
+        )
+        from bunk_logs.core.time_utils import get_today
+        today = get_today(org)
+        # Backdate so today's window doesn't include it.
+        refl = Reflection.all_objects.create(
+            organization=org, program=program, template=template,
+            subject=person, author=person,
+            period_start=today - timedelta(days=1),
+            period_end=today - timedelta(days=1),
+            answers={"overall_day": 3}, is_complete=True,
+        )
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.patch(
+                f"/api/v1/camper-care/self-reflection/{refl.id}/",
+                data={"answers": {"overall_day": 5}},
+                format="json", **_hdr(org.slug),
+            )
+        assert r.status_code == 403
+
+    def test_history_shows_gaps_and_day_off(
+        self, api, org, program, cc_person_user, cc_membership,
+    ):
+        person, user = cc_person_user
+        template = ReflectionTemplate.all_objects.get(
+            slug="camper-care-self-reflection",
+        )
+        from bunk_logs.core.time_utils import get_today
+        today = get_today(org)
+        Reflection.all_objects.create(
+            organization=org, program=program, template=template,
+            subject=person, author=person,
+            period_start=today - timedelta(days=1),
+            period_end=today - timedelta(days=1),
+            answers={"day_off": True}, is_complete=True,
+        )
+        Reflection.all_objects.create(
+            organization=org, program=program, template=template,
+            subject=person, author=person,
+            period_start=today - timedelta(days=3),
+            period_end=today - timedelta(days=3),
+            answers={"overall_day": 4, "concern": "Long week."},
+            is_complete=True,
+        )
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                "/api/v1/camper-care/self-reflection/history/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200
+        rows = {row["date"]: row for row in r.json()["results"]}
+        yesterday = rows[(today - timedelta(days=1)).isoformat()]
+        day_minus_3 = rows[(today - timedelta(days=3)).isoformat()]
+        assert yesterday["is_day_off"] is True
+        assert yesterday["submitted"] is True
+        assert day_minus_3["submitted"] is True
+        assert day_minus_3["preview"]
+
+    def test_requires_camper_care_role(
+        self, api, org, counselor_person_user, counselor_membership,
+    ):
+        _, user = counselor_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = self._post(api, org, {
+                "day_off": True, "client_submission_id": str(uuid4()),
+            })
+        assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Trigger preview + camper-dashboard flag_history (Step 7_8d)
+# ---------------------------------------------------------------------------
+
+
+class TestFlagWorkspaceTriggerPreview:
+    def test_specialist_note_trigger_preview_returned(
+        self, api, org, program, cc_person_user, cc_membership,
+        counselor_person_user, camper,
+    ):
+        """Workspace list rows include a `trigger_preview` snippet so CC
+        can read the source without leaving the workspace.
+        """
+        author_person, _ = counselor_person_user
+        note = Note.all_objects.create(
+            organization=org, program=program, subject=camper,
+            author=author_person,
+            note_type=Note.NoteType.SPECIALIST,
+            body=(
+                "Camper had a hard night, started crying after lights-out and "
+                "is asking for parent contact. Watching closely."
+            ),
+            is_sensitive=False,
+        )
+        flag = flag_helpers.raise_flag_from_specialist_note(note)
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/flags/", **_hdr(org.slug))
+        assert r.status_code == 200
+        items = r.json()["items"]
+        row = next(item for item in items if item["id"] == str(flag.id))
+        assert row["trigger_content_type"] == "specialist_note"
+        assert row["trigger_preview"]
+        assert "Camper had a hard night" in row["trigger_preview"]
+
+    def test_preview_truncated_at_max_chars(
+        self, api, org, program, cc_person_user, cc_membership,
+        counselor_person_user, camper,
+    ):
+        author_person, _ = counselor_person_user
+        very_long = "a" * 500
+        note = Note.all_objects.create(
+            organization=org, program=program, subject=camper,
+            author=author_person,
+            note_type=Note.NoteType.SPECIALIST,
+            body=very_long, is_sensitive=False,
+        )
+        flag_helpers.raise_flag_from_specialist_note(note)
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/flags/", **_hdr(org.slug))
+        body = r.json()
+        snippet = body["items"][0]["trigger_preview"]
+        assert snippet.endswith("\u2026")
+        assert len(snippet) <= 161  # max 160 chars + ellipsis
+
+    def test_missing_trigger_returns_empty_preview(
+        self, api, org, program, cc_person_user, cc_membership, camper,
+    ):
+        """A flag with no resolvable trigger returns ``trigger_preview=""``."""
+        Flag.all_objects.create(
+            organization=org, program=program, subject_camper=camper,
+            flagged_for_role="camper_care",
+            trigger_content_type="", trigger_content_id="",
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/flags/", **_hdr(org.slug))
+        items = r.json()["items"]
+        assert items[0]["trigger_preview"] == ""
+
+
+class TestCamperDashboardFlagHistory:
+    def test_flag_history_returned_newest_first(
+        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
+        bunk, camper, camper_in_bunk,
+    ):
+        older = Flag.all_objects.create(
+            organization=org, program=program, subject_camper=camper,
+            flagged_for_role="camper_care", status=Flag.Status.RESOLVED,
+            resolved_at=timezone.now(),
+        )
+        # Backdate older flag explicitly so ordering is deterministic.
+        Flag.all_objects.filter(id=older.id).update(
+            created_at=timezone.now() - timedelta(days=3),
+        )
+        newer = Flag.all_objects.create(
+            organization=org, program=program, subject_camper=camper,
+            flagged_for_role="camper_care", status=Flag.Status.ACTIVE,
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        history = r.json()["flag_history"]
+        assert [row["id"] for row in history] == [str(newer.id), str(older.id)]
+        # Resolved + Active should both surface so the arc is visible.
+        statuses = {row["status"] for row in history}
+        assert statuses == {Flag.Status.ACTIVE, Flag.Status.RESOLVED}
