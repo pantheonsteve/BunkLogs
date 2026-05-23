@@ -1,21 +1,12 @@
-"""Seed the global TBE 3-2-1 Madrich weekly reflection template (Step 7_14).
+"""Refresh TBE Madrich rating-group categories to use ``labels`` (plural).
 
-Targets the ``madrich`` Membership role with weekly cadence per MA1
-(Monday-Sunday). Schema follows Story 62 c1:
-
-* 3 wins (``text_list``, exactly 3 items, required)
-* 2 improvements (``text_list``, exactly 2 items, required)
-* 1 open question or concern (``text``, required)
-* 5 ratings (``rating_group``, 5 categories from Rachel's proposal on a
-  1-4 scale: Unsatisfactory / Needs Improvement / Meets Expectations /
-  Exceeds Expectations)
-
-English-only prompts at Tier 1 per the TBE scope statement; the schema
-nevertheless uses the ``prompts`` / ``scale_labels`` localized-key shape
-so Hebrew can be added later without a data migration.
-
-Idempotent via ``update_or_create`` keyed on (organization=NULL, slug,
-version) so re-running on a preview redeploy refreshes the row in place.
+The original seed in 0037 mistakenly used ``label`` (singular) for each
+rating-group category, but the frontend ``ReflectionField`` renderer
+reads ``cat.labels[lang]`` and falls back to ``cat.key``, so categories
+rendered as ``reliability_punctuality`` etc. instead of their human
+labels. Re-run the seed (idempotent via ``update_or_create``) so any
+environment that already applied 0037 picks up the corrected schema
+without manual intervention.
 """
 from django.db import migrations
 
@@ -33,9 +24,7 @@ def _schema() -> dict:
                 "required": True,
                 "min_items": 3,
                 "max_items": 3,
-                "prompts": {
-                    "en": "Three wins from this week",
-                },
+                "prompts": {"en": "Three wins from this week"},
                 "dashboard_role": "wins",
             },
             {
@@ -44,18 +33,14 @@ def _schema() -> dict:
                 "required": True,
                 "min_items": 2,
                 "max_items": 2,
-                "prompts": {
-                    "en": "Two things to improve next week",
-                },
+                "prompts": {"en": "Two things to improve next week"},
                 "dashboard_role": "improvements",
             },
             {
                 "key": "question_or_concern",
                 "type": "text",
                 "required": True,
-                "prompts": {
-                    "en": "One question or concern for your Director",
-                },
+                "prompts": {"en": "One question or concern for your Director"},
                 "dashboard_role": "open_concern",
             },
             {
@@ -76,33 +61,19 @@ def _schema() -> dict:
                         "key": "reliability_punctuality",
                         "labels": {"en": "Reliability & Punctuality"},
                     },
-                    {
-                        "key": "initiative",
-                        "labels": {"en": "Initiative"},
-                    },
-                    {
-                        "key": "communication",
-                        "labels": {"en": "Communication"},
-                    },
-                    {
-                        "key": "problem_solving",
-                        "labels": {"en": "Problem Solving"},
-                    },
-                    {
-                        "key": "interpersonal",
-                        "labels": {"en": "Interpersonal"},
-                    },
+                    {"key": "initiative", "labels": {"en": "Initiative"}},
+                    {"key": "communication", "labels": {"en": "Communication"}},
+                    {"key": "problem_solving", "labels": {"en": "Problem Solving"}},
+                    {"key": "interpersonal", "labels": {"en": "Interpersonal"}},
                 ],
-                "prompts": {
-                    "en": "Rate yourself in each area for the week",
-                },
+                "prompts": {"en": "Rate yourself in each area for the week"},
                 "dashboard_role": "primary_rating",
             },
         ],
     }
 
 
-def _seed_template(apps, schema_editor):
+def _refresh(apps, schema_editor):
     ReflectionTemplate = apps.get_model("core", "ReflectionTemplate")
     ReflectionTemplate.objects.update_or_create(
         organization=None,
@@ -133,18 +104,15 @@ def _seed_template(apps, schema_editor):
     )
 
 
-def _remove_template(apps, schema_editor):
-    ReflectionTemplate = apps.get_model("core", "ReflectionTemplate")
-    ReflectionTemplate.objects.filter(
-        organization__isnull=True, slug=SLUG, version=1,
-    ).delete()
+def _noop(apps, schema_editor):
+    return
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0036_admin_templates_review_metadata"),
+        ("core", "0038_register_reflection_reminder_dispatcher"),
     ]
 
     operations = [
-        migrations.RunPython(_seed_template, reverse_code=_remove_template),
+        migrations.RunPython(_refresh, reverse_code=_noop),
     ]
