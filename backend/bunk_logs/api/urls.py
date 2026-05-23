@@ -44,6 +44,8 @@ from .leadership_team import responses as lt_responses
 from .leadership_team import self_reflection as lt_self_reflection
 from .leadership_team import team_dashboard as lt_team_dashboard
 from .leadership_team import templates as lt_templates
+from .madrich import dashboard as md_dashboard
+from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
@@ -138,6 +140,29 @@ urlpatterns = [
         "kitchen-staff/reflection/<int:reflection_id>/",
         ks_self_reflection.KitchenStaffReflectionDetailView.as_view(),
         name="kitchen-staff-reflection-detail",
+    ),
+    # ------------------------------------------------------------------
+    # Madrich — TBE weekly 3-2-1 (Step 7_14, Stories 61-65)
+    # ------------------------------------------------------------------
+    path(
+        "madrich/dashboard/",
+        md_dashboard.MadrichDashboardView.as_view(),
+        name="madrich-dashboard",
+    ),
+    path(
+        "madrich/reflection/",
+        md_reflection.MadrichReflectionCreateView.as_view(),
+        name="madrich-reflection-create",
+    ),
+    path(
+        "madrich/reflection/history/",
+        md_reflection.MadrichReflectionHistoryView.as_view(),
+        name="madrich-reflection-history",
+    ),
+    path(
+        "madrich/reflection/<int:reflection_id>/",
+        md_reflection.MadrichReflectionDetailView.as_view(),
+        name="madrich-reflection-detail",
     ),
     # ------------------------------------------------------------------
     # Maintenance staff queue (Step 7_10, Stories 30-35)
