@@ -69,6 +69,9 @@ import CamperCareSelfReflectionHistoryPage from './pages/camper-care/SelfReflect
 import KitchenStaffDashboard from './pages/kitchen-staff/Dashboard';
 import KitchenStaffReflectionForm from './pages/kitchen-staff/ReflectionForm';
 import KitchenStaffHistory from './pages/kitchen-staff/History';
+import MadrichDashboard from './pages/madrich/Dashboard';
+import MadrichReflectionForm from './pages/madrich/ReflectionForm';
+import MadrichHistory from './pages/madrich/History';
 import LeadershipTeamDashboard from './pages/leadership-team/Dashboard';
 import LeadershipTeamTeamDashboard from './pages/leadership-team/TeamDashboard';
 import LeadershipTeamMemberReflection from './pages/leadership-team/MemberReflection';
@@ -586,6 +589,40 @@ function Router() {
           element={
             <ProtectedRoute>
               <KitchenStaffReflectionForm />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Madrich (TBE) (Step 7_14, Stories 61-65)                              */}
+        <Route
+          path="/madrich"
+          element={
+            <ProtectedRoute>
+              <MadrichDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/madrich/history"
+          element={
+            <ProtectedRoute>
+              <MadrichHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/madrich/reflection/new"
+          element={
+            <ProtectedRoute>
+              <MadrichReflectionForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/madrich/reflection/:reflectionId/edit"
+          element={
+            <ProtectedRoute>
+              <MadrichReflectionForm />
             </ProtectedRoute>
           }
         />
