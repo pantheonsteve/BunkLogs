@@ -139,3 +139,79 @@ def get_today_for_program(
     if program is None:
         return get_today(None, now=now)
     return get_today(program.organization, now=now)
+
+
+# ---------------------------------------------------------------------------
+# Cadence-driven period bounds (Step 7_14 — MA1 Monday-Sunday weekly)
+# ---------------------------------------------------------------------------
+
+# Weekly cadence boundary used by TBE Madrich (MA1: Monday-Sunday). Programs
+# may override via ``Program.settings['week_boundary_day']`` (0=Mon..6=Sun)
+# when their cohort meets on a different day. The default keeps Story 65's
+# "Week of [start]-[end]" framing aligned with the ISO week.
+_DEFAULT_WEEK_START_DAY = 0  # Monday
+
+
+def _coerce_week_start_day(value: object) -> int:
+    """Return ``value`` if it's a valid 0..6 int (Mon..Sun), else Monday."""
+    if isinstance(value, bool):
+        return _DEFAULT_WEEK_START_DAY
+    if isinstance(value, int) and 0 <= value <= 6:
+        return value
+    return _DEFAULT_WEEK_START_DAY
+
+
+def get_current_period(
+    template_cadence: str | None,
+    org: Organization | None,
+    *,
+    program: Program | None = None,
+    anchor: date | None = None,
+    now: datetime | None = None,
+) -> tuple[date, date]:
+    """Return ``(period_start, period_end)`` for the current cadence period.
+
+    Anchored on ``anchor`` when provided, else the org's rollover-aware
+    "today". Mirrors the per-cadence semantics already used by the
+    leadership-team ``resolve_period`` helper so that read views and
+    submission endpoints agree on period bounds.
+
+    Weekly default is Monday-Sunday per Step 7_14 MA1; a program can
+    override via ``Program.settings['week_boundary_day']`` (0=Mon..6=Sun)
+    when its cohort meets on a different day.
+    """
+    target_date = anchor or get_today(org, now=now)
+    cadence = (template_cadence or "daily").lower()
+
+    if cadence in ("daily", "on_demand"):
+        return target_date, target_date
+
+    if cadence == "weekly":
+        week_start_day = _DEFAULT_WEEK_START_DAY
+        if program is not None:
+            week_start_day = _coerce_week_start_day(
+                (program.settings or {}).get("week_boundary_day"),
+            )
+        offset = (target_date.weekday() - week_start_day) % 7
+        start = target_date - timedelta(days=offset)
+        return start, start + timedelta(days=6)
+
+    if cadence == "biweekly":
+        if program is not None and program.start_date:
+            ref = program.start_date
+        else:
+            ref = target_date - timedelta(days=target_date.weekday())
+        delta_days = (target_date - ref).days
+        period_index = delta_days // 14
+        start = ref + timedelta(days=period_index * 14)
+        return start, start + timedelta(days=13)
+
+    if cadence == "monthly":
+        start = target_date.replace(day=1)
+        if start.month == 12:
+            next_first = start.replace(year=start.year + 1, month=1)
+        else:
+            next_first = start.replace(month=start.month + 1)
+        return start, next_first - timedelta(days=1)
+
+    return target_date, target_date
