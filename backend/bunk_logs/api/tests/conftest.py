@@ -271,6 +271,75 @@ _LEADERSHIP_TEAM_SELF_REFLECTION_SCHEMA = {
 }
 
 
+_MADRICH_3_2_1_WEEKLY_SCHEMA = {
+    "fields": [
+        {
+            "key": "wins",
+            "type": "text_list",
+            "required": True,
+            "min_items": 3,
+            "max_items": 3,
+            "prompts": {"en": "Three wins from this week"},
+        },
+        {
+            "key": "improvements",
+            "type": "text_list",
+            "required": True,
+            "min_items": 2,
+            "max_items": 2,
+            "prompts": {"en": "Two things to improve next week"},
+        },
+        {
+            "key": "question_or_concern",
+            "type": "text",
+            "required": True,
+            "prompts": {"en": "One question or concern for your Director"},
+        },
+        {
+            "key": "ratings",
+            "type": "rating_group",
+            "required": True,
+            "scale": [1, 4],
+            "categories": [
+                {"key": "reliability_punctuality", "label": {"en": "Reliability & Punctuality"}},
+                {"key": "initiative", "label": {"en": "Initiative"}},
+                {"key": "communication", "label": {"en": "Communication"}},
+                {"key": "problem_solving", "label": {"en": "Problem Solving"}},
+                {"key": "interpersonal", "label": {"en": "Interpersonal"}},
+            ],
+        },
+    ],
+}
+
+
+@pytest.fixture(autouse=True)
+def _ensure_madrich_weekly_template(db):
+    """Re-seed the TBE Madrich weekly 3-2-1 template before every test (Step 7_14)."""
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug="tbe-madrich-3-2-1-weekly",
+        version=1,
+        defaults={
+            "name": "TBE Madrich Weekly 3-2-1",
+            "description": "Auto-seeded for tests via api/tests/conftest.py.",
+            "cadence": "weekly",
+            "schema": _MADRICH_3_2_1_WEEKLY_SCHEMA,
+            "languages": ["en"],
+            "is_active": True,
+            "subject_mode": "self",
+            "assignment_scope": "none",
+            "assignment_group_types": [],
+            "author_role_filter": ["madrich"],
+            "subject_role_filter": [],
+            "required_per_subject_per_period": 1,
+            "subject_visible": False,
+            "supports_privacy": False,
+            "role": "madrich",
+            "program_type": "religious_school",
+        },
+    )
+
+
 @pytest.fixture(autouse=True)
 def _ensure_leadership_team_self_reflection_template(db):
     """Re-seed the LT self-reflection template before every test (Step 7_12)."""
