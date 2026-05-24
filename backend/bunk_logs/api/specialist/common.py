@@ -16,16 +16,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from bunk_logs.api.counselor.common import _resolve_template
 from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_day_off_answer  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-export)
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
-from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -33,6 +31,7 @@ if TYPE_CHECKING:
 
     from bunk_logs.core.models import Organization
     from bunk_logs.core.models import Program
+    from bunk_logs.core.models import ReflectionTemplate
 
 
 __all__ = [
@@ -119,17 +118,23 @@ def specialist_program_ids(person: Person) -> list[int]:
 def specialist_self_template(
     organization: Organization,
     program: Program,
+    *,
+    viewer: Person | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
     """Active daily specialist self-reflection template for the program.
 
-    Uses the shared org-shadow resolver. Returns ``None`` when no template
-    is configured (dashboard shows a placeholder).
+    Resolves via :func:`resolve_template_for` (Step 7_21): returns the
+    template bound by an active ``TemplateAssignment`` for the
+    (org, program, ``specialist``, ``self``, ``daily``) tuple, or
+    ``None`` when no assignment is active (dashboard shows a placeholder).
     """
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="specialist") | Q(author_role_filter__contains=["specialist"]),
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="specialist",
         subject_mode="self",
         cadence="daily",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
+        viewer=viewer,
     )
