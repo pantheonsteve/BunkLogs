@@ -175,3 +175,110 @@ podman-compose -f backend/docker-compose.local.yml exec django \
 Valid role codes: `counselor`, `junior_counselor`, `specialist`, `general_counselor`,
 `leadership_team`, `kitchen_staff`, `maintenance`, `housekeeping`, `camper_care`,
 `health_center`, `special_diets`, `admin`, `faculty`.
+
+---
+
+## Seeding TemplateAssignments (Step 7_22)
+
+The per-role dashboards refactored in Step 7_21 read from
+`TemplateAssignment` rows. Without those rows, every dashboard returns
+empty. The `seed_summer_2026_assignments` management command writes the
+12 rows Crane Lake needs.
+
+**Prerequisites:** `onboard_clc_summer_2026` must have run first so the
+org, program, and all 12 templates exist.
+
+### Command
+
+```bash
+python manage.py seed_summer_2026_assignments \
+    --org-slug clc \
+    --program-slug summer-2026 \
+    [--actor-username <admin-or-LT-email>] \
+    [--dry-run]
+```
+
+- `--dry-run` reports the plan and writes nothing.
+- `--actor-username` is optional; when supplied, it must be the email of
+  a user with an active `admin` or `leadership_team` Membership in the
+  target org. Their Membership is stamped onto `created_by`.
+
+### What it creates
+
+12 `TemplateAssignment` rows — one per CLC 2026 template, all
+`target_type='role'`, `is_required=True`, `status='scheduled'`,
+`cadence_override=None` (so each template's own cadence applies —
+biweekly for Leadership Team, daily for the rest). Dates flow from the
+Program record.
+
+| Role | Template slug | Title |
+|---|---|---|
+| counselor | `clc-2026-counselor-daily` | Counselor daily bunk log |
+| junior_counselor | `clc-2026-junior-counselor-daily` | Junior counselor daily reflection |
+| general_counselor | `clc-2026-general-counselor-daily` | General counselor daily reflection |
+| specialist | `clc-2026-specialist-daily` | Specialist daily reflection |
+| unit_head | `clc-2026-unit-head-daily` | Unit head daily reflection |
+| leadership_team | `clc-2026-leadership-biweekly` | Leadership team check-in (biweekly) |
+| kitchen_staff | `clc-2026-kitchen-daily` | Kitchen staff daily reflection |
+| maintenance | `clc-2026-maintenance-daily` | Maintenance daily reflection |
+| housekeeping | `clc-2026-housekeeping-daily` | Housekeeping daily reflection |
+| camper_care | `clc-2026-camper-care-daily` | Camper care daily reflection |
+| health_center | `clc-2026-health-center-daily` | Health center daily reflection |
+| special_diets | `clc-2026-special-diets-daily` | Special diets daily reflection |
+
+There is no `admin` row — admin's surface is template oversight, not a
+templated reflection.
+
+### Idempotency contract
+
+Keyed on `(program, template, target_type='role', target_payload['role'])`
+restricted to `status IN ('scheduled', 'active')`.
+
+- Re-running with the same args reconciles `title` / `is_required` on the
+  matched row and never creates duplicates.
+- If only `ended` / `cancelled` rows exist for the key, the command logs
+  a warning and creates a fresh `scheduled` row alongside (does NOT
+  resurrect the old row).
+- The command refuses to run (`CommandError`) if any of the 12 templates
+  is missing — fix that by re-running `onboard_clc_summer_2026` first.
+
+### Verification on staging
+
+1. `python manage.py seed_summer_2026_assignments --org-slug clc --program-slug summer-2026`
+2. Confirm count:
+   ```bash
+   python manage.py shell -c "from bunk_logs.core.models import TemplateAssignment, Program; \
+     p = Program.all_objects.get(slug='summer-2026'); \
+     print(TemplateAssignment.all_objects.filter(program=p).count())"
+   ```
+   Expected: `12`.
+3. Log in as Alyson (or any LT user) and load each per-role dashboard:
+   counselor, junior counselor, general counselor, specialist, unit head,
+   leadership team, kitchen staff, maintenance, housekeeping, camper
+   care, health center, special diets. Each should show its resolved
+   template (no empty-state).
+
+### Final Wave 1 production deploy sequence
+
+Per `docs/wave_1_progress.md`, the cutover is:
+
+1. Deploy `7_20` + `7_21` + `7_22` together in one maintenance window
+   (suggested: evening of June 1 or 2).
+2. After deploy completes, run the seeding command on the production
+   backend (via Render shell):
+   ```bash
+   python manage.py seed_summer_2026_assignments \
+     --org-slug clc --program-slug summer-2026 \
+     --actor-username <alyson@clc.email>
+   ```
+3. Smoke-test as Alyson immediately.
+4. Watch Datadog APM for 24h for unexpected dashboard errors.
+
+### Rollback
+
+Forward fixes are preferred. If the seeded rows are wrong:
+
+- Mark the bad rows `status='cancelled'`, then re-run the seeder (it
+  creates fresh `scheduled` rows alongside).
+- Or revert `7_21` + `7_22` as a pair — the old hard-coded dashboards
+  return as a backstop.
