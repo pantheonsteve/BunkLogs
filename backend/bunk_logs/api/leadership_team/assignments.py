@@ -1,4 +1,4 @@
-"""LT Template Assignment API (Step 7_12 PR B — Story 52).
+"""LT Template Assignment API (Step 7_12 PR B — Story 52; extended Step 7_20).
 
 Endpoints under ``/api/v1/leadership-team/assignments/``:
 
@@ -9,6 +9,9 @@ Endpoints under ``/api/v1/leadership-team/assignments/``:
                         ``"run_both"`` / ``"cancel"``).
 * ``PATCH /<id>/``    — only ``end_date`` may be edited once any
                         Reflection responses exist (Story 52 c4/c9).
+                        ``is_required`` and ``title`` are also editable
+                        when no responses exist. ``assignment_group`` is
+                        immutable post-creation (use the replace flow).
 * ``DELETE /<id>/``   — cancel a *scheduled* assignment (never started).
 
 Also exposes a helper ``resolve_members(assignment, as_of_date)`` used
@@ -34,15 +37,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
 
-from .common import viewer_or_403
+from .common import assignment_viewer_or_403
 
 CONFLICT_CHOICES = ("replace", "run_both", "cancel")
-VALID_TARGET_TYPES = ("role", "individuals", "tag_group")
+VALID_TARGET_TYPES = ("role", "individuals", "tag_group", "assignment_group")
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +64,8 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
       Filtered to currently active so a deactivated member silently drops.
     * ``tag_group``: dynamic — Memberships whose ``tags`` JSON contains
       the given tag.
+    * ``assignment_group``: dynamic — Memberships whose role is in
+      template.author_role_filter AND who are active authors in the group.
     """
     payload = assignment.target_payload or {}
     base = Membership.all_objects.filter(
@@ -78,6 +85,19 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
         if not tag:
             return base.none()
         return base.filter(tags__contains=[tag])
+    if target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
+        group_id = assignment.assignment_group_id
+        if not group_id:
+            return base.none()
+        author_roles = assignment.template.author_role_filter or []
+        if not author_roles:
+            return base.none()
+        author_person_ids = AssignmentGroupMembership.all_objects.filter(
+            group_id=group_id,
+            role_in_group="author",
+            is_active=True,
+        ).values_list("person_id", flat=True)
+        return base.filter(person_id__in=author_person_ids, role__in=author_roles)
     return base.none()
 
 
@@ -93,6 +113,12 @@ def _serialize(assignment: TemplateAssignment) -> dict[str, Any]:
         "template_slug": assignment.template.slug if assignment.template_id else None,
         "target_type": assignment.target_type,
         "target_payload": assignment.target_payload or {},
+        "assignment_group": assignment.assignment_group_id,
+        "is_required": assignment.is_required,
+        "title": assignment.title or "",
+        "display_title": assignment.title or (
+            assignment.template.name if assignment.template_id else ""
+        ),
         "start_date": assignment.start_date.isoformat(),
         "end_date": assignment.end_date.isoformat() if assignment.end_date else None,
         "cadence_override": assignment.cadence_override,
@@ -122,6 +148,11 @@ def _validate_target(target_type: str, target_payload: dict) -> None:
     if target_type == "tag_group" and not target_payload.get("tag"):
         msg = "target_payload.tag is required for target_type='tag_group'."
         raise ValidationError(msg)
+    if target_type == "assignment_group":
+        # assignment_group_id comes via the dedicated FK column on the
+        # request body, not target_payload. Validation happens in the
+        # POST handler where we can check DB existence.
+        pass
 
 
 def _targets_equal(a: dict, b: dict) -> bool:
@@ -132,12 +163,13 @@ def _targets_equal(a: dict, b: dict) -> bool:
 def _find_conflicts(
     *, organization, template: ReflectionTemplate, target_type: str,
     target_payload: dict, start: date, end: date | None,
+    assignment_group_id: int | None = None,
 ):
     """Return queryset of overlapping assignments on (template, target).
 
     Two assignments conflict iff they share template + target_type +
-    target identifiers (role or tag) AND their date windows overlap.
-    Individuals targets are treated as never-overlapping conflicts
+    target identifiers (role, tag, or assignment_group) AND their date
+    windows overlap. Individuals targets are treated as never-overlapping
     (they're explicit per-membership picks).
     """
     if target_type == "individuals":
@@ -155,6 +187,8 @@ def _find_conflicts(
         qs = qs.filter(target_payload__role=target_payload.get("role"))
     elif target_type == "tag_group":
         qs = qs.filter(target_payload__tag=target_payload.get("tag"))
+    elif target_type == "assignment_group":
+        qs = qs.filter(assignment_group_id=assignment_group_id)
     end_filter = end or date.max
     return qs.filter(start_date__lte=end_filter).filter(
         Q(end_date__gte=start) | Q(end_date__isnull=True),
@@ -172,7 +206,7 @@ class LeadershipTeamAssignmentListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = assignment_viewer_or_403(request)
         qs = (
             TemplateAssignment.objects
             .filter(organization=ctx.organization)
@@ -185,7 +219,7 @@ class LeadershipTeamAssignmentListCreateView(APIView):
         return Response({"assignments": [_serialize(a) for a in qs[:200]]})
 
     def post(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = assignment_viewer_or_403(request)
         payload = dict(request.data) if isinstance(request.data, dict) else {}
 
         template_id = payload.get("template")
@@ -214,6 +248,27 @@ class LeadershipTeamAssignmentListCreateView(APIView):
             raise ValidationError(msg)
         _validate_target(target_type, target_payload)
 
+        # New fields (Step 7_20).
+        assignment_group_id = payload.get("assignment_group")
+        is_required = payload.get("is_required", True)
+        title = (payload.get("title") or "").strip()
+
+        group: AssignmentGroup | None = None
+        if target_type == "assignment_group":
+            if not assignment_group_id:
+                msg = "assignment_group is required when target_type='assignment_group'."
+                raise ValidationError(msg)
+            try:
+                group = AssignmentGroup.objects.get(
+                    pk=assignment_group_id, program=ctx.program,
+                )
+            except AssignmentGroup.DoesNotExist as exc:
+                msg = "AssignmentGroup not found."
+                raise NotFound(msg) from exc
+        elif assignment_group_id:
+            msg = "assignment_group can only be set when target_type='assignment_group'."
+            raise ValidationError(msg)
+
         start = parse_date(payload.get("start_date") or "")
         if start is None:
             msg = "start_date is required (YYYY-MM-DD)."
@@ -231,6 +286,7 @@ class LeadershipTeamAssignmentListCreateView(APIView):
             target_payload=target_payload,
             start=start,
             end=end,
+            assignment_group_id=assignment_group_id,
         ))
         conflict_resolution = (payload.get("conflict_resolution") or "").lower()
         if conflicts and conflict_resolution not in CONFLICT_CHOICES:
@@ -255,6 +311,9 @@ class LeadershipTeamAssignmentListCreateView(APIView):
                 template=template,
                 target_type=target_type,
                 target_payload=target_payload,
+                assignment_group=group,
+                is_required=is_required,
+                title=title,
                 start_date=start,
                 end_date=end,
                 cadence_override=payload.get("cadence_override") or None,
@@ -262,7 +321,6 @@ class LeadershipTeamAssignmentListCreateView(APIView):
                 created_by=ctx.membership,
             )
             if conflict_resolution == "replace" and conflicts:
-                # End the prior assignment(s) the day before start.
                 stop = start - timedelta(days=1)
                 for prior in conflicts:
                     prior.end_date = stop
@@ -287,15 +345,18 @@ class LeadershipTeamAssignmentListCreateView(APIView):
 
 
 class LeadershipTeamAssignmentDetailView(APIView):
-    """``PATCH /<id>/`` — edit end_date (only field editable once responses exist).
+    """``PATCH /<id>/`` — edit allowed fields; ``DELETE /<id>/`` cancels scheduled.
 
-    ``DELETE /<id>/`` cancels a scheduled assignment.
+    Always editable: ``end_date``.
+    Editable only when no responses exist: ``cadence_override``,
+    ``target_payload``, ``is_required``, ``title``.
+    Immutable post-creation: ``assignment_group`` (use the replace flow).
     """
 
     permission_classes = [IsAuthenticated]
 
     def _get(self, request, pk: int) -> TemplateAssignment:
-        ctx = viewer_or_403(request)
+        ctx = assignment_viewer_or_403(request)
         try:
             return TemplateAssignment.objects.select_related("template").get(
                 organization=ctx.organization, pk=pk,
@@ -312,8 +373,14 @@ class LeadershipTeamAssignmentDetailView(APIView):
             period_start__gte=assignment.start_date,
         ).exists()
 
+        if "assignment_group" in payload:
+            msg = (
+                "assignment_group is immutable post-creation. "
+                "Use conflict_resolution='replace' to create a new assignment."
+            )
+            raise ValidationError(msg)
+
         if has_responses:
-            # Only end_date may be edited once responses exist.
             editable = {"end_date"}
             disallowed = set(payload.keys()) - editable
             if disallowed:
@@ -337,6 +404,10 @@ class LeadershipTeamAssignmentDetailView(APIView):
             for k in ("cadence_override", "target_payload"):
                 if k in payload:
                     setattr(assignment, k, payload[k])
+            if "is_required" in payload:
+                assignment.is_required = bool(payload["is_required"])
+            if "title" in payload:
+                assignment.title = (payload["title"] or "").strip()
         assignment.save()
 
         audit.edited(
