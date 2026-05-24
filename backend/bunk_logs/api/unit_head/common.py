@@ -19,14 +19,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from bunk_logs.api.counselor.common import _resolve_template
 from bunk_logs.api.counselor.common import enforce_edit_window
 from bunk_logs.api.counselor.common import is_day_off_answer
 from bunk_logs.api.counselor.common import is_editable_today
 from bunk_logs.api.counselor.common import off_camp_camper_ids
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -179,23 +178,27 @@ def bunk_camper_ids(bunk: AssignmentGroup) -> list[int]:
 
 
 def unit_head_self_template(
-    organization: Organization, program: Program,
+    organization: Organization,
+    program: Program,
+    *,
+    viewer: Person | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
     """Daily self-reflection template for the UH role.
 
-    Same org-shadows-global resolver used by the counselor self
-    template. We look up by ``role='unit_head'`` OR
-    ``author_role_filter`` containing ``'unit_head'`` so a customer can
-    ship a single template targeting multiple supervisor roles by
-    listing them in ``author_role_filter``.
+    Resolves via :func:`resolve_template_for` (Step 7_21): returns the
+    template bound by an active ``TemplateAssignment`` for the
+    (org, program, ``unit_head``, ``self``, ``daily``) tuple, or
+    ``None`` when no assignment is active.
     """
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="unit_head") | Q(author_role_filter__contains=["unit_head"]),
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="unit_head",
         subject_mode="self",
         cadence="daily",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
+        viewer=viewer,
     )
 
 
