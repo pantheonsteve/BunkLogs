@@ -20,13 +20,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from bunk_logs.api.counselor.common import _resolve_template
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
-from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_today
 
@@ -36,6 +34,7 @@ if TYPE_CHECKING:
     from bunk_logs.core.models import Organization
     from bunk_logs.core.models import Program
     from bunk_logs.core.models import Reflection
+    from bunk_logs.core.models import ReflectionTemplate
 
 
 __all__ = [
@@ -95,15 +94,25 @@ def viewer_or_403(request) -> ViewerContext:
 def madrich_template(
     organization: Organization,
     program: Program,
+    *,
+    viewer: Person | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
-    """Active weekly madrich self-reflection template for the program."""
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="madrich") | Q(author_role_filter__contains=["madrich"]),
+    """Active weekly madrich self-reflection template for the program.
+
+    Resolves via :func:`resolve_template_for` (Step 7_21): returns the
+    template bound by an active ``TemplateAssignment`` for the
+    (org, program, ``madrich``, ``self``, ``weekly``) tuple, or
+    ``None`` when no assignment is active.
+    """
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="madrich",
         subject_mode="self",
         cadence="weekly",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
+        viewer=viewer,
     )
 
 
