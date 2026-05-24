@@ -48,12 +48,12 @@
 
 ### Step 7_21 — Per-role dashboard refactor
 
-**Status:** 👀 In review
-**Branch:** `step/7_21_dashboard_template_resolution`
-**PR:** _(open after push)_
+**Status:** ✅ Merged to main
+**Branch:** `step/7_21_dashboard_template_resolution` (merged)
+**PR:** https://github.com/pantheonsteve/BunkLogs/pull/119
 **Estimated:** 4–6 hours
 **Actual:** ~3 hours
-**Depends on:** 7_20 merged
+**Depends on:** 7_20 merged ✅
 
 **Scope reminder:** Create `core/assignment_resolution.py` shared resolver. Refactor 8 per-role `common.py` files to use it. One commit per role. Update existing tests to create TemplateAssignment rows.
 
@@ -66,29 +66,54 @@
 - ✅ unit_head
 - ✅ camper_care
 - ✅ leadership_team
-- ➖ admin_flow — no template helper to refactor; admin's template surface is oversight (`templates.py`, `dashboard.py::_pending_template_review_count`), not resolution
+- ➖ admin_flow — intentionally skipped: admin's template surface is oversight (`templates.py`, `dashboard.py::_pending_template_review_count`), not resolution. No helper to refactor. Confirmed by Steve.
+
+**Verified post-merge (2026-05-24):**
+- `core/assignment_resolution.py` exists with `resolve_template_for`, `resolve_members`, `active_assignments_for`, `list_required_assignments_for`, `list_optional_assignments_for` ✅
+- Org-shadows-global priority encoded via `Case`/`When` annotation ✅
+- Group-specific over program-wide fallback handled ✅
+- `cadence_override` properly checked with null/empty-string fallbacks ✅
+- `scheduled` rows with passed `start_date` treated as live ✅
+- `_viewer_in_audience` handles all 4 target types correctly ✅
+- `resolve_members` moved to core and re-exported from `api/leadership_team/assignments.py` for backward compat ✅
+- Counselor `camper_reflection_template` delegates with `assignment_group=bunk` for group-specific resolution ✅
+- Counselor `counselor_self_template` iterates viewer's roles (handles junior_counselor case) ✅
+- Kitchen staff `kitchen_staff_template` delegates with `role='kitchen_staff'`, `subject_mode='self'`, `cadence='daily'` ✅
+- Old `_resolve_template` helper retained for tests/management commands; not called from any API code ✅
+- Backend test suite: 1135 passing. One pre-existing unrelated failure (PeriodicTask seed in test_translation — not caused by this refactor) ✅
+
+**Production deploy note:**
+- Dashboards will return `no_template` empty state in prod until 7_22 seeds TemplateAssignment rows. Do NOT deploy 7_21 standalone — coordinate with 7_22.
 
 **Notes / blockers:**
 
-- Backend test suite passes 1135 tests after refactor + fixture updates. One pre-existing failure in `core/test_translation::TestBeatRegistration::test_migration_installs_the_periodic_task_row` is unrelated (PeriodicTask seed missing in test DB).
-- Production note: dashboards will return `no_template` empty state in prod until 7_22 seeds TemplateAssignment rows. Do NOT deploy 7_21 standalone — coordinate with 7_22.
+- None.
 
 ---
 
 ### Step 7_22 — Seed Summer 2026 TemplateAssignments
 
-**Status:** ⬜ Not started
-**Branch:** _(not yet)_
+**Status:** 🔄 In progress (pre-flight complete, branch not yet open)
+**Branch:** _(open as `step/7_22_seed_summer_2026_assignments` when starting Cursor session)_
 **PR:** _(not yet)_
 **Estimated:** 2–4 hours
 **Actual:** _(record when done)_
-**Depends on:** 7_21 merged
+**Depends on:** 7_21 merged ✅
 
 **Scope reminder:** Idempotent management command `seed_summer_2026_assignments`. Verify the canonical assignment list against actual seeded templates before running.
 
+**Pre-flight findings (2026-05-24):**
+- Org slug is `clc` (not `crane-lake-camp` as initial prompt assumed). Program slug is `summer-2026`.
+- Template manifest is at `bunk_logs/core/management/commands/onboard_clc_summer_2026.py::TEMPLATE_MANIFEST`. Templates live in `templates/reflection_templates/clc_2026/` with slugs prefixed `clc-2026-*`.
+- Leadership team template is **biweekly**, not daily (`cadence='biweekly'`).
+- No `admin` template exists in the manifest — admin's surface is template oversight, not template resolution. **No admin assignment row needed.**
+- **UH template gap found AND fixed.** Story 16 specifies UH self-reflection as a launch requirement, but no UH template existed. Created `templates/reflection_templates/clc_2026/unit_head.json` with placeholder copy matching the other 11 templates, and added the manifest entry to `onboard_clc_summer_2026.py`. Brent will replace placeholder copy before launch.
+- **Result: 12 assignment rows to create**, one per CLC 2026 template, all `target_type='role'`, all `is_required=True`, no `cadence_override`.
+- Prompt `7_22_seed_summer_2026_assignments.md` updated with the corrected slug list and pre-flight findings.
+
 **Notes / blockers:**
 
-- _Add as you encounter them_
+- _Add as you encounter them during execution._
 
 ---
 

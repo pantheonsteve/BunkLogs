@@ -21,7 +21,7 @@ Steps
 -----
 1. setup_crane_lake    — org (slug=clc) + Summer 2026 program
 2. seed_field_keys     — canonical FieldKey registry
-3. seed_role_template  — all 11 CLC 2026 role templates
+3. seed_role_template  — all 12 CLC 2026 role templates
 4. import_campminder_staff — Person/Membership rows from CSV (optional)
 5. Verification report — counts for each model
 """
@@ -53,6 +53,7 @@ TEMPLATE_MANIFEST: list[dict[str, str]] = [
     {"role": "junior_counselor",  "file": f"{_TPL_BASE}/junior_counselor.json"},
     {"role": "specialist",        "file": f"{_TPL_BASE}/specialist.json"},
     {"role": "general_counselor", "file": f"{_TPL_BASE}/general_counselor.json"},
+    {"role": "unit_head",         "file": f"{_TPL_BASE}/unit_head.json"},
     {"role": "leadership_team",   "file": f"{_TPL_BASE}/leadership_team.json"},
     {"role": "kitchen_staff",     "file": f"{_TPL_BASE}/kitchen_staff.json"},
     {"role": "maintenance",       "file": f"{_TPL_BASE}/maintenance.json"},
