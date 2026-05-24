@@ -15,115 +15,177 @@ BunkLogs today has nine fully-tightened role flows, each with its own hard-coded
 
 ## 2. What already exists (gap analysis)
 
-A surprising amount of the form-orchestration substrate is already shipped or specified. The reframe is **less invasive than it looks** because of this.
+**Updated 2026-05-24 after codebase audit.** The original draft of this section underestimated how much form-orchestration substrate is already shipped. The single biggest finding: `TemplateAssignment` already exists as a Django model with a full API surface. What §3 of the original draft called "FormAssignment" is mostly an extension of `TemplateAssignment`, not a new model. This section is updated to reflect that.
 
-### 2.1 Already shipped or specified
+### 2.1 Already shipped
 
 | Capability | Where it lives | Notes |
 |---|---|---|
-| Template versioning & lifecycle | `ReflectionTemplate.version`, draft → published → archived (`docs/template_builder.md`) | Clone, fork-on-edit, language gap checks all working |
-| Template builder UX (LT-scoped) | `frontend/src/pages/leadership-team/...`, prompt `7_12` | The "Save as Form" UX has a real foundation to build on |
-| Author/subject role filtering on templates | `ReflectionTemplate.author_role_filter`, `subject_role_filter` (`docs/data-model.md`) | Already declares who fills it out and who it's about |
-| Group-based subject scoping | `AssignmentGroup` + `AssignmentGroupMembership` | Bunk/unit/caseload/cohort all already modeled |
-| `subject_mode` field | `ReflectionTemplate.subject_mode` (`self`, `single_subject`, `multi_subject`, `group`) | The four shapes of "about whom" are already declared |
-| `assignment_scope` field | `ReflectionTemplate.assignment_scope` | "One per subject in group" vs. "one per group" vs. "no group context" already modeled |
-| `required_per_subject_per_period` | On `ReflectionTemplate` | "Required" is already a numeric field per template |
-| Per-template "team_visibility" axis | `Reflection.team_visibility` + `ReflectionTemplate.supports_privacy` | The privacy toggle exists and is tested |
-| RBAC two-axis design | `Membership.role` × `Membership.capability` (`docs/membership-role-vs-capability.md`) | Permission checks are stable; new role labels do not touch permission code |
-| Per-role visibility paths | `core.permissions.visibility.reflections_visible_to` | The six visibility paths are settled |
-| Task derivation foundation | The `my-tasks` endpoint from prompt `3_19` | Already produces "what does this user owe today" from template + role + group context |
-| Notes platform | Stories 66–70 + prompt `7_19` (in progress) | The communication primitive the landing pages will lean on |
+| `TemplateAssignment` model | `core.models.TemplateAssignment` | Has template FK, target_type (role/individuals/tag_group), target_payload (JSON), start_date, end_date, cadence_override, status (scheduled/active/ended/cancelled), replaces (chain), created_by. OrgScopedManager. |
+| Assignment CRUD API | `api/leadership_team/assignments.py` | POST creates with conflict detection (replace/run_both/cancel); PATCH edits end_date safely; DELETE cancels scheduled. Audit-logged. |
+| `resolve_members(assignment, as_of_date)` helper | same file | Materialises an assignment into a queryset of Memberships per its target_type. |
+| Conflict resolution (FA3's pattern) | same file | End-date prior + create new + chain via `replaces` FK. Already implemented. |
+| Template versioning & lifecycle | `ReflectionTemplate.version` + status enum | Draft → published → archived. Clone, fork-on-edit, language gap checks all working. |
+| Template builder UX (LT-scoped) | `frontend/src/pages/leadership-team/...`, prompt `7_12` | Mature; FA-E will extend this with an "Assign form" dialog. |
+| Author/subject role filtering on templates | `ReflectionTemplate.author_role_filter`, `subject_role_filter` | Already declares who fills it out and who it's about. |
+| Group-based subject scoping | `AssignmentGroup` + `AssignmentGroupMembership` | Bunk/unit/caseload/cohort all already modeled. |
+| `subject_mode` field | `ReflectionTemplate.subject_mode` (`self`, `single_subject`, `multi_subject`, `group`) | The four shapes of "about whom" are already declared. |
+| `assignment_scope` field | `ReflectionTemplate.assignment_scope` | "One per subject in group" vs. "one per group" vs. "no group context" already modeled. |
+| `required_per_subject_per_period` | On `ReflectionTemplate` | Per-template numeric required-ness. |
+| `Reflection.team_visibility` axis | + `ReflectionTemplate.supports_privacy` | Privacy toggle exists and is tested. |
+| RBAC two-axis design | `Membership.role` × `Membership.capability` | Settled; permission checks stable. |
+| Per-role visibility paths | `core.permissions.visibility.reflections_visible_to` | Six visibility paths settled. |
+| Per-role dashboard endpoints | `api/{counselor,unit_head,specialist,camper_care,leadership_team,kitchen_staff,madrich,admin_flow}/dashboard.py` + companion `bunk_dashboard.py`, `camper_dashboard.py`, `team_dashboard.py` | **Each one hard-codes its template lookups via per-role helpers in `common.py`.** This is the main surface area FA-B has to refactor. |
+| Notes module spec | `docs/user_stories/10_notes_platform/` + `migration_prompts/7_19_notes_platform.md` | Designed, not yet implemented. |
 
-### 2.2 What is genuinely new in the reframe
+### 2.2 What is genuinely new for the reframe
 
 | Missing piece | Why it's needed | Rough size |
 |---|---|---|
-| **Explicit `FormAssignment` model** | Today, a template implicitly applies to every Membership matching its `author_role_filter` in every Program where it's seeded. There is no per-Program-and-AssignmentGroup-level *assignment* row that says "this published template is in effect for Bunk Maple starting June 5, daily, required." This makes it impossible to toggle a template on for one group but not another, or to change cadence without versioning the template. | Medium |
-| **Cadence semantics beyond per-period** | `required_per_subject_per_period` knows "daily" implicitly. The reframe wants `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `annual`, `one_time`, `custom`. The cadence affects how task-completion windows are derived. | Medium |
-| **"Save as Form" assignment dialog in builder** | The current builder publishes a template; it does not let the LT user say "now assign this to Bunk Maple, weekly, required, starting June 12." That step happens implicitly today. | Small-Medium |
+| **`assignment_group` FK on `TemplateAssignment`** | Today TemplateAssignment targets role, specific individuals, or a tag group — but cannot target "every counselor on Bunk Maple". FA1 requires per-group assignment. Solved by adding a nullable `assignment_group` FK that, when set, narrows the resolved audience to Memberships within that group. | Small |
+| **`is_required` flag on `TemplateAssignment`** | Today every assignment is implicitly required. FA5 separates required (tasks) from optional (form library). Solved by adding a boolean. | Trivial |
+| **`title` field on `TemplateAssignment`** | FA1 specifies a per-assignment display title for dashboard widgets, distinct from `template.name`. Today the dashboard label is derived from the template, which forces a new template version when the LT user just wants a different label. | Small |
+| **Per-role dashboard refactor** | The hard-coded template resolvers in each role's `common.py` (e.g., `camper_reflection_template()`, `counselor_self_template()`) need to consult `TemplateAssignment` rows instead of querying `ReflectionTemplate` directly. This is the main work of Wave 1. | Medium |
+| **`assignment_group` resolution in `resolve_members`** | The existing helper handles role/individuals/tag_group targets. It needs a new branch for the `assignment_group` case (resolve to Memberships whose role matches the template's `author_role_filter` AND who are active in the group). | Small |
+| **Admin capability gate on assignment endpoints** | Today the assignments API restricts mutation to `program_lead` capability. FA7 widens that to `program_lead OR admin`. | Trivial |
+| **Seeding for Summer 2026** | TemplateAssignment rows for Crane Lake Summer 2026 don't exist yet because the per-role dashboards haven't been reading from them. The seeding command creates these as part of FA-S. | Small |
+| **"Assign form" dialog in builder UX** | Today the assignments API exists but the LT template builder UX does not surface an assignment step. FA1's flow (publish template → click "Assign form" → dialog with group, title, cadence, required, dates) needs a new UI surface. | Medium-Large |
 | **Numeric color-coded tabular display** | The platform has individual `TrendCell` and grids for rating-group data, but no general "render any numeric form responses as a color-coded sortable table" component scoped to a subject. | Medium |
-| **Subject landing page (the form-aware profile view)** | Camper profiles exist; counselor/UH/maintenance profile pages exist as concepts. None of them currently aggregate "every form ever filled out about this subject" as their organizing principle. | Medium-Large |
-| **Generalized dashboard widget framework** | Today, role dashboards are hand-coded. The reframe wants role landing pages assembled from configurable widgets driven by which assignments target which roles. | Medium |
-| **Author-side "tasks for me, grouped by assignment" widgets** | The my-tasks endpoint already returns this data; the dashboard widget that renders it with the gauge ("7/12 done") and the per-row completion state ("pale green" / "dark yellow") does not yet exist as a reusable component. | Small-Medium |
+| **Palette library** | FA4 specifies a library of named palettes per scale length. None exists today. | Small-Medium |
+| **Subject landing page (form-aware profile view)** | Camper profiles exist; the form-aware aggregation per FA6 ("every form ever filled out about this subject") is new. | Medium-Large |
+| **Author-side "tasks for me, grouped by assignment" widgets** | Existing dashboard rendering is per-role and ad-hoc. The reframe wants a unified widget framework driven by assignments. | Medium-Large |
 
 ---
 
 ## 3. The proposed data model addition
 
-### 3.1 `FormAssignment` — the new model
+**Updated 2026-05-24.** The original draft proposed a new `FormAssignment` model. The codebase audit revealed `TemplateAssignment` already exists with most of the needed shape. This section now describes the **extension** of `TemplateAssignment` rather than a new model.
 
-The single new concept the reframe needs.
+### 3.1 Three small additions to `TemplateAssignment`
 
 ```python
-class FormAssignment(models.Model):
-    # Identity
-    organization = FK(Organization)
-    program = FK(Program)
-    template = FK(ReflectionTemplate)  # MUST be a published template
-    
-    # Scope: which assignment group(s) this applies to
-    # null = applies program-wide to every eligible Membership
-    assignment_group = FK(AssignmentGroup, null=True)
-    
-    # Cadence
-    cadence = CharField(choices=[
-        'one_time',
-        'daily',
-        'weekly',
-        'biweekly',
-        'monthly',
-        'quarterly',
-        'annual',
-        'custom',  # custom uses cadence_spec JSON
+class TemplateAssignment(models.Model):
+    # === EXISTING (unchanged) ===
+    organization = ForeignKey(Organization)
+    program = ForeignKey(Program)
+    template = ForeignKey(ReflectionTemplate)
+    target_type = CharField(choices=[
+        ('role', 'Role (dynamic)'),
+        ('individuals', 'Individual memberships (static)'),
+        ('tag_group', 'Tag group (dynamic)'),
+        ('assignment_group', 'Assignment group (dynamic)'),  # NEW
     ])
-    cadence_spec = JSONField(default=dict)  # e.g. {"days_of_week": ["sun", "wed"]} for custom
-    
-    # Lifecycle
-    starts_on = DateField()
-    ends_on = DateField(null=True)  # null = open-ended (program lifetime)
-    is_required = BooleanField(default=True)
-    is_active = BooleanField(default=True)
-    
-    # Audit
-    assigned_by = FK(Person)
-    assigned_at = DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        constraints = [
-            # A template can be assigned to the same group with the same cadence only once active at a time
-            UniqueConstraint(
-                fields=['template', 'assignment_group', 'cadence'],
-                condition=Q(is_active=True),
-                name='unique_active_assignment',
-            ),
-        ]
+    target_payload = JSONField()
+    start_date = DateField()
+    end_date = DateField(null=True)
+    cadence_override = CharField(null=True)
+    replaces = ForeignKey('self', null=True)
+    status = CharField(choices=Status.choices)
+    created_by = ForeignKey(Membership)
+    created_at = DateTimeField(auto_now_add=True)
+    updated_at = DateTimeField(auto_now=True)
+
+    # === NEW ===
+    assignment_group = ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=CASCADE,
+        help_text=(
+            "When target_type='assignment_group', the group this assignment "
+            "targets. Memberships are resolved to those whose role matches "
+            "the template's author_role_filter AND who hold an active "
+            "AssignmentGroupMembership in this group with role_in_group='author'."
+        ),
+    )
+    is_required = BooleanField(
+        default=True,
+        help_text=(
+            "When True, the assignment produces tasks in the per-role "
+            "dashboards. When False, it appears in the role's optional "
+            "forms library and does NOT affect the 'all set' state."
+        ),
+    )
+    title = CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text=(
+            "Per-assignment display title for dashboard widgets. "
+            "Falls back to template.name when blank."
+        ),
+    )
 ```
 
-### 3.2 What this *doesn't* change
+### 3.2 What `target_type='assignment_group'` resolves to
 
-Critically, `FormAssignment` is **additive**:
+The existing `resolve_members(assignment, as_of)` helper in `api/leadership_team/assignments.py` gains a new branch:
+
+```python
+if target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
+    group_id = (assignment.assignment_group_id or
+                (assignment.target_payload or {}).get('assignment_group_id'))
+    if not group_id:
+        return base.none()
+    # Resolve to Memberships whose role matches the template's author_role_filter
+    # AND who are active in the group as authors.
+    author_roles = assignment.template.author_role_filter or []
+    if not author_roles:
+        return base.none()
+    author_person_ids = AssignmentGroupMembership.objects.filter(
+        group_id=group_id,
+        role_in_group='author',
+        is_active=True,
+    ).values_list('person_id', flat=True)
+    return base.filter(person_id__in=author_person_ids, role__in=author_roles)
+```
+
+Note: `assignment_group_id` is stored on the FK column, not in `target_payload`, even though the existing `role` and `tag_group` types use the payload. This is an intentional break from the existing pattern — a foreign key with a database-level constraint is cleaner than a JSON-encoded ID, and the migration path is straightforward.
+
+### 3.3 What this *doesn't* change
+
+Critically, the extension is **additive**:
 
 - `ReflectionTemplate` schema is untouched. All existing template-builder, versioning, and language-gap logic continues to work.
 - `Reflection` is untouched. Submitted reflections continue to reference `template_id` directly.
 - The capability/role model is untouched.
 - The visibility model is untouched.
 - The Notes module (prompt `7_19`) is untouched.
+- The existing `target_type` values (role, individuals, tag_group) continue to work exactly as today. Existing seeded data, if any, remains valid.
 
-### 3.3 How task derivation changes
+### 3.4 How task derivation changes
 
-Today the `my-tasks` endpoint joins `Membership` × `ReflectionTemplate` (via role filters) × `AssignmentGroup` to derive what a user owes. After the reframe it joins `Membership` × `FormAssignment` × `ReflectionTemplate`:
+Today each role's `common.py` has helpers like `camper_reflection_template()` that query `ReflectionTemplate` directly with hard-coded filters. After Wave 1, those helpers consult `TemplateAssignment` rows instead:
 
-- The same Membership × group context defines who the user is and what subjects they have access to.
-- The `FormAssignment` rows define **which templates are in effect** for those groups, **at what cadence**, **with what required-ness**.
-- Cadence drives the completion window for each task ("today" for daily, "this week ending Sunday" for weekly, etc.).
+```python
+# BEFORE: hard-coded template lookup
+def camper_reflection_template(organization, program):
+    return ReflectionTemplate.all_objects.filter(
+        subject_mode='single_subject',
+        cadence='daily',
+        assignment_group_types__contains=['bunk'],
+    ).first()
 
-### 3.4 Backfill story
+# AFTER: assignment-driven lookup
+def camper_reflection_template_for_bunk(viewer, organization, program, bunk):
+    # Find the active TemplateAssignment targeting this bunk + viewer's role
+    # that produces a single_subject template; return its template.
+    assignment = resolve_active_assignment(
+        program=program,
+        target_assignment_group=bunk,
+        viewer_role='counselor',
+        as_of=get_today(organization),
+    )
+    return assignment.template if assignment else None
+```
 
-Every existing implicit "template X is in effect for Bunk Maple" becomes an explicit `FormAssignment` row. The backfill is a one-time data migration:
+The key point: **the dashboard endpoints' API contracts don't change**. They still return the same shape of payload. Only the internal resolution logic changes.
 
-- For each combination of `(Program, ReflectionTemplate, AssignmentGroup)` that the current task-derivation logic produces tasks for, write a `FormAssignment` row with `cadence` inferred from `required_per_subject_per_period` and `starts_on` = the Program's start date.
-- After the migration, the task-derivation logic is rewritten to read from `FormAssignment` directly. The two implementations must agree on every test fixture before the old logic is removed.
-- This means **the reframe is shipped in two phases** (write the new substrate, then cut over). It is never in a state where both paths are computing simultaneously and conflicting.
+### 3.5 No backfill (per FA10(a))
+
+Under the aggressive rollout, there is no live data to migrate. The Summer 2026 launch is the *first* time the new task derivation runs against real users. Seeding (FA-S) creates the TemplateAssignment rows that the new dashboards need, in the same release that ships the dashboards' new resolution logic.
+
+If the existing per-role dashboard logic is producing tasks today (against seeded test data on staging), that test data will produce no tasks after FA-B ships until FA-S seeds the assignments. This is expected and is part of the cutover.
 
 ---
 
@@ -235,8 +297,8 @@ FA10's resolution is the single decision with the largest impact on the rest of 
 1. **The reframe is no longer a "post-Summer-2026" arc.** It's on the June 5 critical path.
 2. **There is no backfill step.** Existing seeded test data on the new architecture is overwritten as part of the cutover. No live production data exists on the new architecture yet (per Steve's reasoning: RBAC still under test with seeded data).
 3. **Existing canonical user stories (Stories 2, 3, 5, 9, UH attention badges, etc.) must be re-verified against the new substrate before June 5.** Most will likely pass without code change; this is a re-verification pass, not a rewrite pass.
-4. **The work that was sequenced as FA-C (backfill data migration) drops out entirely.** FA-A, FA-B, FA-D collapse into a tighter 3-prompt block that must ship before Summer 2026 staff onboarding.
-5. **Zero schedule slack.** See §7 risk section below.
+4. **Wave 1 is FA-A, FA-B, FA-S** — three prompts totaling 9–15 hours (revised after codebase audit revealed `TemplateAssignment` already exists with most of the needed shape).
+5. **The pre-June-5 budget has real slack now.** 9–15 hours fits comfortably in 20–30 hours of available time. See §7 risk section for what could still go wrong.
 
 ## 7. Proposed sequencing — REVISED FOR FA10(a)
 
@@ -244,24 +306,24 @@ Under FA10(a), the FormAssignment substrate must ship before June 5, 2026 staff 
 
 ### Wave 1: Pre-June-5 critical path (MUST ship)
 
-The minimum substrate that lets the new role flows launch on FormAssignment from day one. Three prompts, tight.
+**Resized 2026-05-24 after codebase audit revealed `TemplateAssignment` already exists.** Wave 1 is now substantially smaller than the original estimate — the model exists, the CRUD API exists, the conflict-resolution pattern exists. What remains is extending the model with three fields, refactoring the per-role dashboard helpers, and seeding rows for Summer 2026.
 
 | # | Prompt | Goal | Size |
 |---|---|---|---|
-| FA-A | **`FormAssignment` model and backend** | New model, migration, admin registration, CRUD API endpoints scoped per FA7 permissions, tests. Replaces the old implicit task-derivation logic at the data layer. | 5–7 hrs |
-| FA-B | **Task derivation rewrite (direct cutover, no shadow mode)** | Rewrite `my-tasks` endpoint to compute from FormAssignment rows. Remove the implicit-template-applicability code path in the same release. Updated tests. | 6–9 hrs |
-| FA-S | **Seeding for Summer 2026** | Create the `FormAssignment` rows needed for Crane Lake Summer 2026: the camper bunk log, the counselor self-reflection, the UH reflections, the wellness team reflections, and any other currently-implicit assignments. Idempotent management command. Run on staging, verify with Alyson, then production. | 3–5 hrs |
-| | **Wave 1 total** | | **14–21 hrs** |
+| FA-A | **Extend `TemplateAssignment` and `resolve_members`** | Add `assignment_group` FK, `is_required` flag, `title` field. Add `'assignment_group'` to `target_type` choices. Migration. Extend `resolve_members(assignment, as_of)` with the new branch. Widen the assignments API permission gate from `program_lead` to `program_lead OR admin` (FA7). Tests. | 3–5 hrs |
+| FA-B | **Per-role dashboard refactor** | Replace hard-coded template resolvers in each role's `common.py` with TemplateAssignment-aware lookups. Roles in scope: counselor, unit_head, specialist, camper_care, leadership_team, kitchen_staff, madrich, admin_flow. Each role's dashboard endpoint payload contract stays identical; only internal resolution changes. Updated tests. | 4–6 hrs |
+| FA-S | **Seed TemplateAssignments for Summer 2026** | Idempotent management command that creates the assignment rows Crane Lake Summer 2026 needs: camper bunk log, counselor self-reflection, UH reflections, wellness team reflections, kitchen staff reflections, and any others currently produced by the implicit derivation. Run on staging, verify with Alyson, then production. | 2–4 hrs |
+| | **Wave 1 total** | | **9–15 hrs** |
 
 ### Wave 1 risk surface
 
-Not honest about this would be malpractice. FA10(a) carries real risk:
+Not honest about this would be malpractice. Even with the smaller-than-expected scope, FA10(a) carries real risk:
 
-1. **Zero schedule slack.** 14–21 hours fits in the 20–30 hours of BunkLogs time available between now (May 24) and June 5, but it leaves no buffer for Summer 2026 final QA, Alyson handoff, staff onboarding rehearsal, or runbook execution — all of which are non-negotiable for go-live.
-2. **Existing canonical user stories must be re-verified.** Stories 2, 3, 5, 9, the UH attention-badges story, etc. are written against the implicit-template-applicability model. After Wave 1 lands, each canonical story's acceptance criteria need a pass-through verification: do they still hold on the new substrate? Estimated 3–5 hours of careful reading and test execution. **This time is not in the 14–21 hour estimate above.**
-3. **No live customers yet on the new architecture.** This is what makes FA10(a) viable. But it also means if Wave 1 ships broken, you find out during Crane Lake staff onboarding, not before. There's no "is it working in production?" signal until the very moment it has to work.
-4. **Rollback plan needed.** If Wave 1 ships broken and is detected pre-go-live, the rollback path is: revert the migration, restore the implicit-derivation code, re-seed templates as before. Cost: a day. Plan for it explicitly.
-5. **Helena's buy-in is the single biggest external constraint.** Per the financial model, every other variable can flex but family time cannot. If Wave 1 work creeps past 21 hours, the right move is to descope back to FA10(b) — not push through.
+1. **Eight per-role dashboard files to refactor.** The work is mechanical but the surface area is wide. A subtle bug in one role's resolver could break that role's dashboard silently. Mitigation: each role gets its own commit within FA-B with its own tests passing.
+2. **Existing canonical user stories must be re-verified.** Stories 2, 3, 5, 9, the UH attention-badges story, etc. are written against the implicit-template-applicability model. After Wave 1 lands, each canonical story's acceptance criteria need a pass-through verification: do they still hold on the new substrate? Estimated 3–5 hours of careful reading and test execution. **This time is not in the 9–15 hour estimate above.**
+3. **No live customers yet on the new architecture.** This is what makes FA10(a) viable. But it also means if Wave 1 ships broken, you find out during Crane Lake staff onboarding, not before. There's no "is it working in production?" signal until the very moment it has to work. Mitigation: thorough staging verification with Alyson before deploying to production.
+4. **Rollback plan needed.** If Wave 1 ships broken and is detected pre-go-live, the rollback path is: revert the migration, revert the dashboard refactor commits, leave the implicit-derivation code intact. Cost: a few hours. Plan for it explicitly.
+5. **Helena's buy-in is the single biggest external constraint.** Per the financial model, every other variable can flex but family time cannot. With the smaller Wave 1 scope this is less of an immediate risk, but still applies if the work expands during execution.
 
 ### Wave 1 acceptance criteria
 
@@ -302,13 +364,13 @@ The rest of the reframe — the UX work that makes FormAssignment user-visible. 
 
 | Wave | Hours | When |
 |---|---|---|
-| Wave 1 (FormAssignment substrate) | 14–21 | Before June 5, 2026 |
+| Wave 1 (TemplateAssignment extension + dashboard refactor + seeding) | 9–15 | Before June 5, 2026 |
 | Re-verification of existing stories | 3–5 | Before June 5, 2026 |
 | `7_19` Notes module | 10–14 | Late June 2026 |
 | Wave 2 (reframe UX completion) | 35–54 | July–September 2026 |
-| **Total** | **62–94 hrs** | **May 24 – September 2026** |
+| **Total** | **57–88 hrs** | **May 24 – September 2026** |
 
-At 10–15 hours/week, this is 4–9 months of BunkLogs time. Roughly aligned with the Summer 2026 → TBE September launch arc.
+At 10–15 hours/week, this is 4–9 months of BunkLogs time. Roughly aligned with the Summer 2026 → TBE September launch arc. Wave 1 fits in ~1 week of BunkLogs time with real slack.
 
 ### What this does NOT cover
 
