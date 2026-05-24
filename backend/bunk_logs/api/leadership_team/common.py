@@ -45,6 +45,7 @@ if TYPE_CHECKING:
 __all__ = [
     "LT_SELF_TEMPLATE_SLUG",
     "ViewerContext",
+    "assignment_viewer_or_403",
     "leadership_team_self_template",
     "resolve_period",
     "supervised_role_supervisions",
@@ -67,6 +68,45 @@ class ViewerContext:
     membership: Membership
     program: Program
     today: date
+
+
+def assignment_viewer_or_403(request) -> ViewerContext:
+    """Like ``viewer_or_403`` but also accepts ``admin`` capability (decision FA7).
+
+    Used exclusively by the assignments endpoints so the wider gate doesn't
+    silently apply to other LT surfaces.
+    """
+    org = getattr(request, "organization", None)
+    if org is None:
+        msg = "Organization context required."
+        raise PermissionDenied(msg)
+    if not request.user.is_authenticated:
+        msg = "Authentication required."
+        raise PermissionDenied(msg)
+    person = Person.objects.filter(user=request.user).first()
+    if person is None:
+        msg = "Person profile required."
+        raise PermissionDenied(msg)
+    membership = (
+        Membership.objects.filter(
+            person=person,
+            capability__in=["program_lead", "admin"],
+            is_active=True,
+        )
+        .select_related("program", "program__organization")
+        .order_by("-created_at")
+        .first()
+    )
+    if membership is None:
+        msg = "Leadership Team or Admin role required."
+        raise PermissionDenied(msg)
+    return ViewerContext(
+        person=person,
+        organization=org,
+        membership=membership,
+        program=membership.program,
+        today=get_today(org),
+    )
 
 
 def viewer_or_403(request) -> ViewerContext:

@@ -202,3 +202,15 @@ This allows the API and UI to group submissions and detect partial batches.
 | `GET /api/v1/assignment-groups/{id}/subjects/` | Persons in subject role |
 | `GET /api/v1/assignment-groups/{id}/authors/` | Persons in author role |
 | `GET /api/v1/reflections/` | List reflections (now includes `?subject=`, `?author=`, `?assignment_group=`) |
+
+---
+
+## TemplateAssignment (as of Step 7_20)
+
+`TemplateAssignment` binds a published `ReflectionTemplate` to a target audience for a date window. As of Step 7_20 it supports four `target_type` values: `role`, `individuals`, `tag_group`, and `assignment_group`. The last type resolves dynamically to `Membership` rows whose role is in `template.author_role_filter` AND who hold an active `AssignmentGroupMembership` with `role_in_group='author'` in the specified group.
+
+Two new control fields were added:
+- `is_required` (bool, default `True`): when `False` the assignment lands in the role's optional forms library and does not affect the dashboard "all set" state (decision FA5).
+- `title` (str, blank): per-assignment display label; falls back to `template.name` via the read-only `display_title` field on the API response.
+
+The assignments endpoints (`/api/v1/leadership-team/assignments/`) now accept both `program_lead` and `admin` capabilities (decision FA7). See `docs/design/form_orchestration_reframe.md` §3 for design rationale.

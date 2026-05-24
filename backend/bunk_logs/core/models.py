@@ -730,21 +730,24 @@ class TemplateAssignment(models.Model):
 
     LT users assign a published template to either a role (dynamic — new
     members joining mid-window get the template), a static list of
-    individual Memberships (snapshotted at creation), or a tag-based
-    group. Each assignment has its own date window and may override the
-    template's cadence.
+    individual Memberships (snapshotted at creation), a tag-based group,
+    or an AssignmentGroup (dynamic — resolves to AssignmentGroupMembership
+    rows with role_in_group='author' whose Membership.role matches
+    template.author_role_filter). Each assignment has its own date window
+    and may override the template's cadence.
 
-    Conflict resolution: when a new assignment overlaps an existing one
-    on the same (template, target), the LT may ``"replace"`` (sets
-    ``replaces`` FK and ends the prior assignment day-before),
-    ``"run_both"`` (no coupling), or ``"cancel"`` (no record created;
-    handled at API layer).
+    The ``is_required`` flag controls whether the assignment produces
+    tasks in per-role dashboards (True) or lands in the optional forms
+    library without affecting the 'all set' state (False; decision FA5).
+
+    See ``docs/design/form_orchestration_reframe.md`` §3 for design rationale.
     """
 
     class TargetType(models.TextChoices):
         ROLE = "role", "Role (dynamic)"
         INDIVIDUALS = "individuals", "Individual memberships (static)"
         TAG_GROUP = "tag_group", "Tag group (dynamic)"
+        ASSIGNMENT_GROUP = "assignment_group", "Assignment group (dynamic)"
 
     class Status(models.TextChoices):
         SCHEDULED = "scheduled", "Scheduled"
@@ -791,6 +794,36 @@ class TemplateAssignment(models.Model):
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.SCHEDULED,
     )
+    assignment_group = models.ForeignKey(
+        "core.AssignmentGroup",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="template_assignments",
+        help_text=(
+            "When target_type='assignment_group', the group this assignment "
+            "targets. Memberships resolve to those whose role matches the "
+            "template's author_role_filter AND who hold an active "
+            "AssignmentGroupMembership in this group with role_in_group='author'."
+        ),
+    )
+    is_required = models.BooleanField(
+        default=True,
+        help_text=(
+            "When True, the assignment produces tasks in the per-role dashboards. "
+            "When False, it appears in the role's optional forms library and does "
+            "NOT affect the 'all set' state (decision FA5)."
+        ),
+    )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "Per-assignment display title for dashboard widgets. "
+            "Falls back to template.name when blank."
+        ),
+    )
     created_by = models.ForeignKey(
         Membership,
         on_delete=models.SET_NULL,
@@ -809,6 +842,7 @@ class TemplateAssignment(models.Model):
         indexes = [
             models.Index(fields=["organization", "template", "status"]),
             models.Index(fields=["program", "start_date", "end_date"]),
+            models.Index(fields=["assignment_group", "status"], name="core_templa_assignm_8ec6ca_idx"),
         ]
 
     def __str__(self) -> str:
