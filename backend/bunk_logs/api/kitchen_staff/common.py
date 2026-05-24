@@ -3,7 +3,11 @@
 Key invariants
 --------------
 * A Kitchen Staff viewer must have an active ``kitchen_staff`` Membership.
-* Template resolution uses the ``kitchen_staff`` role filter with daily cadence.
+* Template resolution flows through
+  :func:`bunk_logs.core.assignment_resolution.resolve_template_for`
+  (Step 7_21) instead of inline ``ReflectionTemplate`` queries, so the
+  active template is whichever one the Leadership Team has assigned
+  to the program for the day.
 * Edit window: until rollover boundary (same as specialist/counselor).
 * Preferred language is read from ``Person.preferred_language`` and forwarded
   to the template localizer so prompts arrive in the user's preferred language.
@@ -14,16 +18,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from bunk_logs.api.counselor.common import _resolve_template
 from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_day_off_answer  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-export)
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
-from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
 
     from bunk_logs.core.models import Organization
     from bunk_logs.core.models import Program
+    from bunk_logs.core.models import ReflectionTemplate
 
 
 __all__ = [
@@ -87,13 +90,24 @@ def viewer_or_403(request) -> ViewerContext:
 def kitchen_staff_template(
     organization: Organization,
     program: Program,
+    *,
+    viewer: Person | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
-    """Active daily kitchen_staff self-reflection template for the program."""
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="kitchen_staff") | Q(author_role_filter__contains=["kitchen_staff"]),
+    """Active daily kitchen_staff self-reflection template for the program.
+
+    Resolves via :func:`resolve_template_for` (Step 7_21): the template
+    is the one bound by an active ``TemplateAssignment`` for this
+    (org, program) targeting the ``kitchen_staff`` role. Returns
+    ``None`` when no assignment is active — the dashboard surfaces that
+    as the ``no_template`` empty state.
+    """
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="kitchen_staff",
         subject_mode="self",
         cadence="daily",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
+        viewer=viewer,
     )
