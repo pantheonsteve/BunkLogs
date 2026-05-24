@@ -24,13 +24,12 @@ from datetime import date
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from bunk_logs.api.counselor.common import _resolve_template
 from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_day_off_answer  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-export)
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import ReflectionTemplate
@@ -208,22 +207,29 @@ def team_membership_ids(
 
 
 def leadership_team_self_template(
-    organization: Organization, program: Program,
+    organization: Organization,
+    program: Program,
+    *,
+    viewer: Person | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
-    """Active LT self-reflection template, org-shadowing-global.
+    """Active LT self-reflection template.
 
-    Picks the template targeting role=``leadership_team`` with
-    ``subject_mode='self'``. The cadence is whatever the org/program has
-    configured — default biweekly (see seed migration 0034) but
-    overridable per program (Story 50 c2). The org-shadow resolver
-    inherits the highest-version active row.
+    Resolves via :func:`resolve_template_for` (Step 7_21): returns the
+    template bound by an active ``TemplateAssignment`` for the
+    (org, program, ``leadership_team``, ``self``) tuple. Cadence is
+    deliberately NOT constrained here — LT cadence is per-program
+    (Story 50 c2), default biweekly, but the assignment's
+    ``cadence_override`` may surface a weekly/monthly variant without
+    requiring a different template.
     """
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="leadership_team") | Q(author_role_filter__contains=["leadership_team"]),
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="leadership_team",
         subject_mode="self",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
+        viewer=viewer,
     )
 
 
