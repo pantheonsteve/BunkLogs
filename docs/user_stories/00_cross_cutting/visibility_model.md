@@ -21,6 +21,7 @@ The visibility model is enforced **server-side at the data-fetch layer**, not cl
 | Leadership Team self-reflection | LT | LT (peers), Admin | Admin only (when "Private" toggled) |
 | Madrich reflection | Madrich | Director, TBE Admin | n/a |
 | Admin self-reflection | Admin | Admin peers, platform support | Admin only (when "Private" toggled) |
+| Note (and replies) | Any role with an active Membership | Author-selected audience, resolved at write-time from role-permitted options (see `../10_notes_platform/audience_matrices.md`) | n/a |
 
 ## Three operational principles
 
@@ -31,6 +32,8 @@ These govern the UI everywhere the visibility model surfaces:
 2. **The audience is always disclosed at write-time.** Every form for content that has a non-trivial audience displays the audience list before submission. The disclosure updates dynamically when the user toggles sensitivity, language, or other audience-affecting fields.
 
 3. **Sensitive content's existence is acknowledged to non-audience viewers, but never the content itself.** A reader who cannot read a sensitive note sees a placeholder line: *"1 sensitive note (Camper Care)"*. They know it exists and who to ask about it. Silent invisibility erodes trust if it's later discovered.
+
+4. **Notes are author-addressed, not role-addressed.** Unlike every other content type in the table, a Note's audience is selected by the author at compose time from a role-permitted list. Once submitted, the audience is fixed for the life of the thread; replies inherit the original audience. Cross-references to other content (a Bunk concern, a Specialist note) do **not** transitively grant access — a reader who is part of a Note thread that references content they would not otherwise see continues to be unable to see that source content. The thread shows a reference indicator, not the source body.
 
 ## The `AudienceDisclosure` component
 
