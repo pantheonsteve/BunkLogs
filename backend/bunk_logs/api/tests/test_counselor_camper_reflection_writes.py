@@ -108,8 +108,10 @@ def campers(org, bunk):
 
 
 @pytest.fixture
-def camper_template(org):
-    return ReflectionTemplate.all_objects.create(
+def camper_template(org, program):
+    from bunk_logs.api.tests.conftest import make_active_assignment
+
+    template = ReflectionTemplate.all_objects.create(
         organization=org, name="Bunk Log", slug="bunk-log-cw",
         cadence="daily", subject_mode="single_subject",
         assignment_scope="per_subject_in_group",
@@ -117,6 +119,8 @@ def camper_template(org):
         languages=["en"], is_active=True, program_type="summer_camp",
         author_role_filter=["counselor"], supports_privacy=True,
     )
+    make_active_assignment(template=template, program=program, target_role="counselor")
+    return template
 
 
 def _client(user, org):

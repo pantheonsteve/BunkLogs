@@ -166,6 +166,27 @@ class TestKitchenStaffDashboard:
             r = api.get("/api/v1/kitchen-staff/dashboard/", **_hdr(org.slug))
         assert r.status_code in (401, 403)
 
+    def test_dashboard_empty_state_without_template_assignment(
+        self, ks_api, org, program, ks_user_person,
+    ):
+        """Step 7_21: without an active TemplateAssignment the dashboard
+        returns ``state='no_template'`` instead of 500ing.
+
+        The autouse fixture in api/tests/conftest.py creates a
+        role-targeted assignment per program; this test deletes those
+        rows to exercise the empty path the LT will see on day zero of
+        a new program rollout (before FA-S / Step 7_22 seeds anything).
+        """
+        from bunk_logs.core.models import TemplateAssignment
+
+        TemplateAssignment.all_objects.filter(program=program).delete()
+        with organization_context(org):
+            r = ks_api.get("/api/v1/kitchen-staff/dashboard/", **_hdr(org.slug))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["my_reflection"]["state"] == "no_template"
+        assert body["my_reflection"]["template_id"] is None
+
 
 # ---------------------------------------------------------------------------
 # Reflection create (Story 40)

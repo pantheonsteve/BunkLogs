@@ -27,12 +27,33 @@ Re-seeding the template at the start of every test fixes both:
 
 Keeping the fixture as ``autouse=True`` here (rather than in each test
 file) means new test modules pick up the protection automatically.
+
+Step 7_21: TemplateAssignment auto-seeding
+------------------------------------------
+
+After Step 7_21 the per-role dashboards resolve templates by looking
+for an active ``TemplateAssignment``. Existing tests built up a
+``Program`` and expected the seeded role template to "just work";
+under the new resolver they would all hit ``no_template`` instead.
+
+The :func:`_autobind_role_assignments_to_new_programs` autouse fixture
+connects a ``post_save`` handler on ``Program`` that creates a
+role-targeted assignment for every seeded role template the moment a
+test creates its program. Tests that want to verify the no-template
+empty-state should either skip that fixture explicitly or delete the
+auto-created rows.
 """
 from __future__ import annotations
 
-import pytest
+from datetime import date
+from datetime import timedelta
 
+import pytest
+from django.db.models.signals import post_save
+
+from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import TemplateAssignment
 
 _COUNSELOR_SELF_REFLECTION_SCHEMA = {
     "fields": [
@@ -365,4 +386,131 @@ def _ensure_leadership_team_self_reflection_template(db):
             "role": "leadership_team",
             "program_type": None,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 7_21 — TemplateAssignment auto-seeding for the seeded role templates
+# ---------------------------------------------------------------------------
+
+
+_AUTOSEED_ROLE_SLUGS: tuple[tuple[str, str], ...] = (
+    ("counselor", "counselor-self-reflection"),
+    ("junior_counselor", "counselor-self-reflection"),
+    ("unit_head", "unit-head-self-reflection"),
+    ("camper_care", "camper-care-self-reflection"),
+    ("kitchen_staff", "kitchen-staff-self-reflection"),
+    ("leadership_team", "leadership-team-self-reflection"),
+    ("madrich", "tbe-madrich-3-2-1-weekly"),
+)
+
+
+def _seed_role_assignments_for_program(program: Program) -> None:
+    """Create one role-targeted assignment per seeded role template.
+
+    Idempotent: ``get_or_create`` keyed on (program, template, role) so
+    repeat invocations (e.g. fixtures that ``save()`` the same Program
+    twice) don't blow up. Start_date is anchored far enough in the past
+    to be safe for any test — programs in the future, in the past, or
+    aligned with "today" should all see the assignment as active.
+    """
+    if program.organization_id is None:
+        return
+    anchor = program.start_date or date.today()
+    start = min(anchor, date.today()) - timedelta(days=365)
+    for role, slug in _AUTOSEED_ROLE_SLUGS:
+        template = ReflectionTemplate.all_objects.filter(
+            slug=slug, organization__isnull=True,
+        ).first()
+        if template is None:
+            continue
+        TemplateAssignment.all_objects.get_or_create(
+            organization=program.organization,
+            program=program,
+            template=template,
+            target_type=TemplateAssignment.TargetType.ROLE,
+            target_payload={"role": role},
+            defaults={
+                "start_date": start,
+                "status": TemplateAssignment.Status.ACTIVE,
+                "is_required": True,
+            },
+        )
+
+
+def _on_program_saved(sender, instance, created, **kwargs):
+    del sender, kwargs
+    if not created:
+        return
+    _seed_role_assignments_for_program(instance)
+
+
+@pytest.fixture(autouse=True)
+def _autobind_role_assignments_to_new_programs(db):
+    """Auto-bind seeded role templates to any ``Program`` created in a test.
+
+    Step 7_21 made the per-role helpers route through
+    ``TemplateAssignment``; tests that previously relied on the seeded
+    template alone now need an active assignment binding it to the
+    program. Hooking ``post_save`` keeps existing fixtures unchanged.
+    Tests that need the "no assignment" empty-state should delete the
+    auto-created rows.
+    """
+    post_save.connect(_on_program_saved, sender=Program)
+    yield
+    post_save.disconnect(_on_program_saved, sender=Program)
+
+
+# ---------------------------------------------------------------------------
+# Helper for tests that build their own (non-seeded) ReflectionTemplate
+# ---------------------------------------------------------------------------
+
+
+def make_active_assignment(
+    *,
+    template,
+    program,
+    target_role: str | None = None,
+    assignment_group=None,
+    is_required: bool = True,
+):
+    """Create a Step 7_21-style TemplateAssignment row for a test template.
+
+    Tests that mint their own ``ReflectionTemplate`` (typically the
+    counselor camper-reflection template, which is org-scoped and not
+    seeded by the autouse fixtures above) call this to make the
+    template visible to the per-role dashboards' resolvers.
+
+    The window is anchored a year before "today" / the program's
+    start_date so the assignment is always live regardless of the
+    program's date span.
+    """
+    anchor = program.start_date or date.today()
+    start = min(anchor, date.today()) - timedelta(days=365)
+    if assignment_group is not None:
+        return TemplateAssignment.all_objects.create(
+            organization=program.organization,
+            program=program,
+            template=template,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            target_payload={},
+            assignment_group=assignment_group,
+            start_date=start,
+            status=TemplateAssignment.Status.ACTIVE,
+            is_required=is_required,
+        )
+    role = target_role or (
+        (template.author_role_filter or [None])[0]
+        or template.role
+        or "counselor"
+    )
+    return TemplateAssignment.all_objects.create(
+        organization=program.organization,
+        program=program,
+        template=template,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": role},
+        start_date=start,
+        status=TemplateAssignment.Status.ACTIVE,
+        is_required=is_required,
     )
