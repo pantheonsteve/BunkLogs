@@ -21,6 +21,7 @@ from django.db.models import Q
 from django.db.models import When
 from rest_framework.exceptions import PermissionDenied
 
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import CamperDayState
@@ -158,8 +159,9 @@ def _resolve_template(
 ) -> ReflectionTemplate | None:
     """Apply the org-shadows-global ordering used throughout Step 7_6.
 
-    Both org-scoped and global templates may be ``is_active=True``; the
-    org-scoped row wins, falling back to the global if none exists.
+    Retained as a public helper for legacy call sites (a few tests and
+    management commands import it directly). Per-role dashboards now go
+    through :func:`resolve_template_for` instead.
     """
     qs = qs.filter(
         Q(organization=organization) | Q(organization__isnull=True),
@@ -183,52 +185,70 @@ def _resolve_template(
 def camper_reflection_template(
     organization: Organization,
     program: Program,
+    *,
+    viewer: Person | None = None,
+    bunk: AssignmentGroup | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
     """Active daily camper-reflection template for a bunk roster (Story 3).
 
-    Picks the ``subject_mode='single_subject'`` template with ``'bunk'`` in
-    its ``assignment_group_types``. There is conventionally one per program;
-    if multiple exist the org-shadow ordering picks the org-scoped one.
+    Resolves via :func:`resolve_template_for` (Step 7_21): returns the
+    template bound by an active ``TemplateAssignment`` for the
+    (org, program, ``counselor``, ``single_subject``, ``daily``)
+    tuple. When ``bunk`` is supplied, a group-specific assignment is
+    preferred; otherwise a program-wide role assignment is used.
+
+    Returns ``None`` when no assignment is active — the dashboard
+    surfaces that as the ``no_template`` empty state.
     """
-    qs = ReflectionTemplate.all_objects.filter(
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="counselor",
         subject_mode="single_subject",
         cadence="daily",
-        assignment_group_types__contains=["bunk"],
+        viewer=viewer,
+        assignment_group=bunk,
     )
-    return _resolve_template(qs, organization=organization, program_type=program.program_type)
 
 
 def counselor_self_template(
     viewer: Person,
     organization: Organization,
     program: Program,
+    *,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
     """Active daily self-reflection template that applies to the viewer's role.
 
-    A template applies when EITHER its ``role`` field matches one of the
-    viewer's active memberships, OR its ``author_role_filter`` contains one
-    of those roles. The single ``role`` field is the canonical binding;
-    ``author_role_filter`` exists for finer-grained gating (e.g. a global
-    template targeting both ``counselor`` and ``junior_counselor``).
+    Resolves via :func:`resolve_template_for` (Step 7_21): the viewer's
+    active Memberships are inspected and the first assignment whose
+    template targets one of those roles (``role`` field or
+    ``author_role_filter``) wins. Junior counselors share the counselor
+    template by virtue of ``author_role_filter`` matching either role.
     """
-    viewer_roles = set(
+    viewer_roles = list(
         Membership.objects.filter(
             person=viewer, program=program, is_active=True,
         ).values_list("role", flat=True),
     )
     if not viewer_roles:
         return None
-
-    role_q = Q(role__in=viewer_roles)
+    anchor = as_of or get_today(organization)
     for role in viewer_roles:
-        role_q |= Q(author_role_filter__contains=[role])
-
-    qs = ReflectionTemplate.all_objects.filter(
-        role_q,
-        subject_mode="self",
-        cadence="daily",
-    )
-    return _resolve_template(qs, organization=organization, program_type=program.program_type)
+        template = resolve_template_for(
+            organization=organization,
+            program=program,
+            as_of=anchor,
+            role=role,
+            subject_mode="self",
+            cadence="daily",
+            viewer=viewer,
+        )
+        if template is not None:
+            return template
+    return None
 
 
 def is_editable_today(

@@ -214,3 +214,25 @@ Two new control fields were added:
 - `title` (str, blank): per-assignment display label; falls back to `template.name` via the read-only `display_title` field on the API response.
 
 The assignments endpoints (`/api/v1/leadership-team/assignments/`) now accept both `program_lead` and `admin` capabilities (decision FA7). See `docs/design/form_orchestration_reframe.md` §3 for design rationale.
+
+---
+
+## Template resolution after Step 7_21
+
+Per-role dashboards used to query `ReflectionTemplate` directly with hard-coded filters (one per role flow). After Step 7_21 they all delegate to a single resolver in `bunk_logs.core.assignment_resolution`:
+
+- `resolve_template_for(*, organization, program, as_of, role, subject_mode, cadence=None, assignment_group=None, viewer=None)` returns the active `ReflectionTemplate` for a `(role, subject_mode)` tuple, or `None` when no `TemplateAssignment` is active.
+
+Key implications:
+
+- **The Leadership Team controls which template each role sees.** Without an active `TemplateAssignment`, the dashboard renders the `no_template` empty state — no template, no tasks. This is the explicit contract the LT-driven form orchestration relies on (decision FA10).
+- **Org-shadows-global ordering is preserved.** When multiple assignments match, the one whose template's `organization` equals the caller's org wins over a global (`organization IS NULL`) template, then a higher `template.version` breaks remaining ties.
+- **`assignment_group` is preferred when supplied.** For per-bunk templates (e.g. counselor camper-reflection) the resolver prefers a group-specific assignment over a program-wide role assignment, so an LT can override one bunk's template without touching the rest of the program.
+- **`cadence_override` wins over `template.cadence`.** When the LT pins a template to a different cadence on a per-assignment basis, the resolver matches against the override first.
+
+Per-role `common.py` files (`api/<role>/common.py`) now contain thin wrappers that call `resolve_template_for` with the appropriate role/subject_mode/cadence shape. Adding a new role flow means writing one such wrapper and calling the same resolver — no per-role template query logic should ever land in dashboards again.
+
+Companion helpers:
+- `active_assignments_for(...)` — viewer-aware audience filter; the basis for "what tasks do I owe?" task derivation.
+- `list_required_assignments_for(...)` / `list_optional_assignments_for(...)` — symmetry pair; the optional list seeds the Wave 2 "forms I can also fill out" library.
+- `resolve_members(...)` — moved here from `api/leadership_team/assignments.py` so the LT assignments API and the per-role dashboards share one audience-resolution implementation. The legacy import path still works through a re-export.

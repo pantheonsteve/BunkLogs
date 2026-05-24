@@ -17,13 +17,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from bunk_logs.api.counselor.common import _resolve_template
 from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_day_off_answer  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-export)
+from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -200,21 +199,25 @@ def caseload_bunk_ids(
 
 
 def camper_care_self_template(
-    organization: Organization, program: Program,
+    organization: Organization,
+    program: Program,
+    *,
+    viewer: Person | None = None,
+    as_of: date | None = None,
 ) -> ReflectionTemplate | None:
-    """Daily Camper Care self-reflection template, org-shadowing-global.
+    """Daily Camper Care self-reflection template.
 
-    Uses the same fallback resolver the counselor / UH flows use so a
-    customer can ship a single template targeting multiple supervisor
-    roles via ``author_role_filter``. Returns ``None`` when no template
-    is configured for the program type — callers must handle that case
-    (the dashboard renders a "no template configured" placeholder).
+    Resolves via :func:`resolve_template_for` (Step 7_21): returns the
+    template bound by an active ``TemplateAssignment`` for the
+    (org, program, ``camper_care``, ``self``, ``daily``) tuple, or
+    ``None`` when no assignment is active (dashboard placeholder).
     """
-    qs = ReflectionTemplate.all_objects.filter(
-        Q(role="camper_care") | Q(author_role_filter__contains=["camper_care"]),
+    return resolve_template_for(
+        organization=organization,
+        program=program,
+        as_of=as_of or get_today(organization),
+        role="camper_care",
         subject_mode="self",
         cadence="daily",
-    )
-    return _resolve_template(
-        qs, organization=organization, program_type=program.program_type,
+        viewer=viewer,
     )

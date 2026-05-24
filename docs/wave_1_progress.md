@@ -25,45 +25,53 @@
 
 ### Step 7_20 — Extend TemplateAssignment
 
-**Status:** ⬜ Not started
-**Branch:** _(not yet)_
-**PR:** _(not yet)_
+**Status:** ✅ Merged to main
+**Branch:** `step/7_20_extend_template_assignment` (merged)
+**PR:** https://github.com/pantheonsteve/BunkLogs/pull/118
 **Estimated:** 3–5 hours
-**Actual:** _(record when done)_
+**Actual:** 0.25 hours
 
 **Scope reminder:** Add `assignment_group` FK, `is_required` flag, `title` field. Add `'assignment_group'` to TargetType. Extend `resolve_members` with the new branch. Widen permission gate to admin (FA7). Tests.
 
+**Verified post-merge (2026-05-24):**
+- `TemplateAssignment` model has `assignment_group`, `is_required`, `title`, `ASSIGNMENT_GROUP` in TargetType ✅
+- `resolve_members` handles the new branch with `author_role_filter` check ✅
+- `_serialize` exposes `assignment_group`, `is_required`, `title`, `display_title` ✅
+- `assignment_viewer_or_403` helper exists in `api/leadership_team/common.py` (FA7 widening) ✅
+- Migration index `core_templa_assignm_8ec6ca_idx` on `(assignment_group, status)` ✅
+
 **Notes / blockers:**
 
-- _Add as you encounter them_
+- None.
 
 ---
 
 ### Step 7_21 — Per-role dashboard refactor
 
-**Status:** ⬜ Not started
-**Branch:** _(not yet)_
-**PR:** _(not yet)_
+**Status:** 👀 In review
+**Branch:** `step/7_21_dashboard_template_resolution`
+**PR:** _(open after push)_
 **Estimated:** 4–6 hours
-**Actual:** _(record when done)_
+**Actual:** ~3 hours
 **Depends on:** 7_20 merged
 
 **Scope reminder:** Create `core/assignment_resolution.py` shared resolver. Refactor 8 per-role `common.py` files to use it. One commit per role. Update existing tests to create TemplateAssignment rows.
 
 **Per-role progress** (within the prompt):
 
-- ⬜ kitchen_staff
-- ⬜ madrich
-- ⬜ specialist
-- ⬜ counselor
-- ⬜ unit_head
-- ⬜ camper_care
-- ⬜ leadership_team
-- ⬜ admin_flow
+- ✅ kitchen_staff
+- ✅ madrich
+- ✅ specialist
+- ✅ counselor (camper-reflection + self templates)
+- ✅ unit_head
+- ✅ camper_care
+- ✅ leadership_team
+- ➖ admin_flow — no template helper to refactor; admin's template surface is oversight (`templates.py`, `dashboard.py::_pending_template_review_count`), not resolution
 
 **Notes / blockers:**
 
-- _Add as you encounter them_
+- Backend test suite passes 1135 tests after refactor + fixture updates. One pre-existing failure in `core/test_translation::TestBeatRegistration::test_migration_installs_the_periodic_task_row` is unrelated (PeriodicTask seed missing in test DB).
+- Production note: dashboards will return `no_template` empty state in prod until 7_22 seeds TemplateAssignment rows. Do NOT deploy 7_21 standalone — coordinate with 7_22.
 
 ---
 
