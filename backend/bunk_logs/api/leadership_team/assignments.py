@@ -37,9 +37,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit
+from bunk_logs.core.assignment_resolution import resolve_members
 from bunk_logs.core.models import AssignmentGroup
-from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
@@ -49,56 +48,11 @@ from .common import assignment_viewer_or_403
 CONFLICT_CHOICES = ("replace", "run_both", "cancel")
 VALID_TARGET_TYPES = ("role", "individuals", "tag_group", "assignment_group")
 
-
-# ---------------------------------------------------------------------------
-# Membership resolution
-# ---------------------------------------------------------------------------
-
-
-def resolve_members(assignment: TemplateAssignment, as_of: date):
-    """Return the Memberships that an assignment applies to on ``as_of``.
-
-    * ``role``: dynamic — current active Memberships in the program with
-      that role.
-    * ``individuals``: static snapshot from ``target_payload['membership_ids']``.
-      Filtered to currently active so a deactivated member silently drops.
-    * ``tag_group``: dynamic — Memberships whose ``tags`` JSON contains
-      the given tag.
-    * ``assignment_group``: dynamic — Memberships whose role is in
-      template.author_role_filter AND who are active authors in the group.
-    """
-    payload = assignment.target_payload or {}
-    base = Membership.all_objects.filter(
-        program=assignment.program, is_active=True,
-    )
-    target_type = assignment.target_type
-    if target_type == TemplateAssignment.TargetType.ROLE:
-        role = payload.get("role")
-        return base.filter(role=role) if role else base.none()
-    if target_type == TemplateAssignment.TargetType.INDIVIDUALS:
-        ids = payload.get("membership_ids") or []
-        if not isinstance(ids, list):
-            return base.none()
-        return base.filter(pk__in=ids)
-    if target_type == TemplateAssignment.TargetType.TAG_GROUP:
-        tag = payload.get("tag")
-        if not tag:
-            return base.none()
-        return base.filter(tags__contains=[tag])
-    if target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
-        group_id = assignment.assignment_group_id
-        if not group_id:
-            return base.none()
-        author_roles = assignment.template.author_role_filter or []
-        if not author_roles:
-            return base.none()
-        author_person_ids = AssignmentGroupMembership.all_objects.filter(
-            group_id=group_id,
-            role_in_group="author",
-            is_active=True,
-        ).values_list("person_id", flat=True)
-        return base.filter(person_id__in=author_person_ids, role__in=author_roles)
-    return base.none()
+# ``resolve_members`` was moved to ``core.assignment_resolution`` in Step 7_21 so
+# the per-role dashboards share one implementation. Existing imports from
+# ``bunk_logs.api.leadership_team.assignments`` keep working through this
+# re-export.
+__all__ = ["resolve_members"]
 
 
 # ---------------------------------------------------------------------------
