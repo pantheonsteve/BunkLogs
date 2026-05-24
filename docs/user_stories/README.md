@@ -21,6 +21,7 @@ Stories are **canonical**. If a prompt and a story disagree, the story wins; the
 | 7 | Leadership Team | `07_leadership_team/` | Broad-visibility supervisor + platform shaper |
 | 8 | Admin | `08_admin/` | Org-scoped configurator and overseer |
 | 9 | Madrich (TBE) | `09_madrich/` | Teen contributor at religious school (Kitchen Staff variant) |
+| 10 | Notes platform | `10_notes_platform/` | Cross-role two-way communication primitive (not a role) |
 
 ## Cross-cutting primitives
 
@@ -55,3 +56,4 @@ The most important Tier 1 / Tier 2 split is the **template builder** scope (`07_
 | Leadership Team | Tightened |
 | Admin | Tightened |
 | Madrich | Tightened |
+| Notes platform | New — v1 scope Counselor + Unit Head per decision N4 |
