@@ -82,7 +82,7 @@ def test_all_templates_created():
     _run(skip_import=True)
     org = Organization.objects.get(slug="clc")
     n = ReflectionTemplate.all_objects.filter(organization=org, is_active=True).count()
-    assert n == 11
+    assert n == 12
 
 
 @pytest.mark.django_db
@@ -95,8 +95,8 @@ def test_template_roles_present():
     )
     expected = {
         "counselor", "junior_counselor", "specialist", "general_counselor",
-        "leadership_team", "kitchen_staff", "maintenance", "housekeeping",
-        "camper_care", "health_center", "special_diets",
+        "unit_head", "leadership_team", "kitchen_staff", "maintenance",
+        "housekeeping", "camper_care", "health_center", "special_diets",
     }
     assert expected <= roles
 

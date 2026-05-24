@@ -1,0 +1,45 @@
+{
+  "name": "CLC Summer 2026 — Unit Head daily",
+  "slug": "clc-2026-unit-head-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "TODO(BRENT): Replace placeholder prompts with approved UH reflection questions. Story 16 criterion 7 (structured 'Bunk concerns' field referencing AssignmentGroups) is deferred; for now bunk_concerns is captured as free text.",
+  "languages": ["en"],
+  "schema": {
+    "fields": [
+      {
+        "key": "unit_overview",
+        "type": "textarea",
+        "required": true,
+        "prompts": {
+          "en": "[PLACEHOLDER] How is your unit doing today overall? Energy, behavior, group dynamics."
+        }
+      },
+      {
+        "key": "bunk_concerns",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] Any bunks you're keeping an eye on? Name the bunk(s) and what you're noticing. (Structured bunk-reference UI coming in a later release.)"
+        }
+      },
+      {
+        "key": "supervision_focus",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] How are your counselors doing? Anyone you're supporting more closely this week?"
+        }
+      },
+      {
+        "key": "tomorrow_focus",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "[PLACEHOLDER] What is your top priority for tomorrow?"
+        }
+      }
+    ]
+  }
+}

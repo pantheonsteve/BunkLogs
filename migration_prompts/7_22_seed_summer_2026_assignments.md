@@ -1,22 +1,58 @@
 # Step 7_22: Seed TemplateAssignments for Crane Lake Summer 2026
 
-**Goal:** Create the TemplateAssignment rows that Crane Lake Summer 2026 needs so the refactored dashboards (Step 7_21) produce the same tasks as the pre-refactor implicit logic. Ship via an idempotent management command.
+**Goal:** Create the TemplateAssignment rows that Crane Lake Summer 2026 needs so the refactored dashboards (Step 7_21) produce tasks for every role from June 5 forward. Ship via an idempotent management command.
 
 **Canonical product spec:** `docs/design/form_orchestration_reframe.md` §3.5, plus decisions FA1, FA10 in `docs/user_stories/00_cross_cutting/decisions.md`.
 
-**Depends on:** Step 7_20 (TemplateAssignment extended), Step 7_21 (per-role dashboards refactored).
+**Depends on:** Step 7_20 (TemplateAssignment extended) ✅, Step 7_21 (per-role dashboards refactored) ✅.
 
 **Estimated time:** 2–4 hours.
 
-**Strategic context:** This is the third and final Wave 1 prompt (FA-A=7_20, FA-B=7_21, FA-S=7_22). Without this prompt, the refactored dashboards from 7_21 will return empty results — there are no TemplateAssignment rows for them to consume. This prompt makes the post-refactor dashboards produce the same task list as pre-refactor, with no functional change visible to end users. It's the cutover that makes FA10(a) viable.
+**Strategic context:** Final Wave 1 prompt. Without it, the refactored dashboards from 7_21 return empty results in production. This prompt is the cutover that makes FA10(a) viable.
 
 **Out of scope** (deferred):
 
-- Any model changes (those land in 7_20).
+- Any model changes (those landed in 7_20).
 - Any dashboard refactor (that's 7_21).
 - Any frontend changes.
-- TemplateAssignment rows for TBE Religious School (covered separately when TBE onboarding runs in late August).
+- TemplateAssignment rows for TBE Religious School (covered separately during TBE onboarding, post-summer).
 - Optional (`is_required=False`) assignments — Wave 1 ships required tasks only; the optional-form library is Wave 2 (FA-G).
+- Bunk-specific (per-AssignmentGroup) assignments for the counselor camper-log — the counselor template uses `subject_mode='single_subject'` and is resolved per-bunk dynamically by `resolve_template_for(..., assignment_group=bunk)` falling back to program-wide role assignments. Wave 1 ships one program-wide role assignment per role; per-bunk targeting can be added later if/when LT wants per-bunk overrides.
+
+---
+
+## Pre-flight inventory (verified 2026-05-24)
+
+The Crane Lake Summer 2026 program seeds **12 templates** via `seed_role_template`. The canonical authority for which templates exist and which role they target is `bunk_logs/core/management/commands/onboard_clc_summer_2026.py::TEMPLATE_MANIFEST`. The seeding command reads each JSON's `name`, `slug`, `cadence`, and `schema` from disk and writes `role` and `program_type` from CLI flags at seed time.
+
+**Confirmed inventory:**
+
+| File | Role (seeded at template) | Slug | Cadence |
+|---|---|---|---|
+| `counselor.json` | counselor | `clc-2026-counselor-daily` | daily |
+| `junior_counselor.json` | junior_counselor | `clc-2026-junior-counselor-daily` | daily |
+| `general_counselor.json` | general_counselor | `clc-2026-general-counselor-daily` | daily |
+| `specialist.json` | specialist | `clc-2026-specialist-daily` | daily |
+| `unit_head.json` | unit_head | `clc-2026-unit-head-daily` | daily |
+| `leadership_team.json` | leadership_team | `clc-2026-leadership-biweekly` | **biweekly** |
+| `kitchen_staff.json` | kitchen_staff | `clc-2026-kitchen-daily` | daily |
+| `maintenance.json` | maintenance | `clc-2026-maintenance-daily` | daily |
+| `housekeeping.json` | housekeeping | `clc-2026-housekeeping-daily` | daily |
+| `camper_care.json` | camper_care | `clc-2026-camper-care-daily` | daily |
+| `health_center.json` | health_center | `clc-2026-health-center-daily` | daily |
+| `special_diets.json` | special_diets | `clc-2026-special-diets-daily` | daily |
+
+**Org & program slugs (per `onboard_clc_summer_2026.py`):**
+- Organization slug: `clc`
+- Program slug: `summer-2026`
+
+**Notes on the inventory:**
+- The Leadership Team template is BIWEEKLY, not daily. Easy mistake — the seeding command must use the template's own cadence (no `cadence_override`).
+- There is no `admin` template in the manifest. Confirmed in 7_21 that admin's dashboard does not consume a template resolver (admin's surface is template oversight via `templates.py` / `dashboard.py::_pending_template_review_count`). Therefore: **no `admin` assignment row needs to be created.**
+- The `unit_head` template was added as part of this prompt's pre-flight work (file: `templates/reflection_templates/clc_2026/unit_head.json`; manifest entry added to `onboard_clc_summer_2026.py`). UH self-reflection is Story 16 and a Wave 1 launch requirement. The template ships with placeholder copy in the same `[PLACEHOLDER]` / `TODO(BRENT)` style as the other 11; Brent will replace the prompts before launch.
+- All assignments target the role (`target_type='role'`), not per-bunk. The counselor self-reflection is `role`-targeted as well, since the existing `counselor_self_template` helper in `api/counselor/common.py` iterates the viewer's Memberships and queries for a role-targeted assignment.
+
+---
 
 ## Backend tasks
 
@@ -28,7 +64,7 @@ Command signature:
 
 ```bash
 python manage.py seed_summer_2026_assignments \
-    --org-slug crane-lake-camp \
+    --org-slug clc \
     --program-slug summer-2026 \
     [--dry-run] \
     [--actor-username <admin-user>]
@@ -36,45 +72,41 @@ python manage.py seed_summer_2026_assignments \
 
 Behavior:
 
-- Idempotent: re-running with the same args produces the same set of assignments (no duplicates, no orphans).
-- `--dry-run`: prints what would be created/updated, makes no DB changes.
-- `--actor-username`: optional; resolves to a User whose Membership becomes the `created_by` on each row. Defaults to a synthetic platform actor when not provided.
+- **Idempotent**: re-running with the same args produces the same set of assignments (no duplicates, no orphans).
+- **`--dry-run`**: prints what would be created/updated; makes no DB changes.
+- **`--actor-username`**: optional; resolves to a User whose admin or LT Membership in the target org becomes the `created_by` on each row. Defaults to None when not provided (created_by may be null per the model definition).
 - Wraps all writes in a single transaction so a partial failure leaves no partial seed.
 
 ### 2. The canonical assignment list for Summer 2026
 
-Per the existing implicit logic that the per-role dashboards used to derive tasks. Enumerate every template-and-context combination here and create one TemplateAssignment row per entry.
+One TemplateAssignment row per template, all `target_type='role'`, all `is_required=True`. The start date is the program's `start_date` (which is `2026-06-05` per `setup_crane_lake.py`); the end date is the program's `end_date`.
 
-| Role | Template (by slug, org-shadow-aware) | target_type | assignment_group / payload | cadence | is_required | title |
-|---|---|---|---|---|---|---|
-| counselor | `counselor-camper-log-{daily}` (single_subject) | assignment_group | each active Bunk in the program | daily | true | "Daily Camper Bunk Log" |
-| counselor | `counselor-self-reflection-{daily}` (self) | role | `{role: 'counselor'}` | daily | true | "Counselor Daily Self-Reflection" |
-| junior_counselor | `junior-counselor-self-reflection-{daily}` (self) | role | `{role: 'junior_counselor'}` | daily | true | "JC Daily Self-Reflection" |
-| general_counselor | `general-counselor-self-reflection-{daily}` (self) | role | `{role: 'general_counselor'}` | daily | true | "GC Daily Self-Reflection" |
-| specialist | `specialist-self-reflection-{daily}` (self) | role | `{role: 'specialist'}` | daily | true | "Specialist Daily Self-Reflection" |
-| unit_head | `unit-head-self-reflection-{daily}` (self) | role | `{role: 'unit_head'}` | daily | true | "Unit Head Daily Self-Reflection" |
-| kitchen_staff | `kitchen-staff-self-reflection-{daily}` (self) | role | `{role: 'kitchen_staff'}` | daily | true | "Kitchen Daily Self-Reflection" |
-| maintenance | `maintenance-self-reflection-{daily}` (self) | role | `{role: 'maintenance'}` | daily | true | "Maintenance Daily Self-Reflection" |
-| housekeeping | `housekeeping-self-reflection-{daily}` (self) | role | `{role: 'housekeeping'}` | daily | true | "Housekeeping Daily Self-Reflection" |
-| camper_care | `camper-care-self-reflection-{daily}` (self) | role | `{role: 'camper_care'}` | daily | true | "Camper Care Daily Self-Reflection" |
-| health_center | `health-center-self-reflection-{daily}` (self) | role | `{role: 'health_center'}` | daily | true | "Health Center Daily Self-Reflection" |
-| special_diets | `special-diets-self-reflection-{daily}` (self) | role | `{role: 'special_diets'}` | daily | true | "Special Diets Daily Self-Reflection" |
-| leadership_team | `leadership-team-self-reflection-{daily}` (self) | role | `{role: 'leadership_team'}` | daily | true | "LT Daily Self-Reflection" |
-| admin | `admin-self-reflection-{daily}` (self) | role | `{role: 'admin'}` | daily | true | "Admin Daily Self-Reflection" |
+Each assignment uses `cadence_override=None` so the template's own cadence applies (daily for most, biweekly for LT).
 
-**This table is a starting point.** During implementation:
+```python
+ASSIGNMENT_MANIFEST = [
+    {"role": "counselor",          "slug": "clc-2026-counselor-daily",            "title": "Counselor daily bunk log"},
+    {"role": "junior_counselor",   "slug": "clc-2026-junior-counselor-daily",     "title": "Junior counselor daily reflection"},
+    {"role": "general_counselor",  "slug": "clc-2026-general-counselor-daily",    "title": "General counselor daily reflection"},
+    {"role": "specialist",         "slug": "clc-2026-specialist-daily",           "title": "Specialist daily reflection"},
+    {"role": "unit_head",          "slug": "clc-2026-unit-head-daily",            "title": "Unit head daily reflection"},
+    {"role": "leadership_team",    "slug": "clc-2026-leadership-biweekly",        "title": "Leadership team check-in (biweekly)"},
+    {"role": "kitchen_staff",      "slug": "clc-2026-kitchen-daily",              "title": "Kitchen staff daily reflection"},
+    {"role": "maintenance",        "slug": "clc-2026-maintenance-daily",          "title": "Maintenance daily reflection"},
+    {"role": "housekeeping",       "slug": "clc-2026-housekeeping-daily",         "title": "Housekeeping daily reflection"},
+    {"role": "camper_care",        "slug": "clc-2026-camper-care-daily",          "title": "Camper care daily reflection"},
+    {"role": "health_center",      "slug": "clc-2026-health-center-daily",        "title": "Health center daily reflection"},
+    {"role": "special_diets",      "slug": "clc-2026-special-diets-daily",        "title": "Special diets daily reflection"},
+]
+```
 
-1. Read each per-role `common.py` (post-7_21 refactor) and confirm which templates each role's dashboard expects to resolve.
-2. Check `docs/clc-2026-templates.md` and the existing seeded templates via `python manage.py shell` → `ReflectionTemplate.all_objects.filter(...)` to confirm the actual template slugs.
-3. Adjust the table above to match reality. The structure (one assignment per role-and-template combination) is correct; only the slugs and titles need verification.
-
-For the counselor camper-log entry specifically: the command should enumerate all `AssignmentGroup` rows in the Summer 2026 program where `group_type='bunk'` and `is_active=True`, then create one TemplateAssignment per bunk. This is the only entry that produces multiple assignment rows; the rest produce one row each.
+**12 assignments total** — one per CLC 2026 template. No `admin` row.
 
 ### 3. Implementation outline
 
 ```python
 class Command(BaseCommand):
-    help = "Seed TemplateAssignment rows for a Summer 2026 program."
+    help = "Seed TemplateAssignment rows for the CLC Summer 2026 program."
 
     def add_arguments(self, parser):
         parser.add_argument("--org-slug", required=True)
@@ -98,99 +130,163 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Seeded {len(plan)} assignments."))
 
     def _build_plan(self, org, program) -> list[dict]:
-        # ... assemble the table above into a list of dicts ...
-        # Each dict has: template, target_type, target_payload,
-        # assignment_group, cadence, is_required, title, start_date.
+        plan = []
+        missing = []
+        for entry in ASSIGNMENT_MANIFEST:
+            try:
+                template = ReflectionTemplate.all_objects.get(
+                    organization=org,
+                    slug=entry["slug"],
+                )
+            except ReflectionTemplate.DoesNotExist:
+                missing.append(entry["slug"])
+                continue
+            plan.append({
+                "organization": org,
+                "program": program,
+                "template": template,
+                "role": entry["role"],
+                "title": entry["title"],
+                "start_date": program.start_date,
+                "end_date": program.end_date,
+            })
+        if missing:
+            slugs = ", ".join(missing)
+            raise CommandError(
+                f"Template(s) not found for org={org.slug}: {slugs}. "
+                f"Run onboard_clc_summer_2026 first.",
+            )
+        return plan
 
     def _upsert_assignment(self, entry, *, actor):
-        # Find an active TemplateAssignment matching (program, template,
-        # target_type, target identifiers). Update title/is_required/etc. if
-        # found; create if not.
+        existing = TemplateAssignment.all_objects.filter(
+            program=entry["program"],
+            template=entry["template"],
+            target_type=TemplateAssignment.TargetType.ROLE,
+            target_payload__role=entry["role"],
+            status__in=[
+                TemplateAssignment.Status.SCHEDULED,
+                TemplateAssignment.Status.ACTIVE,
+            ],
+        ).first()
+
+        if existing:
+            changed = False
+            if existing.title != entry["title"]:
+                existing.title = entry["title"]
+                changed = True
+            if not existing.is_required:
+                existing.is_required = True
+                changed = True
+            if changed:
+                existing.save(update_fields=["title", "is_required"])
+                self.stdout.write(f"updated {existing}")
+            else:
+                self.stdout.write(f"unchanged {existing}")
+            return existing
+
+        new_assignment = TemplateAssignment.all_objects.create(
+            organization=entry["organization"],
+            program=entry["program"],
+            template=entry["template"],
+            target_type=TemplateAssignment.TargetType.ROLE,
+            target_payload={"role": entry["role"]},
+            start_date=entry["start_date"],
+            end_date=entry["end_date"],
+            cadence_override=None,
+            is_required=True,
+            title=entry["title"],
+            status=TemplateAssignment.Status.SCHEDULED,
+            created_by=actor,
+        )
+        self.stdout.write(self.style.SUCCESS(f"created {new_assignment}"))
+        return new_assignment
 ```
 
-The idempotency key is `(program, template, target_type, target_identifiers)` where `target_identifiers` is the role string, the assignment_group id, the membership_ids list, or the tag string depending on target_type.
+The idempotency key is `(program, template, target_type='role', target_payload['role'])`. If an existing scheduled/active row matches, update title/is_required only. Never resurrect ended or cancelled rows.
 
 ### 4. Date window
 
-- `start_date`: program's `start_date` (Crane Lake Summer 2026 starts June 5, 2026).
-- `end_date`: program's `end_date` (or null for open-ended).
+- `start_date`: `program.start_date` (2026-06-05 per setup_crane_lake.py).
+- `end_date`: `program.end_date` (2026-08-14 per setup_crane_lake.py).
+
+These flow directly from the Program record; do not hardcode dates in the command.
 
 ### 5. Pre-flight checks before writes
 
-The command should refuse to run if:
+The command should refuse to run (raise CommandError) if:
 
-- The organization or program doesn't exist (raise CommandError).
-- Any expected template is missing in the program's templates (warn, list missing, exit non-zero unless `--force` is passed).
-- An assignment with the same key already exists in a status that isn't `active` or `scheduled` (e.g. `ended` or `cancelled`) — log a warning and skip rather than reactivate. The intent is "seed fresh assignments," not "resurrect old ones."
+- The organization doesn't exist.
+- The program doesn't exist.
+- ANY expected template is missing (list all missing templates in the error).
 
-### 6. Cross-program safety
+The command should log a warning and skip (not fail) if:
 
-Re-running the command against a different `--program-slug` must not affect Summer 2026 assignments. The idempotency key includes `program`, so this is automatic, but include an explicit test.
+- An assignment with the same key already exists in a status that isn't `active` or `scheduled` (e.g. `ended` or `cancelled`). The intent is "seed fresh," not "resurrect."
+
+### 6. Cross-program / cross-org safety
+
+Re-running the command against a different program-slug must not affect Summer 2026 assignments. The idempotency key includes `program`, so this is automatic, but include an explicit test (task 7.6 below).
 
 ### 7. Tests
 
-Create `backend/bunk_logs/core/management/tests/test_seed_summer_2026_assignments.py`:
+Create `backend/bunk_logs/core/tests/test_seed_summer_2026_assignments.py` (or under `core/management/tests/` matching the existing convention; check what exists).
 
-1. **Happy path**: seed against a fixture with all expected templates → expected number of assignments created.
-2. **Idempotency**: run twice → same row count, no duplicates.
-3. **Dry run**: produces no DB writes.
-4. **Missing template**: run against a fixture missing one template → exit with helpful error.
-5. **Bunk enumeration**: fixture with 3 bunks → 3 counselor-camper-log assignments created (one per bunk).
-6. **Cross-program isolation**: seed Summer 2026, then create a Summer 2027 program in the same org, run for Summer 2027 → Summer 2026 assignments untouched.
-7. **Cross-org isolation**: seed Crane Lake, then run for a different org → Crane Lake assignments untouched.
+1. **Happy path**: seed against a fixture with all 12 expected templates → 12 assignments created.
+2. **Idempotency**: run twice → 12 assignments, no duplicates, no errors.
+3. **Dry run**: produces no DB writes; lists what would be done.
+4. **Missing template**: run against a fixture missing one template → CommandError with the missing slug named.
+5. **Title update**: pre-create an assignment with wrong title → re-running command corrects the title; row count unchanged.
+6. **Cross-program isolation**: seed Summer 2026, then create a hypothetical Summer 2027 program in the same org, run for 2027 → Summer 2026 assignments untouched.
+7. **Cross-org isolation**: seed CLC, then run for a different org → CLC assignments untouched.
+8. **Existing ended/cancelled row**: an ended assignment exists for the same (program, template, role) → command logs warning and creates a NEW scheduled row alongside (does not resurrect).
 
 ### 8. Documentation
 
 Add a new section to `docs/clc-summer-2026-launch.md` titled "Seeding TemplateAssignments (Step 7_22)" with:
 
 - The command invocation.
-- The list of assignments it creates.
-- The expected verification step (run the command against staging, log into staging as Alyson, confirm dashboards populate correctly).
-- The production deploy sequence (per Step 7_21's critical warning: 7_20 → 7_21 → 7_22 → run seeding command, all in one maintenance window).
+- The list of 12 assignments it creates.
+- The expected verification step: run on staging, log in as Alyson, confirm dashboards populate.
+- The production deploy sequence (see "Final Wave 1 sequence" below).
+
+If `docs/clc-summer-2026-launch.md` does not exist, create it with just this section plus a header. Don't bloat it; the production deploy plan in `docs/wave_1_progress.md` is the canonical source.
 
 ### 9. Acceptance criteria for this prompt
 
-- Command exists and is idempotent.
-- All assignments listed in task 2 are created when run against the Crane Lake Summer 2026 fixtures.
-- Per-role dashboards (post-7_21 refactor) return non-empty results after seeding.
-- All tests in task 7 pass.
-- `pytest`, `ruff check` clean.
+- Command exists and is idempotent across all 8 test cases.
+- All 12 assignments are created when run against the CLC Summer 2026 fixtures.
+- Per-role dashboards (post-7_21 refactor) return non-empty results after seeding (verified by running 7_21 dashboard tests with seed data present).
+- All tests pass; `ruff check` clean.
 - Frontend tests unaffected.
-- Smoke test on staging: a seeded counselor sees their daily camper bunk log task and their daily self-reflection task; a seeded UH sees their daily UH self-reflection task; etc.
+- Smoke test on local dev: run `onboard_clc_summer_2026 --skip-import` to ensure templates exist, then run `seed_summer_2026_assignments --org-slug clc --program-slug summer-2026`, then query TemplateAssignment count = 12.
 
 ### 10. Commit / PR conventions
 
-Per the existing migration prompts pattern:
+Per the existing pattern:
 
 - Branch: `step/7_22_seed_summer_2026_assignments`
-- Commit: `feat(7_22_seed_summer_2026_assignments): seed TemplateAssignment rows for Crane Lake Summer 2026`
+- Commit: `feat(7_22_seed_summer_2026_assignments): seed TemplateAssignment rows for CLC Summer 2026`
 - Open a PR with `gh pr create`; title `7_22: Seed TemplateAssignments for Crane Lake Summer 2026`. Don't merge yourself.
 - PR description includes:
-  - **What**: summary of the command and the assignment list it produces.
-  - **Why**: link to `docs/design/form_orchestration_reframe.md` and decision FA10.
-  - **Testing**: list of tests; dry-run output from staging.
-  - **Risk assessment**: this is the cutover. If template slugs in the seed table don't match production templates, dashboards will be empty after deploy. Mitigation: dry-run against staging-with-prod-data-snapshot before deploy.
-  - **Rollback plan**: TemplateAssignment rows can be marked `status='cancelled'` and the pre-7_21 dashboards code can be restored to fall back to direct template queries. But the cleaner rollback is "revert 7_21 and 7_22 together" — the same maintenance window strategy applies in reverse.
-
-## What this prompt does NOT do
-
-- Does NOT modify any model or dashboard code.
-- Does NOT add frontend UX.
-- Does NOT seed TBE assignments (covered in TBE onboarding, post-summer).
-- Does NOT seed any `is_required=False` (optional) assignments.
+  - **What**: command summary + 12 assignments produced.
+  - **Why**: link to design doc and decision FA10.
+  - **Testing**: tests + dry-run output from local dev.
+  - **Risk assessment**: if template slugs in the seed table don't match production templates, dashboards stay empty after deploy. Mitigation: dry-run against staging-with-prod-snapshot before deploy.
+  - **Rollback plan**: TemplateAssignment rows can be marked `status='cancelled'`. The cleaner rollback is to revert 7_21 and 7_22 as a pair.
 
 ## Final Wave 1 sequence
 
 Once 7_22 is merged:
 
-1. Deploy 7_20 + 7_21 + 7_22 to production in a single maintenance window (suggested: a weekend evening late May / very early June).
-2. Run the seeding command in production: `python manage.py seed_summer_2026_assignments --org-slug crane-lake-camp --program-slug summer-2026`.
+1. Deploy 7_20 + 7_21 + 7_22 to production in a single maintenance window (suggested: evening of June 1 or 2).
+2. Run the seeding command in production: `python manage.py seed_summer_2026_assignments --org-slug clc --program-slug summer-2026`.
 3. Smoke test as Alyson immediately after.
 4. Monitor Datadog APM for unexpected dashboard errors over the next 24 hours.
 5. By June 3 at the latest, declare Wave 1 done or trigger the FA10(b) escape-hatch rollback.
 
 After Wave 1 ships and stabilizes:
 
-- Re-verify the existing canonical user stories against the new substrate (per the design doc §7 acceptance criteria).
+- Re-verify the existing canonical user stories against the new substrate.
 - Plan Notes module deploy (7_19) for late June.
 - Begin Wave 2 work in July (FA-E, FA-P, FA-F, FA-G, FA-H, FA-I).
