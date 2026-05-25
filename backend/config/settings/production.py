@@ -1,4 +1,6 @@
 # ruff: noqa: E501
+import os
+
 from .base import *
 from .base import DATABASES
 from .base import INSTALLED_APPS
@@ -10,11 +12,6 @@ from .base import env
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
 SECRET_KEY = env("DJANGO_SECRET_KEY")
-# https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = env.list(
-    "DJANGO_ALLOWED_HOSTS",
-    default=["bunklogs.net", "www.bunklogs.net", ".bunklogs.net"],
-)
 
 # DATABASES
 # ------------------------------------------------------------------------------
@@ -308,14 +305,22 @@ CSRF_TRUSTED_ORIGINS = [
     "https://admin.bunklogs.net", # Custom domain for Cloudflare
 ]
 
-# Update allowed hosts to remove localhost in production
-ALLOWED_HOSTS = env.list(
+# Update allowed hosts to remove localhost in production.
+# Django subdomain wildcards use a leading dot (``.onrender.com``), not ``*.onrender.com``.
+# Render injects RENDER_EXTERNAL_HOSTNAME on every web service; merge it so staging /
+# PR-preview hostnames work even when DJANGO_ALLOWED_HOSTS is set explicitly.
+_allowed_hosts = env.list(
     "DJANGO_ALLOWED_HOSTS",
     default=[
-        "admin.bunklogs.net",  # Your custom domain
-        "bunklogs.onrender.com",  # Original Render URL
+        "admin.bunklogs.net",
+        "bunklogs.onrender.com",
         "bunklogs.net",
         "www.bunklogs.net",
-        ".bunklogs.net",  # Any *.bunklogs.net tenant subdomain
+        ".bunklogs.net",
+        ".onrender.com",
     ],
 )
+_render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if _render_hostname and _render_hostname not in _allowed_hosts:
+    _allowed_hosts = [* _allowed_hosts, _render_hostname]
+ALLOWED_HOSTS = _allowed_hosts

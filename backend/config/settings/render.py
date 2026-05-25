@@ -23,7 +23,7 @@ ALLOWED_HOSTS = env.list(
         "www.bunklogs.net",
         ".bunklogs.net",  # Any *.bunklogs.net tenant subdomain
         "admin.bunklogs.net",  # Admin subdomain
-        "*.onrender.com",  # Render.com domain pattern
+        ".onrender.com",  # Render.com staging + PR preview hostnames
     ],
 )
 
