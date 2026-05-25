@@ -23,6 +23,7 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -170,7 +171,7 @@ def existing_self(org, counselor_person, counselor_membership, db):
         template = counselor_self_template(
             counselor_person, org, counselor_membership.program,
         )
-    today = date.today()
+    today = get_today(org)
     return Reflection.all_objects.create(
         organization=org, program=counselor_membership.program,
         author=counselor_person, subject=counselor_person, template=template,
@@ -232,7 +233,7 @@ def test_patch_outside_edit_window_403(
         template = counselor_self_template(
             counselor_person, org, counselor_membership.program,
         )
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = get_today(org) - timedelta(days=1)
     row = Reflection.all_objects.create(
         organization=org, program=counselor_membership.program,
         author=counselor_person, subject=counselor_person, template=template,

@@ -16,6 +16,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -144,7 +145,7 @@ def test_history_default_page_returns_14_day_grid(
 def test_history_records_submission_and_day_off(
     org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     _submit(org, program, counselor_person, self_template, today, {"elaboration": "OK"})
     _submit(
         org, program, counselor_person, self_template, today - timedelta(days=1),
@@ -183,7 +184,7 @@ def test_history_marks_missing_days_as_gaps(
 def test_history_pagination_advances_window(
     org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     _submit(
         org, program, counselor_person, self_template,
         today - timedelta(days=15),
@@ -204,7 +205,7 @@ def test_history_pagination_advances_window(
 def test_history_returns_text_preview(
     org, program, counselor_user, counselor_person, counselor_membership, self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     _submit(org, program, counselor_person, self_template, today, {"elaboration": "Excellent day"})
     c = _client(counselor_user, org)
     with organization_context(org):

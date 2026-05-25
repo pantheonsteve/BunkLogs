@@ -120,15 +120,15 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
 
   return (
     <div
-      className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3"
+      className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 min-w-0 overflow-hidden"
       data-testid={`lt-fld-${field._id}`}
     >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
           <select
             value={field.type}
             onChange={(e) => update({ type: e.target.value })}
-            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 max-w-full"
             data-testid={`lt-fld-type-${field._id}`}
           >
             {TIER_1_TYPES.map((t) => (
@@ -140,10 +140,10 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
             value={field.key}
             onChange={(e) => update({ key: e.target.value })}
             placeholder="field_key"
-            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 min-w-[8rem] flex-1 max-w-full"
             data-testid={`lt-fld-key-${field._id}`}
           />
-          <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+          <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 shrink-0">
             <input
               type="checkbox"
               checked={!!field.required}
@@ -155,7 +155,7 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
         <button
           type="button"
           onClick={onRemove}
-          className="text-xs rounded-md border border-red-300 text-red-600 hover:bg-red-50 px-2 py-1"
+          className="text-xs rounded-md border border-red-300 text-red-600 hover:bg-red-50 px-2 py-1 shrink-0"
           data-testid={`lt-fld-remove-${field._id}`}
         >
           Remove
@@ -209,14 +209,27 @@ function OptionsEditor({ options, languages, onChange, fieldId }) {
     <div className="space-y-1">
       <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Options</p>
       {options.map((o, idx) => (
-        <div key={idx} className="flex gap-2 items-center" data-testid={`lt-opt-${fieldId}-${idx}`}>
-          <input
-            type="text"
-            value={o.key}
-            onChange={(e) => updateOption(idx, { key: e.target.value })}
-            placeholder="option_key"
-            className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-32"
-          />
+        <div
+          key={idx}
+          className="rounded-md border border-gray-100 dark:border-gray-700 p-2 space-y-2"
+          data-testid={`lt-opt-${fieldId}-${idx}`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={o.key}
+              onChange={(e) => updateOption(idx, { key: e.target.value })}
+              placeholder="option_key"
+              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32"
+            />
+            <button
+              type="button"
+              onClick={() => removeOption(idx)}
+              className="text-xs text-red-600 hover:underline sm:ml-auto"
+            >
+              Remove
+            </button>
+          </div>
           {languages.map((lang) => (
             <input
               key={lang}
@@ -224,16 +237,9 @@ function OptionsEditor({ options, languages, onChange, fieldId }) {
               value={o.labels?.[lang] ?? ''}
               onChange={(e) => updateOption(idx, { labels: { ...(o.labels || {}), [lang]: e.target.value } })}
               placeholder={`label (${lang})`}
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 flex-1"
+              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full"
             />
           ))}
-          <button
-            type="button"
-            onClick={() => removeOption(idx)}
-            className="text-xs text-red-600 hover:underline"
-          >
-            Remove
-          </button>
         </div>
       ))}
       <button
@@ -259,14 +265,27 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
     <div className="space-y-1">
       <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Categories</p>
       {categories.map((c, idx) => (
-        <div key={idx} className="flex gap-2 items-center" data-testid={`lt-cat-${fieldId}-${idx}`}>
-          <input
-            type="text"
-            value={c.key}
-            onChange={(e) => update(idx, { key: e.target.value })}
-            placeholder="category_key"
-            className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-32"
-          />
+        <div
+          key={idx}
+          className="rounded-md border border-gray-100 dark:border-gray-700 p-2 space-y-2"
+          data-testid={`lt-cat-${fieldId}-${idx}`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={c.key}
+              onChange={(e) => update(idx, { key: e.target.value })}
+              placeholder="category_key"
+              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32"
+            />
+            <button
+              type="button"
+              onClick={() => remove(idx)}
+              className="text-xs text-red-600 hover:underline sm:ml-auto"
+            >
+              Remove
+            </button>
+          </div>
           {languages.map((lang) => (
             <input
               key={lang}
@@ -274,16 +293,9 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
               value={c.labels?.[lang] ?? ''}
               onChange={(e) => update(idx, { labels: { ...(c.labels || {}), [lang]: e.target.value } })}
               placeholder={`label (${lang})`}
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 flex-1"
+              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full"
             />
           ))}
-          <button
-            type="button"
-            onClick={() => remove(idx)}
-            className="text-xs text-red-600 hover:underline"
-          >
-            Remove
-          </button>
         </div>
       ))}
       <button
@@ -300,7 +312,7 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
 
 function PreviewPane({ template, fields, previewLanguage }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       {fields.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="lt-builder-preview-empty">
           Add a field to see a preview.
@@ -534,7 +546,7 @@ export default function TemplateBuilderPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <Link
               to="/leadership-team/templates"
@@ -604,8 +616,8 @@ export default function TemplateBuilderPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <section className="lg:col-span-3 space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+      <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <section className="xl:col-span-3 min-w-0 space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">Settings</h2>
           <label className="block text-sm text-gray-700 dark:text-gray-300">
             Role
@@ -672,8 +684,8 @@ export default function TemplateBuilderPage() {
           </label>
         </section>
 
-        <section className="lg:col-span-5 space-y-3" aria-label="Fields">
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+        <section className="xl:col-span-5 min-w-0 space-y-3" aria-label="Fields">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 min-w-0 overflow-hidden">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
               Fields
             </h2>
@@ -716,7 +728,7 @@ export default function TemplateBuilderPage() {
                       ↓
                     </button>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <FieldEditor
                       field={field}
                       languages={template.languages}
@@ -779,7 +791,7 @@ export default function TemplateBuilderPage() {
         </section>
 
         <section
-          className="lg:col-span-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+          className="xl:col-span-4 min-w-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 xl:sticky xl:top-24 xl:self-start xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto"
           aria-label="Preview"
           data-testid="lt-builder-preview"
         >

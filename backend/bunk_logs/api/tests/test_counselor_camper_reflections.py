@@ -23,6 +23,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -193,7 +194,7 @@ def test_list_shows_submitter_when_not_self(
     co_counselor_person, co_counselor_membership, co_as_author,
     campers, template,
 ):
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,
@@ -222,7 +223,7 @@ def test_list_hides_submitter_name_when_self(
     org, program, counselor_user, counselor_person, counselor_membership,
     bunk, counselor_as_author, campers, template,
 ):
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,
@@ -256,7 +257,7 @@ def test_list_segregates_off_camp_campers(
     org, program, counselor_user, counselor_person, counselor_membership,
     bunk, counselor_as_author, campers, template,
 ):
-    today = date.today()
+    today = get_today(org)
     CamperDayState.objects.create(
         organization=org, program=program, camper=campers[-1], date=today, is_off_camp=True,
     )
@@ -290,7 +291,7 @@ def test_list_for_past_date_marks_not_editable(
     org, program, counselor_user, counselor_person, counselor_membership,
     bunk, counselor_as_author, campers, template,
 ):
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = get_today(org) - timedelta(days=1)
     Reflection.all_objects.create(
         organization=org,
         program=program,

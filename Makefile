@@ -1,5 +1,5 @@
 .PHONY: help up down restart logs shell ps \
-        migrate makemigrations superuser seed seed-rbac setup-crane-lake onboard-clc \
+        migrate makemigrations superuser seed seed-rbac setup-crane-lake onboard-clc seed-clc-assignments \
         test test-backend test-frontend test-e2e \
         lint lint-backend lint-frontend \
         frontend-install frontend-dev \
@@ -26,6 +26,7 @@ help:
 	@echo "  make seed-rbac       Seed RBAC test bench (10 users, password 'rbacpass123'; see docs/rbac-test-plan.md)"
 	@echo "  make setup-crane-lake  New tenant models: ensure CLC org + Summer 2026 program"
 	@echo "  make onboard-clc       Full CLC Summer 2026 onboarding (org+templates; pass CSV_PATH=... for staff)"
+	@echo "  make seed-clc-assignments  Seed 12 TemplateAssignment rows for CLC Summer 2026 (pass DRY_RUN=1 to preview)"
 	@echo "  make shell           Open Django shell (shell_plus if available)"
 	@echo ""
 	@echo "Frontend:"
@@ -82,6 +83,12 @@ setup-crane-lake:
 onboard-clc:
 	$(DJANGO_EXEC) python manage.py onboard_clc_summer_2026 \
 	  $(if $(CSV_PATH),--csv-path $(CSV_PATH),--skip-import) \
+	  $(if $(DRY_RUN),--dry-run,)
+
+seed-clc-assignments:
+	$(DJANGO_EXEC) python manage.py seed_summer_2026_assignments \
+	  --org-slug clc --program-slug summer-2026 \
+	  $(if $(ACTOR_USERNAME),--actor-username $(ACTOR_USERNAME),) \
 	  $(if $(DRY_RUN),--dry-run,)
 
 shell:

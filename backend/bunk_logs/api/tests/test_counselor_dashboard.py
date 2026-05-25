@@ -24,6 +24,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -277,7 +278,7 @@ def test_dashboard_in_progress_when_some_submitted(
     campers,
     camper_template,
 ):
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,
@@ -312,7 +313,7 @@ def test_dashboard_complete_when_all_submitted(
     campers,
     camper_template,
 ):
-    today = date.today()
+    today = get_today(org)
     for camper in campers:
         Reflection.all_objects.create(
             organization=org,
@@ -348,7 +349,7 @@ def test_dashboard_off_camp_excluded_from_expected(
     campers,
     camper_template,
 ):
-    today = date.today()
+    today = get_today(org)
     # Mark one camper off-camp -> expected total drops to 2.
     CamperDayState.objects.create(
         organization=org,
@@ -393,7 +394,7 @@ def test_dashboard_draft_does_not_count_as_submitted(
     campers,
     camper_template,
 ):
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,
@@ -429,7 +430,7 @@ def test_dashboard_self_section_complete_when_submitted(
     counselor_membership,
     self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,
@@ -462,7 +463,7 @@ def test_dashboard_self_section_day_off_counts_as_complete(
     counselor_membership,
     self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,
@@ -521,7 +522,7 @@ def test_dashboard_all_set_true_when_both_sections_complete(
     camper_template,
     self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     for camper in campers:
         Reflection.all_objects.create(
             organization=org,
@@ -567,7 +568,7 @@ def test_dashboard_all_set_false_with_open_requests_only(
     camper_template,
     self_template,
 ):
-    today = date.today()
+    today = get_today(org)
     for camper in campers:
         Reflection.all_objects.create(
             organization=org,
@@ -699,7 +700,7 @@ def test_dashboard_caches_response(
     assert first.data["sections"]["camper_reflections"]["covered"] == 0
 
     # Add a submission AFTER the first response was cached -> cached value wins.
-    today = date.today()
+    today = get_today(org)
     Reflection.all_objects.create(
         organization=org,
         program=program,

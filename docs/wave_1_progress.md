@@ -93,14 +93,14 @@
 
 ### Step 7_22 — Seed Summer 2026 TemplateAssignments
 
-**Status:** 🔄 In progress (pre-flight complete, branch not yet open)
-**Branch:** _(open as `step/7_22_seed_summer_2026_assignments` when starting Cursor session)_
-**PR:** _(not yet)_
+**Status:** ✅ Merged to main
+**Branch:** `step/7_22_seed_summer_2026_assignments` (merged)
+**PR:** _(record PR number when convenient)_
 **Estimated:** 2–4 hours
-**Actual:** _(record when done)_
-**Depends on:** 7_21 merged ✅
+**Actual:** _(record final hours)_
+**Depends on:** 7_21 merged ✅ + pre-flight UH template merged ✅
 
-**Scope reminder:** Idempotent management command `seed_summer_2026_assignments`. Verify the canonical assignment list against actual seeded templates before running.
+**Scope reminder:** Idempotent management command `seed_summer_2026_assignments`. 12 assignments, one per CLC 2026 template.
 
 **Pre-flight findings (2026-05-24):**
 - Org slug is `clc` (not `crane-lake-camp` as initial prompt assumed). Program slug is `summer-2026`.
@@ -109,11 +109,19 @@
 - No `admin` template exists in the manifest — admin's surface is template oversight, not template resolution. **No admin assignment row needed.**
 - **UH template gap found AND fixed.** Story 16 specifies UH self-reflection as a launch requirement, but no UH template existed. Created `templates/reflection_templates/clc_2026/unit_head.json` with placeholder copy matching the other 11 templates, and added the manifest entry to `onboard_clc_summer_2026.py`. Brent will replace placeholder copy before launch.
 - **Result: 12 assignment rows to create**, one per CLC 2026 template, all `target_type='role'`, all `is_required=True`, no `cadence_override`.
-- Prompt `7_22_seed_summer_2026_assignments.md` updated with the corrected slug list and pre-flight findings.
+
+**Verified post-merge (2026-05-24):**
+- `backend/bunk_logs/core/management/commands/seed_summer_2026_assignments.py` exists with the documented signature ✅
+- `ASSIGNMENT_MANIFEST` contains all 12 entries with correct slugs and roles ✅
+- UH entry present at position 5, between specialist and leadership_team ✅
+- LT entry uses `clc-2026-leadership-biweekly` slug (biweekly cadence inherited from template) ✅
+- No `admin` row in the manifest ✅
+- Module docstring references Step 7_22 and the resurrection rule (acceptance criterion 8) ✅
+- Counter variables (`created`, `updated`, `unchanged`, `resurrected_warnings`) suggest informative `--dry-run` reporting ✅
 
 **Notes / blockers:**
 
-- _Add as you encounter them during execution._
+- None.
 
 ---
 
