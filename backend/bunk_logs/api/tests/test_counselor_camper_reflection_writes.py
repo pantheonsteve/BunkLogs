@@ -27,6 +27,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -271,7 +272,7 @@ def test_off_camp_camper_rejected(
     sarah = campers[0]
     CamperDayState.all_objects.create(
         organization=org, program=program, camper=sarah,
-        date=date.today(), is_off_camp=True,
+        date=get_today(org), is_off_camp=True,
     )
     c = _client(counselor_user, org)
     with organization_context(org):
@@ -292,7 +293,7 @@ def test_off_camp_camper_rejected(
 def existing_reflection(
     org, program, counselor_person, bunk, counselor_as_author, campers, camper_template,
 ):
-    today = date.today()
+    today = get_today(org)
     return Reflection.all_objects.create(
         organization=org, program=program, subject=campers[0],
         author=counselor_person, assignment_group=bunk, template=camper_template,
@@ -374,7 +375,7 @@ def test_patch_outside_edit_window_returns_403(
     org, program, counselor_person, counselor_user, counselor_membership,
     bunk, counselor_as_author, campers, camper_template,
 ):
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = get_today(org) - timedelta(days=1)
     old = Reflection.all_objects.create(
         organization=org, program=program, subject=campers[0],
         author=counselor_person, assignment_group=bunk, template=camper_template,

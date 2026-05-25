@@ -54,6 +54,7 @@ from django.db.models.signals import post_save
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.time_utils import get_today
 
 _COUNSELOR_SELF_REFLECTION_SCHEMA = {
     "fields": [
@@ -459,6 +460,12 @@ def _autobind_role_assignments_to_new_programs(db):
     post_save.connect(_on_program_saved, sender=Program)
     yield
     post_save.disconnect(_on_program_saved, sender=Program)
+
+
+@pytest.fixture
+def org_today(org):
+    """Rollover-aware camp day for tests that seed reflections or day states."""
+    return get_today(org)
 
 
 # ---------------------------------------------------------------------------
