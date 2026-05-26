@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import isSuperAdmin from "../utils/auth/isSuperAdmin";
 import { hasCapability } from "../utils/auth/capability";
+import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 
@@ -143,6 +144,22 @@ function Sidebar({
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
   const canSeeLegacy = canAdmin;
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
+  const canSeeNotes = user.role === 'Counselor' || user.role === 'Unit Head';
+
+  // Poll unread notes count every 60 seconds while Notes is visible.
+  const [notesUnread, setNotesUnread] = useState(0);
+  useEffect(() => {
+    if (!canSeeNotes) return;
+    let cancelled = false;
+    function fetchUnread() {
+      api.get('/api/v1/notes/unread-count/').then(r => {
+        if (!cancelled) setNotesUnread(r.data.count ?? 0);
+      }).catch(() => {});
+    }
+    fetchUnread();
+    const id = setInterval(fetchUnread, 60000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [canSeeNotes]);
 
   return (
     <div className="min-w-fit">
@@ -194,6 +211,14 @@ function Sidebar({
             )}
             {canFileReflection && (
               <NavItem to="/my-reflections" label="My reflections" icon={IconClipboard} />
+            )}
+            {canSeeNotes && (
+              <NavItem
+                to="/notes"
+                label="Notes"
+                icon={IconChat}
+                badge={notesUnread > 0 ? notesUnread : null}
+              />
             )}
           </Section>
 
@@ -348,7 +373,7 @@ function Section({ heading, headingTitle, children, ...rest }) {
   );
 }
 
-function NavItem({ to, label, icon: Icon, end = false }) {
+function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
   return (
     <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
       <NavLink
@@ -362,8 +387,13 @@ function NavItem({ to, label, icon: Icon, end = false }) {
       >
         <div className="flex items-center">
           <Icon />
-          <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+          <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 flex items-center gap-2">
             {label}
+            {badge != null && (
+              <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
+                {badge}
+              </span>
+            )}
           </span>
         </div>
       </NavLink>
@@ -490,6 +520,13 @@ function IconClipboard() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+    </svg>
+  );
+}
+function IconChat() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
     </svg>
   );
 }

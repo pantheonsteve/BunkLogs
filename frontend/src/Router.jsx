@@ -43,6 +43,8 @@ import GroupListPage from './pages/admin/groups/GroupListPage';
 import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
 import FieldKeyListPage from './pages/admin/field-keys/FieldKeyListPage';
 import TasksPage from './pages/TasksPage';
+import NotesPage from './pages/notes/NotesPage';
+import ThreadView from './pages/notes/ThreadView';
 import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
 import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
 import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
@@ -373,6 +375,8 @@ function Router() {
           <Route path="/reflect" element={<ReflectionFormPage />} />
           <Route path="/reflect/summary" element={<ReflectionSummaryPage />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/notes/:noteId" element={<ThreadView />} />
           <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
           {/* 7_6d: Counselor mobile flow. Lives under AppLayout so the
               sidebar/header chrome (3.32 / 3.33) stays available on the

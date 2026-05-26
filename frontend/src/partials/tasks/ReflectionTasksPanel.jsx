@@ -326,6 +326,49 @@ function SummaryBar({ tasks }) {
 //            'embedded' — inside CounselorDashboard card (full width)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Notes requiring response section (Step 7_19, FA8 — Notes are distinct from tasks)
+// ---------------------------------------------------------------------------
+
+function NotesRequiringResponseSection() {
+  const [notes, setNotes] = useState([]);
+
+  useEffect(() => {
+    api.get('/api/v1/notes/inbox/').then(r => {
+      const inbox = r.data.results ?? r.data;
+      // Show only notes with unread activity
+      setNotes(inbox.filter(n => n.unread).slice(0, 5));
+    }).catch(() => {});
+  }, []);
+
+  if (notes.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+        Notes requiring response
+      </h2>
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+        {notes.map(note => (
+          <Link
+            key={note.id}
+            to={`/notes/${note.id}`}
+            className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+          >
+            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
+            <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">
+              {note.subject}
+            </span>
+            <span className="text-xs text-gray-400 shrink-0">
+              From {note.author?.full_name}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ReflectionTasksPanel({ variant = 'page' }) {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState(null);
@@ -454,6 +497,8 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
               return <SubjectSection key={task.id} task={task} onPillTap={handlePillTap} />;
             })}
           </div>
+
+          <NotesRequiringResponseSection />
         </>
       )}
     </>

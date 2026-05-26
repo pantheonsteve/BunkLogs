@@ -48,6 +48,7 @@ from .leadership_team import templates as lt_templates
 from .madrich import dashboard as md_dashboard
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
+from .notes_platform import views as notes_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
 from .specialist import dashboard as sp_dashboard
@@ -617,6 +618,70 @@ urlpatterns = [
         "leadership-team/teams/<str:team_role>/aggregate/export/",
         lt_exports.LeadershipTeamTeamAggregateExportView.as_view(),
         name="leadership-team-team-aggregate-export",
+    ),
+
+    # ------------------------------------------------------------------
+    # Notes Platform (Step 7_19, Stories 66-70)
+    # ------------------------------------------------------------------
+    path(
+        "notes/inbox/",
+        notes_views.NotesInboxView.as_view(),
+        name="notes-inbox",
+    ),
+    path(
+        "notes/sent/",
+        notes_views.NotesSentView.as_view(),
+        name="notes-sent",
+    ),
+    path(
+        "notes/archive/",
+        notes_views.NotesArchiveView.as_view(),
+        name="notes-archive",
+    ),
+    path(
+        "notes/unread-count/",
+        notes_views.NotesUnreadCountView.as_view(),
+        name="notes-unread-count",
+    ),
+    path(
+        "notes/audience-options/",
+        notes_views.NotesAudienceOptionsView.as_view(),
+        name="notes-audience-options",
+    ),
+    path(
+        "notes/from-bunk-concern/",
+        notes_views.NoteFromBunkConcernView.as_view(),
+        name="notes-from-bunk-concern",
+    ),
+    path(
+        "notes/from-specialist-note/",
+        notes_views.NoteFromSpecialistNoteView.as_view(),
+        name="notes-from-specialist-note",
+    ),
+    path(
+        "notes/",
+        notes_views.NoteCreateView.as_view(),
+        name="notes-create",
+    ),
+    path(
+        "notes/<int:note_id>/",
+        notes_views.NoteThreadView.as_view(),
+        name="notes-thread",
+    ),
+    path(
+        "notes/<int:note_id>/replies/",
+        notes_views.NoteReplyCreateView.as_view(),
+        name="notes-reply-create",
+    ),
+    path(
+        "notes/<int:note_id>/archive/",
+        notes_views.NoteArchiveView.as_view(),
+        name="notes-archive-action",
+    ),
+    path(
+        "notes/<int:note_id>/unarchive/",
+        notes_views.NoteUnarchiveView.as_view(),
+        name="notes-unarchive-action",
     ),
 ]
 
