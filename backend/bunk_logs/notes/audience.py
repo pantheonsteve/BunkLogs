@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.models import AssignmentGroup
@@ -326,7 +325,7 @@ def _bunk_ids_for_counselor(membership: Membership) -> list[int]:
             group__group_type="bunk",
             role_in_group="author",
             is_active=True,
-        ).values_list("group_id", flat=True).distinct()
+        ).values_list("group_id", flat=True).distinct(),
     )
 
 
@@ -343,7 +342,7 @@ def _counselors_on_bunk(bunk_id: int, program: Program) -> list[Person]:
 def _supervised_bunk_ids_for_uh(membership: Membership) -> set[int]:
     """Bunk IDs supervised by the UH, derived transitively via supervised counselors."""
     return set(
-        Supervision.objects.bunks_for_uh(membership).values_list("id", flat=True)
+        Supervision.objects.bunks_for_uh(membership).values_list("id", flat=True),
     )
 
 
@@ -353,7 +352,7 @@ def _counselor_ids_on_bunks(bunk_ids: set[int], program: Program) -> set[int]:
             group_id__in=bunk_ids,
             role_in_group="author",
             is_active=True,
-        ).values_list("person_id", flat=True)
+        ).values_list("person_id", flat=True),
     )
 
 
@@ -377,7 +376,7 @@ def audience_options_for(
             program__organization=organization,
             is_active=True,
             role__in=V1_AUTHOR_ROLES,
-        ).values_list("role", flat=True)
+        ).values_list("role", flat=True),
     )
     # Prefer unit_head over counselor if the person has both (edge case).
     if "unit_head" in roles:
@@ -412,7 +411,8 @@ def resolve_audience(
     """
     resolvers = _role_resolvers(author_membership.role)
     if resolvers is None:
-        raise PermissionDenied("Notes not yet enabled for this role.")
+        msg = "Notes not yet enabled for this role."
+        raise PermissionDenied(msg)
 
     seen_person_ids: set[int] = set()
     results: list[dict] = []

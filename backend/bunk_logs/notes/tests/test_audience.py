@@ -7,22 +7,15 @@ semantics.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
+from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.context import organization_context
-from bunk_logs.core.models import (
-    AssignmentGroup,
-    AssignmentGroupMembership,
-    Membership,
-    Organization,
-    Person,
-    Program,
-    Supervision,
-)
-from bunk_logs.notes.audience import audience_options_for, resolve_audience
-from rest_framework.exceptions import PermissionDenied
+from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Person
+from bunk_logs.notes.audience import audience_options_for
+from bunk_logs.notes.audience import resolve_audience
 
 pytestmark = pytest.mark.django_db
 
@@ -239,7 +232,8 @@ class TestCaptureDoNotResolve:
         bunk,
         uh_supervises_counselor,
     ):
-        from bunk_logs.notes.models import Note, NoteAudienceCapture
+        from bunk_logs.notes.models import Note
+        from bunk_logs.notes.models import NoteAudienceCapture
 
         # Note was sent to uh_person; new counselor is NOT in audience.
         note = Note.all_objects.create(

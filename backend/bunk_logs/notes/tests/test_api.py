@@ -6,15 +6,14 @@ cross-org isolation, and empty-audience validation.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
-from django.urls import reverse
 from rest_framework.test import APIClient
 
-from bunk_logs.core.context import organization_context
-from bunk_logs.core.models import Membership, Organization, Person, Supervision
-from bunk_logs.notes.models import Note, NoteArchive, NoteAudienceCapture, NoteReply
+from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Person
+from bunk_logs.notes.models import Note
+from bunk_logs.notes.models import NoteArchive
+from bunk_logs.notes.models import NoteAudienceCapture
 
 pytestmark = pytest.mark.django_db
 
@@ -232,7 +231,7 @@ class TestReplyCreateEndpoint:
         note = _make_note(org, program, counselor_person, audience_persons=[uh_person])
         client = _auth_client(uh_user, org)
         response = client.post(
-            f"/api/v1/notes/{note.id}/replies/", {"body": "Reply body"}, format="json"
+            f"/api/v1/notes/{note.id}/replies/", {"body": "Reply body"}, format="json",
         )
         assert response.status_code == 201
 
@@ -240,7 +239,6 @@ class TestReplyCreateEndpoint:
         self, org, program, counselor_person, uh_person, uh_user,
     ):
         note = _make_note(org, program, uh_person)  # counselor not in audience
-        client = _auth_client(uh_user, org)  # uh is author; but counselor_user isn't in audience
         # Make a separate user who's not in audience
         from bunk_logs.users.models import User
         user2 = User.objects.create_user(email="noaud@t.test", password="pw")

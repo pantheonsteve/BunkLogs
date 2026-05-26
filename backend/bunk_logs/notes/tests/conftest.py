@@ -11,7 +11,6 @@ from datetime import date
 
 import pytest
 
-from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership

@@ -35,12 +35,15 @@ def viewer_or_403(request) -> ViewerContext:
     """
     org = getattr(request, "organization", None)
     if org is None:
-        raise PermissionDenied("Organization context required.")
+        msg = "Organization context required."
+        raise PermissionDenied(msg)
     if not request.user.is_authenticated:
-        raise PermissionDenied("Authentication required.")
+        msg = "Authentication required."
+        raise PermissionDenied(msg)
     person = Person.objects.filter(user=request.user).first()
     if person is None:
-        raise PermissionDenied("Person profile required.")
+        msg = "Person profile required."
+        raise PermissionDenied(msg)
 
     membership = (
         Membership.all_objects.filter(
@@ -54,12 +57,11 @@ def viewer_or_403(request) -> ViewerContext:
         .first()
     )
     if membership is None:
-        raise PermissionDenied(
-            "Notes not yet enabled for this role. Active Counselor or Unit Head role required."
-        )
+        msg = "Notes not yet enabled for this role. Active Counselor or Unit Head role required."
+        raise PermissionDenied(msg)
 
     # Cache person on request for serializer use
-    request._notes_person = person  # noqa: SLF001
+    request._notes_person = person
 
     return ViewerContext(
         person=person,

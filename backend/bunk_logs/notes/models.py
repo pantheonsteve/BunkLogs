@@ -1,4 +1,4 @@
-"""Notes platform models (Step 7_19, Stories 66–70).
+"""Notes platform models (Step 7_19, Stories 66-70).
 
 Five models form the notes data layer:
 

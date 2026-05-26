@@ -1,4 +1,4 @@
-"""Notes platform API views (Step 7_19, Stories 66–70).
+"""Notes platform API views (Step 7_19, Stories 66-70).
 
 Endpoints:
   GET  /api/v1/notes/inbox/             — Story 67
@@ -18,7 +18,6 @@ Endpoints:
 from __future__ import annotations
 
 from django.db.models import Max
-from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -26,7 +25,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit as audit_trail
-from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.notes.audience import audience_options_for
@@ -43,7 +41,6 @@ from .serializers import NoteCreateSerializer
 from .serializers import NoteListSerializer
 from .serializers import NoteReplyCreateSerializer
 from .serializers import NoteThreadSerializer
-from .serializers import UnreadCountSerializer
 
 
 class NotesPagination(PageNumberPagination):
@@ -55,10 +52,7 @@ class NotesPagination(PageNumberPagination):
 def _notes_last_activity(qs):
     """Annotate queryset with last_activity for sorting."""
     return qs.annotate(
-        last_activity=Max(
-            Q(replies__created_at),
-            default=None,
-        )
+        last_activity=Max("replies__created_at"),
     )
 
 
@@ -95,7 +89,7 @@ class NotesInboxView(APIView):
     def get(self, request):
         ctx = viewer_or_403(request)
         archived_note_ids = set(
-            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True)
+            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
         qs = (
             Note.all_objects.filter(
@@ -118,7 +112,7 @@ class NotesSentView(APIView):
     def get(self, request):
         ctx = viewer_or_403(request)
         archived_note_ids = set(
-            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True)
+            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
         qs = (
             Note.all_objects.filter(
@@ -140,7 +134,7 @@ class NotesArchiveView(APIView):
     def get(self, request):
         ctx = viewer_or_403(request)
         archived_note_ids = set(
-            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True)
+            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
         qs = (
             Note.all_objects.filter(
@@ -161,7 +155,7 @@ class NotesUnreadCountView(APIView):
     def get(self, request):
         ctx = viewer_or_403(request)
         archived_note_ids = set(
-            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True)
+            NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
         inbox_notes = Note.all_objects.filter(
             organization=ctx.organization,
@@ -419,7 +413,6 @@ class NoteFromSpecialistNoteView(APIView):
         is_author = reflection.author_id == ctx.person.id
         is_counselor_on_bunk = False
         if not is_author and ctx.membership.role in ("counselor", "junior_counselor"):
-            from bunk_logs.core.models import AssignmentGroup
             from bunk_logs.core.models import AssignmentGroupMembership
             # Check if the camper (subject) is on a bunk where viewer is an author
             if reflection.subject_id:
@@ -429,7 +422,7 @@ class NoteFromSpecialistNoteView(APIView):
                         group__group_type="bunk",
                         role_in_group="author",
                         is_active=True,
-                    ).values_list("group_id", flat=True)
+                    ).values_list("group_id", flat=True),
                 )
                 is_counselor_on_bunk = AssignmentGroupMembership.all_objects.filter(
                     person_id=reflection.subject_id,
