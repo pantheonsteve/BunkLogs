@@ -465,6 +465,10 @@ def test_get_list_includes_new_fields(
     assert "title" in a
     assert "display_title" in a
     assert a["display_title"] == "My Title"
+    # The LT UI uses ``assignment_group_name`` to render a human label
+    # in the "Current assignments" / Unassign list without a second
+    # lookup.
+    assert a.get("assignment_group_name") == bunk.name
 
 
 @pytest.mark.django_db

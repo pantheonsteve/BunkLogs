@@ -61,6 +61,12 @@ __all__ = ["resolve_members"]
 
 
 def _serialize(assignment: TemplateAssignment) -> dict[str, Any]:
+    # ``assignment_group_name`` is included so the LT UI can render a
+    # human-readable label ("Bunk Birch") for assignment-group rows
+    # without an extra round-trip. Falls back to None when not set.
+    group_name = None
+    if assignment.assignment_group_id and assignment.assignment_group:
+        group_name = assignment.assignment_group.name
     return {
         "id": assignment.id,
         "template": assignment.template_id,
@@ -68,6 +74,7 @@ def _serialize(assignment: TemplateAssignment) -> dict[str, Any]:
         "target_type": assignment.target_type,
         "target_payload": assignment.target_payload or {},
         "assignment_group": assignment.assignment_group_id,
+        "assignment_group_name": group_name,
         "is_required": assignment.is_required,
         "title": assignment.title or "",
         "display_title": assignment.title or (
@@ -164,7 +171,7 @@ class LeadershipTeamAssignmentListCreateView(APIView):
         qs = (
             TemplateAssignment.objects
             .filter(organization=ctx.organization)
-            .select_related("template")
+            .select_related("template", "assignment_group")
             .order_by("-start_date", "-created_at")
         )
         template_id = (request.query_params.get("template") or "").strip()
@@ -312,9 +319,9 @@ class LeadershipTeamAssignmentDetailView(APIView):
     def _get(self, request, pk: int) -> TemplateAssignment:
         ctx = assignment_viewer_or_403(request)
         try:
-            return TemplateAssignment.objects.select_related("template").get(
-                organization=ctx.organization, pk=pk,
-            )
+            return TemplateAssignment.objects.select_related(
+                "template", "assignment_group",
+            ).get(organization=ctx.organization, pk=pk)
         except TemplateAssignment.DoesNotExist as exc:
             raise NotFound from exc
 

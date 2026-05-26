@@ -488,3 +488,166 @@ def test_template_responses_export_individual_csv(
     body = resp.content.decode()
     assert "reflection_id" in body
     assert "csv-row" in body
+
+
+# ---------------------------------------------------------------------------
+# Admin access (viewer_or_403 must accept admin capability — decision FA7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def admin_user():
+    return User.objects.create_user(email="admin@lt.test", password="pw")
+
+
+@pytest.fixture
+def admin_membership(program, org, admin_user):
+    person = Person.all_objects.create(
+        organization=org, first_name="Site", last_name="Admin", user=admin_user,
+    )
+    return Membership.all_objects.create(
+        program=program, person=person, role="admin", is_active=True,
+    )
+
+
+@pytest.mark.django_db
+def test_admin_can_list_templates(org, program, admin_membership, admin_user):
+    """Admin membership (capability='admin') may list LT templates."""
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/leadership-team/templates/")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_admin_can_view_responses(
+    org, program, admin_membership, admin_user, published_template,
+):
+    """Admin membership may read the responses endpoint for a template."""
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.get(
+            f"/api/v1/leadership-team/templates/{published_template.id}/responses/",
+        )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_non_lt_non_admin_still_gets_403(org, program):
+    """A counselor (no admin/program_lead capability) is still blocked."""
+    user = User.objects.create_user(email="counselor@lt.test", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="Regular", last_name="Counselor", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="counselor", is_active=True,
+    )
+    c = _client(user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/leadership-team/templates/")
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Unpublish endpoint (published → draft, no responses)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_unpublish_published_template_succeeds(org, lt_membership, lt_user, published_template):
+    """POST /unpublish/ on a published template with no responses → draft."""
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(f"/api/v1/leadership-team/templates/{published_template.id}/unpublish/")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "draft"
+    assert body["is_active"] is False
+
+
+@pytest.mark.django_db
+def test_unpublish_draft_template_rejected(org, lt_membership, lt_user):
+    """POST /unpublish/ on a draft returns 400."""
+    tpl = ReflectionTemplate.all_objects.create(
+        organization=org, name="Still Draft", slug="still-draft-unp",
+        cadence="daily",
+        schema={"fields": [{"key": "x", "type": "text", "prompts": {"en": "x?"}}]},
+        languages=["en"], subject_mode="self",
+        status=ReflectionTemplate.Status.DRAFT, is_active=False, version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(f"/api/v1/leadership-team/templates/{tpl.id}/unpublish/")
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_unpublish_with_responses_rejected(org, program, lt_membership, lt_user, published_template):
+    """POST /unpublish/ when responses exist returns 400 — archive instead."""
+    person = Person.all_objects.create(organization=org, first_name="A", last_name="B")
+    Reflection.all_objects.create(
+        organization=org, program=program, template=published_template,
+        author=person, subject=person,
+        period_start=date.today(), period_end=date.today(),
+        answers={"x": "hi"}, is_complete=True,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(f"/api/v1/leadership-team/templates/{published_template.id}/unpublish/")
+    assert resp.status_code == 400
+    assert "archive" in str(resp.data).lower() or "response" in str(resp.data).lower()
+
+
+# ---------------------------------------------------------------------------
+# DELETE endpoint (draft templates only)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_delete_draft_template_succeeds(org, lt_membership, lt_user):
+    """DELETE on a draft with no responses returns 204 and removes the row."""
+    tpl = ReflectionTemplate.all_objects.create(
+        organization=org, name="To Be Deleted", slug="to-be-deleted",
+        cadence="daily",
+        schema={"fields": [{"key": "x", "type": "text", "prompts": {"en": "x?"}}]},
+        languages=["en"], subject_mode="self",
+        status=ReflectionTemplate.Status.DRAFT, is_active=False, version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
+    assert resp.status_code == 204
+    assert not ReflectionTemplate.all_objects.filter(pk=tpl.id).exists()
+
+
+@pytest.mark.django_db
+def test_delete_published_template_rejected(org, lt_membership, lt_user, published_template):
+    """DELETE on a published template returns 400 — use archive instead."""
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.delete(f"/api/v1/leadership-team/templates/{published_template.id}/")
+    assert resp.status_code == 400
+    assert "draft" in str(resp.data).lower() or "archive" in str(resp.data).lower()
+
+
+@pytest.mark.django_db
+def test_delete_draft_with_responses_rejected(org, program, lt_membership, lt_user):
+    """DELETE on a draft that already has responses returns 400."""
+    tpl = ReflectionTemplate.all_objects.create(
+        organization=org, name="Has Responses", slug="has-responses-del",
+        cadence="daily",
+        schema={"fields": [{"key": "x", "type": "text", "prompts": {"en": "x?"}}]},
+        languages=["en"], subject_mode="self",
+        status=ReflectionTemplate.Status.DRAFT, is_active=False, version=1,
+    )
+    person = Person.all_objects.create(organization=org, first_name="R", last_name="P")
+    Reflection.all_objects.create(
+        organization=org, program=program, template=tpl,
+        author=person, subject=person,
+        period_start=date.today(), period_end=date.today(),
+        answers={"x": "hi"}, is_complete=True,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
+    assert resp.status_code == 400

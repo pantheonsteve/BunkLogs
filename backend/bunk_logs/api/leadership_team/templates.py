@@ -9,7 +9,11 @@ Endpoints under ``/api/v1/leadership-team/templates/``:
                               ``?force_new_version=true`` to bump version
                               regardless); creates a new version when
                               responses exist.
-* ``POST   /<id>/publish/`` — ``draft -> published`` after validation.
+* ``DELETE /<id>/``         — permanently delete a draft template
+                              (no responses allowed; published templates
+                              must be archived instead).
+* ``POST   /<id>/publish/``   — ``draft -> published`` after validation.
+* ``POST   /<id>/unpublish/`` — ``published -> draft`` (no responses allowed).
 * ``POST   /<id>/clone/``   — clone any visible template as a new draft;
                               no version chain back to the source.
 * ``POST   /<id>/archive/`` — ``published -> archived`` (preserves
@@ -34,6 +38,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import models
 from django.db import transaction
 from django.db.models import Q
 from rest_framework import status
@@ -48,6 +53,7 @@ from bunk_logs.api.templates import ReflectionTemplateSerializer
 from bunk_logs.core import audit
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.validators.template_schema import check_field_key_hints
 from bunk_logs.core.validators.template_schema import validate_template_schema
 
@@ -77,12 +83,25 @@ def _lt_template_queryset(org: Organization, *, include_global: bool = True):
     return base.filter(organization=org)
 
 
-def _serialize(template: ReflectionTemplate, request) -> dict[str, Any]:
-    """Wrap the shared serializer + attach status + field-key warnings."""
+def _serialize(
+    template: ReflectionTemplate,
+    request,
+    *,
+    active_assignment_count: int | None = None,
+) -> dict[str, Any]:
+    """Wrap the shared serializer + attach status + field-key warnings.
+
+    ``active_assignment_count`` is the number of TemplateAssignments in
+    the viewer's org currently scheduled/active for this template. Set
+    by the list endpoint via a single GROUP BY query so the library can
+    show "N active assignments" without an N+1 fetch.
+    """
     data = dict(ReflectionTemplateSerializer(template, context={"request": request}).data)
     data["status"] = template.status
     org = getattr(request, "organization", None)
     data["field_key_warnings"] = check_field_key_hints(template.schema or {}, org)
+    if active_assignment_count is not None:
+        data["active_assignment_count"] = active_assignment_count
     return data
 
 
@@ -141,9 +160,29 @@ class LeadershipTeamTemplateListCreateView(APIView):
         if role_q:
             qs = qs.filter(role=role_q)
 
+        templates = list(qs[:200])
+        template_ids = [t.pk for t in templates]
+        counts: dict[int, int] = {}
+        if template_ids:
+            counts_qs = (
+                TemplateAssignment.all_objects.filter(
+                    organization=ctx.organization,
+                    template_id__in=template_ids,
+                    status__in=(
+                        TemplateAssignment.Status.SCHEDULED,
+                        TemplateAssignment.Status.ACTIVE,
+                    ),
+                )
+                .values("template_id")
+                .annotate(n=models.Count("id"))
+            )
+            counts = {row["template_id"]: row["n"] for row in counts_qs}
         return Response(
             {
-                "templates": [_serialize(t, request) for t in qs[:200]],
+                "templates": [
+                    _serialize(t, request, active_assignment_count=counts.get(t.pk, 0))
+                    for t in templates
+                ],
             },
         )
 
@@ -229,6 +268,28 @@ class LeadershipTeamTemplateDetailView(APIView):
     def get(self, request, pk: int, *args, **kwargs):
         tpl = self._get_template(request, pk)
         return Response(_serialize(tpl, request))
+
+    def delete(self, request, pk: int, *args, **kwargs):
+        """``DELETE /<id>/`` — permanently remove a draft template.
+
+        Only draft templates with no responses can be deleted. Published
+        templates must be archived via ``POST /<id>/archive/`` instead.
+        """
+        ctx = viewer_or_403(request)
+        tpl = self._get_template(request, pk)
+        self._check_writable(ctx, tpl)
+        if tpl.status != ReflectionTemplate.Status.DRAFT:
+            msg = (
+                "Only draft templates may be deleted. "
+                "Archive published templates via POST /<id>/archive/ instead."
+            )
+            raise ValidationError(msg)
+        if Reflection.all_objects.filter(template=tpl).exists():
+            msg = "Cannot delete a template that already has responses."
+            raise ValidationError(msg)
+        _audit_template(request=request, template=tpl, action="delete")
+        tpl.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk: int, *args, **kwargs):
         ctx = viewer_or_403(request)
@@ -399,6 +460,37 @@ class LeadershipTeamTemplatePublishView(_BaseLifecycleView):
         body = _serialize(tpl, request)
         body["warnings"] = warnings
         return Response(body)
+
+
+class LeadershipTeamTemplateUnpublishView(_BaseLifecycleView):
+    """``POST /<id>/unpublish/`` — ``published -> draft`` (reverts publication).
+
+    Allowed only when there are no existing Reflection responses for the
+    template.  This keeps the semantics clean: once people have submitted
+    answers to a template it should be archived rather than silently
+    reverted, because active assignments may still reference it.
+    """
+
+    def post(self, request, pk: int, *args, **kwargs):
+        ctx, tpl = self._get(request, pk)
+        if tpl.organization_id != ctx.organization.pk:
+            msg = "Cannot unpublish a template that doesn't belong to your org."
+            raise PermissionDenied(msg)
+        if tpl.status != ReflectionTemplate.Status.PUBLISHED:
+            msg = "Only published templates can be unpublished."
+            raise ValidationError(msg)
+        if Reflection.all_objects.filter(template=tpl).exists():
+            msg = (
+                "Cannot unpublish a template that already has responses. "
+                "Archive it instead."
+            )
+            raise ValidationError(msg)
+        with transaction.atomic():
+            tpl.status = ReflectionTemplate.Status.DRAFT
+            tpl.is_active = False
+            tpl.save(update_fields=["status", "is_active"])
+        _audit_template(request=request, template=tpl, action="unpublish")
+        return Response(_serialize(tpl, request))
 
 
 class LeadershipTeamTemplateArchiveView(_BaseLifecycleView):

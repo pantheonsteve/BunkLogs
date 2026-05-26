@@ -109,13 +109,13 @@ def assignment_viewer_or_403(request) -> ViewerContext:
 
 
 def viewer_or_403(request) -> ViewerContext:
-    """Resolve viewer Person + org + active LT Membership, or raise 403.
+    """Resolve viewer Person + org + active Membership, or raise 403.
 
-    LT endpoints require all of: organization context, an authenticated
-    user, a Person profile in that org, and at least one active
-    ``leadership_team`` Membership. We also defensively assert the
-    derived ``program_lead`` capability so a mis-seeded Membership row
-    that lost its mapping doesn't quietly grant LT access.
+    Accepts either a ``leadership_team`` member (``program_lead``
+    capability) or an ``admin`` member. The broader admin gate applies
+    to all LT surfaces — templates, responses, dashboard, exports, etc.
+    — consistent with the same widening already in place for
+    ``assignment_viewer_or_403`` (decision FA7).
     """
     org = getattr(request, "organization", None)
     if org is None:
@@ -130,14 +130,16 @@ def viewer_or_403(request) -> ViewerContext:
         raise PermissionDenied(msg)
     membership = (
         Membership.objects.filter(
-            person=person, role="leadership_team", is_active=True,
+            person=person,
+            capability__in=["program_lead", "admin"],
+            is_active=True,
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")
         .first()
     )
-    if membership is None or membership.capability != "program_lead":
-        msg = "Leadership Team role required."
+    if membership is None:
+        msg = "Leadership Team or Admin role required."
         raise PermissionDenied(msg)
     return ViewerContext(
         person=person,

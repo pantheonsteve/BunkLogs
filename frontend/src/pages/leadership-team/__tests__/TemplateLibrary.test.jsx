@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import TemplateLibrary from '../TemplateLibrary';
 
 const getMock = vi.fn();
+const postMock = vi.fn();
+const deleteMock = vi.fn();
 
 vi.mock('../../../api', () => ({
   default: {
     get: (...args) => getMock(...args),
-    post: vi.fn(),
+    post: (...args) => postMock(...args),
     patch: vi.fn(),
+    delete: (...args) => deleteMock(...args),
   },
 }));
 
@@ -19,6 +23,8 @@ vi.mock('../../../auth/AuthContext', () => ({
 
 beforeEach(() => {
   getMock.mockReset();
+  postMock.mockReset();
+  deleteMock.mockReset();
 });
 
 function renderLib() {
@@ -67,5 +73,125 @@ describe('LeadershipTeamTemplateLibrary', () => {
     renderLib();
     await waitFor(() => expect(screen.getByTestId('lt-tpl-error')).toBeInTheDocument());
     expect(screen.getByTestId('lt-tpl-error')).toHaveTextContent(/LT access/i);
+  });
+
+  it('shows active_assignment_count badge when present', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        templates: [
+          {
+            id: 9, name: 'Counselor Daily', status: 'published', version: 1,
+            role: 'counselor', languages: ['en'], cadence: 'daily',
+            active_assignment_count: 3,
+          },
+          {
+            id: 10, name: 'Specialist Daily', status: 'published', version: 1,
+            role: 'specialist', languages: ['en'], cadence: 'daily',
+            active_assignment_count: 0,
+          },
+        ],
+      },
+    });
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-row-9')).toBeInTheDocument());
+    expect(screen.getByTestId('lt-tpl-assignments-9')).toHaveTextContent('3 active assignments');
+    expect(screen.getByTestId('lt-tpl-assignments-10')).toHaveTextContent(/Not assigned/i);
+    // Assign button only on published rows.
+    expect(screen.getByTestId('lt-tpl-assign-9')).toBeInTheDocument();
+  });
+
+  it('shows Unpublish button for published templates and calls the API', async () => {
+    getMock
+      .mockResolvedValueOnce({
+        data: {
+          templates: [
+            { id: 40, name: 'Live Template', status: 'published', version: 1, languages: ['en'], cadence: 'daily' },
+          ],
+        },
+      })
+      .mockResolvedValue({ data: { templates: [] } });
+    postMock.mockResolvedValue({ data: { id: 40, status: 'draft', is_active: false } });
+    const user = userEvent.setup();
+
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-unpublish-40')).toBeInTheDocument());
+
+    // Unpublish should not appear on draft rows
+    expect(screen.queryByTestId('lt-tpl-delete-40')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('lt-tpl-unpublish-40'));
+    await waitFor(() =>
+      expect(postMock).toHaveBeenCalledWith(
+        expect.stringContaining('/unpublish/'),
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it('shows an Edit button for every template', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        templates: [
+          { id: 11, name: 'Draft One', status: 'draft', version: 1, languages: ['en'], cadence: 'daily' },
+          { id: 12, name: 'Published One', status: 'published', version: 1, languages: ['en'], cadence: 'daily' },
+        ],
+      },
+    });
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-row-11')).toBeInTheDocument());
+    expect(screen.getByTestId('lt-tpl-edit-11')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-tpl-edit-12')).toBeInTheDocument();
+  });
+
+  it('shows a Delete button only for draft templates and requires confirmation', async () => {
+    getMock
+      .mockResolvedValueOnce({
+        data: {
+          templates: [
+            { id: 20, name: 'Draft Template', status: 'draft', version: 1, languages: ['en'], cadence: 'daily' },
+            { id: 21, name: 'Published Template', status: 'published', version: 1, languages: ['en'], cadence: 'daily' },
+          ],
+        },
+      })
+      .mockResolvedValue({ data: { templates: [] } });
+    deleteMock.mockResolvedValue({});
+    const user = userEvent.setup();
+
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-row-20')).toBeInTheDocument());
+
+    // Delete button only for drafts
+    expect(screen.getByTestId('lt-tpl-delete-20')).toBeInTheDocument();
+    expect(screen.queryByTestId('lt-tpl-delete-21')).not.toBeInTheDocument();
+
+    // Click Delete shows confirmation
+    await user.click(screen.getByTestId('lt-tpl-delete-20'));
+    expect(screen.getByTestId('lt-tpl-delete-confirm-20')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-tpl-delete-cancel-20')).toBeInTheDocument();
+
+    // Confirm deletion calls delete API
+    await user.click(screen.getByTestId('lt-tpl-delete-confirm-20'));
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledOnce());
+  });
+
+  it('cancelling delete confirmation keeps the template row', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        templates: [
+          { id: 30, name: 'Kept Draft', status: 'draft', version: 1, languages: ['en'], cadence: 'daily' },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-delete-30')).toBeInTheDocument());
+    await user.click(screen.getByTestId('lt-tpl-delete-30'));
+    expect(screen.getByTestId('lt-tpl-delete-cancel-30')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('lt-tpl-delete-cancel-30'));
+    expect(screen.getByTestId('lt-tpl-delete-30')).toBeInTheDocument();
+    expect(deleteMock).not.toHaveBeenCalled();
   });
 });

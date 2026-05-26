@@ -13,10 +13,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   archiveTemplate,
   cloneTemplate,
+  deleteTemplate,
   listTemplates,
   publishTemplate,
+  unpublishTemplate,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
+import AssignmentDialog from './AssignmentDialog';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
@@ -49,6 +52,9 @@ export default function LeadershipTeamTemplateLibrary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionPending, setActionPending] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [flash, setFlash] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,12 +83,19 @@ export default function LeadershipTeamTemplateLibrary() {
     try {
       if (action === 'publish') {
         await publishTemplate(orgSlug, id);
+      } else if (action === 'unpublish') {
+        await unpublishTemplate(orgSlug, id);
       } else if (action === 'archive') {
         await archiveTemplate(orgSlug, id);
       } else if (action === 'clone') {
         const cloned = await cloneTemplate(orgSlug, id);
         if (cloned?.id) navigate(`/leadership-team/templates/${cloned.id}`);
         return;
+      } else if (action === 'delete') {
+        const tpl = templates.find((t) => t.id === id);
+        await deleteTemplate(orgSlug, id);
+        setFlash(`Deleted template "${tpl?.name ?? id}".`);
+        setTimeout(() => setFlash(''), 5000);
       }
       await load();
     } catch (err) {
@@ -92,6 +105,7 @@ export default function LeadershipTeamTemplateLibrary() {
       setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
     } finally {
       setActionPending(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -153,6 +167,15 @@ export default function LeadershipTeamTemplateLibrary() {
           </label>
         </section>
 
+        {flash && (
+          <p
+            className="rounded-md bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 text-sm text-green-800 dark:text-green-200"
+            data-testid="lt-tpl-flash"
+          >
+            {flash}
+          </p>
+        )}
+
         {error && (
           <p className="text-red-600 dark:text-red-400 text-sm" data-testid="lt-tpl-error">
             {error}
@@ -199,21 +222,87 @@ export default function LeadershipTeamTemplateLibrary() {
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       {tpl.languages?.join(', ') ?? 'en'} · {tpl.cadence ?? 'daily'}
                     </p>
+                    {typeof tpl.active_assignment_count === 'number' && (
+                      <p
+                        className="text-xs mt-1"
+                        data-testid={`lt-tpl-assignments-${tpl.id}`}
+                      >
+                        {tpl.active_assignment_count === 0 ? (
+                          <span className="text-gray-500 dark:text-gray-400">
+                            Not assigned to any audience yet
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 font-medium">
+                            {tpl.active_assignment_count} active assignment
+                            {tpl.active_assignment_count === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <Link
+                      to={`/leadership-team/templates/${tpl.id}`}
+                      className="text-xs rounded-md border border-indigo-300 dark:border-indigo-700 px-2 py-1 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                      data-testid={`lt-tpl-edit-${tpl.id}`}
+                    >
+                      Edit
+                    </Link>
                     {tpl.status === 'draft' && (
-                      <button
-                        type="button"
-                        onClick={() => doAction(tpl.id, 'publish')}
-                        disabled={actionPending === tpl.id}
-                        className="text-xs rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1"
-                        data-testid={`lt-tpl-publish-${tpl.id}`}
-                      >
-                        Publish
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => doAction(tpl.id, 'publish')}
+                          disabled={actionPending === tpl.id}
+                          className="text-xs rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1"
+                          data-testid={`lt-tpl-publish-${tpl.id}`}
+                        >
+                          Publish
+                        </button>
+                        {confirmDeleteId === tpl.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
+                            <button
+                              type="button"
+                              onClick={() => doAction(tpl.id, 'delete')}
+                              disabled={actionPending === tpl.id}
+                              className="text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-2 py-1"
+                              data-testid={`lt-tpl-delete-confirm-${tpl.id}`}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-xs rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400"
+                              data-testid={`lt-tpl-delete-cancel-${tpl.id}`}
+                            >
+                              No
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(tpl.id)}
+                            disabled={actionPending === tpl.id}
+                            className="text-xs rounded-md border border-red-300 dark:border-red-700 px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                            data-testid={`lt-tpl-delete-${tpl.id}`}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </>
                     )}
                     {tpl.status === 'published' && (
                       <>
+                        <button
+                          type="button"
+                          onClick={() => setAssignTarget(tpl)}
+                          className="text-xs rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1"
+                          data-testid={`lt-tpl-assign-${tpl.id}`}
+                        >
+                          Assign
+                        </button>
                         <Link
                           to={`/leadership-team/templates/${tpl.id}/responses`}
                           className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
@@ -221,6 +310,15 @@ export default function LeadershipTeamTemplateLibrary() {
                         >
                           Responses
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => doAction(tpl.id, 'unpublish')}
+                          disabled={actionPending === tpl.id}
+                          className="text-xs rounded-md border border-amber-300 dark:border-amber-700 px-2 py-1 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                          data-testid={`lt-tpl-unpublish-${tpl.id}`}
+                        >
+                          Unpublish
+                        </button>
                         <button
                           type="button"
                           onClick={() => doAction(tpl.id, 'archive')}
@@ -248,6 +346,22 @@ export default function LeadershipTeamTemplateLibrary() {
           </ul>
         )}
       </main>
+
+      {assignTarget && (
+        <AssignmentDialog
+          template={assignTarget}
+          onClose={() => {
+            setAssignTarget(null);
+            load();
+          }}
+          onCreated={(assignment) => {
+            setFlash(
+              `Assigned "${assignTarget.name}" — assignment #${assignment?.id ?? '?'} created.`,
+            );
+            setTimeout(() => setFlash(''), 5000);
+          }}
+        />
+      )}
     </div>
   );
 }

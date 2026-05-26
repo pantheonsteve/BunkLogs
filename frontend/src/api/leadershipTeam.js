@@ -117,6 +117,17 @@ export async function cloneTemplate(orgSlug, id) {
   return data;
 }
 
+export async function deleteTemplate(orgSlug, id) {
+  await api.delete(`${BASE}/templates/${id}/`, { headers: headers(orgSlug) });
+}
+
+export async function unpublishTemplate(orgSlug, id) {
+  const { data } = await api.post(`${BASE}/templates/${id}/unpublish/`, {}, {
+    headers: headers(orgSlug),
+  });
+  return data;
+}
+
 export async function archiveTemplate(orgSlug, id) {
   const { data } = await api.post(`${BASE}/templates/${id}/archive/`, {}, {
     headers: headers(orgSlug),
@@ -152,6 +163,45 @@ export async function patchAssignment(orgSlug, id, payload) {
 
 export async function cancelAssignment(orgSlug, id) {
   await api.delete(`${BASE}/assignments/${id}/`, { headers: headers(orgSlug) });
+}
+
+/**
+ * Unassign a TemplateAssignment.
+ *
+ * Backend rules:
+ *   - status='scheduled' → DELETE (row is cancelled outright).
+ *   - status='active'    → PATCH end_date=today (row is ended, content stays).
+ *
+ * Anything else (already ended/cancelled) is a no-op from the caller's
+ * POV; we still call DELETE so the backend has the final say on the
+ * 4xx if it disagrees.
+ */
+export async function unassignAssignment(orgSlug, assignment) {
+  if (!assignment?.id) return;
+  if (assignment.status === 'scheduled') {
+    await cancelAssignment(orgSlug, assignment.id);
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  await patchAssignment(orgSlug, assignment.id, { end_date: today });
+}
+
+// ---------------------------------------------------------------------------
+// Assignment groups (read-only helper for the LT assign-to-group picker).
+// Hits the shared /api/v1/assignment-groups/ endpoint, not an LT-namespaced
+// one — there's no LT-specific shape needed; the dialog just wants
+// {id, name, group_type} grouped by group_type.
+// ---------------------------------------------------------------------------
+
+export async function listAssignmentGroups(orgSlug, { program, isActive = true } = {}) {
+  const params = {};
+  if (program) params.program = program;
+  if (isActive) params.is_active = 'true';
+  const { data } = await api.get('/api/v1/assignment-groups/', {
+    params,
+    headers: headers(orgSlug),
+  });
+  return Array.isArray(data) ? data : data?.results ?? [];
 }
 
 // ---------------------------------------------------------------------------

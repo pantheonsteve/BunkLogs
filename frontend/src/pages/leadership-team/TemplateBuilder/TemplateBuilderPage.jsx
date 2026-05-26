@@ -1,8 +1,8 @@
 /**
  * LT Template Builder — Step 7_12, Story 51.
  *
- * Tier 1 field types only: text, textarea, text_list, single_choice,
- * multiple_choice, rating_group. The builder uses the LT-scoped API
+ * Tier 1 field types: text, textarea, text_list, single_choice,
+ * multiple_choice, rating_group, single_rating. The builder uses the LT-scoped API
  * (``/api/v1/leadership-team/templates/``) which permits any LT
  * viewer; admins also see these templates via the existing admin
  * surface and can step in if needed.
@@ -33,9 +33,57 @@ const TIER_1_TYPES = [
   { value: 'single_choice', label: 'Single choice' },
   { value: 'multiple_choice', label: 'Multiple choice' },
   { value: 'rating_group', label: 'Rating group' },
+  { value: 'single_rating', label: 'Single rating' },
 ];
 
+// Valid dashboard_role values per field type.  Only types that produce
+// dashboard-visible signals are listed; others show no selector.
+const DASHBOARD_ROLES_BY_TYPE = {
+  single_rating: [{ value: 'primary_rating', label: 'Primary rating (trend dashboard)' }],
+  rating_group: [{ value: 'category_ratings', label: 'Category ratings (trend dashboard)' }],
+  text_list: [
+    { value: 'wins', label: 'Wins' },
+    { value: 'improvements', label: 'Improvements' },
+  ],
+  text: [{ value: 'open_concern', label: 'Open concern' }],
+  textarea: [{ value: 'open_concern', label: 'Open concern' }],
+};
+
 const SUPPORTED_LANGUAGES = ['en', 'es', 'he'];
+
+const SUBJECT_MODES = [
+  { value: 'self', label: 'Self-reflection (author == subject)' },
+  { value: 'single_subject', label: 'About one other person' },
+  { value: 'multi_subject', label: 'About multiple people in one submission' },
+  { value: 'group', label: 'About a group / unit (no individual subject)' },
+];
+
+// assignment_scope is derived from subject_mode via the backend coherence rule.
+// Showing it read-only so the user sees what will be saved without being able
+// to create an incoherent (mode, scope) pair.
+const SCOPE_FOR_MODE = {
+  self: 'none',
+  single_subject: 'per_subject_in_group',
+  multi_subject: 'per_subject_in_group',
+  group: 'per_group',
+};
+
+const SCOPE_LABELS = {
+  none: 'No group context',
+  per_subject_in_group: 'One reflection per subject in group',
+  per_group: 'One reflection per group',
+};
+
+const ASSIGNMENT_GROUP_TYPES = [
+  { value: 'bunk', label: 'Bunk' },
+  { value: 'unit', label: 'Unit' },
+  { value: 'division', label: 'Division' },
+  { value: 'cohort', label: 'Cohort' },
+  { value: 'classroom', label: 'Classroom' },
+  { value: 'caseload', label: 'Caseload' },
+  { value: 'specialty', label: 'Specialty / Activity group' },
+  { value: 'custom', label: 'Custom group' },
+];
 
 let _localUid = 0;
 const newLocalId = () => `lt_fid_${++_localUid}`;
@@ -64,13 +112,21 @@ function deriveSlug(name) {
 
 function defaultsFor(type, lang = 'en') {
   const base = { _id: newLocalId(), type, key: '', required: true };
-  if (type === 'rating_group' || type === 'single_rating') {
+  if (type === 'rating_group') {
     return {
       ...base,
       prompts: { [lang]: '' },
       scale: [1, 5],
       scale_labels: { [lang]: ['1', '2', '3', '4', '5'] },
       categories: [],
+    };
+  }
+  if (type === 'single_rating') {
+    return {
+      ...base,
+      prompts: { [lang]: '' },
+      scale: [1, 5],
+      scale_labels: { [lang]: ['1', '2', '3', '4', '5'] },
     };
   }
   if (type === 'single_choice' || type === 'multiple_choice') {
@@ -192,6 +248,23 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
             onChange={(categories) => update({ categories })}
             fieldId={field._id}
           />
+        )}
+
+        {DASHBOARD_ROLES_BY_TYPE[field.type]?.length > 0 && (
+          <label className="block text-xs text-gray-700 dark:text-gray-300">
+            Dashboard role
+            <select
+              value={field.dashboard_role || ''}
+              onChange={(e) => update({ dashboard_role: e.target.value || undefined })}
+              className="mt-1 w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+              data-testid={`lt-fld-dashrole-${field._id}`}
+            >
+              <option value="">None</option>
+              {DASHBOARD_ROLES_BY_TYPE[field.type].map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </label>
         )}
       </div>
     </div>
@@ -344,6 +417,9 @@ export default function TemplateBuilderPage() {
     role: 'leadership_team',
     languages: ['en'],
     cadence: 'biweekly',
+    subject_mode: 'self',
+    assignment_scope: 'none',
+    assignment_group_types: [],
     status: 'draft',
     schema: { fields: [] },
     is_active: true,
@@ -365,12 +441,16 @@ export default function TemplateBuilderPage() {
     setLoading(true);
     try {
       const data = await getTemplate(orgSlug, id);
+      const mode = data.subject_mode ?? 'self';
       setTemplate({
         id: data.id,
         name: data.name ?? '',
         role: data.role ?? 'leadership_team',
         languages: data.languages?.length ? data.languages : ['en'],
         cadence: data.cadence ?? 'biweekly',
+        subject_mode: mode,
+        assignment_scope: data.assignment_scope ?? SCOPE_FOR_MODE[mode] ?? 'none',
+        assignment_group_types: data.assignment_group_types ?? [],
         status: data.status ?? (data.is_active ? 'published' : 'archived'),
         schema: data.schema ?? { fields: [] },
         is_active: data.is_active,
@@ -392,6 +472,20 @@ export default function TemplateBuilderPage() {
   const updateTemplate = (patch) => {
     setTemplate((prev) => ({ ...prev, ...patch }));
     setDirty(true);
+  };
+
+  // Changing subject_mode forces assignment_scope to the only valid value
+  // (backend coherence rule in validate_template_coherence).
+  const updateSubjectMode = (mode) => {
+    updateTemplate({ subject_mode: mode, assignment_scope: SCOPE_FOR_MODE[mode] ?? 'none' });
+  };
+
+  const toggleGroupType = (type) => {
+    const current = template.assignment_group_types || [];
+    const next = current.includes(type)
+      ? current.filter((t) => t !== type)
+      : [...current, type];
+    updateTemplate({ assignment_group_types: next });
   };
 
   const updateFields = (next) => {
@@ -430,6 +524,9 @@ export default function TemplateBuilderPage() {
       role: template.role,
       languages: template.languages,
       cadence: template.cadence,
+      subject_mode: template.subject_mode ?? 'self',
+      assignment_scope: template.assignment_scope ?? SCOPE_FOR_MODE[template.subject_mode] ?? 'none',
+      assignment_group_types: template.assignment_group_types ?? [],
       schema: { fields: stripLocalIds(fields) },
     };
     if (!isEdit) {
@@ -649,6 +746,66 @@ export default function TemplateBuilderPage() {
               ))}
             </select>
           </label>
+
+          <label className="block text-sm text-gray-700 dark:text-gray-300">
+            Subject mode
+            <select
+              value={template.subject_mode ?? 'self'}
+              onChange={(e) => updateSubjectMode(e.target.value)}
+              disabled={isArchived}
+              className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
+              data-testid="lt-builder-subject-mode"
+            >
+              {SUBJECT_MODES.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            <p className="mb-1">
+              Assignment scope
+              <span
+                className="ml-2 text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                data-testid="lt-builder-assignment-scope"
+              >
+                {SCOPE_LABELS[template.assignment_scope ?? 'none'] ?? template.assignment_scope}
+              </span>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Auto-set from subject mode.
+            </p>
+          </div>
+
+          {(template.assignment_scope ?? 'none') !== 'none' && (
+            <fieldset
+              className="border border-gray-200 dark:border-gray-700 rounded-md p-2"
+              data-testid="lt-builder-group-types-fieldset"
+            >
+              <legend className="text-xs text-gray-500 dark:text-gray-400 px-1">
+                Assignment group types
+              </legend>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                Which group types this template applies to.
+              </p>
+              {ASSIGNMENT_GROUP_TYPES.map((gt) => (
+                <label
+                  key={gt.value}
+                  className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(template.assignment_group_types ?? []).includes(gt.value)}
+                    disabled={isArchived}
+                    onChange={() => toggleGroupType(gt.value)}
+                    data-testid={`lt-builder-group-type-${gt.value}`}
+                  />
+                  {gt.label}
+                </label>
+              ))}
+            </fieldset>
+          )}
+
           <fieldset className="border border-gray-200 dark:border-gray-700 rounded-md p-2">
             <legend className="text-xs text-gray-500 dark:text-gray-400 px-1">Languages</legend>
             {SUPPORTED_LANGUAGES.map((lang) => (

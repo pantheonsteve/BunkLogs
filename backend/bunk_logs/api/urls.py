@@ -564,6 +564,11 @@ urlpatterns = [
         name="leadership-team-template-publish",
     ),
     path(
+        "leadership-team/templates/<int:pk>/unpublish/",
+        lt_templates.LeadershipTeamTemplateUnpublishView.as_view(),
+        name="leadership-team-template-unpublish",
+    ),
+    path(
         "leadership-team/templates/<int:pk>/archive/",
         lt_templates.LeadershipTeamTemplateArchiveView.as_view(),
         name="leadership-team-template-archive",
