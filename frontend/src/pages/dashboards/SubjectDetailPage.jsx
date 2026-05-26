@@ -79,7 +79,12 @@ export default function SubjectDetailPage() {
             <p className="text-rose-600 dark:text-rose-400 text-sm">{error}</p>
           )}
           {!loading && payload && (
-            <SubjectDetail payload={payload} onRangeChange={updateRange} />
+            <SubjectDetail
+              payload={payload}
+              onRangeChange={updateRange}
+              personId={personId}
+              onNoteCreated={load}
+            />
           )}
         </main>
       </div>

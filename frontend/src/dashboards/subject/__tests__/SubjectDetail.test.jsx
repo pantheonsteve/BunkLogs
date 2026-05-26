@@ -1,7 +1,24 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import SubjectDetail from '../SubjectDetail';
+
+const createSubjectNoteMock = vi.fn();
+
+vi.mock('../../../api/subjects', () => ({
+  VISIBILITY_OPTIONS: [
+    { value: 'supervisors_only', label: 'Supervisors only (default)' },
+    { value: 'team', label: 'Team — all with dashboard access' },
+    { value: 'domain_only', label: 'Domain specialists and above' },
+    { value: 'admin_only', label: 'Admin only' },
+  ],
+  createSubjectNote: (...args) => createSubjectNoteMock(...args),
+}));
+
+beforeEach(() => {
+  createSubjectNoteMock.mockReset();
+});
 
 const payload = {
   subject: {
@@ -127,11 +144,11 @@ const payload = {
   concerning_patterns: [],
 };
 
-function renderDetail(extra = {}) {
+function renderDetail(extra = {}, props = {}) {
   const full = { ...payload, ...extra };
   return render(
     <MemoryRouter>
-      <SubjectDetail payload={full} />
+      <SubjectDetail payload={full} personId={221} {...props} />
     </MemoryRouter>,
   );
 }
@@ -183,5 +200,89 @@ describe('SubjectDetail', () => {
   it('renders the empty state when there are no templates', () => {
     renderDetail({ templates: [] });
     expect(screen.getByTestId('subject-empty')).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Notes panel
+  // -------------------------------------------------------------------------
+
+  it('renders notes panel with existing notes', () => {
+    const notes = [
+      {
+        id: 1,
+        body: 'Swam independently today.',
+        context: 'swim_instruction',
+        visibility: 'supervisors_only',
+        is_sensitive: false,
+        subject_visible: false,
+        amendment_of: null,
+        author: { id: 10, name: 'Jane Instructor' },
+        created_at: '2026-05-25T10:00:00Z',
+      },
+      {
+        id: 2,
+        body: 'Had a tough morning.',
+        context: '',
+        visibility: 'admin_only',
+        is_sensitive: true,
+        subject_visible: false,
+        amendment_of: null,
+        author: { id: 11, name: 'Alyson Admin' },
+        created_at: '2026-05-24T08:00:00Z',
+      },
+    ];
+    renderDetail({ notes });
+
+    const panel = screen.getByTestId('subject-notes-panel');
+    expect(within(panel).getByText('Notes')).toBeInTheDocument();
+    expect(within(panel).getByText('2')).toBeInTheDocument(); // count badge
+
+    const note1 = screen.getByTestId('subject-note-1');
+    expect(within(note1).getByText('Swam independently today.')).toBeInTheDocument();
+    expect(within(note1).getByText('Jane Instructor', { exact: false })).toBeInTheDocument();
+    expect(within(note1).getByText('swim_instruction')).toBeInTheDocument();
+    expect(within(note1).getByText('Supervisors')).toBeInTheDocument();
+
+    const note2 = screen.getByTestId('subject-note-2');
+    expect(within(note2).getByText('Had a tough morning.')).toBeInTheDocument();
+    expect(within(note2).getByText('Admin only')).toBeInTheDocument();
+  });
+
+  it('shows empty state when no notes', () => {
+    renderDetail({ notes: [] });
+    expect(screen.getByTestId('subject-notes-empty')).toBeInTheDocument();
+  });
+
+  it('NoteForm submits and calls onNoteCreated on success', async () => {
+    createSubjectNoteMock.mockResolvedValue({ data: { id: 99 }, status: 201 });
+    const onNoteCreated = vi.fn();
+    renderDetail({ notes: [] }, { onNoteCreated });
+
+    await userEvent.click(screen.getByTestId('subject-note-add-btn'));
+    const form = screen.getByTestId('subject-note-form');
+    expect(form).toBeInTheDocument();
+
+    await userEvent.type(screen.getByTestId('subject-note-body'), 'Great swim session');
+    await userEvent.type(screen.getByTestId('subject-note-context'), 'swim');
+    await userEvent.click(screen.getByTestId('subject-note-submit'));
+
+    await waitFor(() => expect(createSubjectNoteMock).toHaveBeenCalledWith(
+      221,
+      expect.objectContaining({ body: 'Great swim session', context: 'swim' }),
+    ));
+    await waitFor(() => expect(onNoteCreated).toHaveBeenCalled());
+  });
+
+  it('shows error message when note creation fails', async () => {
+    createSubjectNoteMock.mockRejectedValue({
+      response: { data: { detail: 'Permission denied.' } },
+    });
+    renderDetail({ notes: [] });
+
+    await userEvent.click(screen.getByTestId('subject-note-add-btn'));
+    await userEvent.type(screen.getByTestId('subject-note-body'), 'Attempted note');
+    await userEvent.click(screen.getByTestId('subject-note-submit'));
+
+    await waitFor(() => expect(screen.getByText('Permission denied.')).toBeInTheDocument());
   });
 });
