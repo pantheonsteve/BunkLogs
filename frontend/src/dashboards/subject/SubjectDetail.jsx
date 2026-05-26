@@ -338,56 +338,6 @@ function FormResponsesCard({ block, language = 'en' }) {
       {open && (
         <div className="p-4 space-y-5">
           {/* KPIs */}
-  const [open, setOpen] = useState(true);
-  const tpl = block.template ?? {};
-  const schema = { fields: block.schema_fields ?? [] };
-  const sections = deriveSchemaSections(schema, language);
-  const { ratingCols, flagFields, chipFields, descTextFields } = sections;
-  const summary = block.summary ?? { total_reflections: 0, flag_counts: {} };
-  const reflections = block.reflections ?? [];
-  const series = block.rating_series ?? [];
-
-  const hasRatingGroups = ratingCols.some((c) => c.subKey);
-  const groupedHeader = [];
-  let i = 0;
-  while (i < ratingCols.length) {
-    const col = ratingCols[i];
-    if (col.subKey) {
-      let j = i + 1;
-      while (j < ratingCols.length && ratingCols[j].key === col.key && ratingCols[j].subKey) j += 1;
-      groupedHeader.push({ label: col.groupLabel, span: j - i });
-      i = j;
-    } else {
-      groupedHeader.push({ label: '', span: 1 });
-      i += 1;
-    }
-  }
-  const leadingCols = 1; // Date column only — subject is fixed for the page
-
-  return (
-    <section
-      className="mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-      data-testid={`subject-template-card-${tpl.id}`}
-    >
-      <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{tpl.name}</h2>
-          <p className="text-xs uppercase tracking-wide text-gray-400">
-            {tpl.subject_mode}{tpl.slug ? ` · ${tpl.slug}` : ''}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-        >
-          {open ? 'Collapse' : 'Expand'}
-        </button>
-      </header>
-
-      {open && (
-        <div className="p-4 space-y-5">
-          {/* KPIs */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid={`subject-kpis-${tpl.id}`}>
             <KpiTile
               icon={FileText}
