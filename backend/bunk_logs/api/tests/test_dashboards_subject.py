@@ -295,6 +295,83 @@ def test_subject_visible_false_blocks_camper_self_view(api_client, org, program,
     assert body["templates"] == []  # no visibility
 
 
+def _bunk_pulse_with_flag_template(org):
+    """Variant with a yes/no single_choice flag, used by summary/profile tests."""
+    return ReflectionTemplate.all_objects.create(
+        organization=org, name="Bunk Pulse Flag", slug="sd-bunk-pulse-flag",
+        cadence="daily",
+        subject_mode="single_subject", assignment_scope="per_subject_in_group",
+        assignment_group_types=["bunk"],
+        author_role_filter=["counselor"], subject_role_filter=["camper"],
+        schema={
+            "fields": [
+                {
+                    "key": "overall",
+                    "type": "single_rating",
+                    "dashboard_role": "primary_rating",
+                    "scale": [1, 5],
+                    "required": True,
+                },
+                {
+                    "key": "needs_followup",
+                    "type": "single_choice",
+                    "prompts": {"en": "Needs follow-up?"},
+                    "options": [
+                        {"value": "no", "labels": {"en": "No"}},
+                        {"value": "yes", "labels": {"en": "Yes"}},
+                    ],
+                },
+            ],
+        },
+    )
+
+
+def test_subject_profile_and_flag_summary(api_client, org, program, setup):
+    """Step 4: subject_profile and per-template summary.flag_counts are present."""
+    bunk, camper, counselor_user, counselor = setup
+    Membership.all_objects.create(
+        program=program, person=camper, role="camper", is_active=True,
+    )
+    tpl = _bunk_pulse_with_flag_template(org)
+    today = date.today()
+    _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "needs_followup": "yes"},
+    )
+    _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today - timedelta(days=1),
+        answers={"overall": 3, "needs_followup": "no"},
+    )
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug),
+    )
+    assert r.status_code == 200, r.content
+    body = r.json()
+
+    # Profile block
+    profile = body["subject_profile"]
+    assert profile["id"] == camper.id
+    assert profile["full_name"] == "Sarah Levin"
+    assert profile["primary_role"] == "camper"
+    assert any(p["role"] == "camper" for p in profile["programs"])
+    assert any(g["name"] == "Bunk Maple" and g["group_type"] == "bunk"
+               for g in profile["assignment_groups"])
+
+    # Summary + schema snapshot + per-row answers
+    tpl_block = next(t for t in body["templates"] if t["template"]["id"] == tpl.id)
+    assert tpl_block["summary"]["total_reflections"] == 2
+    assert tpl_block["summary"]["flag_counts"]["needs_followup"] == {
+        "yes": 1, "no": 1, "total": 2,
+    }
+    assert any(f.get("key") == "needs_followup" for f in tpl_block["schema_fields"])
+    sample = tpl_block["reflections"][0]
+    assert "answers" in sample
+    assert sample["answers"].get("overall") in (3, 4)
+    assert sample["language"] == "en"
+
+
 def test_subject_visible_true_allows_camper_self_view(api_client, org, program, setup):
     _, camper, _, counselor = setup
     visible_tpl = ReflectionTemplate.all_objects.create(

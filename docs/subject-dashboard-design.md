@@ -577,11 +577,15 @@ Counselors, specialists, JCs, kitchen, maintenance are tracked subjects of their
 
 *Impact:* If yes, the v1 scope expands to include staff subject types and the access matrix needs a "supervisor can view direct-report staff" row. If no, add a server-side guard to reject dashboard requests for non-camper subjects.
 
+Production decision: Yes
+
 ### [BLOCKING] Q2 — Should health center staff see counselor daily behavioral scores?
 
 The current `reflections_visible_for_user` filter lets health center staff (capability `domain_specialist`) see non-sensitive counselor daily logs. The subject dashboard would show them `social_score`, `behavior_score`, `participation_score`, and counselor narrative notes.
 
 *Impact:* If health center should only see their own domain (wellness-tagged reflections + health-tagged SubjectNotes), a domain filter must be added to the subject dashboard endpoint.
+
+Production decision: Yes, health-center staff and other specialists should be able to see the scores of the subject
 
 ### [BLOCKING] Q3 — What is the `context` taxonomy for `SubjectNote`?
 
@@ -592,11 +596,15 @@ The note context tag ("swim_instruction", "dining_hall", "wellness_checkin", etc
 
 *Impact:* Determines the `context` field implementation in Prompt 3.15.
 
+Production decision: Org-configurable
+
 ### Q4 — Who can edit or delete a SubjectNote?
 
 Can an author edit their own note after submission? Can a `program_lead` delete a note? Is edit history needed?
 
 *Impact:* API surface area for the SubjectNote CRUD endpoints.
+
+Production decision: authors should be able to submit. Once submitted, they can only add to the stream of the note with ammendments. We want the original preserved.
 
 ### Q5 — `SUPERVISORS_ONLY` note visibility: does it include camper care?
 
@@ -604,17 +612,23 @@ Camper care has capability `supervisor`. If a unit head writes a note with `SUPE
 
 *Impact:* Whether `SUPERVISORS_ONLY` should be subdivided (e.g., `UNIT_HEAD_ONLY` vs `CAMPER_CARE_ONLY`) for v1.
 
+Production decision: I think it makes sense for supervisors only to be the default, but to allow for subdivided approach. The author should be able to select which teams (or individuals) are allowed to see, but all supervisores if nothing is selected.
+
 ### Q6 — Should `participant` (campers) ever see their own subject dashboard?
 
 Technically feasible — `subject_visible` flag on templates already allows campers to see their own structured reflections. But for Crane Lake 2026, it is unclear whether we want campers to view their behavioral scores. Parent-facing is a separate question.
 
 *Impact:* Determines whether `participant` access row in the capability table is implemented in v1.
 
+Production decision: participants never need to see their own subject dashboard. However, I could see a case where counselors would want to look at their dashboard, so there should be an option to make the note visible to the subject on their dashboard. The default should be invisible.
+
 ### Q7 — Is a `SubjectNote` a Reflection?
 
 Could specialist observations be modeled as a very simple `Reflection` with a minimal template (body + context tag) rather than a new model? This would reuse the entire existing visibility, dashboard aggregation, and export infrastructure.
 
 *Impact:* If yes, Prompt 3.15 becomes "create a SubjectNote template type" rather than "create a SubjectNote model." Needs team discussion before Prompt 3.15 is written.
+
+Production decision: Yes, I think this reuse makes sense. What I am envisioning is a specialist makes a reflection about one subject as the specialist note. They would be able to select from a list of campers by group, or start typing in and see the camper's name to set the subject. However, the generic notes are probably separate, because I want for example the camper care or admin team to be able to take notes about campers while they read the reflection. They should be able to click an "add note" button next to a reflection about a subject, and the note would then be added to that subject's dashboard so that it can be viewed by the appropriate parties.
 
 ---
 

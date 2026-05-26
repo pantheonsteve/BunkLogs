@@ -22,6 +22,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.filters import reflections_visible_for_user
+from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 
@@ -48,6 +50,63 @@ def _parse_date(s: str | None, default: date) -> date:
 # file. New callers should import directly from
 # ``bunk_logs.core.reflection_scores``.
 from bunk_logs.core.reflection_scores import resolve_rating_cells as _resolve_rating
+
+
+def _subject_profile(subject: Person, organization) -> dict[str, Any]:
+    """Non-PII profile block safe to expose to any viewer with reflection
+    visibility. Emails / DOB stay in the admin-only people endpoint.
+    """
+    memberships = list(
+        Membership.all_objects.filter(person=subject, is_active=True)
+        .select_related("program")
+        .order_by("-created_at"),
+    )
+    programs = [
+        {
+            "id": m.program_id,
+            "name": m.program.name if m.program_id else None,
+            "role": m.role,
+        }
+        for m in memberships
+        if m.program_id is None or m.program.organization_id == organization.id
+    ]
+    primary_role = programs[0]["role"] if programs else None
+    group_rows = list(
+        AssignmentGroupMembership.all_objects.filter(
+            person=subject, is_active=True, role_in_group="subject",
+        )
+        .select_related("group")
+        .order_by("group__name"),
+    )
+    assignment_groups = [
+        {
+            "id": gm.group_id,
+            "name": gm.group.name,
+            "group_type": gm.group.group_type,
+        }
+        for gm in group_rows
+        if gm.group and gm.group.organization_id == organization.id
+    ]
+    return {
+        "id": subject.id,
+        "full_name": subject.full_name,
+        "preferred_name": subject.preferred_name or subject.first_name,
+        "preferred_language": subject.preferred_language,
+        "primary_role": primary_role,
+        "programs": programs,
+        "assignment_groups": assignment_groups,
+    }
+
+
+def _is_yes_no_field(field: dict) -> bool:
+    """Two-option ``single_choice`` field with yes/no values (case-insensitive)."""
+    if field.get("type") != "single_choice":
+        return False
+    options = field.get("options") or []
+    if len(options) != 2:
+        return False
+    values = {str(o.get("value", "")).lower() for o in options if isinstance(o, dict)}
+    return values == {"yes", "no"}
 
 
 def _detect_concerning_patterns(
@@ -149,7 +208,13 @@ class SubjectDetailView(APIView):
         for r in refs:
             tpl = r.template
             tpl_entry = by_template.get(tpl.id)
+            schema_fields = (tpl.schema or {}).get("fields") or []
             if tpl_entry is None:
+                flag_keys = [
+                    f.get("key")
+                    for f in schema_fields
+                    if isinstance(f, dict) and _is_yes_no_field(f)
+                ]
                 tpl_entry = {
                     "template": {
                         "id": tpl.id,
@@ -157,11 +222,27 @@ class SubjectDetailView(APIView):
                         "slug": tpl.slug,
                         "subject_mode": tpl.subject_mode,
                     },
+                    "schema_fields": schema_fields,
+                    "summary": {
+                        "total_reflections": 0,
+                        "flag_counts": {
+                            k: {"yes": 0, "no": 0, "total": 0} for k in flag_keys
+                        },
+                    },
                     "rating_series": defaultdict(list),
                     "reflections": [],
                 }
                 by_template[tpl.id] = tpl_entry
-            schema_fields = (tpl.schema or {}).get("fields") or []
+            tpl_entry["summary"]["total_reflections"] += 1
+            for fkey, counts in tpl_entry["summary"]["flag_counts"].items():
+                raw = (r.answers or {}).get(fkey)
+                val = str(raw).lower() if raw is not None else ""
+                if val == "yes":
+                    counts["yes"] += 1
+                    counts["total"] += 1
+                elif val == "no":
+                    counts["no"] += 1
+                    counts["total"] += 1
             for field in schema_fields:
                 if not isinstance(field, dict):
                     continue
@@ -205,6 +286,8 @@ class SubjectDetailView(APIView):
                 "date": r.period_end.isoformat(),
                 "author_name": r.author.full_name if r.author else None,
                 "team_visibility": r.team_visibility,
+                "language": r.language,
+                "answers": r.answers or {},
                 "assignment_group": (
                     {"id": r.assignment_group_id, "name": r.assignment_group.name}
                     if r.assignment_group_id else None
@@ -235,6 +318,7 @@ class SubjectDetailView(APIView):
                 "name": subject.full_name,
                 "preferred_name": subject.preferred_name or subject.first_name,
             },
+            "subject_profile": _subject_profile(subject, org),
             "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
             "templates": templates_out,
             "recent_texts": recent_texts,

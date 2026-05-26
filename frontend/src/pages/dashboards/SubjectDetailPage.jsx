@@ -1,23 +1,39 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import Header from '../../partials/Header';
 import Sidebar from '../../partials/Sidebar';
 import SubjectDetail from '../../dashboards/subject/SubjectDetail';
 
+/**
+ * Wraps `SubjectDetail` in the standard app chrome and turns URL params
+ * (`?date_start=&date_end=` for a range, or `?date=` for a single day
+ * deep-link from LT Responses) into API query params.
+ */
 export default function SubjectDetailPage() {
   const { personId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const single = searchParams.get('date');
+  const start = searchParams.get('date_start') ?? (single || '');
+  const end = searchParams.get('date_end') ?? (single || '');
 
   const load = useCallback(async () => {
     if (!personId) return;
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.get(`/api/v1/dashboards/subject/${personId}/`);
+      const params = {};
+      if (start) params.date_start = start;
+      if (end) params.date_end = end;
+      const { data } = await api.get(
+        `/api/v1/dashboards/subject/${personId}/`,
+        { params },
+      );
       setPayload(data);
     } catch (e) {
       const status = e.response?.status;
@@ -28,11 +44,21 @@ export default function SubjectDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [personId]);
+  }, [personId, start, end]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const updateRange = (nextStart, nextEnd) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('date');
+    if (nextStart) next.set('date_start', nextStart);
+    else next.delete('date_start');
+    if (nextEnd) next.set('date_end', nextEnd);
+    else next.delete('date_end');
+    setSearchParams(next, { replace: false });
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -52,7 +78,9 @@ export default function SubjectDetailPage() {
           {!loading && error && error !== 'access' && error !== 'not_found' && (
             <p className="text-rose-600 dark:text-rose-400 text-sm">{error}</p>
           )}
-          {!loading && payload && <SubjectDetail payload={payload} />}
+          {!loading && payload && (
+            <SubjectDetail payload={payload} onRangeChange={updateRange} />
+          )}
         </main>
       </div>
     </div>
