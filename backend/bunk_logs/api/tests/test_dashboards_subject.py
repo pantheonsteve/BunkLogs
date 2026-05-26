@@ -372,6 +372,97 @@ def test_subject_profile_and_flag_summary(api_client, org, program, setup):
     assert sample["language"] == "en"
 
 
+def test_participant_without_supervisory_relationship_gets_403(api_client, org, program, setup):
+    """A participant with no group relationship to the subject is blocked."""
+    _, camper, _, _ = setup
+    # Different counselor in a completely separate bunk
+    outsider_user = _user("outsider-sd@a.com")
+    outsider = _person(org, "Out", "Sider", outsider_user)
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Other",
+        slug="sd-bunk-other", group_type="bunk",
+    )
+    Membership.all_objects.create(program=program, person=outsider, role="counselor", is_active=True)
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=outsider, role_in_group="author", is_active=True,
+    )
+    api_client.force_authenticate(user=outsider_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 403
+
+
+def test_supervisor_capability_blocked_for_non_direct_report(api_client, org, program, setup):
+    """A unit_head (supervisor capability) cannot view a camper outside their groups."""
+    _, camper, _, _ = setup
+    uh_user = _user("uh-sd@a.com")
+    uh = _person(org, "Unit", "Head", uh_user)
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk UH Other",
+        slug="sd-bunk-uh", group_type="bunk",
+    )
+    Membership.all_objects.create(program=program, person=uh, role="unit_head", is_active=True)
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=uh, role_in_group="author", is_active=True,
+    )
+    api_client.force_authenticate(user=uh_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 403
+
+
+def test_supervisor_allowed_for_direct_report(api_client, org, program, setup):
+    """A unit_head whose bunk IS the camper's group gets through."""
+    bunk, camper, _, _ = setup
+    uh_user = _user("uh-direct-sd@a.com")
+    uh = _person(org, "Direct", "Head", uh_user)
+    Membership.all_objects.create(program=program, person=uh, role="unit_head", is_active=True)
+    # UH is author of a parent group that contains the bunk as a child
+    unit = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Unit A",
+        slug="sd-unit-a", group_type="unit", parent=None,
+    )
+    bunk.parent = unit
+    bunk.save()
+    AssignmentGroupMembership.all_objects.create(
+        group=unit, person=uh, role_in_group="author", is_active=True,
+    )
+    api_client.force_authenticate(user=uh_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 200
+
+
+def test_program_lead_can_view_any_subject(api_client, org, program, setup):
+    """leadership_team (program_lead capability) can view any subject's dashboard."""
+    _, camper, _, _ = setup
+    lt_user = _user("lt-sd@a.com")
+    lt = _person(org, "Lead", "Er", lt_user)
+    Membership.all_objects.create(program=program, person=lt, role="leadership_team", is_active=True)
+    api_client.force_authenticate(user=lt_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 200
+
+
+def test_domain_specialist_can_view_any_subject(api_client, org, program, setup):
+    """health_center (domain_specialist capability) can view any subject's dashboard."""
+    _, camper, _, _ = setup
+    hc_user = _user("hc-sd@a.com")
+    hc = _person(org, "Health", "Center", hc_user)
+    Membership.all_objects.create(program=program, person=hc, role="health_center", is_active=True)
+    api_client.force_authenticate(user=hc_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 200
+
+
+def test_subject_from_other_org_returns_404(api_client, org, setup):
+    """Person belonging to a different org resolves to 404 (not 403)."""
+    _, _, counselor_user, _ = setup
+    other_org = Organization.objects.create(name="Other Org", slug="other-org")
+    other_person = _person(other_org, "Cross", "Tenant")
+    api_client.force_authenticate(user=counselor_user)
+    # Must use the first org's header so the lookup is scoped there
+    r = api_client.get(f"/api/v1/dashboards/subject/{other_person.id}/", **_hdr(org.slug))
+    assert r.status_code == 404
+
+
 def test_subject_visible_true_allows_camper_self_view(api_client, org, program, setup):
     _, camper, _, counselor = setup
     visible_tpl = ReflectionTemplate.all_objects.create(

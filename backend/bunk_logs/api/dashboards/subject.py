@@ -26,9 +26,12 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.permissions.super_admin import is_super_admin
+from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 
 DEFAULT_WINDOW_DAYS = 30
 MAX_WINDOW_DAYS = 90
+MAX_REFLECTIONS_PER_SUBJECT = 200
 LOW_RATING_LOOKBACK_DAYS = 14
 TREND_LOOKBACK_DAYS = 14
 TREND_DELTA_THRESHOLD = 0.5
@@ -109,6 +112,63 @@ def _is_yes_no_field(field: dict) -> bool:
     return values == {"yes", "no"}
 
 
+def _viewer_capability(person: Person, org) -> str | None:
+    """Highest-privilege capability the person holds in this org (across all programs)."""
+    caps = set(
+        Membership.all_objects.filter(
+            person=person,
+            is_active=True,
+            program__organization=org,
+        ).values_list("capability", flat=True),
+    )
+    for cap in ("admin", "program_lead", "domain_specialist", "supervisor"):
+        if cap in caps:
+            return cap
+    if "participant" in caps:
+        return "participant"
+    return None
+
+
+def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
+    """True if viewer authors a group (or any ancestor group) that contains subject."""
+    group_ids = author_group_ids_with_descendants(viewer)
+    if not group_ids:
+        return False
+    return AssignmentGroupMembership.all_objects.filter(
+        person=subject,
+        group_id__in=group_ids,
+        role_in_group="subject",
+        is_active=True,
+    ).exists()
+
+
+def _can_view_subject_dashboard(
+    viewer_person: Person | None,
+    subject: Person,
+    org,
+    user,
+) -> bool:
+    """Explicit capability gate for the subject dashboard.
+
+    Allowed paths:
+    - Super admin (no Person required)
+    - admin / program_lead / domain_specialist membership in org
+    - supervisor capability with a supervises-subject relationship
+    - participant capability with a supervises-subject relationship (covers
+      counselors accessing their campers) or self-view
+    """
+    if is_super_admin(user):
+        return True
+    if viewer_person is None:
+        return False
+    cap = _viewer_capability(viewer_person, org)
+    if cap in ("admin", "program_lead", "domain_specialist"):
+        return True
+    if cap in ("supervisor", "participant"):
+        return viewer_person.id == subject.id or _viewer_supervises_subject(viewer_person, subject)
+    return False
+
+
 def _detect_concerning_patterns(
     series_by_label: dict[str, list[tuple[date, float, int, int | None]]],
     today: date,
@@ -169,6 +229,17 @@ class SubjectDetailView(APIView):
         if subject is None:
             return Response({"detail": "Subject not found."}, status=404)
 
+        # Defense-in-depth: OrgScopedManager already enforces this, but be explicit.
+        if subject.organization_id != org.id:
+            return Response({"detail": "Subject not found."}, status=404)
+
+        viewer_person = Person.all_objects.filter(user=request.user).first()
+        if not _can_view_subject_dashboard(viewer_person, subject, org, request.user):
+            return Response(
+                {"detail": "You do not have permission to view this subject's dashboard."},
+                status=403,
+            )
+
         today = date.today()
         cur_end = _parse_date(request.query_params.get("date_end"), today)
         cur_start = _parse_date(
@@ -180,7 +251,9 @@ class SubjectDetailView(APIView):
         if (cur_end - cur_start).days > MAX_WINDOW_DAYS - 1:
             cur_start = cur_end - timedelta(days=MAX_WINDOW_DAYS - 1)
 
-        # Pull reflections about this subject within window, scoped to viewer
+        # Pull reflections about this subject within window, scoped to viewer.
+        # Cap at MAX_REFLECTIONS_PER_SUBJECT to prevent unbounded queries on
+        # subjects with long histories; the 90-day window already constrains most cases.
         refs = list(
             reflections_visible_for_user(
                 request.user,
@@ -190,7 +263,7 @@ class SubjectDetailView(APIView):
                     period_end__lte=cur_end,
                     is_complete=True,
                 ).select_related("template", "author", "assignment_group"),
-            ).order_by("period_end"),
+            ).order_by("period_end")[:MAX_REFLECTIONS_PER_SUBJECT],
         )
 
         if not refs:
