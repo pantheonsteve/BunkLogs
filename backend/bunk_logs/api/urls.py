@@ -31,6 +31,7 @@ from .dashboards import authors as authors_dashboard
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
+from .dashboards import subject_notes as subject_notes_api
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .kitchen_staff import dashboard as ks_dashboard
@@ -261,6 +262,18 @@ urlpatterns = [
         "dashboards/subject/<int:person_id>/",
         subject_dashboard.SubjectDetailView.as_view(),
         name="dashboard-subject-detail",
+    ),
+
+    # Subject notes (Prompt 3.15)
+    path(
+        "subjects/<int:person_id>/notes/",
+        subject_notes_api.SubjectNoteListCreateView.as_view(),
+        name="subject-notes",
+    ),
+    path(
+        "subjects/<int:person_id>/notes/<int:note_id>/amend/",
+        subject_notes_api.SubjectNoteAmendView.as_view(),
+        name="subject-note-amend",
     ),
 
     # Author attribution (commit 6 of 3.20)

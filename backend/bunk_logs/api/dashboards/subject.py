@@ -26,6 +26,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import SubjectNote
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 
@@ -167,6 +168,65 @@ def _can_view_subject_dashboard(
     if cap in ("supervisor", "participant"):
         return viewer_person.id == subject.id or _viewer_supervises_subject(viewer_person, subject)
     return False
+
+
+_NOTE_VISIBILITY_CAPS: dict[str, set[str]] = {
+    "admin": {"team", "supervisors_only", "domain_only", "admin_only"},
+    "program_lead": {"team", "supervisors_only", "domain_only"},
+    "domain_specialist": {"team", "supervisors_only", "domain_only"},
+    "supervisor": {"team", "supervisors_only"},
+    "participant": set(),
+}
+
+
+def _subject_notes_for_viewer(
+    viewer_person: Person | None,
+    subject: Person,
+    org,
+    user,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return SubjectNote rows visible to viewer, newest first."""
+    qs = (
+        SubjectNote.objects.filter(subject=subject)
+        .select_related("author_person")
+        .order_by("-created_at")
+    )
+    if is_super_admin(user):
+        notes = list(qs[:limit])
+    elif viewer_person is None:
+        notes = []
+    else:
+        cap = _viewer_capability(viewer_person, org)
+        if cap in ("admin", "program_lead", "domain_specialist"):
+            notes = list(qs.filter(visibility__in=_NOTE_VISIBILITY_CAPS[cap])[:limit])
+        elif cap in ("supervisor", "participant"):
+            if viewer_person.id == subject.id:
+                notes = list(qs.filter(subject_visible=True)[:limit])
+            elif _viewer_supervises_subject(viewer_person, subject):
+                notes = list(qs.filter(visibility__in=_NOTE_VISIBILITY_CAPS["supervisor"])[:limit])
+            else:
+                notes = []
+        else:
+            notes = []
+
+    return [
+        {
+            "id": n.id,
+            "body": n.body,
+            "context": n.context,
+            "visibility": n.visibility,
+            "is_sensitive": n.is_sensitive,
+            "subject_visible": n.subject_visible,
+            "amendment_of": n.amendment_of_id,
+            "author": (
+                {"id": n.author_person_id, "name": n.author_person.full_name}
+                if n.author_person_id and n.author_person else None
+            ),
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notes
+    ]
 
 
 def _detect_concerning_patterns(
@@ -385,6 +445,8 @@ class SubjectDetailView(APIView):
 
         concerns = _detect_concerning_patterns(all_series, today)
 
+        notes = _subject_notes_for_viewer(viewer_person, subject, org, request.user)
+
         return Response({
             "subject": {
                 "id": subject.id,
@@ -396,4 +458,5 @@ class SubjectDetailView(APIView):
             "templates": templates_out,
             "recent_texts": recent_texts,
             "concerning_patterns": concerns,
+            "notes": notes,
         })
