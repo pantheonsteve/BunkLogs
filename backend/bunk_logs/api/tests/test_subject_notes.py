@@ -12,15 +12,13 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from bunk_logs.core.models import (
-    AssignmentGroup,
-    AssignmentGroupMembership,
-    Membership,
-    Organization,
-    Person,
-    Program,
-    SubjectNote,
-)
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Organization
+from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
+from bunk_logs.core.models import SubjectNote
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db

@@ -169,7 +169,7 @@ class SubjectNoteListCreateView(APIView):
 
         note = SubjectNote.all_objects.create(
             organization=org,
-            program_id=program if isinstance(program, int) else program,
+            program_id=program,
             subject=subject,
             author_person=viewer_person,
             submitted_by=request.user,
