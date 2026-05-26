@@ -1113,6 +1113,120 @@ class Note(models.Model):
         return f"{self.note_type} note about {self.subject_id}"
 
 
+class SubjectNote(models.Model):
+    """Immutable ad-hoc observation about a subject Person.
+
+    Complements Reflection (structured/periodic) with free-text observations
+    from any authorized staff member. Once created, a note cannot be edited;
+    corrections are appended as amendments via a self-referential FK.
+
+    Visibility is a four-level enum; ``subject_visible`` allows the subject
+    to see their own note on their dashboard regardless of visibility level.
+    Context is a free-form org-configurable tag (e.g. "swim_instruction").
+    """
+
+    class Visibility(models.TextChoices):
+        TEAM = "team", "Team"
+        SUPERVISORS_ONLY = "supervisors_only", "Supervisors Only"
+        DOMAIN_ONLY = "domain_only", "Domain Specialists Only"
+        ADMIN_ONLY = "admin_only", "Admin Only"
+
+    organization = models.ForeignKey(
+        "core.Organization",
+        on_delete=models.CASCADE,
+        related_name="subject_notes",
+    )
+    program = models.ForeignKey(
+        "core.Program",
+        on_delete=models.CASCADE,
+        related_name="subject_notes",
+    )
+    subject = models.ForeignKey(
+        "core.Person",
+        on_delete=models.CASCADE,
+        related_name="subject_notes_about",
+        help_text="Who this note is about.",
+    )
+    author_person = models.ForeignKey(
+        "core.Person",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subject_notes_authored",
+        help_text="Person who wrote the note.",
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subject_notes_submitted",
+        help_text="User who clicked submit (audit trail).",
+    )
+    amendment_of = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="amendments",
+        help_text="Set when this note is an amendment to an earlier note. Original is immutable.",
+    )
+    context = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=(
+            "Org-configurable context tag for the observation context. "
+            "Examples: 'swim_instruction', 'wellness_checkin', 'camper_care'. "
+            "Free text; validated values can be stored in Organization.settings."
+        ),
+    )
+    body = models.TextField(help_text="Note text.")
+    visibility = models.CharField(
+        max_length=32,
+        choices=Visibility.choices,
+        default=Visibility.SUPERVISORS_ONLY,
+        help_text=(
+            "Who can read this note. 'team' = anyone with dashboard access; "
+            "'supervisors_only' = supervisors and above (default); "
+            "'domain_only' = domain specialists and above; "
+            "'admin_only' = admins only."
+        ),
+    )
+    is_sensitive = models.BooleanField(
+        default=False,
+        help_text="Extra read-access restriction (same semantics as Reflection.is_sensitive).",
+    )
+    subject_visible = models.BooleanField(
+        default=False,
+        help_text=(
+            "When True, the subject can see this note on their own dashboard "
+            "regardless of visibility level."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["subject", "program", "created_at"],
+                name="snote_subj_prog_created_idx",
+            ),
+            models.Index(
+                fields=["organization", "created_at"],
+                name="snote_org_created_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"SubjectNote on {self.subject_id} by {self.author_person_id} ({self.created_at:%Y-%m-%d})" if self.pk else "SubjectNote (unsaved)"
+
+
 class ConcernReadState(models.Model):
     """Tracks per-user "I've read this concern" state for the Concerns Inbox.
 
