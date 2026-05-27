@@ -3,20 +3,27 @@
 POST   /api/v1/subjects/{person_id}/notes/
 GET    /api/v1/subjects/{person_id}/notes/
 POST   /api/v1/subjects/{person_id}/notes/{note_id}/amend/
+GET    /api/v1/subjects/{person_id}/notes/{note_id}/replies/
+POST   /api/v1/subjects/{person_id}/notes/{note_id}/replies/
 
 Notes are immutable after creation; corrections are appended as amendments
 via ``amendment_of``. Visibility is a four-level enum enforced at read time.
+Replies are mutable threads attached to a note, accessible to any viewer
+who can see the parent note.
 """
 
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from rest_framework import status as http_status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import SubjectNote
+from bunk_logs.core.models import SubjectNoteReply
 from bunk_logs.core.permissions.super_admin import is_super_admin
 
 from .subject import _can_view_subject_dashboard
@@ -72,8 +79,8 @@ def _notes_visible_to(viewer_person: Person | None, notes_qs, org, user, subject
 # Serializer helpers
 # ---------------------------------------------------------------------------
 
-def _serialize_note(note: SubjectNote) -> dict:
-    return {
+def _serialize_note(note: SubjectNote, *, include_replies: bool = False) -> dict:
+    result = {
         "id": note.id,
         "body": note.body,
         "context": note.context,
@@ -86,7 +93,11 @@ def _serialize_note(note: SubjectNote) -> dict:
             if note.author_person_id and note.author_person else None
         ),
         "created_at": note.created_at.isoformat() if note.created_at else None,
+        "reply_count": note.replies.count() if hasattr(note, "replies") else 0,
     }
+    if include_replies:
+        result["replies"] = [_serialize_reply(r) for r in note.replies.all()]
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -124,10 +135,11 @@ class SubjectNoteListCreateView(APIView):
         notes_qs = (
             SubjectNote.objects.filter(subject=subject)
             .select_related("author_person")
+            .prefetch_related("replies__author")
             .order_by("-created_at")
         )
         visible = _notes_visible_to(viewer_person, notes_qs, org, request.user, subject)
-        return Response({"notes": [_serialize_note(n) for n in visible]})
+        return Response({"notes": [_serialize_note(n, include_replies=True) for n in visible]})
 
     def post(self, request, person_id: int, *args, **kwargs):
         org, subject, err = self._resolve(request, person_id)
@@ -225,3 +237,97 @@ class SubjectNoteAmendView(APIView):
             subject_visible=original.subject_visible,
         )
         return Response(_serialize_note(amendment), status=201)
+
+
+class SubjectNoteReplyView(APIView):
+    """GET + POST replies on a SubjectNote.
+
+    Access: any viewer who can see the parent note (same visibility gate as
+    the note list). The subject themselves may reply only if the note has
+    ``subject_visible=True``.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _resolve(self, request, person_id: int, note_id: int):
+        org = getattr(request, "organization", None)
+        if org is None:
+            return None, None, None, Response({"detail": "Organization context required."}, status=403)
+
+        subject = Person.objects.filter(id=person_id).first()
+        if subject is None or subject.organization_id != org.id:
+            return None, None, None, Response({"detail": "Subject not found."}, status=404)
+
+        viewer_person = Person.all_objects.filter(user=request.user).first()
+        if not _can_view_subject_dashboard(viewer_person, subject, org, request.user):
+            return None, None, None, Response({"detail": "Permission denied."}, status=403)
+
+        note = (
+            SubjectNote.objects.filter(id=note_id, subject=subject)
+            .prefetch_related("replies__author")
+            .first()
+        )
+        if note is None:
+            return None, None, None, Response({"detail": "Note not found."}, status=404)
+
+        # Visibility: check the viewer can actually read this specific note.
+        visible_qs = _notes_visible_to(
+            viewer_person,
+            SubjectNote.objects.filter(pk=note.pk),
+            org,
+            request.user,
+            subject,
+        )
+        if not visible_qs.exists():
+            return None, None, None, Response({"detail": "Permission denied."}, status=403)
+
+        return org, subject, note, None
+
+    def get(self, request, person_id: int, note_id: int, *args, **kwargs):
+        _org, _subject, note, err = self._resolve(request, person_id, note_id)
+        if err:
+            return err
+        return Response([_serialize_reply(r) for r in note.replies.all()])
+
+    def post(self, request, person_id: int, note_id: int, *args, **kwargs):
+        _org, _subject, note, err = self._resolve(request, person_id, note_id)
+        if err:
+            return err
+
+        body = (request.data.get("body") or "").strip()
+        if not body:
+            return Response({"detail": "body is required."}, status=400)
+        if len(body) > 10_000:
+            return Response({"detail": "body may not exceed 10 000 characters."}, status=400)
+
+        viewer_person = Person.all_objects.filter(user=request.user).first()
+        membership = (
+            Membership.objects.filter(person=viewer_person, is_active=True)
+            .order_by("-created_at")
+            .first()
+        )
+        reply = SubjectNoteReply.objects.create(
+            note=note,
+            author=viewer_person,
+            author_role_at_write=membership.role if membership else "",
+            body=body,
+        )
+        return Response(_serialize_reply(reply), status=http_status.HTTP_201_CREATED)
+
+
+def _serialize_reply(reply: SubjectNoteReply) -> dict:
+    author = reply.author
+    author_name = (
+        " ".join(filter(None, [
+            (author.preferred_name or author.first_name or "").strip(),
+            (author.last_name or "").strip(),
+        ]))
+        if author else "Unknown"
+    )
+    return {
+        "id": reply.id,
+        "author_name": author_name,
+        "author_role": reply.author_role_at_write,
+        "body": reply.body,
+        "created_at": reply.created_at.isoformat(),
+    }

@@ -48,6 +48,7 @@ from .leadership_team import templates as lt_templates
 from .madrich import dashboard as md_dashboard
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
+from . import camper_notes as camper_notes_api
 from .notes_platform import views as notes_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
@@ -275,6 +276,11 @@ urlpatterns = [
         "subjects/<int:person_id>/notes/<int:note_id>/amend/",
         subject_notes_api.SubjectNoteAmendView.as_view(),
         name="subject-note-amend",
+    ),
+    path(
+        "subjects/<int:person_id>/notes/<int:note_id>/replies/",
+        subject_notes_api.SubjectNoteReplyView.as_view(),
+        name="subject-note-replies",
     ),
 
     # Author attribution (commit 6 of 3.20)
@@ -511,6 +517,11 @@ urlpatterns = [
         "specialist/notes/<int:note_id>/",
         sp_notes.SpecialistNoteDetailView.as_view(),
         name="specialist-note-detail",
+    ),
+    path(
+        "camper-notes/<int:note_id>/replies/",
+        camper_notes_api.CamperNoteRepliesView.as_view(),
+        name="camper-note-replies",
     ),
     path(
         "specialist/self-reflection/",

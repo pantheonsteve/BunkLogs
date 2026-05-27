@@ -31,6 +31,7 @@ from rest_framework.views import APIView
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Note
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import NoteReply
 
 from .common import specialist_program_ids
 from .common import viewer_or_403
@@ -68,6 +69,7 @@ class SpecialistCamperView(APIView):
                 subject=camper,
                 note_type=Note.NoteType.SPECIALIST,
             )
+            .prefetch_related("replies__author")
             .order_by("-created_at")
         )
         if date_from:
@@ -136,6 +138,7 @@ def _full_name(person: Person) -> str:
 
 
 def _note_payload(note: Note, now) -> dict:
+    replies = [_reply_payload(r) for r in note.replies.all()]
     return {
         "id": note.id,
         "body": note.body,
@@ -145,6 +148,26 @@ def _note_payload(note: Note, now) -> dict:
         "created_at": note.created_at.isoformat(),
         "updated_at": note.updated_at.isoformat(),
         "is_within_edit_window": (now - note.created_at) <= EDIT_WINDOW,
+        "replies": replies,
+        "reply_count": len(replies),
+    }
+
+
+def _reply_payload(reply: NoteReply) -> dict:
+    author = reply.author
+    author_name = (
+        " ".join(filter(None, [
+            (author.preferred_name or author.first_name or "").strip(),
+            (author.last_name or "").strip(),
+        ]))
+        if author else "Unknown"
+    )
+    return {
+        "id": reply.id,
+        "author_name": author_name,
+        "author_role": reply.author_role_at_write,
+        "body": reply.body,
+        "created_at": reply.created_at.isoformat(),
     }
 
 
