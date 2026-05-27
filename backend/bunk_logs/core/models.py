@@ -1113,6 +1113,75 @@ class Note(models.Model):
         return f"{self.note_type} note about {self.subject_id}"
 
 
+class NoteReply(models.Model):
+    """Threaded reply on a core.Note (specialist or camper_care type).
+
+    Any staff member whose role appears in the note's visibility audience
+    (or who is the note's author) may reply. Replies are immutable once
+    created; corrections are added as new replies.
+    """
+
+    note = models.ForeignKey(
+        Note,
+        on_delete=models.CASCADE,
+        related_name="replies",
+    )
+    author = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="camper_note_replies",
+    )
+    author_role_at_write = models.CharField(max_length=64, blank=True, default="")
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["note", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Reply by {self.author_id} on note {self.note_id}"
+
+
+class SubjectNoteReply(models.Model):
+    """Threaded reply on a SubjectNote.
+
+    Any staff member who can read the parent note per its visibility level
+    may reply. Replies are immutable once created.
+    """
+
+    note = models.ForeignKey(
+        "SubjectNote",
+        on_delete=models.CASCADE,
+        related_name="replies",
+    )
+    author = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="subject_note_replies",
+    )
+    author_role_at_write = models.CharField(max_length=64, blank=True, default="")
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["note", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Reply by {self.author_id} on subject note {self.note_id}"
+
+
 class SubjectNote(models.Model):
     """Immutable ad-hoc observation about a subject Person.
 

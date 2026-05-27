@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { fetchSpecialistCamperView } from '../../api/specialist';
+import { fetchCamperNoteReplies, postCamperNoteReply } from '../../api/notes';
+import NoteThread from '../../components/NoteThread';
 
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -74,6 +76,12 @@ function NoteCard({ note }) {
           Edited {new Date(note.updated_at).toLocaleDateString()}
         </p>
       )}
+      <NoteThread
+        noteId={note.id}
+        initialReplies={note.replies || []}
+        onFetch={fetchCamperNoteReplies}
+        onPost={postCamperNoteReply}
+      />
     </article>
   );
 }

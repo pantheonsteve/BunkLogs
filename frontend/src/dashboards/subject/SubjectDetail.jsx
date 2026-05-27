@@ -12,10 +12,12 @@
  * page exactly. Data shape: see `GET /api/v1/dashboards/subject/<id>/`.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, FileText, MessageSquarePlus, Users } from 'lucide-react';
 import { VISIBILITY_OPTIONS, createSubjectNote } from '../../api/subjects';
+import { fetchSubjectNoteReplies, postSubjectNoteReply } from '../../api/notes';
+import NoteThread from '../../components/NoteThread';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
 import { ratingColor } from '../colors';
 import {
@@ -484,9 +486,19 @@ const VISIBILITY_BADGE = {
   admin_only: { label: 'Admin only', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200' },
 };
 
-function NoteCard({ note }) {
+function NoteCard({ note, personId }) {
   const badge = VISIBILITY_BADGE[note.visibility] ?? { label: note.visibility, cls: 'bg-gray-100 text-gray-700' };
   const dateStr = note.created_at ? new Date(note.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+
+  const handleFetch = useCallback(
+    (noteId) => fetchSubjectNoteReplies(personId, noteId),
+    [personId],
+  );
+  const handlePost = useCallback(
+    (noteId, body) => postSubjectNoteReply(personId, noteId, body),
+    [personId],
+  );
+
   return (
     <li
       className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3"
@@ -514,6 +526,12 @@ function NoteCard({ note }) {
         )}
       </div>
       <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{note.body}</p>
+      <NoteThread
+        noteId={note.id}
+        initialReplies={note.replies || []}
+        onFetch={handleFetch}
+        onPost={handlePost}
+      />
     </li>
   );
 }
@@ -700,7 +718,7 @@ function NotesPanel({ notes = [], personId, onNoteCreated }) {
           ) : (
             <ul className="mt-4 space-y-3">
               {notes.map((n) => (
-                <NoteCard key={n.id} note={n} />
+                <NoteCard key={n.id} note={n} personId={personId} />
               ))}
             </ul>
           )}

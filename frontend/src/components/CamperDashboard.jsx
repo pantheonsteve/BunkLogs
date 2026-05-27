@@ -18,9 +18,11 @@
  *   6. Camper-care notes
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { NO_DATA_FILL, ratingColor, ratingLegend, ratingTextColor } from '../dashboards/colors';
+import { fetchCamperNoteReplies, postCamperNoteReply } from '../api/notes';
+import NoteThread from './NoteThread';
 
 const RANGE_OPTIONS = [
   { value: 'this_week', label: 'This week' },
@@ -300,6 +302,10 @@ function ReflectionField({ field }) {
 
 function NoteListItem({ note }) {
   const [expanded, setExpanded] = useState(false);
+
+  const handleFetch = useCallback((noteId) => fetchCamperNoteReplies(noteId), []);
+  const handlePost = useCallback((noteId, body) => postCamperNoteReply(noteId, body), []);
+
   return (
     <li
       data-testid={`note-${note.id}`}
@@ -329,6 +335,12 @@ function NoteListItem({ note }) {
           {expanded ? 'Show less' : 'Read more'}
         </button>
       )}
+      <NoteThread
+        noteId={note.id}
+        initialReplies={[]}
+        onFetch={handleFetch}
+        onPost={handlePost}
+      />
     </li>
   );
 }

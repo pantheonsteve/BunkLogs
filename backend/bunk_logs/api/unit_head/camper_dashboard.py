@@ -439,13 +439,18 @@ def _split_notes(
     visible_qs, base_qs, visible_ids: set[int],
     note_type: str, target_date: date,
 ) -> dict[str, Any]:
-    filtered = visible_qs.filter(note_type=note_type).order_by("-created_at")
+    filtered = (
+        visible_qs.filter(note_type=note_type)
+        .prefetch_related("replies")
+        .order_by("-created_at")
+    )
     items: list[dict] = []
     for n in filtered:
         body = n.body or ""
         preview = body if len(body) <= 200 else (body[:200].rstrip() + "…")
         items.append({
             "id": n.id,
+            "note_type": n.note_type,
             "author": person_display_name(n.author),
             "created_at": n.created_at.isoformat(),
             "body": body,
@@ -453,6 +458,7 @@ def _split_notes(
             "is_long": len(body) > 200,
             "is_sensitive": bool(n.is_sensitive),
             "is_today": n.created_at.date() == target_date,
+            "reply_count": n.replies.count(),
         })
     sensitive_excluded = base_qs.exclude(id__in=visible_ids).filter(
         note_type=note_type, is_sensitive=True,
