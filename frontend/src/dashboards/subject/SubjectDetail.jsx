@@ -103,7 +103,7 @@ function ProfileHeader({ subject, profile }) {
               <Chip key={`prog-${p.id}`} tone="program">{p.name}</Chip>
             ))}
             {groups.map((g) => (
-              <Link key={`grp-${g.id}`} to={`/dashboards/subject-trends/${g.id}`}>
+              <Link key={`grp-${g.id}`} to={`/dashboards/group/${g.id}`}>
                 <Chip tone="bunk">{g.group_type}: {g.name}</Chip>
               </Link>
             ))}
