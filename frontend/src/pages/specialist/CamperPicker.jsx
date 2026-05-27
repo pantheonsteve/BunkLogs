@@ -1,16 +1,17 @@
 /**
  * Specialist camper picker — Step 7_9, Story 25.
  *
- * Two sections:
- *   - Recent: campers noted in the last 7 days (max 8), shown before search results.
- *   - All campers: full roster alphabetical, filtered by search query.
+ * Two selection paths:
+ *   1. Bunk-first: pick a bunk from the dropdown, then pick a camper from
+ *      the filtered list.
+ *   2. Name search: type a name (debounced 250ms) to search across all bunks
+ *      (or within the selected bunk if one is chosen).
  *
- * Debounced 250ms search (criterion 4). Virtualized via CSS contain so the DOM
- * doesn't stack on a 1,500-row list (full virtualisation lib kept out of scope
- * for Tier 1 — results are paginated server-side at ≤1,500 rows which renders
- * acceptably on mid-tier devices with CSS containment).
+ * The response from /api/v1/specialist/campers/ includes a `bunks` array
+ * used to populate the dropdown; `bunk_id` filters results server-side.
  *
- * Zero-results copy per criterion 9. Selecting a camper calls `onSelect(camper)`.
+ * Recent section shows campers noted in the last 7 days (no bunk filter).
+ * Zero-results copy per criterion 9. Selecting a camper calls onSelect(camper).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -68,17 +69,25 @@ function Section({ title, campers, onSelect, 'data-testid': testId }) {
 
 export default function CamperPicker({ onSelect, onCancel }) {
   const [query, setQuery] = useState('');
+  const [selectedBunkId, setSelectedBunkId] = useState('');
+  const [bunks, setBunks] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const debounceRef = useRef(null);
   const inputRef = useRef(null);
 
-  const fetchCampers = useCallback(async (q) => {
+  const fetchCampers = useCallback(async (q, bunkId) => {
     setLoading(true);
     try {
-      const result = await fetchSpecialistCampers({ q });
+      const result = await fetchSpecialistCampers({
+        q,
+        bunkId: bunkId || null,
+      });
       setData(result);
+      if (result.bunks?.length) {
+        setBunks(result.bunks);
+      }
       setError('');
     } catch (err) {
       setError(err?.message || 'Could not load campers.');
@@ -88,7 +97,7 @@ export default function CamperPicker({ onSelect, onCancel }) {
   }, []);
 
   useEffect(() => {
-    fetchCampers('');
+    fetchCampers('', '');
     inputRef.current?.focus();
   }, [fetchCampers]);
 
@@ -96,23 +105,70 @@ export default function CamperPicker({ onSelect, onCancel }) {
     const q = e.target.value;
     setQuery(q);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchCampers(q), DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => fetchCampers(q, selectedBunkId), DEBOUNCE_MS);
+  };
+
+  const handleBunkChange = (e) => {
+    const bunkId = e.target.value;
+    setSelectedBunkId(bunkId);
+    clearTimeout(debounceRef.current);
+    fetchCampers(query, bunkId);
+  };
+
+  const handleClearBunk = () => {
+    setSelectedBunkId('');
+    fetchCampers(query, '');
   };
 
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
+  const selectedBunkName = bunks.find((b) => String(b.id) === String(selectedBunkId))?.name;
+
   return (
     <div className="flex flex-col h-full" data-testid="sp-camper-picker">
-      {/* Search bar */}
-      <div className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+      {/* Controls */}
+      <div className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10 space-y-2">
+
+        {/* Bunk dropdown */}
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedBunkId}
+            onChange={handleBunkChange}
+            aria-label="Filter by bunk"
+            data-testid="sp-bunk-select"
+            className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-gray-900 dark:text-gray-100"
+          >
+            <option value="">All bunks</option>
+            {bunks.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          {selectedBunkId && (
+            <button
+              type="button"
+              onClick={handleClearBunk}
+              aria-label="Clear bunk filter"
+              className="text-sm text-gray-500 dark:text-gray-400 px-2 py-2 hover:text-gray-700 dark:hover:text-gray-200"
+              data-testid="sp-bunk-clear"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Name search */}
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}
             type="search"
             value={query}
             onChange={handleQueryChange}
-            placeholder="Search by name or bunk…"
-            aria-label="Search campers"
+            placeholder={
+              selectedBunkName
+                ? `Search in ${selectedBunkName}…`
+                : 'Search by name…'
+            }
+            aria-label="Search campers by name"
             className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
             data-testid="sp-camper-search"
           />
@@ -140,7 +196,7 @@ export default function CamperPicker({ onSelect, onCancel }) {
         )}
         {!loading && !error && data && (
           <>
-            {!query && (
+            {!query && !selectedBunkId && (
               <Section
                 title="Recent"
                 campers={data.recent}
@@ -154,7 +210,7 @@ export default function CamperPicker({ onSelect, onCancel }) {
               </p>
             ) : (
               <Section
-                title={query ? 'Results' : 'All campers'}
+                title={query ? 'Results' : selectedBunkName ? selectedBunkName : 'All campers'}
                 campers={data.results}
                 onSelect={onSelect}
                 data-testid="sp-picker-results"

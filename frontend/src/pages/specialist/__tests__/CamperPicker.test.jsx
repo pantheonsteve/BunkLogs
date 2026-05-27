@@ -15,14 +15,21 @@ beforeEach(() => {
   getMock.mockReset();
 });
 
+const sampleBunks = [
+  { id: 1, name: 'Elm' },
+  { id: 2, name: 'Oak' },
+  { id: 3, name: 'Pine' },
+];
+
 const sampleData = {
   recent: [
-    { id: 10, display_name: 'Recent Cam', first_name: 'Recent', last_name: 'Cam', bunk_name: 'Oak', preferred_name: null },
+    { id: 10, display_name: 'Recent Cam', first_name: 'Recent', last_name: 'Cam', bunk_name: 'Oak', bunk_id: 2, preferred_name: null },
   ],
   results: [
-    { id: 11, display_name: 'Jake Smith', first_name: 'Jake', last_name: 'Smith', bunk_name: 'Elm', preferred_name: null },
-    { id: 12, display_name: 'Alice Johnson', first_name: 'Alice', last_name: 'Johnson', bunk_name: 'Pine', preferred_name: null },
+    { id: 11, display_name: 'Jake Smith', first_name: 'Jake', last_name: 'Smith', bunk_name: 'Elm', bunk_id: 1, preferred_name: null },
+    { id: 12, display_name: 'Alice Johnson', first_name: 'Alice', last_name: 'Johnson', bunk_name: 'Pine', bunk_id: 3, preferred_name: null },
   ],
+  bunks: sampleBunks,
   zero_results_message: null,
 };
 
@@ -81,13 +88,60 @@ describe('CamperPicker', () => {
       first_name: 'Camper',
       last_name: `${i}`,
       bunk_name: 'Elm',
+      bunk_id: 1,
       preferred_name: null,
     }));
-    getMock.mockResolvedValue({ data: { recent: [], results: many, zero_results_message: null } });
+    getMock.mockResolvedValue({ data: { recent: [], results: many, bunks: [], zero_results_message: null } });
     render(<MemoryRouter><CamperPicker onSelect={vi.fn()} /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByTestId('sp-camper-row-1')).toBeInTheDocument();
     }, { timeout: 10000 });
     expect(screen.getByTestId('sp-camper-row-20')).toBeInTheDocument();
+  });
+
+  it('populates bunk dropdown from response and re-fetches when bunk selected', async () => {
+    const elmOnly = {
+      recent: [],
+      results: [
+        { id: 11, display_name: 'Jake Smith', first_name: 'Jake', last_name: 'Smith', bunk_name: 'Elm', bunk_id: 1, preferred_name: null },
+      ],
+      bunks: sampleBunks,
+      zero_results_message: null,
+    };
+    getMock
+      .mockResolvedValueOnce({ data: sampleData })   // initial load
+      .mockResolvedValueOnce({ data: elmOnly });      // after bunk select
+
+    render(<MemoryRouter><CamperPicker onSelect={vi.fn()} /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByTestId('sp-bunk-select')).toBeInTheDocument());
+
+    const bunkSelect = screen.getByTestId('sp-bunk-select');
+    // Bunk options rendered
+    expect(bunkSelect.querySelector('option[value="1"]')).toBeInTheDocument();
+
+    fireEvent.change(bunkSelect, { target: { value: '1' } });
+
+    // Triggered a second API call with bunk_id param
+    await waitFor(() => expect(getMock).toHaveBeenCalledTimes(2));
+    expect(getMock).toHaveBeenLastCalledWith(
+      '/api/v1/specialist/campers/',
+      expect.objectContaining({ params: expect.objectContaining({ bunk_id: '1' }) }),
+    );
+
+    // Only Elm camper visible; Alice (Pine) gone
+    await waitFor(() => expect(screen.getByTestId('sp-camper-row-11')).toBeInTheDocument());
+    expect(screen.queryByTestId('sp-camper-row-12')).not.toBeInTheDocument();
+  });
+
+  it('shows clear button when bunk selected and hides Recent section', async () => {
+    getMock.mockResolvedValue({ data: sampleData });
+    render(<MemoryRouter><CamperPicker onSelect={vi.fn()} /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByTestId('sp-bunk-select')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId('sp-bunk-select'), { target: { value: '2' } });
+
+    await waitFor(() => expect(screen.getByTestId('sp-bunk-clear')).toBeInTheDocument());
+    // Recent section hidden when a bunk is selected
+    expect(screen.queryByTestId('sp-picker-recent')).not.toBeInTheDocument();
   });
 });
