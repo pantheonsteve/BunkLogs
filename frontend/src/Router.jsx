@@ -287,24 +287,6 @@ function Router() {
         />
 
         <Route 
-          path="/bunk/:bunk_id/:date/orders/:orderId" 
-          element={
-            <ProtectedRoute>
-              <BunkDashboard />
-            </ProtectedRoute>
-          } 
-        />
-
-        <Route 
-          path="/bunk/:bunk_id/:date/orders/:orderId/edit" 
-          element={
-            <ProtectedRoute>
-              <BunkDashboard />
-            </ProtectedRoute>
-          } 
-        />
-
-        <Route 
           path="/camper/:camper_id/:date" 
           element={
             <ProtectedRoute>
@@ -509,201 +491,76 @@ function Router() {
             path="/maintenance/tickets/:ticketId"
             element={<MaintenanceTicketDetail />}
           />
+
+          {/* ------------------------------------------------------------------ */}
+          {/* Specialist (Step 7_9, Stories 24-29)                               */}
+          {/* ------------------------------------------------------------------ */}
+          <Route path="/specialist" element={<SpecialistDashboard />} />
+          <Route path="/specialist/notes/new" element={<SpecialistNoteForm />} />
+          <Route path="/specialist/notes/:noteId/edit" element={<SpecialistNoteForm />} />
+          <Route path="/specialist/campers/:camperId" element={<SpecialistCamperView />} />
+          <Route path="/specialist/self-reflection/new" element={<SpecialistSelfReflectionPage />} />
+          <Route
+            path="/specialist/self-reflection/:reflectionId/edit"
+            element={<SpecialistSelfReflectionPage />}
+          />
+
+          {/* Kitchen Staff (Step 7_11, Stories 37-44) */}
+          <Route path="/kitchen-staff" element={<KitchenStaffDashboard />} />
+          <Route path="/kitchen-staff/history" element={<KitchenStaffHistory />} />
+          <Route path="/kitchen-staff/reflection/new" element={<KitchenStaffReflectionForm />} />
+          <Route
+            path="/kitchen-staff/reflection/:reflectionId/edit"
+            element={<KitchenStaffReflectionForm />}
+          />
+
+          {/* Madrich (TBE) (Step 7_14, Stories 61-65) */}
+          <Route path="/madrich" element={<MadrichDashboard />} />
+          <Route path="/madrich/history" element={<MadrichHistory />} />
+          <Route path="/madrich/reflection/new" element={<MadrichReflectionForm />} />
+          <Route
+            path="/madrich/reflection/:reflectionId/edit"
+            element={<MadrichReflectionForm />}
+          />
+
+          {/* Leadership Team (Step 7_12, Stories 45-53) */}
+          <Route path="/leadership-team" element={<LeadershipTeamDashboard />} />
+          <Route
+            path="/leadership-team/teams/:teamRole"
+            element={<LeadershipTeamTeamDashboard />}
+          />
+          <Route
+            path="/leadership-team/teams/:teamRole/members/:membershipId"
+            element={<LeadershipTeamMemberReflection />}
+          />
+          <Route
+            path="/leadership-team/self-reflection"
+            element={<LeadershipTeamSelfReflectionPage />}
+          />
+          <Route
+            path="/leadership-team/self-reflection/:reflectionId/edit"
+            element={<LeadershipTeamSelfReflectionPage />}
+          />
+          <Route path="/leadership-team/templates" element={<LeadershipTeamTemplateLibrary />} />
+          <Route
+            path="/leadership-team/templates/new"
+            element={<LeadershipTeamTemplateBuilderPage />}
+          />
+          <Route
+            path="/leadership-team/templates/:id"
+            element={<LeadershipTeamTemplateBuilderPage />}
+          />
+          <Route
+            path="/leadership-team/templates/:id/responses"
+            element={<LeadershipTeamResponses />}
+          />
+
+          {/* Subject Trend Grid — moved inside AppLayout for consistent chrome */}
+          <Route
+            path="/dashboards/subject-trends/:groupId"
+            element={<SubjectTrendsPage />}
+          />
         </Route>
-
-        {/* ------------------------------------------------------------------ */}
-        {/* Specialist (Step 7_9, Stories 24-29)                               */}
-        {/* ------------------------------------------------------------------ */}
-        <Route
-          path="/specialist"
-          element={
-            <ProtectedRoute>
-              <SpecialistDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/specialist/notes/new"
-          element={
-            <ProtectedRoute>
-              <SpecialistNoteForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/specialist/notes/:noteId/edit"
-          element={
-            <ProtectedRoute>
-              <SpecialistNoteForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/specialist/campers/:camperId"
-          element={
-            <ProtectedRoute>
-              <SpecialistCamperView />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/specialist/self-reflection/new"
-          element={
-            <ProtectedRoute>
-              <SpecialistSelfReflectionPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/specialist/self-reflection/:reflectionId/edit"
-          element={
-            <ProtectedRoute>
-              <SpecialistSelfReflectionPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Kitchen Staff (Step 7_11, Stories 37-44)                             */}
-        <Route
-          path="/kitchen-staff"
-          element={
-            <ProtectedRoute>
-              <KitchenStaffDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/kitchen-staff/history"
-          element={
-            <ProtectedRoute>
-              <KitchenStaffHistory />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/kitchen-staff/reflection/new"
-          element={
-            <ProtectedRoute>
-              <KitchenStaffReflectionForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/kitchen-staff/reflection/:reflectionId/edit"
-          element={
-            <ProtectedRoute>
-              <KitchenStaffReflectionForm />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Madrich (TBE) (Step 7_14, Stories 61-65)                              */}
-        <Route
-          path="/madrich"
-          element={
-            <ProtectedRoute>
-              <MadrichDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/madrich/history"
-          element={
-            <ProtectedRoute>
-              <MadrichHistory />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/madrich/reflection/new"
-          element={
-            <ProtectedRoute>
-              <MadrichReflectionForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/madrich/reflection/:reflectionId/edit"
-          element={
-            <ProtectedRoute>
-              <MadrichReflectionForm />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Leadership Team (Step 7_12, Stories 45-53) */}
-        <Route
-          path="/leadership-team"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/teams/:teamRole"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamTeamDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/teams/:teamRole/members/:membershipId"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamMemberReflection />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/self-reflection"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamSelfReflectionPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/self-reflection/:reflectionId/edit"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamSelfReflectionPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/templates"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamTemplateLibrary />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/templates/new"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamTemplateBuilderPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/templates/:id"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamTemplateBuilderPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leadership-team/templates/:id/responses"
-          element={
-            <ProtectedRoute>
-              <LeadershipTeamResponses />
-            </ProtectedRoute>
-          }
-        />
 
         <Route
           path="/my-reflections"
@@ -755,14 +612,6 @@ function Router() {
           element={
             <ProtectedRoute>
               <CoverageDashboardPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboards/subject-trends/:groupId"
-          element={
-            <ProtectedRoute>
-              <SubjectTrendsPage />
             </ProtectedRoute>
           }
         />

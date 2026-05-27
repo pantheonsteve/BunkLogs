@@ -62,7 +62,7 @@ describe('Sidebar — section gating (3.32)', () => {
     const links = hrefs();
     expect(links).toContain('/dashboard');
     expect(links).toContain('/tasks');
-    expect(links).toContain('/counselor-dashboard');
+    expect(links).toContain('/counselor');
     expect(links).toContain('/reflect');
     expect(links).toContain('/my-reflections');
     expect(links).toContain('/orders');
@@ -76,7 +76,7 @@ describe('Sidebar — section gating (3.32)', () => {
     const links = hrefs();
     expect(links).toContain('/dashboard');
     expect(links).toContain('/tasks');
-    expect(links).not.toContain('/counselor-dashboard');
+    expect(links).not.toContain('/counselor');
     expect(links).not.toContain('/reflect');
     expect(links).not.toContain('/my-reflections');
     expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
@@ -93,7 +93,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).toContain('/supervisor/coverage');
     expect(links).toContain('/dashboards/concerns');
     // Supervisors don't get the role-specific Counselor-home link.
-    expect(links).not.toContain('/counselor-dashboard');
+    expect(links).not.toContain('/counselor');
   });
 
   it('supervisor (camper_care) sees Supervise and reflection forms', () => {

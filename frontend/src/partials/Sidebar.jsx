@@ -187,7 +187,7 @@ function Sidebar({
             <NavItem to="/tasks" label="My tasks" icon={IconTasks} />
             {user.role === 'Counselor' && (
               <NavItem
-                to="/counselor-dashboard"
+                to="/counselor"
                 label="Counselor home"
                 icon={IconCounselor}
               />
