@@ -127,27 +127,48 @@
 
 ### Canonical story re-verification
 
-**Status:** ⬜ Not started
+**Status:** ✅ Complete (2026-05-26)
 **Estimated:** 3–5 hours
-**Depends on:** 7_20 + 7_21 + 7_22 merged to staging
+**Actual:** ~1.5 hours
+**Depends on:** 7_20 + 7_21 + 7_22 merged to staging ✅
 
-For each existing canonical story under `docs/user_stories/01_counselor/` through `09_madrich/`, verify the acceptance criteria still hold against the assignment-driven substrate. Most should pass without code change.
+For each existing canonical story under `docs/user_stories/01_counselor/` through `09_madrich/`, verify the acceptance criteria still hold against the assignment-driven substrate.
 
 **Per-role re-verification progress:**
 
-- ⬜ 01_counselor (Stories 1–9)
-- ⬜ 02_unit_head (Stories 10–17)
-- ⬜ 03_camper_care (Stories 18–23)
-- ⬜ 04_specialist (Stories 24–29)
-- ⬜ 05_maintenance (Stories 30–34)
-- ⬜ 06_kitchen_staff (Stories 35–40)
-- ⬜ 07_leadership_team (Stories 45–53)
-- ⬜ 08_admin (Stories 54–60)
-- ⬜ 09_madrich (Stories 61–65)
+- ✅ 01_counselor (Stories 1–9)
+- ✅ 02_unit_head (Stories 10–17)
+- ✅ 03_camper_care (Stories 18–23)
+- ✅ 04_specialist (Stories 24–29)
+- ✅ 05_maintenance (Stories 30–36)
+- ✅ 06_kitchen_staff (Stories 37–44)
+- ✅ 07_leadership_team (Stories 45–53)
+- ✅ 08_admin (Stories 54–60)
+- ✅ 09_madrich (Stories 61–65)
 
-**Findings (record any divergence here):**
+**Methodology:** Code audit of `core/assignment_resolution.py` + all 7 affected `common.py` files, cross-checked against story acceptance criteria. Backend test suite run: **1193 passed, 1 pre-existing failure** (`test_translation::TestBeatRegistration` — unrelated to Wave 1).
 
-- _Add as you find them_
+**Per-role findings:**
+
+| Role | Template helper | Resolver call | AC status |
+|------|----------------|---------------|-----------|
+| Counselor | `camper_reflection_template`, `counselor_self_template` | `resolve_template_for(role="counselor", subject_mode="single_subject"/"self", cadence="daily")` | ✅ All 9 stories hold |
+| Unit Head | `unit_head_self_template` | `resolve_template_for(role="unit_head", subject_mode="self", cadence="daily")` | ✅ All 8 stories hold |
+| Camper Care | `camper_care_self_template` | `resolve_template_for(role="camper_care", subject_mode="self", cadence="daily")` | ✅ Non-template stories (flags, orders, caseload) unchanged |
+| Specialist | `specialist_self_template` | `resolve_template_for(role="specialist", subject_mode="self", cadence="daily")` | ✅ All 6 stories hold |
+| Maintenance | (none — ticket-based) | Intentionally excluded from 7_21; no template resolution | ✅ All 7 stories unchanged |
+| Kitchen Staff | `kitchen_staff_template` | `resolve_template_for(role="kitchen_staff", subject_mode="self", cadence="daily")` | ✅ All 8 stories hold; i18n/translation stories unaffected |
+| Leadership Team | `leadership_team_self_template` | `resolve_template_for(role="leadership_team", subject_mode="self")` — no cadence constraint (intentional; biweekly via assignment) | ✅ All 9 stories hold; `resolve_period` biweekly math confirmed correct |
+| Admin | (none — oversight only) | Intentionally excluded; `admin_flow/common.py` skipped in 7_21 | ✅ Stories 54-60 all oversight/config; no self-reflection template needed |
+| Madrich (TBE) | `madrich_template` | `resolve_template_for(role="madrich", subject_mode="self", cadence="weekly")` | ✅ Story 63 criterion 7 covers "no template assigned" empty state; TBE TemplateAssignment row will be created at TBE onboarding (Fall 2026) |
+
+**Findings:**
+
+1. **LT cadence note (design-intent, not a bug):** `leadership_team_self_template` intentionally omits `cadence` from the resolver call. The LT assignment's `cadence_override` or template's own `cadence` drives the period (biweekly for CLC 2026). If multiple LT assignments ever coexist for the same program, org-priority → group-priority → highest version wins. The LT admin should maintain only one active self-reflection assignment per program at a time.
+
+2. **TBE Madrich seeding (not a June 3 blocker):** No `TemplateAssignment` row exists for TBE's madrich program — and none is needed for the June 3 CLC deploy. Story 63 criterion 7 provides the empty state ("No reflections currently assigned"). A `seed_tbe_assignments` management command should be created before TBE's Fall 2026 onboarding.
+
+3. ⚠️ **DEPLOY PLAN BUG FIXED BELOW:** Production deploy command on line 165 had `--org-slug crane-lake-camp` (wrong). Correct slug is `clc` per pre-flight findings.
 
 ---
 
@@ -162,7 +183,7 @@ When all three prompts are merged and the re-verification passes:
 2. **Deploy window** (target: evening of June 1 or 2, 2026):
    - Merge 7_20, 7_21, 7_22 to main in order.
    - Trigger production deploy via the standard Render flow.
-   - Run `python manage.py seed_summer_2026_assignments --org-slug crane-lake-camp --program-slug summer-2026` in production shell.
+   - Run `python manage.py seed_summer_2026_assignments --org-slug clc --program-slug summer-2026` in production shell.
    - Verify a sample of dashboards as Alyson.
 3. **Post-deploy monitoring** (next 24–48 hours):
    - Watch Datadog APM for dashboard endpoint errors.
@@ -209,7 +230,7 @@ Wave 1 is "done" and ready to be archived when:
 - ⬜ Seeding command run in production
 - ⬜ Alyson confirms dashboards work for a sample counselor and UH on staging *and* production
 - ⬜ 24 hours of clean Datadog APM signal post-deploy
-- ⬜ Re-verification complete across all 9 role flows
+- ✅ Re-verification complete across all 9 role flows
 - ⬜ June 5 staff onboarding runs cleanly on the new substrate
 
 When all checkboxes above are ✅, archive this file and start tracking the next thing (likely the Notes module deploy, 7_19).
