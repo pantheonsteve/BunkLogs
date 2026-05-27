@@ -145,7 +145,7 @@ describe('CamperCareDashboard', () => {
     });
     expect(screen.getByTestId('cc-bunk-link-11')).toHaveAttribute(
       'href',
-      '/dashboards/bunk/11',
+      '/dashboards/group/11',
     );
   });
 });

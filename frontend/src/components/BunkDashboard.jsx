@@ -2,11 +2,12 @@
  * Shared Bunk Dashboard — Step 7_7, Story 11.
  *
  * Renders the full per-bunk payload returned by the unified
- * `GET /api/v1/dashboards/bunks/<id>/` endpoint (Counselor, Camper
- * Care, Unit Head, Leadership Team, and Admin all read here). Built
- * as a presentational component; the wrapping page resolves the
- * caller's role from the payload's `role_context` and feeds the
- * right `backTo` link.
+ * `GET /api/v1/dashboards/group/<id>/` endpoint when
+ * `group_type='bunk'`. Counselor, Camper Care, Unit Head, Leadership
+ * Team, and Admin all read here. Built as a presentational
+ * component; the wrapping `GroupDashboardPage` resolves the caller's
+ * role from the payload's `role_context` and feeds the right
+ * `backTo` link.
  *
  * Section order matches the spec (criterion 1): Header → Help
  * requested → Off-camp today → Bunk concerns → Camper score grid

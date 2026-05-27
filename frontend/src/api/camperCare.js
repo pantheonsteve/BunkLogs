@@ -23,8 +23,8 @@ export async function fetchCamperCareDashboard({ date, noCache = false } = {}) {
 }
 
 // NOTE: `fetchBunkDashboard` removed when the bunk dashboard was
-// consolidated under `/api/v1/dashboards/bunks/<id>/`. Use
-// `frontend/src/api/dashboards.js#fetchBunkDashboard` instead.
+// consolidated under `/api/v1/dashboards/group/<id>/`. Use
+// `frontend/src/api/dashboards.js#fetchGroupDashboard` instead.
 
 /**
  * Camper drill-down payload (Story 18 c.9 + Story 21 in-context notes).
