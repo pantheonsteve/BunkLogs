@@ -85,8 +85,6 @@ def _expand_group_to_bunk_ids(group) -> set[int]:
     This supports the ASSIGNMENT_GROUP supervision pattern where a supervisor
     is assigned to a parent unit/division and should see all child bunks.
     """
-    from bunk_logs.core.models import AssignmentGroup
-
     ids: set[int] = set()
     if group.group_type == "bunk":
         ids.add(group.id)
@@ -116,7 +114,7 @@ def _caseload_bunk_ids_for_membership(supervision_qs, membership, *, today=None)
     # Path 1: direct bunk supervisions (existing pattern).
     direct_bunk_ids = set(
         active_qs.filter(target_type="bunk", target_bunk__isnull=False)
-        .values_list("target_bunk_id", flat=True)
+        .values_list("target_bunk_id", flat=True),
     )
 
     # Collect all group IDs that need descendant expansion (paths 2 + 3).
@@ -126,7 +124,7 @@ def _caseload_bunk_ids_for_membership(supervision_qs, membership, *, today=None)
     expand_group_ids.extend(
         active_qs.filter(
             target_type="assignment_group", target_group__isnull=False,
-        ).values_list("target_group_id", flat=True)
+        ).values_list("target_group_id", flat=True),
     )
 
     # Path 3: AssignmentGroupMembership(author) on any group within the
@@ -138,7 +136,7 @@ def _caseload_bunk_ids_for_membership(supervision_qs, membership, *, today=None)
             role_in_group="author",
             is_active=True,
             group__program=membership.program,
-        ).values_list("group_id", flat=True)
+        ).values_list("group_id", flat=True),
     )
 
     expanded_ids: set[int] = set()
