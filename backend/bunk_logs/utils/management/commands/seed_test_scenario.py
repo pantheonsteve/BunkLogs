@@ -78,10 +78,11 @@ class Command(BaseCommand):
 
             session = self._active_session()
             if session is None:
-                raise CommandError(
+                msg = (
                     "No active Session found. Run seed_dev_data first, "
                     "or create a Session with is_active=True."
                 )
+                raise CommandError(msg)
 
             unit = self._ensure_unit()
 
@@ -90,39 +91,38 @@ class Command(BaseCommand):
             camper_care = self._users_by_role(User.CAMPER_CARE)
 
             if not counselors:
-                raise CommandError(
-                    "No users with role='Counselor' found. "
-                    "Run seed_dev_data first."
-                )
+                msg = "No users with role='Counselor' found. Run seed_dev_data first."
+                raise CommandError(msg)
 
             bunks = self._assign_bunks_to_unit(session, unit)
             if not bunks:
-                raise CommandError(
+                msg = (
                     f"No bunks found for the active session '{session}'. "
                     "Run seed_dev_data first."
                 )
+                raise CommandError(msg)
 
             uh_count = self._assign_unit_heads(unit, unit_heads)
             cc_count = self._assign_camper_care(unit, camper_care)
             counselor_assignment_count = self._assign_counselors(
-                bunks, session, counselors
+                bunks, session, counselors,
             )
 
             camper_assignments = list(
                 CamperBunkAssignment.objects.filter(
                     bunk__in=bunks,
                     is_active=True,
-                ).select_related("bunk")
+                ).select_related("bunk"),
             )
 
             counselor_assignments = list(
                 CounselorBunkAssignment.objects.filter(
-                    bunk__in=bunks
-                ).select_related("bunk", "counselor")
+                    bunk__in=bunks,
+                ).select_related("bunk", "counselor"),
             )
 
             log_count = self._create_bunk_logs(
-                camper_assignments, counselor_assignments, days
+                camper_assignments, counselor_assignments, days,
             )
 
         self._report(
@@ -141,18 +141,18 @@ class Command(BaseCommand):
 
     def _enforce_local_only(self) -> None:
         if not settings.DEBUG:
-            raise CommandError("Refusing to seed: settings.DEBUG is False.")
+            msg = "Refusing to seed: settings.DEBUG is False."
+            raise CommandError(msg)
         host = (settings.DATABASES.get("default", {}).get("HOST") or "").strip().lower()
         if host not in LOCAL_DB_HOST_ALLOWLIST:
-            raise CommandError(
-                f"Refusing to seed: database host '{host}' is not in the local allowlist."
-            )
+            msg = f"Refusing to seed: database host '{host}' is not in the local allowlist."
+            raise CommandError(msg)
 
     # ---------------------------------------------------------------- reset
 
     def _reset_test_data(self) -> None:
         self.stdout.write(self.style.WARNING(
-            "--reset: deleting is_test_data=True rows..."
+            "--reset: deleting is_test_data=True rows...",
         ))
         # BunkLogs first (PROTECT FK prevents assignment deletion otherwise)
         orphaned = BunkLog.objects.filter(bunk_assignment__bunk__is_test_data=True)
@@ -164,7 +164,11 @@ class Command(BaseCommand):
         from bunk_logs.bunklogs.models import StaffLog
         from bunk_logs.bunks.models import Cabin
         from bunk_logs.campers.models import Camper
-        from bunk_logs.orders.models import Item, ItemCategory, Order, OrderItem, OrderType
+        from bunk_logs.orders.models import Item
+        from bunk_logs.orders.models import ItemCategory
+        from bunk_logs.orders.models import Order
+        from bunk_logs.orders.models import OrderItem
+        from bunk_logs.orders.models import OrderType
 
         for model in (
             BunkLog, StaffLog,
@@ -282,9 +286,9 @@ class Command(BaseCommand):
                         is_test_data=True,
                     )
                     count += 1
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     self.stderr.write(
-                        f"  skipped primary counselor ({primary}, {bunk}): {exc}"
+                        f"  skipped primary counselor ({primary}, {bunk}): {exc}",
                     )
 
             if non_primary_count == 0 and floater.id not in existing_counselor_ids:
@@ -298,9 +302,9 @@ class Command(BaseCommand):
                         is_test_data=True,
                     )
                     count += 1
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     self.stderr.write(
-                        f"  skipped floater counselor ({floater}, {bunk}): {exc}"
+                        f"  skipped floater counselor ({floater}, {bunk}): {exc}",
                     )
 
         return count
@@ -333,7 +337,7 @@ class Command(BaseCommand):
                     continue
 
                 if BunkLog.objects.filter(
-                    bunk_assignment=assignment, date=log_date
+                    bunk_assignment=assignment, date=log_date,
                 ).exists():
                     continue
 
@@ -358,9 +362,9 @@ class Command(BaseCommand):
                 try:
                     BunkLog.objects.create(**kwargs)
                     created += 1
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     self.stderr.write(
-                        f"  skipped log ({assignment.id}, {log_date}): {exc}"
+                        f"  skipped log ({assignment.id}, {log_date}): {exc}",
                     )
 
         return created
