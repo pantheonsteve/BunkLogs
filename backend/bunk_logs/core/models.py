@@ -2220,12 +2220,18 @@ SUPERVISOR_CAPABILITIES: frozenset[str] = frozenset(
 class Supervision(models.Model):
     """A supervision relationship between a supervisor Membership and a target.
 
-    One primitive covers four patterns (see ``core/SUPERVISION.md``):
+    One primitive covers five patterns (see ``core/SUPERVISION.md``):
 
     * UH -> Counselor (``target_type=MEMBERSHIP``)
     * Camper Care -> Caseload Bunk (``target_type=BUNK``)
+    * Camper Care -> Unit/Division (``target_type=ASSIGNMENT_GROUP``)
     * LT -> team-by-role (``target_type=ROLE_IN_PROGRAM``)
     * Director -> Madrich cohort (``target_type=ROLE_IN_PROGRAM``)
+
+    ``ASSIGNMENT_GROUP`` targets any AssignmentGroup (bunk, unit, division, …)
+    and the caseload resolver expands it to all active descendant bunks via
+    ``AssignmentGroup.get_descendants()``. This supports hierarchical assignment:
+    CC assigned to a unit automatically sees all child bunks.
 
     Multiple supervisors per target is supported; the model is many one-to-many
     rows that share the same target. End-dating a row is the only modification
@@ -2236,6 +2242,7 @@ class Supervision(models.Model):
         MEMBERSHIP = "membership", "Membership (direct supervisee)"
         ROLE_IN_PROGRAM = "role_in_program", "Role in program (team-by-role)"
         BUNK = "bunk", "Bunk (caseload entry)"
+        ASSIGNMENT_GROUP = "assignment_group", "Assignment Group (hierarchy)"
 
     supervisor_membership = models.ForeignKey(
         Membership,
@@ -2284,6 +2291,17 @@ class Supervision(models.Model):
             "Spec uses 'Bunk' as shorthand; new code targets AssignmentGroup."
         ),
     )
+    target_group = models.ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="group_supervisions",
+        help_text=(
+            "Any AssignmentGroup when target_type=ASSIGNMENT_GROUP. "
+            "Caseload resolvers expand this to all active descendant bunks."
+        ),
+    )
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2299,6 +2317,7 @@ class Supervision(models.Model):
             models.Index(fields=["target_membership"]),
             models.Index(fields=["target_program", "target_role"]),
             models.Index(fields=["target_bunk"]),
+            models.Index(fields=["target_group"]),
             models.Index(fields=["start_date", "end_date"]),
         ]
         constraints = [
@@ -2334,6 +2353,8 @@ class Supervision(models.Model):
             return f"membership:{self.target_membership_id}"
         if self.target_type == self.TargetType.ROLE_IN_PROGRAM:
             return f"role:{self.target_role}@program:{self.target_program_id}"
+        if self.target_type == self.TargetType.ASSIGNMENT_GROUP:
+            return f"group:{self.target_group_id}"
         return f"bunk:{self.target_bunk_id}"
 
     def is_active(self, today=None) -> bool:
@@ -2379,6 +2400,10 @@ class Supervision(models.Model):
                 errors["target_bunk"] = (
                     "target_bunk must be empty when target_type=MEMBERSHIP."
                 )
+            if self.target_group_id:
+                errors["target_group"] = (
+                    "target_group must be empty when target_type=MEMBERSHIP."
+                )
         elif self.target_type == self.TargetType.ROLE_IN_PROGRAM:
             if not self.target_role:
                 errors["target_role"] = (
@@ -2401,6 +2426,10 @@ class Supervision(models.Model):
                 errors["target_bunk"] = (
                     "target_bunk must be empty when target_type=ROLE_IN_PROGRAM."
                 )
+            if self.target_group_id:
+                errors["target_group"] = (
+                    "target_group must be empty when target_type=ROLE_IN_PROGRAM."
+                )
         elif self.target_type == self.TargetType.BUNK:
             if not self.target_bunk_id:
                 errors["target_bunk"] = (
@@ -2421,6 +2450,31 @@ class Supervision(models.Model):
             if self.target_role:
                 errors["target_role"] = (
                     "target_role must be empty when target_type=BUNK."
+                )
+            if self.target_group_id:
+                errors["target_group"] = (
+                    "target_group must be empty when target_type=BUNK."
+                )
+        elif self.target_type == self.TargetType.ASSIGNMENT_GROUP:
+            if not self.target_group_id:
+                errors["target_group"] = (
+                    "target_group is required when target_type=ASSIGNMENT_GROUP."
+                )
+            if self.target_bunk_id:
+                errors["target_bunk"] = (
+                    "target_bunk must be empty when target_type=ASSIGNMENT_GROUP."
+                )
+            if self.target_membership_id:
+                errors["target_membership"] = (
+                    "target_membership must be empty when target_type=ASSIGNMENT_GROUP."
+                )
+            if self.target_program_id:
+                errors["target_program"] = (
+                    "target_program must be empty when target_type=ASSIGNMENT_GROUP."
+                )
+            if self.target_role:
+                errors["target_role"] = (
+                    "target_role must be empty when target_type=ASSIGNMENT_GROUP."
                 )
         else:
             errors["target_type"] = f"Unknown target_type {self.target_type!r}."
@@ -2453,6 +2507,13 @@ class Supervision(models.Model):
             ):
                 errors["target_bunk"] = (
                     "Target Bunk must belong to the same organization."
+                )
+            if (
+                self.target_group_id
+                and self.target_group.organization_id != sup_org_id
+            ):
+                errors["target_group"] = (
+                    "Target Group must belong to the same organization."
                 )
 
         if errors:
@@ -2563,6 +2624,7 @@ def supervision_snapshot(supervision: Supervision) -> dict:
         "target_role": supervision.target_role,
         "target_program_id": supervision.target_program_id,
         "target_bunk_id": supervision.target_bunk_id,
+        "target_group_id": supervision.target_group_id,
         "start_date": (
             supervision.start_date.isoformat() if supervision.start_date else None
         ),
