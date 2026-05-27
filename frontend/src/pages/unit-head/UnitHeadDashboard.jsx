@@ -44,7 +44,7 @@ function BunkRow({ bunk }) {
       className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
     >
       <Link
-        to={`/dashboards/bunk/${bunk.id}`}
+        to={`/dashboards/group/${bunk.id}`}
         className="block px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl"
       >
         <div className="flex items-start justify-between gap-3">
