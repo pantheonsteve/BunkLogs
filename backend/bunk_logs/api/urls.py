@@ -28,9 +28,9 @@ from .counselor import maintenance_tickets as counselor_maintenance_tickets
 from .counselor import requests as counselor_requests
 from .counselor import self_reflection as counselor_self_reflection
 from .dashboards import authors as authors_dashboard
-from .dashboards import bunk_dashboard as bunk_dashboard_api
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
+from .dashboards import group_dashboard as group_dashboard_api
 from .dashboards import subject as subject_dashboard
 from .dashboards import subject_notes as subject_notes_api
 from .dashboards import template as template_dashboard
@@ -266,15 +266,25 @@ urlpatterns = [
         name="dashboard-subject-detail",
     ),
 
-    # Unified per-bunk dashboard. Role-resolving endpoint that replaces
-    # /api/v1/unit-head/bunks/<id>/ and /api/v1/camper-care/bunks/<id>/.
-    # Counselor, CC, UH, Leadership Team, and Admin all read here; the
-    # response includes a ``role_context`` block driving role-conditional
-    # frontend chrome. Legacy per-role endpoints stay registered above
-    # for back-compat while callers migrate.
+    # Unified per-group dashboard. Role + group-type-resolving
+    # endpoint that replaces /api/v1/unit-head/bunks/<id>/ and
+    # /api/v1/camper-care/bunks/<id>/ for bunks, and serves
+    # unit/division/classroom rollups under the same surface.
+    # Counselor, CC, UH, Leadership Team, and Admin read here for
+    # camp groups; faculty/madrich read here for TBE classrooms. The
+    # response includes a ``role_context`` block (role + group_type +
+    # can_edit) driving frontend dispatch.
+    path(
+        "dashboards/group/<int:group_id>/",
+        group_dashboard_api.GroupDashboardView.as_view(),
+        name="dashboard-group",
+    ),
+    # Legacy bunk-only alias from the prior consolidation PR. Routes
+    # to the same view (the view accepts either ``group_id`` or
+    # ``bunk_id`` kwarg). Keep until external callers migrate.
     path(
         "dashboards/bunks/<int:bunk_id>/",
-        bunk_dashboard_api.BunkDashboardView.as_view(),
+        group_dashboard_api.GroupDashboardView.as_view(),
         name="dashboard-bunk",
     ),
 

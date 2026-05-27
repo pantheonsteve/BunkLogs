@@ -26,8 +26,8 @@ export async function fetchUnitHeadDashboard({ noCache = false } = {}) {
 }
 
 // NOTE: `fetchBunkDashboard` removed when the bunk dashboard was
-// consolidated under `/api/v1/dashboards/bunks/<id>/`. Use
-// `frontend/src/api/dashboards.js#fetchBunkDashboard` instead.
+// consolidated under `/api/v1/dashboards/group/<id>/`. Use
+// `frontend/src/api/dashboards.js#fetchGroupDashboard` instead.
 
 /** Camper Dashboard payload (Story 13) for a camper on a date + range. */
 export async function fetchCamperDashboard(camperId, {

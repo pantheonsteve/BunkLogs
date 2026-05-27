@@ -60,7 +60,7 @@ import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
 import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
 import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import DashboardsHub from './pages/dashboards/DashboardsHub';
-import BunkDashboardPage from './pages/dashboards/BunkDashboardPage';
+import GroupDashboardPage from './pages/dashboards/GroupDashboardPage';
 import AdminLayout from './layouts/AdminLayout';
 import AppLayout from './layouts/AppLayout';
 import CounselorMobileDashboard from './pages/counselor/CounselorMobileDashboard';
@@ -148,17 +148,16 @@ function AdminRoute({ children }) {
   return children;
 }
 
-// Permanent redirect for the legacy per-role bunk dashboard URLs.
-// The dashboard has been consolidated under /dashboards/bunk/:bunkId
-// (one URL, role-resolving backend) but bookmarks and in-app links
-// from before the consolidation still target the old paths. We
-// preserve the `?date=` query so deep-linked past-day views survive
-// the redirect.
+// Permanent redirect for the legacy per-role bunk dashboard URLs +
+// the prior `/dashboards/bunk/:bunkId` URL from the bunk-only
+// consolidation. Everything now lives at `/dashboards/group/:id`.
+// We preserve the `?date=` query so deep-linked past-day views
+// survive the redirect.
 function LegacyBunkDashboardRedirect() {
   const { bunkId } = useParams();
   const [searchParams] = useSearchParams();
   const qs = searchParams.toString();
-  const target = `/dashboards/bunk/${bunkId}${qs ? `?${qs}` : ''}`;
+  const target = `/dashboards/group/${bunkId}${qs ? `?${qs}` : ''}`;
   return <Navigate to={target} replace />;
 }
 
@@ -582,15 +581,23 @@ function Router() {
             element={<SubjectTrendsPage />}
           />
 
-          {/* Unified per-bunk dashboard. One URL serves Counselor, CC,
-              UH, Leadership Team, and Admin viewers — the backend
-              resolves role server-side and returns a `role_context`
-              the page uses for role-conditional chrome. The legacy
-              /unit-head/bunks/:bunkId and /camper-care/bunks/:bunkId
-              URLs above redirect here so old bookmarks keep working. */}
+          {/* Unified per-group dashboard. One URL serves every group
+              type the backend knows how to render — bunk, unit,
+              division, classroom. Counselor, CC, UH, Leadership
+              Team, Admin, and (for classrooms) Faculty/Madrich all
+              read here. The backend resolves role + group_type
+              server-side and returns a `role_context` block the
+              page uses to pick the right presentational component
+              and chrome. The legacy /unit-head/bunks/:bunkId,
+              /camper-care/bunks/:bunkId, and /dashboards/bunk/:bunkId
+              URLs all redirect here so old bookmarks keep working. */}
+          <Route
+            path="/dashboards/group/:groupId"
+            element={<GroupDashboardPage />}
+          />
           <Route
             path="/dashboards/bunk/:bunkId"
-            element={<BunkDashboardPage />}
+            element={<LegacyBunkDashboardRedirect />}
           />
         </Route>
 
