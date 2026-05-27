@@ -162,9 +162,9 @@ describe('SubjectDetail', () => {
     expect(within(header).getByText(/\(BulkCamper5\)/)).toBeInTheDocument();
     expect(within(header).getByText('camper')).toBeInTheDocument();
     expect(within(header).getByText(/URJ Crane Lake/)).toBeInTheDocument();
-    // The bunk chip is wrapped in a link to the subject-trends grid.
+    // Group chips link to the consolidated group dashboard.
     const bunkLink = within(header).getByRole('link', { name: /RBAC Bulk Bunk 5/ });
-    expect(bunkLink).toHaveAttribute('href', '/dashboards/subject-trends/36');
+    expect(bunkLink).toHaveAttribute('href', '/dashboards/group/36');
   });
 
   it('renders KPI tiles for total reflections and yes/no flag counts', () => {
