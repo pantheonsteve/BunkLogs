@@ -68,13 +68,13 @@ class SpecialistCamperPickerView(APIView):
         if not program_ids:
             return Response({"recent": [], "results": [], "bunks": [], "zero_results_message": None})
 
-        agm_filter: dict = dict(
-            group__program_id__in=program_ids,
-            role_in_group="subject",
-            is_active=True,
-            group__group_type="bunk",
-            group__is_active=True,
-        )
+        agm_filter: dict = {
+            "group__program_id__in": program_ids,
+            "role_in_group": "subject",
+            "is_active": True,
+            "group__group_type": "bunk",
+            "group__is_active": True,
+        }
         if bunk_id is not None:
             agm_filter["group_id"] = bunk_id
 
