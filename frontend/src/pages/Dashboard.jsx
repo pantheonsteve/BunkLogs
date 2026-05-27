@@ -4,10 +4,32 @@ import { useNavigate } from 'react-router-dom';
 
 import Sidebar from '../partials/Sidebar';
 import Header from '../partials/Header';
-import FilterButton from '../components/DropdownFilter';
-import Datepicker from '../components/Datepicker';
 import BunkGrid from '../partials/dashboard/BunkGrid';
 import UserProfile from '../partials/dashboard/UserProfile';
+
+/**
+ * Role-based landing page.
+ *
+ * Reads user.role (old-model string from JWT) and immediately redirects to the
+ * appropriate new-model role dashboard. This component is reachable from the
+ * Sidebar "Home" link, the / root, and the * catch-all. Old bookmarks that
+ * land here will transparently forward to the new URL.
+ *
+ * Roles without a specific redirect fall through to the BunkGrid view, which
+ * is also kept as the fallback for Admins / Super-Admins browsing the legacy UI.
+ */
+
+const ROLE_DESTINATIONS = {
+  'Counselor':      '/counselor',
+  'Unit Head':      '/unit-head',
+  'Camper Care':    '/camper-care',
+  'Leadership':     '/leadership-team',
+  'Leadership Team': '/leadership-team',
+  'Kitchen Staff':  '/kitchen-staff',
+  'Specialist':     '/specialist',
+  'Madrich':        '/madrich',
+  'Maintenance':    '/maintenance',
+};
 
 function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -15,73 +37,14 @@ function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Don't redirect if we're still loading auth state
-    if (authLoading || isAuthenticating) {
-      console.log('⏳ Waiting for auth to complete before redirecting...');
-      return;
-    }
+    if (authLoading || isAuthenticating) return;
 
-    // Log user profile data when dashboard mounts
-    console.log('📊 Dashboard mounted with user profile:', userProfile);
-    console.log('👤 User object in dashboard:', user);
-    
-    // Redirect to role-specific dashboard if user has a specific role
-    if (user && user.role) {
-      console.log('🚀 Checking role for potential redirect:', user.role);
-      switch (user.role) {
-        case 'Admin':
-          // Get today's date for the redirect
-          const todayAdmin = new Date();
-          const yearAdmin = todayAdmin.getFullYear();
-          const monthAdmin = String(todayAdmin.getMonth() + 1).padStart(2, '0');
-          const dayAdmin = String(todayAdmin.getDate()).padStart(2, '0');
-          const formattedDateAdmin = `${yearAdmin}-${monthAdmin}-${dayAdmin}`;
-          navigate(`/admin-dashboard/${formattedDateAdmin}`, { replace: true });
-          return;
-        case 'Unit Head':
-          // Get today's date for the redirect
-          const today = new Date();
-          const year = today.getFullYear();
-          const month = String(today.getMonth() + 1).padStart(2, '0');
-          const day = String(today.getDate()).padStart(2, '0');
-          const formattedDate = `${year}-${month}-${day}`;
-          navigate(`/unithead/${user.id}/${formattedDate}`, { replace: true });
-          return;
-        case 'Camper Care':
-          // Get today's date for the redirect
-          const todayCare = new Date();
-          const yearCare = todayCare.getFullYear();
-          const monthCare = String(todayCare.getMonth() + 1).padStart(2, '0');
-          const dayCare = String(todayCare.getDate()).padStart(2, '0');
-          const formattedDateCare = `${yearCare}-${monthCare}-${dayCare}`;
-          navigate(`/campercare/${user.id}/${formattedDateCare}`, { replace: true });
-          return;
-        case 'Counselor': {
-          const todayC = new Date();
-          const yc = todayC.getFullYear();
-          const mc = String(todayC.getMonth() + 1).padStart(2, '0');
-          const dc = String(todayC.getDate()).padStart(2, '0');
-          navigate(`/counselor-dashboard/${yc}-${mc}-${dc}`, { replace: true });
-          return;
-        }
-        case 'Leadership':
-        case 'Kitchen Staff': {
-          const todayStaff = new Date();
-          const yearStaff = todayStaff.getFullYear();
-          const monthStaff = String(todayStaff.getMonth() + 1).padStart(2, '0');
-          const dayStaff = String(todayStaff.getDate()).padStart(2, '0');
-          navigate(`/counselor-dashboard/${yearStaff}-${monthStaff}-${dayStaff}`, { replace: true });
-          return;
-        }
-        default:
-          // Stay on general dashboard for other roles
-          console.log('📍 Staying on general dashboard for role:', user.role);
-          break;
-      }
+    const destination = user?.role ? ROLE_DESTINATIONS[user.role] : null;
+    if (destination) {
+      navigate(destination, { replace: true });
     }
-  }, [userProfile, user, navigate, authLoading, isAuthenticating]);
+  }, [user, navigate, authLoading, isAuthenticating]);
 
-  // Show loading state while authentication is completing
   if (authLoading || isAuthenticating) {
     return (
       <div className="flex h-screen overflow-hidden">
@@ -89,14 +52,14 @@ function Dashboard() {
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow">
-            <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+            <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto" />
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-white mt-4">
-                  Setting up your dashboard...
+                  Setting up your dashboard…
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                  Please wait while we load your profile and redirect you to the appropriate dashboard.
+                  Please wait while we load your profile.
                 </p>
               </div>
             </div>
@@ -108,35 +71,16 @@ function Dashboard() {
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
-
-      {/* Sidebar */}
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      {/* Content area */}
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-
-        {/*  Site header */}
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
         <main className="grow">
           <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-
-            {/* Dashboard actions */}
-            <div className="sm:flex sm:justify-between sm:items-center mb-8">
-
-              {/* Right: Actions */}
-              <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">              
-              </div>
-
-            </div>
             <UserProfile user={userProfile} />
-            {/* Bunk Cards */}
             <BunkGrid />
           </div>
         </main>
-
       </div>
-
     </div>
   );
 }
