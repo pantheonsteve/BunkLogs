@@ -110,7 +110,7 @@ class AssignmentGroupMembershipInline(admin.TabularInline):
     model = AssignmentGroupMembership
     extra = 0
     fields = ("person", "role_in_group", "is_active", "start_date", "end_date")
-    raw_id_fields = ("person",)
+    autocomplete_fields = ("person",)
 
     def get_queryset(self, request):
         return AssignmentGroupMembership.all_objects.select_related("person")
