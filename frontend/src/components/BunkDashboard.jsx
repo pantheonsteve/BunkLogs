@@ -1,16 +1,19 @@
 /**
  * Shared Bunk Dashboard — Step 7_7, Story 11.
  *
- * Renders the full per-bunk payload from
- * `GET /api/v1/unit-head/bunks/<id>/`. Built as a presentational
- * component so future role flows (Camper Care, LT, Admin) can drop
- * it in once they expose a parallel endpoint.
+ * Renders the full per-bunk payload returned by the unified
+ * `GET /api/v1/dashboards/bunks/<id>/` endpoint (Counselor, Camper
+ * Care, Unit Head, Leadership Team, and Admin all read here). Built
+ * as a presentational component; the wrapping page resolves the
+ * caller's role from the payload's `role_context` and feeds the
+ * right `backTo` link.
  *
  * Section order matches the spec (criterion 1): Header → Help
  * requested → Off-camp today → Bunk concerns → Camper score grid
  * → Today's orders → Specialist reports. Empty sections collapse
- * to a single-line summary (criterion 2). The view is read-only
- * for the UH role (criterion 5).
+ * to a single-line summary (criterion 2). The view is read-only in
+ * v1; future role-conditional edit affordances will be gated via
+ * the payload's `role_context.can_edit` flag.
  */
 
 import { useMemo, useState } from 'react';

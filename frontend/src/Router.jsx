@@ -1,4 +1,12 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { useEffect } from 'react';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
@@ -52,16 +60,15 @@ import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
 import AuthorAttributionPage from './pages/dashboards/AuthorAttributionPage';
 import ConcernsInboxPage from './pages/dashboards/ConcernsInboxPage';
 import DashboardsHub from './pages/dashboards/DashboardsHub';
+import BunkDashboardPage from './pages/dashboards/BunkDashboardPage';
 import AdminLayout from './layouts/AdminLayout';
 import AppLayout from './layouts/AppLayout';
 import CounselorMobileDashboard from './pages/counselor/CounselorMobileDashboard';
 import UnitHeadDashboardV2 from './pages/unit-head/UnitHeadDashboard';
-import UnitHeadBunkDashboardPage from './pages/unit-head/UnitHeadBunkDashboardPage';
 import UnitHeadCamperDashboardPage from './pages/unit-head/UnitHeadCamperDashboardPage';
 import UnitHeadSelfReflectionPage from './pages/unit-head/UnitHeadSelfReflectionPage';
 import UnitHeadSelfReflectionHistoryPage from './pages/unit-head/UnitHeadSelfReflectionHistoryPage';
 import CamperCareDashboardV2 from './pages/camper-care/Dashboard';
-import CamperCareBunkDashboardPage from './pages/camper-care/BunkDashboardPage';
 import CamperCareCamperDashboardPage from './pages/camper-care/CamperDashboardPage';
 import CamperCareFlagsPage from './pages/camper-care/Flags';
 import CamperCareOrdersPage from './pages/camper-care/Orders';
@@ -139,6 +146,20 @@ function AdminRoute({ children }) {
   }
 
   return children;
+}
+
+// Permanent redirect for the legacy per-role bunk dashboard URLs.
+// The dashboard has been consolidated under /dashboards/bunk/:bunkId
+// (one URL, role-resolving backend) but bookmarks and in-app links
+// from before the consolidation still target the old paths. We
+// preserve the `?date=` query so deep-linked past-day views survive
+// the redirect.
+function LegacyBunkDashboardRedirect() {
+  const { bunkId } = useParams();
+  const [searchParams] = useSearchParams();
+  const qs = searchParams.toString();
+  const target = `/dashboards/bunk/${bunkId}${qs ? `?${qs}` : ''}`;
+  return <Navigate to={target} replace />;
 }
 
 // Component to handle redirected paths from 404 page
@@ -425,7 +446,7 @@ function Router() {
           <Route path="/unit-head" element={<UnitHeadDashboardV2 />} />
           <Route
             path="/unit-head/bunks/:bunkId"
-            element={<UnitHeadBunkDashboardPage />}
+            element={<LegacyBunkDashboardRedirect />}
           />
           <Route
             path="/unit-head/campers/:camperId"
@@ -455,7 +476,7 @@ function Router() {
           <Route path="/camper-care" element={<CamperCareDashboardV2 />} />
           <Route
             path="/camper-care/bunks/:bunkId"
-            element={<CamperCareBunkDashboardPage />}
+            element={<LegacyBunkDashboardRedirect />}
           />
           <Route
             path="/camper-care/campers/:camperId"
@@ -559,6 +580,17 @@ function Router() {
           <Route
             path="/dashboards/subject-trends/:groupId"
             element={<SubjectTrendsPage />}
+          />
+
+          {/* Unified per-bunk dashboard. One URL serves Counselor, CC,
+              UH, Leadership Team, and Admin viewers — the backend
+              resolves role server-side and returns a `role_context`
+              the page uses for role-conditional chrome. The legacy
+              /unit-head/bunks/:bunkId and /camper-care/bunks/:bunkId
+              URLs above redirect here so old bookmarks keep working. */}
+          <Route
+            path="/dashboards/bunk/:bunkId"
+            element={<BunkDashboardPage />}
           />
         </Route>
 
