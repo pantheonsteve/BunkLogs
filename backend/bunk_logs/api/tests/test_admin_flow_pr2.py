@@ -12,6 +12,7 @@ Covers, per the lean test recipe (happy path + auth/perm + critical edge):
 from __future__ import annotations
 
 from datetime import date
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -256,10 +257,11 @@ class TestAdminAssignments:
         body = r.json()
         assert body["backdated_clamped"] is True
         assert body["requested_start_date"] == backdate
-        # Effective start clamped to today (>= 2026-01-01).
+        # Effective start clamped away from the far-past date (>= 2026-01-01).
+        # Allow one day of slack for UTC-midnight edge cases.
         sup_id = body["supervision"]["id"]
         sup = Supervision.all_objects.get(pk=sup_id)
-        assert sup.start_date >= date.today()
+        assert sup.start_date >= date.today() - timedelta(days=1)
 
     def test_conflict_warning_surfaced(
         self, api, org, admin_user, supervisor, target,
