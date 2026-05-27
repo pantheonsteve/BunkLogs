@@ -159,7 +159,7 @@ export default function KitchenStaffReflectionForm() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="ks-form-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="ks-form-loading">
         <p className="text-gray-500 dark:text-gray-400">{t('dashboard.loading')}</p>
       </div>
     );
@@ -169,8 +169,7 @@ export default function KitchenStaffReflectionForm() {
   const langName = LANGUAGE_NAMES[reflectionLanguage] ?? reflectionLanguage;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <h1
           className="text-2xl font-bold text-gray-900 dark:text-white mb-6"
           data-testid="ks-form-heading"
@@ -268,7 +267,6 @@ export default function KitchenStaffReflectionForm() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

@@ -91,7 +91,7 @@ export default function LeadershipTeamTeamDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="lt-team-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="lt-team-loading">
         <p className="text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -99,7 +99,7 @@ export default function LeadershipTeamTeamDashboard() {
 
   if (error) {
     return (
-      <div className="p-6" data-testid="lt-team-error">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="lt-team-error">
         <p className="text-red-600 dark:text-red-400">{error}</p>
         <Link
           to="/leadership-team"
@@ -129,60 +129,55 @@ export default function LeadershipTeamTeamDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <Link
-            to="/leadership-team"
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            ← Back to LT dashboard
-          </Link>
-          <div className="flex items-start justify-between gap-3 mt-2">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {header.team_role_label}
-              </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                {header.program.name} · {header.member_count} members
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+      <div>
+        <Link
+          to="/leadership-team"
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          ← Back to LT dashboard
+        </Link>
+        <div className="flex items-start justify-between gap-3 mt-2">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              {header.team_role_label}
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {header.program.name} · {header.member_count} members
+            </p>
+            {header.supervisors?.length > 0 && (
+              <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                Supervisors: {header.supervisors.map((s) => s.person_name).join(', ')}
               </p>
-              {header.supervisors?.length > 0 && (
-                <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                  Supervisors: {header.supervisors.map((s) => s.person_name).join(', ')}
-                </p>
-              )}
-            </div>
-            <a
-              href={exportTeamAggregateUrl(teamRole)}
-              className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-              data-testid="lt-team-export"
-            >
-              Export CSV
-            </a>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label className="text-sm text-gray-700 dark:text-gray-300">
-              Date{' '}
-              <input
-                type="date"
-                value={dateParam || header.date}
-                onChange={onDateChange}
-                max={header.date}
-                className="ml-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
-                data-testid="lt-team-date"
-              />
-            </label>
-            {header.period && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                Period {header.period.start} → {header.period.end} ({header.period.cadence})
-              </span>
             )}
           </div>
+          <a
+            href={exportTeamAggregateUrl(teamRole)}
+            className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            data-testid="lt-team-export"
+          >
+            Export CSV
+          </a>
         </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <label className="text-sm text-gray-700 dark:text-gray-300">
+            Date{' '}
+            <input
+              type="date"
+              value={dateParam || header.date}
+              onChange={onDateChange}
+              max={header.date}
+              className="ml-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
+              data-testid="lt-team-date"
+            />
+          </label>
+          {header.period && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Period {header.period.start} → {header.period.end} ({header.period.cadence})
+            </span>
+          )}
+        </div>
+      </div>
         <section
           aria-label="Submission status"
           className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
@@ -313,7 +308,6 @@ export default function LeadershipTeamTeamDashboard() {
             </ul>
           )}
         </section>
-      </main>
     </div>
   );
 }

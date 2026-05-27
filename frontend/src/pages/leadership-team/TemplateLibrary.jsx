@@ -110,31 +110,27 @@ export default function LeadershipTeamTemplateLibrary() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <Link
-              to="/leadership-team"
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              ← Back to LT dashboard
-            </Link>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-2">
-              Templates
-            </h1>
-          </div>
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
           <Link
-            to="/leadership-team/templates/new"
-            className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5"
-            data-testid="lt-templates-new"
+            to="/leadership-team"
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
           >
-            New template
+            ← Back to LT dashboard
           </Link>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-2">
+            Templates
+          </h1>
         </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+        <Link
+          to="/leadership-team/templates/new"
+          className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5"
+          data-testid="lt-templates-new"
+        >
+          New template
+        </Link>
+      </div>
         <section
           className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 flex flex-wrap gap-3"
           aria-label="Filters"
@@ -345,8 +341,6 @@ export default function LeadershipTeamTemplateLibrary() {
             ))}
           </ul>
         )}
-      </main>
-
       {assignTarget && (
         <AssignmentDialog
           template={assignTarget}

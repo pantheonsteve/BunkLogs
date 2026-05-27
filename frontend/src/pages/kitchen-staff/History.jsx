@@ -113,8 +113,7 @@ export default function KitchenStaffHistory() {
   }, [load, page]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white" data-testid="ks-history-heading">
             {t('history.heading')}
@@ -172,7 +171,6 @@ export default function KitchenStaffHistory() {
             </div>
           </>
         )}
-      </div>
     </div>
   );
 }

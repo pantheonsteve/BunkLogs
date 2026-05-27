@@ -62,6 +62,11 @@ class SupervisionSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    target_group = serializers.PrimaryKeyRelatedField(
+        queryset=AssignmentGroup.all_objects.all(),
+        required=False,
+        allow_null=True,
+    )
     target_role = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
@@ -74,6 +79,7 @@ class SupervisionSerializer(serializers.ModelSerializer):
             "target_role",
             "target_program",
             "target_bunk",
+            "target_group",
             "start_date",
             "end_date",
             "is_active",
@@ -105,6 +111,7 @@ class SupervisionViewSet(viewsets.ModelViewSet):
             "target_membership__person",
             "target_program",
             "target_bunk",
+            "target_group",
         )
         params = self.request.query_params
 
@@ -190,6 +197,7 @@ class SupervisionViewSet(viewsets.ModelViewSet):
                 "target_role",
                 "target_program",
                 "target_bunk",
+                "target_group",
                 "start_date",
             )
             if f in request.data
