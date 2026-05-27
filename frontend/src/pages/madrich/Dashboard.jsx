@@ -126,7 +126,7 @@ export default function MadrichDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="md-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="md-loading">
         <p className="text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -134,7 +134,7 @@ export default function MadrichDashboard() {
 
   if (error) {
     return (
-      <div className="p-6" data-testid="md-error">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="md-error">
         <p className="text-red-600 dark:text-red-400">{error}</p>
         <button
           onClick={load}
@@ -151,41 +151,35 @@ export default function MadrichDashboard() {
   const gradeLevel = header?.grade_level;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">{header.program_name}</p>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            {header.name}
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Madrich{typeof gradeLevel === 'number' ? ` · Grade ${gradeLevel}` : ''}
-          </p>
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+      <div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{header.program_name}</p>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">{header.name}</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          Madrich{typeof gradeLevel === 'number' ? ` · Grade ${gradeLevel}` : ''}
+        </p>
+      </div>
+
+      <ReflectionStatusCard myReflection={my_reflection} weekLabel={weekLabel} />
+
+      <section
+        aria-label="My reflections"
+        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        data-testid="md-history-section"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            My reflections
+          </h2>
+          <Link
+            to={history_entry?.url ?? '/madrich/history'}
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            data-testid="md-history-link"
+          >
+            View history →
+          </Link>
         </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <ReflectionStatusCard myReflection={my_reflection} weekLabel={weekLabel} />
-
-        <section
-          aria-label="My reflections"
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-          data-testid="md-history-section"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              My reflections
-            </h2>
-            <Link
-              to={history_entry?.url ?? '/madrich/history'}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-              data-testid="md-history-link"
-            >
-              View history →
-            </Link>
-          </div>
-        </section>
-      </main>
+      </section>
     </div>
   );
 }

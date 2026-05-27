@@ -185,7 +185,7 @@ export default function SpecialistNoteForm() {
 
   if (isEditMode && !noteRow) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto space-y-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-3">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Edit specialist note</h1>
         <div
           role="alert"
@@ -207,7 +207,7 @@ export default function SpecialistNoteForm() {
   const formDisabled = isEditMode && !editable;
 
   return (
-    <div className="px-4 py-6 pb-32 max-w-lg mx-auto" data-testid="sp-noteform">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-32 w-full max-w-[96rem] mx-auto" data-testid="sp-noteform">
       <header className="mb-3">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">{heading}</h1>
         {selectedCamper && (
@@ -351,7 +351,7 @@ export default function SpecialistNoteForm() {
           </div>
         )}
 
-        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end gap-2 max-w-lg mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end gap-2 max-w-[96rem] mx-auto">
           <button
             type="button"
             onClick={() => navigate(-1)}

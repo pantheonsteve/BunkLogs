@@ -135,7 +135,7 @@ export default function LeadershipTeamSelfReflectionPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="lt-self-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="lt-self-loading">
         <p className="text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -158,8 +158,7 @@ export default function LeadershipTeamSelfReflectionPage() {
   const fields = (template?.schema?.fields ?? []).filter(f => f.key !== DAY_OFF_FIELD_KEY);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <Link
           to="/leadership-team"
           className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
@@ -231,7 +230,6 @@ export default function LeadershipTeamSelfReflectionPage() {
             </button>
           </div>
         </form>
-      </div>
     </div>
   );
 }

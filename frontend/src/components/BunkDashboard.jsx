@@ -272,7 +272,7 @@ export default function BunkDashboard({
   const scoreGrid = useMemo(() => data?.score_grid || { columns: [], rows: [] }, [data]);
 
   return (
-    <div data-testid="bunk-dashboard" className="px-4 py-6 pb-24 max-w-3xl mx-auto space-y-4">
+    <div data-testid="bunk-dashboard" className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
       <header className="space-y-2">
         <Link
           to={backTo}

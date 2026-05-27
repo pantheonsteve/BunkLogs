@@ -127,8 +127,7 @@ export default function SupervisorCoveragePage() {
   const completeGroups = (groups || []).filter((g) => g.template_coverage.every((tc) => tc.percent === 100)).length;
 
   return (
-    <div className="px-4 py-6 pb-24">
-      <div className="max-w-lg mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <header className="mb-6 flex items-start justify-between">
           <div>
             <button
@@ -199,7 +198,6 @@ export default function SupervisorCoveragePage() {
             )}
           </>
         )}
-      </div>
     </div>
   );
 }

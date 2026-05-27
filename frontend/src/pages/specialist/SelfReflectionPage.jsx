@@ -143,7 +143,7 @@ export default function SpecialistSelfReflectionPage() {
 
   if (loading) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto" data-testid="sp-sr-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="sp-sr-loading">
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -151,7 +151,7 @@ export default function SpecialistSelfReflectionPage() {
 
   if (!template) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto space-y-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-3">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">My reflection</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">No reflection template configured.</p>
         <Link to="/specialist" className="text-sm text-blue-600 dark:text-blue-400 underline">
@@ -162,7 +162,7 @@ export default function SpecialistSelfReflectionPage() {
   }
 
   return (
-    <div className="px-4 py-6 pb-32 max-w-lg mx-auto" data-testid="sp-sr-form">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-32 w-full max-w-[96rem] mx-auto" data-testid="sp-sr-form">
       <header className="mb-4">
         <button
           type="button"
@@ -209,7 +209,7 @@ export default function SpecialistSelfReflectionPage() {
           <p role="alert" className="text-sm text-red-700 dark:text-red-300">{submitError}</p>
         )}
 
-        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end gap-2 max-w-lg mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end gap-2 max-w-[96rem] mx-auto">
           <button
             type="button"
             onClick={() => navigate(-1)}
