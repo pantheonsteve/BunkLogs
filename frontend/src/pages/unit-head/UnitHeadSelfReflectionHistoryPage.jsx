@@ -133,8 +133,7 @@ export default function UnitHeadSelfReflectionHistoryPage() {
   }, [load, page]);
 
   return (
-    <div className="px-4 py-6 pb-24">
-      <div className="max-w-lg mx-auto space-y-4">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[96rem] mx-auto space-y-4">
         <header>
           <button
             type="button"
@@ -213,7 +212,6 @@ export default function UnitHeadSelfReflectionHistoryPage() {
             </nav>
           </>
         )}
-      </div>
     </div>
   );
 }

@@ -218,8 +218,7 @@ export default function ReflectionFormPage() {
   const langChoices = meta?.languages?.length ? meta.languages : ['en', 'es'];
 
   return (
-    <div className="px-4 py-6 pb-24">
-      <div className="max-w-lg mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[96rem] mx-auto">
         <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             {isPrefilled && (
@@ -356,7 +355,6 @@ export default function ReflectionFormPage() {
             </button>
           </form>
         )}
-      </div>
     </div>
   );
 }

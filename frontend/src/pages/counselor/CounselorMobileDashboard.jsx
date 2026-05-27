@@ -231,19 +231,17 @@ export default function CounselorMobileDashboard() {
 
   if (loading) {
     return (
-      <div className="px-4 py-6">
-        <div className="max-w-lg mx-auto" data-testid="counselor-dashboard-loading">
-          <p className="text-gray-600 dark:text-gray-400">Loading your dashboard…</p>
-        </div>
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="counselor-dashboard-loading">
+        <p className="text-gray-600 dark:text-gray-400">Loading your dashboard…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="px-4 py-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <div
-          className="max-w-lg mx-auto rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+          className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
           role="alert"
           data-testid="counselor-dashboard-error"
         >
@@ -261,8 +259,7 @@ export default function CounselorMobileDashboard() {
   const requestsSection = sections?.requests;
 
   return (
-    <div className="px-4 py-6 pb-24">
-      <div className="max-w-lg mx-auto space-y-4">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[96rem] mx-auto space-y-4">
         <header className="mb-2">
           <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
             {program?.name ? `${program.name} · ` : ''}Today
@@ -298,7 +295,6 @@ export default function CounselorMobileDashboard() {
         <CamperSection section={camperSection} />
         <SelfSection section={selfSection} />
         <RequestsSection section={requestsSection} />
-      </div>
     </div>
   );
 }

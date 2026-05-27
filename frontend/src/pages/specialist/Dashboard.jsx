@@ -139,7 +139,7 @@ export default function SpecialistDashboard() {
 
   if (loading) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto" data-testid="sp-dashboard-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="sp-dashboard-loading">
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -147,7 +147,7 @@ export default function SpecialistDashboard() {
 
   if (error) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
         <button
           onClick={() => load(true)}
@@ -162,7 +162,7 @@ export default function SpecialistDashboard() {
   const { header, self_reflection, recent_notes = [] } = data || {};
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto space-y-5" data-testid="sp-dashboard">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-5" data-testid="sp-dashboard">
       {/* Header */}
       <header>
         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">

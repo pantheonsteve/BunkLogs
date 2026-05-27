@@ -167,7 +167,7 @@ export default function CamperCareNoteForm() {
 
   if (isEditMode && !noteRow) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto space-y-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-3">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Edit Camper Care note</h1>
         <div
           role="alert"
@@ -189,7 +189,7 @@ export default function CamperCareNoteForm() {
   const formDisabled = isEditMode && !editable;
 
   return (
-    <div className="px-4 py-6 pb-24 max-w-lg mx-auto" data-testid="cc-noteform">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[96rem] mx-auto" data-testid="cc-noteform">
       <header className="mb-3">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">{heading}</h1>
         {subjectId != null && (

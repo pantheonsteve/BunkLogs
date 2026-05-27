@@ -499,12 +499,12 @@ export default function TicketDetail() {
   };
 
   if (loading && !data) {
-    return <div className="px-4 py-6 max-w-2xl mx-auto"><p className="text-gray-500">Loading…</p></div>;
+    return <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto"><p className="text-gray-500">Loading…</p></div>;
   }
 
   if (error && !data) {
     return (
-      <div className="px-4 py-6 max-w-2xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200">
           {error}
         </div>
@@ -521,7 +521,7 @@ export default function TicketDetail() {
     : fromFilter;
 
   return (
-    <div className="max-w-2xl mx-auto pb-32" data-testid="ticket-detail">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-32 w-full max-w-[96rem] mx-auto" data-testid="ticket-detail">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
         <button

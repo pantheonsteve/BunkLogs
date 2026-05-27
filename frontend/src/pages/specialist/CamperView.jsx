@@ -127,7 +127,7 @@ export default function SpecialistCamperView() {
 
   if (loading) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto" data-testid="sp-camper-view-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="sp-camper-view-loading">
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -135,7 +135,7 @@ export default function SpecialistCamperView() {
 
   if (error) {
     return (
-      <div className="px-4 py-6 max-w-lg mx-auto space-y-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-3">
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
         <button
           type="button"
@@ -152,7 +152,7 @@ export default function SpecialistCamperView() {
   const notes = data?.my_notes || [];
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto space-y-5" data-testid="sp-camper-view">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-5" data-testid="sp-camper-view">
       {/* Camper header */}
       <header>
         <button

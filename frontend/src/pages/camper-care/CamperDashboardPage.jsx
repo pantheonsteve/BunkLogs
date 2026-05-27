@@ -244,7 +244,7 @@ export default function CamperCareCamperDashboardPage() {
 
   if (loading && !data) {
     return (
-      <div className="px-4 py-6 max-w-3xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <p className="text-gray-600 dark:text-gray-400">Loading camper dashboard…</p>
       </div>
     );
@@ -252,7 +252,7 @@ export default function CamperCareCamperDashboardPage() {
 
   if (error && !data) {
     return (
-      <div className="px-4 py-6 max-w-3xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
         <div
           role="alert"
           className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
@@ -274,7 +274,7 @@ export default function CamperCareCamperDashboardPage() {
         onRangeChange={(next) => updateParam('range', next)}
         backTo="/camper-care"
       />
-      <div className="px-4 pb-20 max-w-3xl mx-auto space-y-4">
+      <div className="px-4 sm:px-6 lg:px-8 pb-20 w-full max-w-[96rem] mx-auto space-y-4">
         <NotesDateRangeFilter
           from={notesFromParam}
           to={notesToParam}
@@ -292,7 +292,7 @@ export default function CamperCareCamperDashboardPage() {
         data-testid="cc-camper-add-note-bar"
         className="fixed bottom-0 inset-x-0 z-30 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-md"
       >
-        <div className="max-w-3xl mx-auto flex items-center justify-end">
+        <div className="max-w-[96rem] mx-auto flex items-center justify-end">
           <Link
             to={`/camper-care/notes/new?camperId=${encodeURIComponent(camperId)}`}
             data-testid="cc-camper-add-note"
