@@ -20,11 +20,15 @@ export async function fetchSpecialistDashboard({ noCache = false } = {}) {
 
 /**
  * Camper picker (Story 25).
- * @param q — search query (empty = all campers in recent + all sections).
+ * @param q      — search query (empty = all campers).
+ * @param bunkId — optional bunk ID to restrict results to a single bunk.
+ *
+ * Response includes a `bunks` array for populating the bunk dropdown.
  */
-export async function fetchSpecialistCampers({ q = '' } = {}) {
+export async function fetchSpecialistCampers({ q = '', bunkId = null } = {}) {
   const params = {};
   if (q) params.q = q;
+  if (bunkId) params.bunk_id = bunkId;
   const { data } = await api.get('/api/v1/specialist/campers/', { params });
   return data;
 }

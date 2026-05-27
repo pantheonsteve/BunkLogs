@@ -24,7 +24,8 @@
  */
 
 import { Link } from 'react-router-dom';
-import { NO_DATA_FILL, ratingColor, ratingLegend, ratingTextColor } from '../dashboards/colors';
+import { NO_DATA_FILL, ratingLegend } from '../dashboards/colors';
+import { ratingTierClass } from '../dashboards/subject/responseTable/schema';
 
 function formatCamperName(camper) {
   if (!camper) return '';
@@ -42,36 +43,16 @@ function columnHeader(col) {
 }
 
 function ScoreCell({ value, scaleMax }) {
-  if (value == null) {
-    return (
-      <td
-        data-testid="score-cell-empty"
-        className="px-1 py-1 text-center align-middle"
-      >
-        <div
-          className="inline-flex h-8 w-10 items-center justify-center rounded text-xs text-gray-500"
-          style={{ backgroundColor: NO_DATA_FILL }}
-          aria-label="No score"
-        >
-          —
-        </div>
-      </td>
-    );
-  }
-  const fill = ratingColor(value, scaleMax);
-  const text = ratingTextColor(value, scaleMax);
+  const tone = ratingTierClass(value, scaleMax);
   return (
     <td
-      data-testid="score-cell"
-      data-value={value}
-      className="px-1 py-1 text-center align-middle"
+      data-testid={value == null ? 'score-cell-empty' : 'score-cell'}
+      data-value={value ?? undefined}
+      className={`px-3 py-3 whitespace-nowrap text-center border border-gray-100 dark:border-gray-800 ${tone}`}
+      aria-label={value != null ? `Score ${value} of ${scaleMax}` : 'No score'}
     >
-      <div
-        className="inline-flex h-8 w-10 items-center justify-center rounded font-medium text-sm"
-        style={{ backgroundColor: fill || NO_DATA_FILL, color: text }}
-        aria-label={`Score ${value} of ${scaleMax}`}
-      >
-        {Number.isInteger(value) ? value : value.toFixed(1)}
+      <div className="text-base font-semibold tabular-nums">
+        {value != null ? (Number.isInteger(value) ? value : value.toFixed(1)) : '—'}
       </div>
     </td>
   );

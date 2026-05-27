@@ -115,6 +115,11 @@ class AssignmentGroupMembershipInline(admin.TabularInline):
     def get_queryset(self, request):
         return AssignmentGroupMembership.all_objects.select_related("person")
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "person":
+            kwargs.setdefault("queryset", Person.all_objects.order_by("last_name", "first_name"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 @admin.register(AssignmentGroup)
 class AssignmentGroupAdmin(admin.ModelAdmin):
