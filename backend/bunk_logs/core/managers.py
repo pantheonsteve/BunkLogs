@@ -77,6 +77,79 @@ class AssignmentGroupMembershipScopedManager(models.Manager):
         return qs.filter(group__organization=org)
 
 
+def _expand_group_to_bunk_ids(group) -> set[int]:
+    """Return all active bunk-type group IDs within ``group`` (inclusive).
+
+    If the group itself is a bunk, returns ``{group.id}``. Otherwise recurses
+    into active descendants collecting only those with ``group_type='bunk'``.
+    This supports the ASSIGNMENT_GROUP supervision pattern where a supervisor
+    is assigned to a parent unit/division and should see all child bunks.
+    """
+    ids: set[int] = set()
+    if group.group_type == "bunk":
+        ids.add(group.id)
+    for descendant in group.get_descendants():
+        if descendant.group_type == "bunk":
+            ids.add(descendant.id)
+    return ids
+
+
+def _caseload_bunk_ids_for_membership(supervision_qs, membership, *, today=None) -> set[int]:
+    """Collect all caseload bunk IDs for a membership across all three resolution paths.
+
+    1. ``Supervision(target_type=BUNK)`` — legacy direct bunk supervision.
+    2. ``Supervision(target_type=ASSIGNMENT_GROUP)`` — explicit group supervision,
+       expanded to all active descendant bunks.
+    3. ``AssignmentGroupMembership(role_in_group='author')`` — admin assigns the
+       supervisor as a group author (e.g. via the Django admin or group detail UI);
+       the group and all active descendant bunks are included in the caseload.
+       Scoped to the supervisor's program so cross-program author memberships
+       (e.g. a counselor role in another session) are not leaked in.
+    """
+    from bunk_logs.core.models import AssignmentGroup
+    from bunk_logs.core.models import AssignmentGroupMembership
+
+    active_qs = supervision_qs.active(today=today).for_supervisor(membership)
+
+    # Path 1: direct bunk supervisions (existing pattern).
+    direct_bunk_ids = set(
+        active_qs.filter(target_type="bunk", target_bunk__isnull=False)
+        .values_list("target_bunk_id", flat=True),
+    )
+
+    # Collect all group IDs that need descendant expansion (paths 2 + 3).
+    expand_group_ids: list[int] = []
+
+    # Path 2: explicit group supervisions.
+    expand_group_ids.extend(
+        active_qs.filter(
+            target_type="assignment_group", target_group__isnull=False,
+        ).values_list("target_group_id", flat=True),
+    )
+
+    # Path 3: AssignmentGroupMembership(author) on any group within the
+    # supervisor's program. This handles the common admin workflow of adding
+    # a supervisor directly to a unit/bunk via the group membership UI.
+    expand_group_ids.extend(
+        AssignmentGroupMembership.all_objects.filter(
+            person=membership.person,
+            role_in_group="author",
+            is_active=True,
+            group__program=membership.program,
+        ).values_list("group_id", flat=True),
+    )
+
+    expanded_ids: set[int] = set()
+    if expand_group_ids:
+        groups = AssignmentGroup.all_objects.filter(
+            id__in=expand_group_ids, is_active=True,
+        )
+        for group in groups:
+            expanded_ids.update(_expand_group_to_bunk_ids(group))
+
+    return direct_bunk_ids | expanded_ids
+
+
 class SupervisionQuerySet(models.QuerySet):
     """QuerySet for ``core.Supervision`` with the four documented helpers.
 
@@ -152,18 +225,17 @@ class SupervisionQuerySet(models.QuerySet):
         """Camper Care -> caseload Bunks -> Campers (Persons).
 
         Returns the distinct set of Person rows who are 'subject' in any
-        AssignmentGroup that this Camper Care Membership has an active BUNK
-        Supervision against. Pass ``today`` to pin the active-on date.
+        AssignmentGroup that this Camper Care Membership supervises. Handles
+        two supervision patterns:
+
+        * ``target_type=BUNK`` — direct bunk supervision (existing).
+        * ``target_type=ASSIGNMENT_GROUP`` — group supervision; expands the
+          target group and all active descendants to collect child bunks.
         """
         from bunk_logs.core.models import AssignmentGroupMembership
         from bunk_logs.core.models import Person
 
-        bunk_ids = list(
-            self.active(today=today)
-            .for_supervisor(camper_care_membership)
-            .filter(target_type="bunk", target_bunk__isnull=False)
-            .values_list("target_bunk_id", flat=True),
-        )
+        bunk_ids = set(_caseload_bunk_ids_for_membership(self, camper_care_membership, today=today))
         if not bunk_ids:
             return Person.all_objects.none()
 

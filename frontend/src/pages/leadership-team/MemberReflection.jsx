@@ -153,7 +153,7 @@ export default function LeadershipTeamMemberReflection() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="lt-member-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="lt-member-loading">
         <p className="text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -176,30 +176,26 @@ export default function LeadershipTeamMemberReflection() {
   const { header, metadata, content, trend, attention_markers } = payload;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <Link
-            to={`/leadership-team/teams/${teamRole}`}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            ← Back to team
-          </Link>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-2">
-            {header.person.name}
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {header.role} ·{' '}
-            {header.period ? (
-              <>Period {header.period.start} → {header.period.end} ({header.period.cadence})</>
-            ) : (
-              'No template configured'
-            )}
-          </p>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+      <div>
+        <Link
+          to={`/leadership-team/teams/${teamRole}`}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          ← Back to team
+        </Link>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-2">
+          {header.person.name}
+        </h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {header.role} ·{' '}
+          {header.period ? (
+            <>Period {header.period.start} → {header.period.end} ({header.period.cadence})</>
+          ) : (
+            'No template configured'
+          )}
+        </p>
+      </div>
         {!metadata ? (
           <section
             className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
@@ -328,7 +324,6 @@ export default function LeadershipTeamMemberReflection() {
           )}
           <TrendSeries series={trend?.series ?? []} />
         </section>
-      </main>
     </div>
   );
 }

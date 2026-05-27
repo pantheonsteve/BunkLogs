@@ -102,7 +102,7 @@ export default function KitchenStaffDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="ks-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="ks-loading">
         <p className="text-gray-500 dark:text-gray-400">{t('dashboard.loading')}</p>
       </div>
     );
@@ -110,7 +110,7 @@ export default function KitchenStaffDashboard() {
 
   if (error) {
     return (
-      <div className="p-6" data-testid="ks-error">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="ks-error">
         <p className="text-red-600 dark:text-red-400">{error}</p>
         <button
           onClick={load}
@@ -125,49 +125,37 @@ export default function KitchenStaffDashboard() {
   const { header, my_reflection, history_entry } = dashboard;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{header.program_name}</p>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              {header.name}
-            </h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {t('roleLabel')}
-            </p>
-          </div>
-          {/* Story 38: language selector in dashboard header */}
-          <LanguagePicker orgSlug={orgSlug} />
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+      {/* Page title row with language picker */}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{header.program_name}</p>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{header.name}</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('roleLabel')}</p>
         </div>
-      </header>
+        <LanguagePicker orgSlug={orgSlug} />
+      </div>
 
-      {/* Main content */}
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {/* Section 2: My reflection */}
-        <ReflectionStatusCard myReflection={my_reflection} t={t} />
+      <ReflectionStatusCard myReflection={my_reflection} t={t} />
 
-        {/* Section 3: History shortcut */}
-        <section
-          aria-label={t('dashboard.myReflections')}
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-          data-testid="ks-history-section"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              {t('dashboard.myReflections')}
-            </h2>
-            <Link
-              to={history_entry?.url ?? '/kitchen-staff/history'}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-              data-testid="ks-history-link"
-            >
-              {t('dashboard.viewHistory')} →
-            </Link>
-          </div>
-        </section>
-      </main>
+      <section
+        aria-label={t('dashboard.myReflections')}
+        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        data-testid="ks-history-section"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            {t('dashboard.myReflections')}
+          </h2>
+          <Link
+            to={history_entry?.url ?? '/kitchen-staff/history'}
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            data-testid="ks-history-link"
+          >
+            {t('dashboard.viewHistory')} →
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

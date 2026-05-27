@@ -226,7 +226,7 @@ export default function LeadershipTeamDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="lt-loading">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="lt-loading">
         <p className="text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
@@ -234,7 +234,7 @@ export default function LeadershipTeamDashboard() {
 
   if (error) {
     return (
-      <div className="p-6" data-testid="lt-error">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="lt-error">
         <p className="text-red-600 dark:text-red-400">{error}</p>
         <button
           onClick={load}
@@ -250,41 +250,36 @@ export default function LeadershipTeamDashboard() {
   const teams = dashboard?.teams ?? [];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Leadership Team</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {dashboard.today}
-          </p>
-        </div>
-      </header>
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-        <SelfReflectionCard self={dashboard.self_reflection} />
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Leadership Team</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{dashboard.today}</p>
+      </div>
 
-        <section aria-label="Supervised teams" data-testid="lt-teams-section">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-            My teams
-          </h2>
-          {teams.length === 0 ? (
-            <div
-              className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400"
-              data-testid="lt-teams-empty"
-            >
-              You don&apos;t currently supervise any role-based teams in this program.
-            </div>
-          ) : (
-            <ul className="space-y-2" data-testid="lt-teams-list">
-              {teams.map((card) => (
-                <TeamCard key={card.team_role} card={card} />
-              ))}
-            </ul>
-          )}
-        </section>
+      <SelfReflectionCard self={dashboard.self_reflection} />
 
-        <BunksUnitsCard summary={dashboard.bunks_and_units} />
-        <TemplatesCard summary={dashboard.templates_and_assignments} />
-      </main>
+      <section aria-label="Supervised teams" data-testid="lt-teams-section">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          My teams
+        </h2>
+        {teams.length === 0 ? (
+          <div
+            className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400"
+            data-testid="lt-teams-empty"
+          >
+            You don&apos;t currently supervise any role-based teams in this program.
+          </div>
+        ) : (
+          <ul className="space-y-2" data-testid="lt-teams-list">
+            {teams.map((card) => (
+              <TeamCard key={card.team_role} card={card} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <BunksUnitsCard summary={dashboard.bunks_and_units} />
+      <TemplatesCard summary={dashboard.templates_and_assignments} />
     </div>
   );
 }
