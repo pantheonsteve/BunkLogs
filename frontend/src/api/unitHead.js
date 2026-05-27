@@ -25,12 +25,9 @@ export async function fetchUnitHeadDashboard({ noCache = false } = {}) {
   return data;
 }
 
-/** Bunk Dashboard payload (Story 11) for a bunk on a date. */
-export async function fetchBunkDashboard(bunkId, { date } = {}) {
-  const params = date ? { date } : {};
-  const { data } = await api.get(`/api/v1/unit-head/bunks/${bunkId}/`, { params });
-  return data;
-}
+// NOTE: `fetchBunkDashboard` removed when the bunk dashboard was
+// consolidated under `/api/v1/dashboards/bunks/<id>/`. Use
+// `frontend/src/api/dashboards.js#fetchBunkDashboard` instead.
 
 /** Camper Dashboard payload (Story 13) for a camper on a date + range. */
 export async function fetchCamperDashboard(camperId, {

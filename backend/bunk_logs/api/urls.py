@@ -28,6 +28,7 @@ from .counselor import maintenance_tickets as counselor_maintenance_tickets
 from .counselor import requests as counselor_requests
 from .counselor import self_reflection as counselor_self_reflection
 from .dashboards import authors as authors_dashboard
+from .dashboards import bunk_dashboard as bunk_dashboard_api
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
 from .dashboards import subject as subject_dashboard
@@ -263,6 +264,18 @@ urlpatterns = [
         "dashboards/subject/<int:person_id>/",
         subject_dashboard.SubjectDetailView.as_view(),
         name="dashboard-subject-detail",
+    ),
+
+    # Unified per-bunk dashboard. Role-resolving endpoint that replaces
+    # /api/v1/unit-head/bunks/<id>/ and /api/v1/camper-care/bunks/<id>/.
+    # Counselor, CC, UH, Leadership Team, and Admin all read here; the
+    # response includes a ``role_context`` block driving role-conditional
+    # frontend chrome. Legacy per-role endpoints stay registered above
+    # for back-compat while callers migrate.
+    path(
+        "dashboards/bunks/<int:bunk_id>/",
+        bunk_dashboard_api.BunkDashboardView.as_view(),
+        name="dashboard-bunk",
     ),
 
     # Subject notes (Prompt 3.15)

@@ -22,15 +22,9 @@ export async function fetchCamperCareDashboard({ date, noCache = false } = {}) {
   return data;
 }
 
-/** Bunk drill-down payload (Story 18 c.9) for a bunk on a date. */
-export async function fetchBunkDashboard(bunkId, { date } = {}) {
-  const params = date ? { date } : {};
-  const { data } = await api.get(
-    `/api/v1/camper-care/bunks/${bunkId}/`,
-    { params },
-  );
-  return data;
-}
+// NOTE: `fetchBunkDashboard` removed when the bunk dashboard was
+// consolidated under `/api/v1/dashboards/bunks/<id>/`. Use
+// `frontend/src/api/dashboards.js#fetchBunkDashboard` instead.
 
 /**
  * Camper drill-down payload (Story 18 c.9 + Story 21 in-context notes).
