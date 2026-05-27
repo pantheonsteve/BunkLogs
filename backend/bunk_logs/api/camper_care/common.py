@@ -23,6 +23,7 @@ from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re
 from bunk_logs.api.counselor.common import is_day_off_answer  # noqa: F401 (re-export)
 from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-export)
 from bunk_logs.core.assignment_resolution import resolve_template_for
+from bunk_logs.core.managers import _caseload_bunk_ids_for_membership
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -118,15 +119,13 @@ def caseload_bunks(
 ) -> list[AssignmentGroup]:
     """Active bunk AssignmentGroups on the Camper Care member's caseload.
 
-    Returns bunks targeted by an active BUNK supervision row for the
-    given membership, ordered alphabetically so the dashboard tree has
-    a stable tie-breaker after the badge-based sort.
+    Combines direct BUNK supervisions and expanded ASSIGNMENT_GROUP
+    supervisions (unit/division targets resolved to child bunks) so that
+    a CC member assigned to a unit sees all bunks within that unit.
+    Ordered alphabetically for a stable tie-breaker after badge sort.
     """
-    bunk_ids = list(
-        Supervision.objects.active(today=today)
-        .for_supervisor(membership)
-        .filter(target_type="bunk", target_bunk__isnull=False)
-        .values_list("target_bunk_id", flat=True),
+    bunk_ids = _caseload_bunk_ids_for_membership(
+        Supervision.objects, membership, today=today,
     )
     if not bunk_ids:
         return []
