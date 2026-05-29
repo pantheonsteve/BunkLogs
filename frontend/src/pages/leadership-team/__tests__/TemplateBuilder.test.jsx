@@ -42,6 +42,27 @@ function renderNew() {
   );
 }
 
+/**
+ * Render the builder in edit mode with a given template fixture.
+ * getMock is pre-wired: first call returns the template, subsequent calls
+ * (assignment list, groups) return empty arrays / objects.
+ */
+function renderEdit(templateFixture) {
+  getMock.mockImplementation((url) => {
+    if (url.includes('/templates/')) return Promise.resolve({ data: templateFixture });
+    if (url.includes('/assignments/')) return Promise.resolve({ data: { assignments: [] } });
+    if (url.includes('/assignment-groups/')) return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: {} });
+  });
+  return render(
+    <MemoryRouter initialEntries={[`/leadership-team/templates/${templateFixture.id}`]}>
+      <Routes>
+        <Route path="/leadership-team/templates/:id" element={<TemplateBuilderPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe('TemplateBuilderPage', () => {
   it('lets the LT user add a text field and post the new draft', async () => {
     postMock.mockResolvedValue({ data: { id: 99 } });
@@ -115,5 +136,85 @@ describe('TemplateBuilderPage', () => {
     expect(screen.queryByTestId('lt-builder-add-yes_no')).not.toBeInTheDocument();
     expect(screen.queryByTestId('lt-builder-add-date')).not.toBeInTheDocument();
     expect(screen.queryByTestId('lt-builder-add-number')).not.toBeInTheDocument();
+  });
+
+  it('"Assign form" button is disabled (greyed out) when template status is draft', async () => {
+    const draftTemplate = {
+      id: 20,
+      name: 'Draft Template',
+      slug: 'draft-template',
+      role: 'counselor',
+      languages: ['en'],
+      cadence: 'daily',
+      subject_mode: 'self',
+      assignment_scope: 'none',
+      assignment_group_types: [],
+      status: 'draft',
+      is_active: false,
+      version: 1,
+      schema: { fields: [] },
+    };
+    renderEdit(draftTemplate);
+    // Wait for template to load
+    await waitFor(() =>
+      expect(screen.getByTestId('lt-builder-assign-disabled')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('lt-builder-assign-disabled')).toBeDisabled();
+    expect(screen.queryByTestId('lt-builder-assign')).not.toBeInTheDocument();
+  });
+
+  it('"Assign form" button is enabled on a published template and opens the dialog', async () => {
+    const publishedTemplate = {
+      id: 10,
+      name: 'Published Template',
+      slug: 'published-template',
+      role: 'counselor',
+      languages: ['en'],
+      cadence: 'daily',
+      subject_mode: 'self',
+      assignment_scope: 'none',
+      assignment_group_types: [],
+      status: 'published',
+      is_active: true,
+      version: 1,
+      schema: { fields: [] },
+    };
+    renderEdit(publishedTemplate);
+
+    // Wait for the template to load
+    await waitFor(() =>
+      expect(screen.getByTestId('lt-builder-assign')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('lt-builder-assign')).not.toBeDisabled();
+    expect(screen.queryByTestId('lt-builder-assign-disabled')).not.toBeInTheDocument();
+
+    // Clicking opens the dialog
+    fireEvent.click(screen.getByTestId('lt-builder-assign'));
+    await waitFor(() =>
+      expect(screen.getByTestId('assign-form-dialog')).toBeInTheDocument(),
+    );
+  });
+
+  it('shows the "Form assignments" section on a published template', async () => {
+    const publishedTemplate = {
+      id: 11,
+      name: 'Another Published',
+      slug: 'another-published',
+      role: 'counselor',
+      languages: ['en'],
+      cadence: 'daily',
+      subject_mode: 'self',
+      assignment_scope: 'none',
+      assignment_group_types: [],
+      status: 'published',
+      is_active: true,
+      version: 1,
+      schema: { fields: [] },
+    };
+    renderEdit(publishedTemplate);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('assignment-list-section')).toBeInTheDocument(),
+    );
   });
 });

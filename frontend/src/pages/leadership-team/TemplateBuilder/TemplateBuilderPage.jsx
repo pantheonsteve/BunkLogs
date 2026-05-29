@@ -25,6 +25,8 @@ import {
   publishTemplate,
 } from '../../../api/leadershipTeam';
 import { useAuth } from '../../../auth/AuthContext';
+import AssignmentList from '../AssignmentList';
+import AssignFormDialog from '../AssignFormDialog';
 
 const TIER_1_TYPES = [
   { value: 'text', label: 'Short text' },
@@ -433,6 +435,8 @@ export default function TemplateBuilderPage() {
   const [previewLanguage, setPreviewLanguage] = useState('en');
   const [dirty, setDirty] = useState(false);
   const [showForceVersion, setShowForceVersion] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [assignRefreshKey, setAssignRefreshKey] = useState(0);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
 
@@ -688,14 +692,35 @@ export default function TemplateBuilderPage() {
               </button>
             )}
             {isEdit && isPublished && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowAssignDialog(true)}
+                  className="text-sm rounded-lg bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5"
+                  data-testid="lt-builder-assign"
+                >
+                  Assign form
+                </button>
+                <button
+                  type="button"
+                  onClick={doArchive}
+                  disabled={saving}
+                  className="text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5"
+                  data-testid="lt-builder-archive"
+                >
+                  Archive
+                </button>
+              </>
+            )}
+            {isEdit && !isPublished && !isArchived && (
               <button
                 type="button"
-                onClick={doArchive}
-                disabled={saving}
-                className="text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5"
-                data-testid="lt-builder-archive"
+                disabled
+                title="Publish the template first"
+                className="text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-600 px-3 py-1.5 cursor-not-allowed"
+                data-testid="lt-builder-assign-disabled"
               >
-                Archive
+                Assign form
               </button>
             )}
             {isEdit && (
@@ -959,6 +984,27 @@ export default function TemplateBuilderPage() {
           <PreviewPane template={template} fields={fields} previewLanguage={previewLanguage} />
         </section>
       </main>
+
+      {isEdit && isPublished && (
+        <div className="max-w-7xl mx-auto px-4 pb-8">
+          <AssignmentList
+            templateId={id}
+            orgSlug={orgSlug}
+            refreshKey={assignRefreshKey}
+          />
+        </div>
+      )}
+
+      {showAssignDialog && (
+        <AssignFormDialog
+          template={template}
+          onClose={() => setShowAssignDialog(false)}
+          onCreated={() => {
+            setShowAssignDialog(false);
+            setAssignRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
