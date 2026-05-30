@@ -33,6 +33,7 @@ from .dashboards import coverage as coverage_dashboard
 from .dashboards import group_dashboard as group_dashboard_api
 from .dashboards import subject as subject_dashboard
 from .dashboards import subject_notes as subject_notes_api
+from .dashboards import subject_notes_global as subject_notes_global_api
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .kitchen_staff import dashboard as ks_dashboard
@@ -50,6 +51,7 @@ from .madrich import dashboard as md_dashboard
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
 from .notes_platform import views as notes_views
+from .observations import views as observations_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
 from .specialist import dashboard as sp_dashboard
@@ -299,6 +301,16 @@ urlpatterns = [
         subject_notes_api.SubjectNoteAmendView.as_view(),
         name="subject-note-amend",
     ),
+    path(
+        "subject-notes/recent/",
+        subject_notes_global_api.RecentSubjectNotesView.as_view(),
+        name="subject-notes-recent",
+    ),
+    path(
+        "subject-notes/subjects/",
+        subject_notes_global_api.SearchableSubjectsView.as_view(),
+        name="subject-notes-searchable-subjects",
+    ),
 
     # Author attribution (commit 6 of 3.20)
     path(
@@ -440,6 +452,11 @@ urlpatterns = [
         "camper-care/flags/",
         cc_flags.FlagListView.as_view(),
         name="camper-care-flags",
+    ),
+    path(
+        "camper-care/flags/<uuid:flag_id>/",
+        cc_flags.FlagDetailView.as_view(),
+        name="camper-care-flag-detail",
     ),
     path(
         "camper-care/flags/<uuid:flag_id>/follow-up/",
@@ -672,6 +689,11 @@ urlpatterns = [
         name="notes-audience-options",
     ),
     path(
+        "notes/audience-candidates/",
+        notes_views.NotesAudienceCandidatesView.as_view(),
+        name="notes-audience-candidates",
+    ),
+    path(
         "notes/from-bunk-concern/",
         notes_views.NoteFromBunkConcernView.as_view(),
         name="notes-from-bunk-concern",
@@ -705,6 +727,61 @@ urlpatterns = [
         "notes/<int:note_id>/unarchive/",
         notes_views.NoteUnarchiveView.as_view(),
         name="notes-unarchive-action",
+    ),
+
+    # ------------------------------------------------------------------
+    # Observations (Step 7_23) — the converged note system. Specific paths
+    # are listed before ``observations/<id>/`` so they route correctly.
+    # ------------------------------------------------------------------
+    path(
+        "observations/inbox/",
+        observations_views.ObservationsInboxView.as_view(),
+        name="observations-inbox",
+    ),
+    path(
+        "observations/unread-count/",
+        observations_views.ObservationsUnreadCountView.as_view(),
+        name="observations-unread-count",
+    ),
+    path(
+        "observations/recipient-candidates/",
+        observations_views.ObservationRecipientCandidatesView.as_view(),
+        name="observations-recipient-candidates",
+    ),
+    path(
+        "observations/subjects/",
+        observations_views.ObservationSubjectsView.as_view(),
+        name="observations-subjects",
+    ),
+    path(
+        "observations/",
+        observations_views.ObservationCreateView.as_view(),
+        name="observations-create",
+    ),
+    path(
+        "observations/<int:observation_id>/",
+        observations_views.ObservationThreadView.as_view(),
+        name="observations-thread",
+    ),
+    path(
+        "observations/<int:observation_id>/replies/",
+        observations_views.ObservationReplyCreateView.as_view(),
+        name="observations-reply-create",
+    ),
+    path(
+        "observations/<int:observation_id>/amend/",
+        observations_views.ObservationAmendView.as_view(),
+        name="observations-amend",
+    ),
+    path(
+        "observations/<int:observation_id>/archive/",
+        observations_views.ObservationArchiveView.as_view(),
+        name="observations-archive-action",
+    ),
+    path(
+        "observations/<int:observation_id>/unarchive/",
+        observations_views.ObservationUnarchiveView.as_view(),
+        name="observations-unarchive-action",
     ),
 ]
 
