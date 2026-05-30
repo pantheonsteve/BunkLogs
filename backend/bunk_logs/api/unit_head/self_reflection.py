@@ -43,6 +43,7 @@ from bunk_logs.core.translation import enqueue_translation_for_reflection
 from .common import enforce_edit_window
 from .common import is_day_off_answer
 from .common import supervised_bunk_ids
+from .common import unit_head_self_period
 from .common import unit_head_self_template
 from .common import validate_bunk_concerns_ids
 from .common import viewer_or_403
@@ -98,36 +99,46 @@ class UnitHeadSelfReflectionHistoryView(APIView):
         except (TypeError, ValueError):
             page_num = 1
 
-        max_days = paginator.max_page_size * 5
-        oldest = today - timedelta(days=max_days - 1)
+        # Walk the template's cadence periods newest -> oldest. For daily
+        # templates each period is a single day, so this reproduces the
+        # previous day-by-day history exactly; for weekly / biweekly /
+        # monthly it yields one row per period window.
+        max_periods = paginator.max_page_size * 5
+        periods: list[tuple[date_type, date_type]] = []
+        anchor = today
+        for _ in range(max_periods):
+            p_start, p_end = unit_head_self_period(
+                template, ctx.organization, ctx.program, today=anchor,
+            )
+            periods.append((p_start, p_end))
+            anchor = p_start - timedelta(days=1)
 
         start_offset = (page_num - 1) * page_size
-        end_offset = start_offset + page_size - 1
-        period_end_window = today - timedelta(days=start_offset)
-        period_start_window = max(today - timedelta(days=end_offset), oldest)
+        page_periods = periods[start_offset:start_offset + page_size]
+        period_starts = [p_start for p_start, _ in page_periods]
 
-        reflections_qs = (
-            Reflection.all_objects.filter(
-                author=viewer,
-                subject=viewer,
-                template=template,
-                period_start__gte=period_start_window,
-                period_end__lte=period_end_window,
+        by_start: dict[date_type, Reflection] = {}
+        if period_starts:
+            reflections_qs = (
+                Reflection.all_objects.filter(
+                    author=viewer,
+                    subject=viewer,
+                    template=template,
+                    period_start__in=period_starts,
+                )
+                .order_by("-period_start", "-submitted_at")
             )
-            .order_by("-period_start", "-submitted_at")
-        )
-
-        by_date: dict[date_type, Reflection] = {}
-        for r in reflections_qs:
-            if r.period_start not in by_date:
-                by_date[r.period_start] = r
+            for r in reflections_qs:
+                if r.period_start not in by_start:
+                    by_start[r.period_start] = r
 
         results: list[dict] = []
-        cursor = period_end_window
-        while cursor >= period_start_window and len(results) < page_size:
-            reflection = by_date.get(cursor)
+        for p_start, p_end in page_periods:
+            reflection = by_start.get(p_start)
             results.append({
-                "date": cursor.isoformat(),
+                "date": p_start.isoformat(),
+                "period_start": p_start.isoformat(),
+                "period_end": p_end.isoformat(),
                 "submitted": reflection is not None and reflection.is_complete,
                 "is_day_off": is_day_off_answer(reflection) if reflection else False,
                 "reflection_id": reflection.id if reflection else None,
@@ -139,15 +150,14 @@ class UnitHeadSelfReflectionHistoryView(APIView):
                     _preview_from_answers(reflection.answers)
                     if reflection and not is_day_off_answer(reflection) else ""
                 ),
-                "editable": reflection is not None and cursor == today,
+                "editable": reflection is not None and p_start <= today <= p_end,
                 "referenced_bunk_ids": (
                     list(reflection.answers.get("bunk_concerns_bunks") or [])
                     if reflection and isinstance(reflection.answers, dict) else []
                 ),
             })
-            cursor -= timedelta(days=1)
 
-        total_count = max_days
+        total_count = len(periods)
         has_next = page_num * page_size < total_count
         has_previous = page_num > 1
         return Response({
@@ -188,6 +198,9 @@ class UnitHeadSelfReflectionCreateView(APIView):
         if template is None:
             msg = "No Unit Head self-reflection template configured."
             raise PermissionDenied(msg)
+        period_start, period_end = unit_head_self_period(
+            template, org, ctx.program, today=today,
+        )
 
         existing = find_existing_by_client_submission_id(
             Reflection, program=ctx.program,
@@ -219,8 +232,8 @@ class UnitHeadSelfReflectionCreateView(APIView):
                 assignment_group=None,
                 template=template,
                 submitted_by=request.user,
-                period_start=today,
-                period_end=today,
+                period_start=period_start,
+                period_end=period_end,
                 answers=answers,
                 language=payload["language"],
                 team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,

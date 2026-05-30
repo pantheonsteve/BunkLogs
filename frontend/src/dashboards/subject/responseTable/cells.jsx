@@ -6,6 +6,7 @@
 
 import { Link } from 'react-router-dom';
 import { getInitials, ratingTierClass } from './schema';
+import RichText from '../../../components/ui/RichText';
 
 /** Avatar + name + optional subtitle. When ``linkTo`` is provided
  *  the name is rendered as a Router link (otherwise plain text). */
@@ -147,7 +148,6 @@ export function DescriptionCell({
             const value = answers[f.key];
             if (value == null || value === '') return null;
             const text = String(value);
-            const isHtml = text.includes('<');
             return (
               <div key={f.key}>
                 {descTextFields.length > 1 && (
@@ -155,9 +155,7 @@ export function DescriptionCell({
                     {f.label}
                   </div>
                 )}
-                {isHtml
-                  ? <div className="whitespace-pre-line" dangerouslySetInnerHTML={{ __html: text }} />
-                  : <div className="whitespace-pre-line">{text}</div>}
+                <RichText html={text} className="whitespace-pre-line" />
               </div>
             );
           })

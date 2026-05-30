@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import BunkDashboard from '../BunkDashboard';
 
@@ -19,6 +19,7 @@ const baseData = {
     counselor_names: ['Pat L.', 'Sam R.'],
   },
   help_requested: [],
+  camper_care_help_requested: [],
   off_camp: [],
   bunk_concerns: [],
   score_grid: { columns: [], rows: [] },
@@ -33,45 +34,75 @@ describe('BunkDashboard', () => {
     expect(screen.getByText('Unit One')).toBeInTheDocument();
   });
 
-  it('collapses empty sections to single-line summary', () => {
+  it('shows empty summary cards when nothing needs attention', () => {
     renderDash(baseData);
-    expect(screen.getByTestId('section-help-requested')).toHaveAttribute('data-state', 'empty');
-    expect(screen.getByTestId('section-off-camp')).toHaveAttribute('data-state', 'empty');
-    expect(screen.getByTestId('section-bunk-concerns')).toHaveAttribute('data-state', 'empty');
+    expect(screen.getByTestId('card-not-on-camp')).toHaveAttribute('data-count', '0');
+    expect(screen.getByTestId('card-uh-help')).toHaveAttribute('data-count', '0');
+    expect(screen.getByTestId('card-cc-help')).toHaveAttribute('data-count', '0');
   });
 
-  it('renders help requested + bunk concerns when populated', () => {
+  it('lists off-camp campers in the Not on Camp card and UH help campers', () => {
     const data = {
       ...baseData,
+      off_camp: [{ id: 5, first_name: 'Lee', last_name: 'Ng', preferred_name: null, off_camp: true }],
       help_requested: [{ id: 9, first_name: 'Jamie', last_name: 'Pat', preferred_name: null }],
-      bunk_concerns: [{
-        reflection_id: 42,
-        author: 'Pat L.',
-        author_role: 'counselor',
-        note: 'Worried about cabin dynamics',
-      }],
     };
     renderDash(data);
-    expect(screen.getByTestId('section-help-requested')).toHaveAttribute('data-state', 'populated');
-    expect(screen.getByTestId('camper-pill-9')).toBeInTheDocument();
-    expect(screen.getByTestId('bunk-concern-42')).toHaveTextContent('Worried about cabin dynamics');
+    expect(within(screen.getByTestId('card-not-on-camp')).getByText('Lee N.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('card-uh-help')).getByText('Jamie P.')).toBeInTheDocument();
   });
 
-  it('shows the score grid when the payload includes campers + columns', () => {
+  it('lists Camper Care help campers from the payload', () => {
     const data = {
       ...baseData,
+      camper_care_help_requested: [
+        { id: 33, first_name: 'Rae', last_name: 'Kim', preferred_name: null },
+      ],
+    };
+    renderDash(data);
+    const card = screen.getByTestId('card-cc-help');
+    expect(card).toHaveAttribute('data-count', '1');
+    expect(within(card).getByText('Rae K.')).toBeInTheDocument();
+  });
+
+  it('shows the score grid with an On Camp column and hides triage columns', () => {
+    const data = {
+      ...baseData,
+      off_camp: [{ id: 2, first_name: 'Bo', last_name: 'Lee', preferred_name: null, off_camp: true }],
       score_grid: {
-        columns: [{ label: 'social', field_type: 'rating_group', category_key: 'social', scale_max: 5 }],
-        rows: [{
-          camper: { id: 1, first_name: 'A', last_name: 'B', preferred_name: 'A' },
-          cells: { social: 4 },
-          reflection_id: 99,
-        }],
+        columns: [
+          { label: 'on_camp', field_key: 'on_camp', field_type: 'single_choice', category_key: null, scale_max: null, header: 'Was the camper on camp today?' },
+          { label: 'social', field_key: 'camper_scores', field_type: 'rating_group', category_key: 'social', scale_max: 5, header: 'Social' },
+        ],
+        rows: [
+          { camper: { id: 1, first_name: 'A', last_name: 'B', preferred_name: 'A' }, cells: { on_camp: 'yes', social: 4 }, reflection_id: 99 },
+          { camper: { id: 2, first_name: 'Bo', last_name: 'Lee', preferred_name: null }, cells: { on_camp: null, social: null }, reflection_id: null },
+        ],
       },
     };
     renderDash(data);
     expect(screen.getByTestId('score-grid')).toBeInTheDocument();
-    expect(screen.getByTestId('score-row-1')).toBeInTheDocument();
+    // Dedicated authoritative On Camp column is present...
+    expect(screen.getByTestId('score-col-oncamp')).toBeInTheDocument();
+    // ...and the redundant single_choice on-camp template column is hidden.
+    expect(screen.queryByTestId('score-col-on_camp')).not.toBeInTheDocument();
+    expect(screen.getByTestId('score-col-social')).toBeInTheDocument();
+  });
+
+  it('derives the completion badge from expected (on-camp) rows', () => {
+    const data = {
+      ...baseData,
+      off_camp: [{ id: 2, first_name: 'Bo', last_name: 'Lee', preferred_name: null, off_camp: true }],
+      score_grid: {
+        columns: [{ label: 'social', field_type: 'rating_group', category_key: 'social', scale_max: 5 }],
+        rows: [
+          { camper: { id: 1, first_name: 'A', last_name: 'B', preferred_name: 'A' }, cells: { social: 4 }, reflection_id: 99 },
+          { camper: { id: 2, first_name: 'Bo', last_name: 'Lee', preferred_name: null }, cells: { social: null }, reflection_id: null },
+        ],
+      },
+    };
+    renderDash(data);
+    expect(screen.getByTestId('bunk-completion')).toHaveTextContent('1 of 1 reflections submitted');
   });
 
   it('orders section counts open / in-progress / resolved', () => {
@@ -82,7 +113,7 @@ describe('BunkDashboard', () => {
           { id: 1, kind: 'maintenance', location: 'Cabin 3 bathroom', status: 'new', submitter: 'Pat', submitted_at: '2026-07-04T12:00:00Z' },
         ],
         carried_over: [
-          { id: 2, kind: 'camper_care', item: 'Lice check', status: 'in_progress', submitter: 'Sam', submitted_at: '2026-07-03T12:00:00Z' },
+          { id: 2, kind: 'camper_care', item: 'Lice check', status: 'in_progress', submitter: 'Sam', submitted_at: '2026-07-03T12:00:00Z', subject: { id: 8, first_name: 'Q', last_name: 'Z', preferred_name: null } },
         ],
         counts: { open: 1, in_progress: 1, resolved: 0 },
       },
@@ -93,18 +124,21 @@ describe('BunkDashboard', () => {
     expect(screen.getByTestId('order-2')).toHaveTextContent('Lice check');
   });
 
-  it('surfaces sensitive-note counts when notes are excluded', () => {
+  it('renders bunk concerns and sensitive-note counts in the Notes section', () => {
     const data = {
       ...baseData,
-      specialist_reports: {
-        today: [],
-        recent: [],
-        sensitive_counts_by_camper: { 1: 1, 2: 2 },
-      },
+      bunk_concerns: [{
+        reflection_id: 42,
+        author: 'Pat L.',
+        author_role: 'counselor',
+        note: 'Worried about cabin dynamics',
+      }],
+      specialist_reports: { today: [], recent: [], sensitive_counts_by_camper: { 1: 1, 2: 2 } },
     };
     renderDash(data);
-    const section = screen.getByTestId('section-specialist-reports');
+    const section = screen.getByTestId('section-notes');
     expect(section).toHaveAttribute('data-state', 'populated');
+    expect(screen.getByTestId('bunk-concern-42')).toHaveTextContent('Worried about cabin dynamics');
     expect(section).toHaveTextContent('3 sensitive notes');
   });
 });

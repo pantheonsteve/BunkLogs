@@ -208,6 +208,23 @@ class UserDetailsView(viewsets.ReadOnlyModelViewSet):
         ),
     },
 )
+def _active_membership_roles(user) -> list[str]:
+    """Distinct active multi-tenant Membership roles for ``user``."""
+    from bunk_logs.core.models import Membership
+    from bunk_logs.core.models import Person
+
+    person = Person.all_objects.filter(user=user).first()
+    if person is None:
+        return []
+    return sorted(
+        set(
+            Membership.all_objects.filter(
+                person=person, is_active=True,
+            ).values_list("role", flat=True),
+        ),
+    )
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])  # Changed from IsAuthenticated to AllowAny
 def get_user_by_email(request, email):
@@ -282,6 +299,9 @@ def get_user_by_email(request, email):
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
             "date_joined": user.date_joined,
+            # Distinct active multi-tenant Membership roles (canonical role
+            # source for the frontend; legacy User.role has no maintenance value).
+            "membership_roles": _active_membership_roles(user),
             # Initialize fields that will be populated below to match serializer
             "bunks": [],
             "unit": None,

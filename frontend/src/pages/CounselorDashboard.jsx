@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import RichText from '../components/ui/RichText';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Calendar, FileText, Plus, User, Clock, CheckCircle, Eye } from 'lucide-react';
 
@@ -408,9 +409,9 @@ function CounselorDashboard() {
                         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Elaboration on your day
                         </h4>
-                        <div 
+                        <RichText
+                          html={existingLogForDate.elaboration}
                           className="text-sm text-gray-600 dark:text-gray-400 prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: existingLogForDate.elaboration }}
                         />
                       </div>
                     )}
@@ -421,9 +422,9 @@ function CounselorDashboard() {
                         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           How the bunk exemplified our values
                         </h4>
-                        <div 
+                        <RichText
+                          html={existingLogForDate.values_reflection}
                           className="text-sm text-gray-600 dark:text-gray-400 prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: existingLogForDate.values_reflection }}
                         />
                       </div>
                     )}

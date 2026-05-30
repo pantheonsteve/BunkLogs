@@ -41,6 +41,25 @@ export function AuthProvider({ children }) {
           const profile = JSON.parse(storedProfile);
           setUser(profile);
           console.log('User set from stored profile:', profile);
+          // Revalidate in the background so profile edits (name, role)
+          // propagate without forcing a re-login.
+          if (decoded.email || decoded.user_id) {
+            const endpoint = decoded.email
+              ? `/api/v1/users/email/${decoded.email}/`
+              : `/api/v1/users/${decoded.user_id}/`;
+            api.get(endpoint)
+              .then((response) => {
+                setUser(response.data);
+                try {
+                  localStorage.setItem('user_profile', JSON.stringify(response.data));
+                } catch (e) {
+                  console.warn('Could not refresh profile in localStorage:', e);
+                }
+              })
+              .catch((e) => {
+                console.warn('Background profile refresh failed; keeping stored profile:', e);
+              });
+          }
         } else if (decoded.email || decoded.user_id) {
           // Try to fetch by email first, then by user_id if available
           try {

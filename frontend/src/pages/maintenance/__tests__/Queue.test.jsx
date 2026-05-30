@@ -119,4 +119,23 @@ describe('MaintenanceQueue', () => {
     await waitFor(() => screen.getByTestId('maint-queue-error'));
     expect(screen.getByTestId('maint-queue-error').textContent).toMatch(/Network error/);
   });
+
+  it('renders a read-only view of the full queue for viewer scope', async () => {
+    const viewerTicket = {
+      ...sampleTickets[0],
+      available_transitions: [],
+    };
+    getMock.mockResolvedValueOnce({
+      data: {
+        tickets: [viewerTicket],
+        counts: { new: 1, in_progress: 0, urgent_open: 1 },
+        scope: 'viewer',
+      },
+    });
+    renderQueue();
+    await waitFor(() => screen.getByTestId('maint-queue-readonly-note'));
+    // No transition actions and no select checkbox for read-only viewers.
+    expect(screen.queryByTestId(`ticket-action-in_progress-${viewerTicket.id}`)).toBeNull();
+    expect(screen.queryByTestId(`ticket-select-${viewerTicket.id}`)).toBeNull();
+  });
 });

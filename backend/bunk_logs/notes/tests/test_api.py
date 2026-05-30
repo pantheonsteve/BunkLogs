@@ -81,14 +81,57 @@ class TestInboxEndpoint:
         ids = [n["id"] for n in (data.get("results", data))]
         assert note.id not in ids
 
-    def test_403_when_no_v1_role(self, org, program):
+    def test_any_active_member_can_read_inbox(self, org, program):
+        """Inbox is open to every active member; non-v1 roles return [] but not 403."""
         from bunk_logs.users.models import User
-        user = User.objects.create_user(email="notrole@t.test", password="pw")
-        person = Person.all_objects.create(organization=org, first_name="Nr", last_name="X", user=user)
+        user = User.objects.create_user(email="ks-inbox@t.test", password="pw")
+        person = Person.all_objects.create(organization=org, first_name="KS", last_name="X", user=user)
         Membership.all_objects.create(program=program, person=person, role="kitchen_staff", is_active=True)
         client = _auth_client(user, org)
         response = client.get("/api/v1/notes/inbox/")
+        assert response.status_code == 200
+
+    def test_403_when_no_membership(self, org, program):
+        from bunk_logs.users.models import User
+        user = User.objects.create_user(email="nomember@t.test", password="pw")
+        Person.all_objects.create(organization=org, first_name="No", last_name="M", user=user)
+        client = _auth_client(user, org)
+        response = client.get("/api/v1/notes/inbox/")
         assert response.status_code == 403
+
+    def test_replied_authored_note_appears_in_inbox(
+        self, org, program, counselor_person, counselor_user, counselor_membership, uh_person,
+    ):
+        # Counselor sends a note; UH replies. The reply is what bumps the badge,
+        # so the thread must be reachable from the Inbox the alert points at.
+        from bunk_logs.notes.models import NoteReply
+        note = _make_note(org, program, counselor_person, audience_persons=[uh_person])
+        NoteReply.objects.create(
+            note=note, author=uh_person, author_role_at_write="unit_head", body="Got it.",
+        )
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/inbox/")
+        assert response.status_code == 200
+        data = response.json()
+        ids = [n["id"] for n in (data.get("results", data))]
+        assert note.id in ids
+
+    def test_authored_note_with_only_self_reply_stays_out_of_inbox(
+        self, org, program, counselor_person, counselor_user, counselor_membership, uh_person,
+    ):
+        # A reply by the author themselves isn't inbound activity, so the note
+        # remains a plain sent note (not surfaced in their inbox).
+        from bunk_logs.notes.models import NoteReply
+        note = _make_note(org, program, counselor_person, audience_persons=[uh_person])
+        NoteReply.objects.create(
+            note=note, author=counselor_person, author_role_at_write="counselor", body="ping",
+        )
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/inbox/")
+        assert response.status_code == 200
+        data = response.json()
+        ids = [n["id"] for n in (data.get("results", data))]
+        assert note.id not in ids
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +150,23 @@ class TestSentEndpoint:
         data = response.json()
         ids = [n["id"] for n in (data.get("results", data))]
         assert note.id in ids
+
+    def test_replied_authored_note_leaves_sent(
+        self, org, program, counselor_person, counselor_user, counselor_membership, uh_person,
+    ):
+        # Once a recipient replies, the note moves to the Inbox and must not also
+        # show in Sent (it should live in exactly one tab).
+        from bunk_logs.notes.models import NoteReply
+        note = _make_note(org, program, counselor_person, audience_persons=[uh_person])
+        NoteReply.objects.create(
+            note=note, author=uh_person, author_role_at_write="unit_head", body="Got it.",
+        )
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/sent/")
+        assert response.status_code == 200
+        data = response.json()
+        ids = [n["id"] for n in (data.get("results", data))]
+        assert note.id not in ids
 
     def test_cross_org_isolation(
         self, org, other_org, program, counselor_person, counselor_user,
@@ -207,15 +267,34 @@ class TestNoteCreateEndpoint:
         response = client.post("/api/v1/notes/", {"audience": []}, format="json")
         assert response.status_code == 400
 
-    def test_non_v1_role_cannot_create(self, org, program):
+    def test_non_v1_role_can_create_note_via_default_options(self, org, program):
+        """Any active member can compose; default matrix gives admin / LT / specific_person."""
         from bunk_logs.users.models import User
         user = User.objects.create_user(email="ks2@t.test", password="pw")
-        person = Person.all_objects.create(organization=org, first_name="KS2", last_name="X", user=user)
-        Membership.all_objects.create(program=program, person=person, role="kitchen_staff", is_active=True)
+        author_person = Person.all_objects.create(
+            organization=org, first_name="KS2", last_name="X", user=user,
+        )
+        Membership.all_objects.create(
+            program=program, person=author_person, role="kitchen_staff", is_active=True,
+        )
+        # An Admin exists so 'administration' resolves to a real person.
+        admin_user = User.objects.create_user(email="adm-test@t.test", password="pw")
+        admin_person = Person.all_objects.create(
+            organization=org, first_name="Adm", last_name="X", user=admin_user,
+        )
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="admin", is_active=True,
+        )
         client = _auth_client(user, org)
-        payload = {"audience": [{"option_key": "administration"}], "subject": "Hi", "body": "Body"}
+        payload = {
+            "audience": [{"option_key": "administration"}],
+            "subject": "Hi from Kitchen",
+            "body": "Body",
+        }
         response = client.post("/api/v1/notes/", payload, format="json")
-        assert response.status_code == 403
+        assert response.status_code == 201, response.content
+        note = Note.all_objects.get(pk=response.json()["id"])
+        assert note.audience_captures.filter(person=admin_person).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +391,95 @@ class TestUnreadCount:
         assert response.status_code == 200
         assert response.json()["count"] == 1
 
+    def test_authored_note_alone_does_not_count_as_unread(
+        self, org, program, counselor_person, counselor_user, counselor_membership, uh_person,
+    ):
+        # Counselor authored a note to UH. There are no replies yet, so the
+        # author's own sent note must not count toward their unread badge.
+        _make_note(org, program, counselor_person, audience_persons=[uh_person])
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/unread-count/")
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+
+    def test_reply_on_sent_note_bumps_unread(
+        self,
+        org, program,
+        counselor_person, counselor_user, counselor_membership,
+        uh_person, uh_membership,
+    ):
+        from bunk_logs.notes.models import NoteReply
+        note = _make_note(org, program, counselor_person, audience_persons=[uh_person])
+        # UH replies to the counselor's sent note — counselor should see badge bump.
+        NoteReply.objects.create(
+            note=note, author=uh_person, author_role_at_write="unit_head", body="Got it.",
+        )
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/unread-count/")
+        assert response.status_code == 200
+        assert response.json()["count"] == 1
+
+    def test_reply_by_self_does_not_count_for_self(
+        self,
+        org, program,
+        counselor_person, counselor_user, counselor_membership,
+        uh_person, uh_membership,
+    ):
+        from bunk_logs.notes.models import NoteReply
+        note = _make_note(org, program, counselor_person, audience_persons=[uh_person])
+        # Counselor replies on their own note — opening/replying creates a
+        # read receipt elsewhere, but even without a receipt their own reply
+        # mustn't bump the badge for them.
+        NoteReply.objects.create(
+            note=note, author=counselor_person, author_role_at_write="counselor",
+            body="Self-note.",
+        )
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/unread-count/")
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/notes/audience-candidates/
+# ---------------------------------------------------------------------------
+
+
+class TestAudienceCandidatesEndpoint:
+    def test_returns_persons_and_bunks_for_counselor(
+        self,
+        org, program,
+        counselor_person, counselor_user, counselor_membership,
+        uh_person, uh_membership,
+        bunk, counselor_in_bunk,
+    ):
+        client = _auth_client(counselor_user, org)
+        response = client.get("/api/v1/notes/audience-candidates/")
+        assert response.status_code == 200
+        data = response.json()
+        person_ids = {p["id"] for p in data["persons"]}
+        # UH is in the org and is not the author -> shows up.
+        assert uh_person.id in person_ids
+        # Author excluded from their own candidates list.
+        assert counselor_person.id not in person_ids
+        # Counselor's bunk shows up in the bunk dropdown.
+        bunk_ids = {b["id"] for b in data["bunks"]}
+        assert bunk.id in bunk_ids
+
+    def test_returns_no_bunks_for_non_bunk_role(self, org, program):
+        from bunk_logs.users.models import User
+        user = User.objects.create_user(email="ks-cand@t.test", password="pw")
+        person = Person.all_objects.create(
+            organization=org, first_name="KS", last_name="Cand", user=user,
+        )
+        Membership.all_objects.create(
+            program=program, person=person, role="kitchen_staff", is_active=True,
+        )
+        client = _auth_client(user, org)
+        response = client.get("/api/v1/notes/audience-candidates/")
+        assert response.status_code == 200
+        assert response.json()["bunks"] == []
+
 
 # ---------------------------------------------------------------------------
 # GET /api/v1/notes/audience-options/
@@ -328,11 +496,16 @@ class TestAudienceOptionsEndpoint:
         keys = [o["option_key"] for o in response.json()]
         assert "my_unit_head" in keys
 
-    def test_non_v1_role_returns_empty(self, org, program):
+    def test_non_v1_role_gets_default_options(self, org, program):
+        """Kitchen staff (no spec'd matrix) gets the universal default set."""
         from bunk_logs.users.models import User
         user = User.objects.create_user(email="ks3@t.test", password="pw")
         person = Person.all_objects.create(organization=org, first_name="KS3", last_name="X", user=user)
         Membership.all_objects.create(program=program, person=person, role="kitchen_staff", is_active=True)
         client = _auth_client(user, org)
         response = client.get("/api/v1/notes/audience-options/")
-        assert response.status_code == 403
+        assert response.status_code == 200
+        keys = [o["option_key"] for o in response.json()]
+        assert "administration" in keys
+        assert "leadership_team" in keys
+        assert "specific_person" in keys

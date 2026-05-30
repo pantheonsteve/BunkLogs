@@ -33,6 +33,7 @@ from .common import expected_by_passed
 from .common import help_requested_camper_ids_from
 from .common import off_camp_camper_ids
 from .common import supervised_bunks
+from .common import unit_head_self_period
 from .common import unit_head_self_template
 from .common import viewer_or_403
 
@@ -130,18 +131,27 @@ class UnitHeadDashboardView(APIView):
 
         bunks_payload.sort(key=_bunk_sort_key)
 
-        # My self-reflection section
+        # My self-reflection section. The cadence is whatever the admin
+        # assigned (daily / weekly / biweekly / monthly); the period bounds
+        # come from unit_head_self_period so non-daily templates resolve the
+        # current window rather than today-only.
         self_state = "missing"
         self_reflection_id: int | None = None
         editable = False
+        self_period_start = None
+        self_period_end = None
+        self_cadence = uh_template.cadence if uh_template else None
         if uh_template is not None:
+            self_period_start, self_period_end = unit_head_self_period(
+                uh_template, org, program, today=today,
+            )
             existing = latest_self_reflection(
-                viewer, uh_template, today, today,
+                viewer, uh_template, self_period_start, self_period_end,
             )
             if existing is not None:
                 self_state = "day_off" if is_day_off_answer(existing) else "complete"
                 self_reflection_id = existing.id
-                editable = True  # within today by definition
+                editable = True  # within the current period by definition
 
         payload = {
             "today": today.isoformat(),
@@ -151,6 +161,13 @@ class UnitHeadDashboardView(APIView):
                 "reflection_id": self_reflection_id,
                 "template_id": uh_template.id if uh_template else None,
                 "editable": editable,
+                "cadence": self_cadence,
+                "period_start": (
+                    self_period_start.isoformat() if self_period_start else None
+                ),
+                "period_end": (
+                    self_period_end.isoformat() if self_period_end else None
+                ),
             },
         }
         cache.set(cache_key, payload, DASHBOARD_CACHE_TTL_SECONDS)

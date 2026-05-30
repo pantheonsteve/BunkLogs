@@ -194,17 +194,38 @@ class ApiUserSerializer(serializers.ModelSerializer):
     bunks = serializers.SerializerMethodField()
     unit = serializers.SerializerMethodField()
     unit_bunks = serializers.SerializerMethodField()
+    membership_roles = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ("first_name", "last_name", "role", "id", "email", "profile_complete",
                   "is_active", "is_staff", "is_superuser", "date_joined",
-                  "bunks", "unit", "unit_bunks", "password")
+                  "bunks", "unit", "unit_bunks", "membership_roles", "password")
         extra_kwargs = {
             "password": {"write_only": True},
             "is_staff": {"read_only": True},
             "is_superuser": {"read_only": True},
         }
+
+    def to_representation(self, instance):
+        """Prefer the linked multi-tenant Person's name for display.
+
+        ``Person`` is the canonical identity in the multi-tenant model, so
+        a name edited there should surface in the UI. We override output
+        only (the model ``first_name``/``last_name`` stay writable for the
+        registration flow) and fall back to the ``User`` name when there's
+        no linked Person or the Person name is blank.
+        """
+        data = super().to_representation(instance)
+        from bunk_logs.core.models import Person
+
+        person = Person.all_objects.filter(user=instance).first()
+        if person:
+            if person.first_name:
+                data["first_name"] = person.first_name
+            if person.last_name:
+                data["last_name"] = person.last_name
+        return data
 
     def create(self, validated_data):
         """
@@ -222,6 +243,28 @@ class ApiUserSerializer(serializers.ModelSerializer):
         user.set_password(validated_data["password"])
         user.save()
         return user
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_membership_roles(self, obj) -> list[str]:
+        """Distinct active multi-tenant Membership roles for this user.
+
+        Lets the frontend gate role-specific nav (e.g. maintenance) on the
+        canonical ``Membership.role`` rather than the legacy ``User.role``,
+        which has no value for maintenance/specialist/madrich.
+        """
+        from bunk_logs.core.models import Membership
+        from bunk_logs.core.models import Person
+
+        person = Person.all_objects.filter(user=obj).first()
+        if person is None:
+            return []
+        return sorted(
+            set(
+                Membership.all_objects.filter(
+                    person=person, is_active=True,
+                ).values_list("role", flat=True),
+            ),
+        )
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunks(self, obj) -> list[dict[str, Any]]:

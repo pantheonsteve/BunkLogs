@@ -114,6 +114,38 @@ describe('NotesPage', () => {
     expect(screen.getByText(/From: Bob UH/)).toBeDefined();
   });
 
+  it('labels an authored note in the inbox with "To:" recipients', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        count: 1,
+        next: null,
+        results: [
+          {
+            id: 5,
+            subject: 'Replied thread',
+            author: { id: 1, full_name: 'Alice C' },
+            audience_summary: 'Bob UH',
+            last_activity_at: new Date(Date.now() - 60000).toISOString(),
+            unread: true,
+            viewer_is_author: true,
+            camper_reference_id: null,
+          },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <NotesPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Replied thread')).toBeDefined();
+    });
+    expect(screen.getByText(/To: Bob UH/)).toBeDefined();
+  });
+
   it('switches to Sent tab and fetches sent endpoint', async () => {
     getMock.mockResolvedValue({ data: { count: 0, results: [] } });
 
@@ -132,10 +164,11 @@ describe('NotesPage', () => {
   });
 
   it('shows compose button and opens NoteComposer', async () => {
-    // First call: inbox list. Second call (from AudiencePicker): audience options.
+    // Calls in order: inbox list, audience options, audience candidates.
     getMock
       .mockResolvedValueOnce({ data: { count: 0, results: [] } })
-      .mockResolvedValueOnce({ data: AUDIENCE_OPTIONS });
+      .mockResolvedValueOnce({ data: AUDIENCE_OPTIONS })
+      .mockResolvedValueOnce({ data: { persons: [], bunks: [] } });
 
     render(
       <MemoryRouter>

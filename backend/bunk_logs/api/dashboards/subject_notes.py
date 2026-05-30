@@ -17,55 +17,28 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import SubjectNote
+from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
+from bunk_logs.core.permissions.subject_note_read import filter_subject_notes_readable
 from bunk_logs.core.permissions.super_admin import is_super_admin
 
 from .subject import _can_view_subject_dashboard
 from .subject import _viewer_capability
-from .subject import _viewer_supervises_subject
 
 User = get_user_model()
 
 
-# ---------------------------------------------------------------------------
-# Visibility filter
-# ---------------------------------------------------------------------------
-
-_VISIBILITY_LEVELS = {
-    "admin": {"team", "supervisors_only", "domain_only", "admin_only"},
-    "program_lead": {"team", "supervisors_only", "domain_only"},
-    "domain_specialist": {"team", "supervisors_only", "domain_only"},
-    "supervisor": {"team", "supervisors_only"},
-    "participant": set(),  # only subject_visible notes (handled separately)
-}
+# Visibility filter — delegated to core.permissions.subject_note_read
 
 
 def _notes_visible_to(viewer_person: Person | None, notes_qs, org, user, subject: Person):
-    """Filter SubjectNote queryset to rows the viewer is allowed to read.
-
-    Participants who author a group containing the subject (counselors for their
-    campers) receive supervisor-level visibility, matching Prompt 3.14's access model.
-    """
-    if is_super_admin(user):
-        return notes_qs
-    if viewer_person is None:
-        return notes_qs.none()
-    cap = _viewer_capability(viewer_person, org)
-
-    if cap in ("admin", "program_lead", "domain_specialist"):
-        allowed_vis = _VISIBILITY_LEVELS[cap]
-        return notes_qs.filter(visibility__in=allowed_vis)
-
-    if cap in ("supervisor", "participant"):
-        # Self-view (participant viewing their own subject dashboard)
-        if viewer_person.id == subject.id:
-            return notes_qs.filter(subject_visible=True)
-        # Group-authorship path: counselors (participant) who supervise the subject
-        # get the same visibility as an explicit supervisor role
-        if _viewer_supervises_subject(viewer_person, subject):
-            return notes_qs.filter(visibility__in=_VISIBILITY_LEVELS["supervisor"])
-        return notes_qs.none()
-
-    return notes_qs.none()
+    """Filter SubjectNote queryset to rows the viewer is allowed to read."""
+    return filter_subject_notes_readable(
+        notes_qs,
+        viewer_person,
+        org,
+        user,
+        subject=subject,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +107,13 @@ class SubjectNoteListCreateView(APIView):
         if err:
             return err
 
+        viewer_person = Person.all_objects.filter(user=request.user).first()
+        if not can_author_subject_note(viewer_person, subject, org, request.user):
+            return Response(
+                {"detail": "You do not have permission to write notes about this subject."},
+                status=403,
+            )
+
         data = request.data
         body = (data.get("body") or "").strip()
         if not body:
@@ -145,8 +125,6 @@ class SubjectNoteListCreateView(APIView):
                 {"detail": f"visibility must be one of {SubjectNote.Visibility.values}"},
                 status=400,
             )
-
-        viewer_person = Person.all_objects.filter(user=request.user).first()
 
         # Resolve program: pick the first active program this subject belongs to in the org
         from bunk_logs.core.models import Membership

@@ -5,6 +5,12 @@ from django.contrib.admin.widgets import AdminTextareaWidget
 from django.db import models
 from django.shortcuts import render
 
+from .admin_organization import AUTHOR_SCOPE_FIELD_PREFIX
+from .admin_organization import AUTHOR_SCOPE_HELP
+from .admin_organization import MembershipSubjectNoteAuthorField
+from .admin_organization import OrganizationAdminForm
+from .admin_organization import apply_membership_author_override
+from .admin_organization import membership_author_override_initial
 from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
 from .models import FieldKey
@@ -45,24 +51,106 @@ class ProgramAdminForm(forms.ModelForm):
         return self.cleaned_data
 
 
+class ProgramInlineForm(forms.ModelForm):
+    """Inline variant — organization is implied by the parent Organization row."""
+
+    class Meta:
+        model = Program
+        fields = ("name", "slug", "program_type", "start_date", "end_date", "is_active")
+
+    def __init__(self, *args, parent_organization=None, **kwargs):
+        self.parent_organization = parent_organization
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        org = getattr(self.instance, "organization", None) or self.parent_organization
+        name = (self.cleaned_data.get("name") or "").strip()
+        if not org or not name:
+            return self.cleaned_data
+        oname = (org.name or "").strip()
+        if oname and not name.startswith(oname):
+            self.cleaned_data["name"] = f"{oname} - {name}"
+        return self.cleaned_data
+
+
 class ProgramInline(admin.TabularInline):
     model = Program
-    form = ProgramAdminForm
+    form = ProgramInlineForm
     extra = 0
     show_change_link = True
     fields = ("name", "slug", "program_type", "start_date", "end_date", "is_active")
 
     def get_queryset(self, request):
-        return Program.all_objects.all()
+        return Program.all_objects.select_related("organization")
+
+    def get_formset(self, request, obj=None, **kwargs):
+        FormSet = super().get_formset(request, obj, **kwargs)
+        parent_org = obj
+        form_class = self.form
+
+        class WrappedProgramInlineForm(form_class):
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("parent_organization", parent_org)
+                super().__init__(*args, **kwargs)
+
+        FormSet.form = WrappedProgramInlineForm
+        return FormSet
 
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
+    form = OrganizationAdminForm
     list_display = ["name", "slug", "is_active", "created_at"]
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ["name", "slug"]
     list_filter = ["is_active"]
     inlines = [ProgramInline]
+    readonly_fields = ["created_at", "updated_at"]
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Pin tenant context to the org being edited so inline Program rows validate."""
+        from bunk_logs.core.context import clear_current_organization
+        from bunk_logs.core.context import set_current_organization
+
+        org = self.get_object(request, object_id) if object_id else None
+        if org is not None:
+            set_current_organization(org)
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        finally:
+            if org is not None:
+                clear_current_organization()
+
+    def get_fieldsets(self, request, obj=None):
+        role_fields = tuple(
+            f"{AUTHOR_SCOPE_FIELD_PREFIX}{role_value}"
+            for role_value, _ in Membership.ROLES
+        )
+        return (
+            (None, {"fields": ("name", "slug", "is_active")}),
+            (
+                "Subject note authoring by role",
+                {
+                    "fields": role_fields,
+                    "description": AUTHOR_SCOPE_HELP,
+                },
+            ),
+            (
+                "Advanced",
+                {
+                    "fields": ("settings_json",),
+                    "classes": ("collapse",),
+                },
+            ),
+            (
+                "Timestamps",
+                {
+                    "fields": ("created_at", "updated_at"),
+                    "classes": ("collapse",),
+                },
+            ),
+        )
 
 
 @admin.register(Person)
@@ -407,6 +495,7 @@ class MembershipTagsField(forms.Field):
 
 class MembershipAdminForm(forms.ModelForm):
     tags = MembershipTagsField()
+    subject_note_author_override = MembershipSubjectNoteAuthorField()
 
     class Meta:
         model = Membership
@@ -419,8 +508,27 @@ class MembershipAdminForm(forms.ModelForm):
             "start_date",
             "end_date",
             "is_active",
+            "subject_note_author_override",
             "metadata",
         )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields["subject_note_author_override"].initial = (
+                membership_author_override_initial(self.instance.metadata)
+            )
+
+    def save(self, commit=True):
+        membership = super().save(commit=False)
+        override = self.cleaned_data.get("subject_note_author_override", "")
+        membership.metadata = apply_membership_author_override(
+            membership.metadata,
+            override,
+        )
+        if commit:
+            membership.save()
+        return membership
 
 
 class BulkTagForm(forms.Form):

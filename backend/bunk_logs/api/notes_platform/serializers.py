@@ -29,6 +29,7 @@ class NoteListSerializer(serializers.ModelSerializer):
     last_activity_at = serializers.SerializerMethodField()
     unread = serializers.SerializerMethodField()
     audience_summary = serializers.SerializerMethodField()
+    viewer_is_author = serializers.SerializerMethodField()
 
     class Meta:
         model = Note
@@ -40,8 +41,14 @@ class NoteListSerializer(serializers.ModelSerializer):
             "last_activity_at",
             "unread",
             "audience_summary",
+            "viewer_is_author",
             "camper_reference_id",
         ]
+
+    def get_viewer_is_author(self, note: Note) -> bool:
+        request = self.context.get("request")
+        person = getattr(request, "_notes_person", None) if request else None
+        return bool(person and note.author_id == person.id)
 
     def get_last_activity_at(self, note: Note) -> str:
         last_reply = note.replies.order_by("-created_at").first()
@@ -56,14 +63,9 @@ class NoteListSerializer(serializers.ModelSerializer):
         person = getattr(request, "_notes_person", None)
         if person is None:
             return False
-        receipt = note.read_receipts.filter(person=person).first()
-        if receipt is None:
-            # Never read — note itself is unread
-            return True
-        # Check if there's activity after the last read time
-        last_reply = note.replies.order_by("-created_at").first()
-        latest = last_reply.created_at if last_reply else note.created_at
-        return latest > receipt.last_read_at
+        from .views import _has_unread_activity
+        is_author = note.author_id == person.id
+        return _has_unread_activity(note, person, is_author=is_author)
 
     def get_audience_summary(self, note: Note) -> str:
         captures = note.audience_captures.select_related("person")[:3]
@@ -129,9 +131,15 @@ class NoteCreateSerializer(serializers.Serializer):
     source_content_type = serializers.ChoiceField(
         choices=["", "reflection_concern", "specialist_note"],
         required=False,
+        allow_blank=True,
         default="",
     )
-    source_object_id = serializers.CharField(max_length=50, required=False, default="")
+    source_object_id = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
 
 
 class NoteReplyCreateSerializer(serializers.Serializer):

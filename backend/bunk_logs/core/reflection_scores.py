@@ -45,6 +45,7 @@ if TYPE_CHECKING:
 
 
 SCORED_FIELD_TYPES = frozenset({"single_rating", "rating_group"})
+GRID_META_FIELD_TYPES = frozenset({"section_header", "instructions"})
 
 
 def scale_max(field: dict) -> int:
@@ -115,6 +116,85 @@ def iter_scored_fields(
                 if not isinstance(ck, str):
                     continue
                 yield field, f"{fkey}__{ck}", sm
+
+
+def iter_grid_fields(
+    template: ReflectionTemplate,
+) -> Iterator[tuple[dict, str, int | None]]:
+    """Yield ``(field, label, scale_max)`` for every score-grid column.
+
+    Scored fields expand the same way as :func:`iter_scored_fields`.
+    All other answerable template fields (text, textarea, yes_no, etc.)
+    yield one column keyed by the field key with ``scale_max=None``.
+    Section headers and instructions are skipped.
+    """
+    for field in (template.schema or {}).get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        ftype = field.get("type")
+        if ftype in GRID_META_FIELD_TYPES:
+            continue
+        fkey = field.get("key")
+        if not isinstance(fkey, str):
+            continue
+        if ftype in SCORED_FIELD_TYPES:
+            sm = scale_max(field)
+            if ftype == "single_rating":
+                yield field, fkey, sm
+            else:
+                for cat in field.get("categories") or []:
+                    if not isinstance(cat, dict):
+                        continue
+                    ck = cat.get("key")
+                    if not isinstance(ck, str):
+                        continue
+                    yield field, f"{fkey}__{ck}", sm
+        else:
+            yield field, fkey, None
+
+
+def resolve_grid_cells(field: dict, answers: dict) -> dict[str, float | str | None]:
+    """Pull one or more grid cell values out of an answers blob for ``field``."""
+    ftype = field.get("type")
+    if ftype in SCORED_FIELD_TYPES:
+        return resolve_rating_cells(field, answers)
+    fkey = field.get("key")
+    if not isinstance(fkey, str):
+        return {}
+    return {fkey: format_grid_cell_value(field, (answers or {}).get(fkey))}
+
+
+def format_grid_cell_value(field: dict, value: object) -> str | None:
+    """Render a non-scored answer for display in the score grid."""
+    if value is None:
+        return None
+    ftype = field.get("type")
+    if ftype == "yes_no":
+        if isinstance(value, bool):
+            return "Yes" if value else "No"
+        s = str(value).strip().lower()
+        if s in {"yes", "true", "1"}:
+            return "Yes"
+        if s in {"no", "false", "0"}:
+            return "No"
+        return str(value).strip() or None
+    if ftype == "text_list":
+        if isinstance(value, list):
+            items = [str(v).strip() for v in value if str(v).strip()]
+            return "\n".join(f"• {item}" for item in items) if items else None
+        return str(value).strip() or None
+    if ftype == "multiple_choice":
+        if isinstance(value, list):
+            joined = ", ".join(str(v).strip() for v in value if str(v).strip())
+            return joined or None
+        return str(value).strip() or None
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, (int, float)) and ftype == "number":
+        return str(value)
+    if isinstance(value, str):
+        return value.strip() or None
+    return str(value) if value is not None else None
 
 
 def resolve_rating_cells(field: dict, answers: dict) -> dict[str, float | None]:

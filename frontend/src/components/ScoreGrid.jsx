@@ -8,9 +8,8 @@
  * Story 12 conformance points:
  *
  *   - One row per camper currently rostered on the selected date.
- *   - One column per scored dimension defined by the active
- *     reflection template (extracted server-side; client just
- *     renders the columns it's handed in template order).
+ *   - One column per answer field defined by the active reflection
+ *     template (ratings, text descriptions, yes/no flags, etc.).
  *   - Camper name column is sticky during horizontal scroll
  *     (`sticky left-0`).
  *   - Missing scores are rendered visually distinct from low scores
@@ -21,11 +20,20 @@
  *   - `columns` — array of `{ label, field_key, field_type, category_key, scale_max }`.
  *   - `rows` — array of `{ camper, cells, reflection_id }`.
  *   - `onSelectCamper(camperId)` — optional callback when a row is clicked.
+ *   - `offCampIds` — optional Set/array of camper IDs flagged off-camp; when
+ *     provided, a leading "On Camp" Yes/No column is rendered.
  */
 
 import { Link } from 'react-router-dom';
 import { NO_DATA_FILL, ratingLegend } from '../dashboards/colors';
 import { ratingTierClass } from '../dashboards/subject/responseTable/schema';
+import RichText from './ui/RichText';
+
+const SCORED_FIELD_TYPES = new Set(['single_rating', 'rating_group']);
+
+function isScoredColumn(col) {
+  return SCORED_FIELD_TYPES.has(col.field_type);
+}
 
 function formatCamperName(camper) {
   if (!camper) return '';
@@ -36,6 +44,7 @@ function formatCamperName(camper) {
 }
 
 function columnHeader(col) {
+  if (col.header) return col.header;
   if (col.field_type === 'rating_group' && col.category_key) {
     return col.category_key;
   }
@@ -56,6 +65,34 @@ function ScoreCell({ value, scaleMax }) {
       </div>
     </td>
   );
+}
+
+function TextCell({ value }) {
+  const text = value == null || value === '' ? null : String(value);
+  return (
+    <td
+      data-testid={text ? 'text-cell' : 'text-cell-empty'}
+      className="px-3 py-3 text-left align-top border border-gray-100 dark:border-gray-800 min-w-[12rem] max-w-md"
+      aria-label={text ? `Note: ${text}` : 'No text'}
+    >
+      {text ? (
+        <RichText
+          html={text}
+          className="text-sm text-gray-800 dark:text-gray-200 break-words"
+        />
+      ) : (
+        <div className="text-base font-semibold text-gray-400 dark:text-gray-500 text-center">—</div>
+      )}
+    </td>
+  );
+}
+
+function GridCell({ col, value }) {
+  if (isScoredColumn(col)) {
+    const numeric = typeof value === 'number' ? value : null;
+    return <ScoreCell value={numeric} scaleMax={col.scale_max || 5} />;
+  }
+  return <TextCell value={value} />;
 }
 
 function ScoreLegend({ scaleMax }) {
@@ -88,16 +125,35 @@ function ScoreLegend({ scaleMax }) {
   );
 }
 
+function OnCampCell({ onCamp }) {
+  return (
+    <td
+      data-testid="oncamp-cell"
+      className={`px-3 py-3 text-center text-sm font-semibold whitespace-nowrap border border-gray-100 dark:border-gray-800 ${
+        onCamp ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'
+      }`}
+    >
+      {onCamp ? 'Yes' : 'No'}
+    </td>
+  );
+}
+
 export default function ScoreGrid({
   columns = [],
   rows = [],
   camperLinkPrefix = '/unit-head/campers',
   onSelectCamper,
+  offCampIds = null,
 }) {
+  const showOnCamp = offCampIds != null;
+  const offSet = showOnCamp
+    ? (offCampIds instanceof Set ? offCampIds : new Set(offCampIds))
+    : null;
+
   if (columns.length === 0) {
     return (
       <p data-testid="score-grid-empty" className="text-sm text-gray-600 dark:text-gray-400">
-        No scored dimensions in the active template.
+        No reflection fields in the active template.
       </p>
     );
   }
@@ -109,9 +165,12 @@ export default function ScoreGrid({
     );
   }
 
-  // Use the highest scale_max in any column so the legend matches the most
+  // Use the highest scale_max in any scored column so the legend matches the most
   // prominent dimension; mixed scales are rare in practice but supported.
-  const maxScale = Math.max(...columns.map((c) => c.scale_max || 5));
+  const scoredColumns = columns.filter(isScoredColumn);
+  const maxScale = scoredColumns.length > 0
+    ? Math.max(...scoredColumns.map((c) => c.scale_max || 5))
+    : 5;
 
   return (
     <div data-testid="score-grid" className="space-y-2">
@@ -125,6 +184,15 @@ export default function ScoreGrid({
               >
                 Camper
               </th>
+              {showOnCamp && (
+                <th
+                  className="px-2 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap"
+                  scope="col"
+                  data-testid="score-col-oncamp"
+                >
+                  On Camp
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.label}
@@ -165,11 +233,12 @@ export default function ScoreGrid({
                       </Link>
                     )}
                   </th>
+                  {showOnCamp && <OnCampCell onCamp={!offSet.has(camper.id)} />}
                   {columns.map((col) => (
-                    <ScoreCell
+                    <GridCell
                       key={col.label}
+                      col={col}
                       value={row.cells?.[col.label] ?? null}
-                      scaleMax={col.scale_max || 5}
                     />
                   ))}
                 </tr>
@@ -178,7 +247,7 @@ export default function ScoreGrid({
           </tbody>
         </table>
       </div>
-      <ScoreLegend scaleMax={maxScale} />
+      {scoredColumns.length > 0 && <ScoreLegend scaleMax={maxScale} />}
     </div>
   );
 }

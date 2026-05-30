@@ -19,17 +19,11 @@ import {
   bulkTransitionTickets,
 } from '../../api/maintenance';
 
-const URGENCY_BADGE = {
-  urgent: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
-  normal: '',
-  low: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-};
-
 const STATUS_BADGE = {
-  new: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100',
-  in_progress: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
-  fulfilled: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-100',
-  unable_to_fulfill: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100',
+  new: 'bg-blue-600 text-white',
+  in_progress: 'bg-amber-400 text-amber-950 dark:bg-amber-500 dark:text-amber-950',
+  fulfilled: 'bg-green-600 text-white',
+  unable_to_fulfill: 'bg-gray-500 text-white',
 };
 
 const STATUS_LABEL = {
@@ -46,6 +40,15 @@ const TRANSITION_LABEL = {
   new: 'Reopen',
 };
 
+// Primary action surfaced as the prominent button per status; any remaining
+// transitions render as smaller secondary actions.
+const PRIMARY_TRANSITION = {
+  new: 'in_progress',
+  in_progress: 'fulfilled',
+  fulfilled: 'in_progress',
+  unable_to_fulfill: 'in_progress',
+};
+
 const AGE_THRESHOLD_SECONDS = 4 * 3600;
 
 function formatAge(seconds) {
@@ -58,81 +61,132 @@ function formatAge(seconds) {
   return `${Math.round(h / 24)}d ago`;
 }
 
+function relativeFromIso(iso) {
+  if (!iso) return '';
+  const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  return formatAge(seconds);
+}
+
+function ClockIcon({ className = 'w-3 h-3' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PersonIcon({ className = 'w-3 h-3' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function TicketRow({ ticket, selectable, selected, onSelectToggle, onTransition, onClick }) {
   const aged = ticket.age_seconds != null && ticket.age_seconds >= AGE_THRESHOLD_SECONDS;
+  const transitions = ticket.available_transitions ?? [];
+  const preferred = PRIMARY_TRANSITION[ticket.status];
+  const primary = transitions.includes(preferred) ? preferred : transitions[0];
+  const secondary = transitions.filter((t) => t !== primary);
+
+  const actionButton = (next, prominent) => (
+    <button
+      key={next}
+      type="button"
+      onClick={() => onTransition(ticket, next)}
+      data-testid={`ticket-action-${next}-${ticket.id}`}
+      className={
+        prominent
+          ? 'inline-flex items-center justify-center px-4 min-h-[38px] rounded-lg border border-blue-300 dark:border-blue-700 text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors whitespace-nowrap'
+          : 'inline-flex items-center justify-center px-2 min-h-[32px] text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:underline whitespace-nowrap'
+      }
+    >
+      {TRANSITION_LABEL[next] || next}
+    </button>
+  );
+
   return (
     <li
       data-testid={`ticket-row-${ticket.id}`}
       data-status={ticket.status}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-5 py-4 shadow-sm transition-colors cursor-pointer hover:border-blue-300 dark:hover:border-blue-600"
       onClick={() => onClick(ticket.id)}
     >
-      <div className="flex items-start gap-3">
-        {selectable && (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={(e) => { e.stopPropagation(); onSelectToggle(ticket.id); }}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ticket at ${ticket.location}`}
-            data-testid={`ticket-select-${ticket.id}`}
-            className="mt-1 h-4 w-4 rounded border-gray-300"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                {ticket.urgency === 'urgent' && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${URGENCY_BADGE.urgent}`}>
-                    Urgent
-                  </span>
-                )}
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_BADGE[ticket.status] || ''}`}>
-                  {STATUS_LABEL[ticket.status] || ticket.status}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        {/* Left: badges, title, description, submitter */}
+        <div className="flex gap-3 min-w-0">
+          {selectable && (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(e) => { e.stopPropagation(); onSelectToggle(ticket.id); }}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Select ticket at ${ticket.location}`}
+              data-testid={`ticket-select-${ticket.id}`}
+              className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300"
+            />
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {ticket.urgency === 'urgent' && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-red-600 text-white">
+                  Urgent
                 </span>
-                {ticket.status === 'new' && ticket.acknowledger == null && aged && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200 text-[10px] font-medium">
-                    Aged
-                  </span>
-                )}
-              </div>
-              <h3 className="font-medium text-gray-900 dark:text-white mt-1">
-                {ticket.location}
-                {ticket.category ? ` — ${ticket.category.replace(/_/g, ' ')}` : ''}
-              </h3>
-              {ticket.description && (
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2">
-                  {ticket.description}
-                </p>
               )}
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {ticket.submitter_name ? `From ${ticket.submitter_name} · ` : ''}
-                {formatAge(ticket.age_seconds)}
-              </p>
-              {ticket.acknowledger && (
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                  In progress: {ticket.acknowledger.name}
-                </p>
-              )}
-              {ticket.has_photos && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">(photo attached)</span>
+              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${STATUS_BADGE[ticket.status] || ''}`}>
+                {STATUS_LABEL[ticket.status] || ticket.status}
+              </span>
+              {ticket.status === 'new' && ticket.acknowledger == null && aged && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-300 text-[11px] font-medium">
+                  <ClockIcon />
+                  Aged
+                </span>
               )}
             </div>
+            <h3 className="font-semibold text-gray-900 dark:text-white mt-1.5">
+              {ticket.location}
+              {ticket.category ? ` — ${ticket.category.replace(/_/g, ' ')}` : ''}
+            </h3>
+            {ticket.description && (
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
+                {ticket.description}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {ticket.submitter_name ? `From ${ticket.submitter_name} · ` : ''}
+              {formatAge(ticket.age_seconds)}
+              {ticket.has_photos ? ' · 📎 photo' : ''}
+            </p>
           </div>
-          {ticket.available_transitions?.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
-              {ticket.available_transitions.map((next) => (
-                <button
-                  key={next}
-                  type="button"
-                  onClick={() => onTransition(ticket, next)}
-                  data-testid={`ticket-action-${next}-${ticket.id}`}
-                  className="inline-flex items-center px-3 min-h-[34px] rounded-lg border border-gray-300 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  {TRANSITION_LABEL[next] || next}
-                </button>
-              ))}
+        </div>
+
+        {/* Right: status metadata + actions */}
+        <div
+          className="flex flex-col sm:items-end gap-2 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {ticket.acknowledger?.name && (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
+              <PersonIcon />
+              In progress: {ticket.acknowledger.name}
+            </span>
+          )}
+          {ticket.resolution?.name && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {STATUS_LABEL[ticket.status] || ticket.status}: {relativeFromIso(ticket.resolution.at)} by {ticket.resolution.name}
+            </span>
+          )}
+          {primary && (
+            <div className="flex flex-col items-end gap-1">
+              {actionButton(primary, true)}
+              {secondary.length > 0 && (
+                <div className="flex flex-wrap justify-end gap-1">
+                  {secondary.map((next) => actionButton(next, false))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -369,6 +423,7 @@ export default function MaintenanceQueue() {
 
   const tickets = data?.tickets ?? [];
   const counts = data?.counts ?? { new: 0, in_progress: 0, urgent_open: 0 };
+  const isReadOnly = data?.scope && data.scope !== 'team';
   const inProgressTickets = tickets.filter((t) => t.status === 'in_progress');
   const eligibleSelected = useMemo(
     () => inProgressTickets.filter((t) => selected.has(t.id)),
@@ -400,6 +455,11 @@ export default function MaintenanceQueue() {
         <p className="text-sm text-gray-600 dark:text-gray-400" data-testid="maint-queue-counts">
           {counts.new} new&nbsp;·&nbsp;{counts.in_progress} in progress&nbsp;·&nbsp;{counts.urgent_open} urgent
         </p>
+        {isReadOnly && (
+          <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="maint-queue-readonly-note">
+            Read-only view — only the maintenance team can update tickets.
+          </p>
+        )}
       </header>
 
       <FilterBar
@@ -426,7 +486,7 @@ export default function MaintenanceQueue() {
             <TicketRow
               key={t.id}
               ticket={t}
-              selectable={t.status === 'in_progress'}
+              selectable={!isReadOnly && t.status === 'in_progress'}
               selected={selected.has(t.id)}
               onSelectToggle={handleSelectToggle}
               onTransition={handleTransition}

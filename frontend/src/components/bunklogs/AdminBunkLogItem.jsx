@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import GenericAvatar from '../../images/avatar-generic.png';
+import RichText from '../ui/RichText';
 
 function AdminBunkLogItem({ log, date, onViewDetails }) {
   const [open, setOpen] = useState(false);
@@ -119,17 +120,10 @@ function AdminBunkLogItem({ log, date, onViewDetails }) {
                 </span>
               )}
             </div>
-            <div>
-              {log.description ? (
-                log.description.includes('<') ? (
-                  <span dangerouslySetInnerHTML={{ __html: log.description }} />
-                ) : (
-                  log.description
-                )
-              ) : (
-                <span className="text-gray-400">No description</span>
-              )}
-            </div>
+            <RichText
+              html={log.description}
+              fallback={<span className="text-gray-400">No description</span>}
+            />
             <div className="mt-2 text-xs text-gray-500">
               <strong>Reporting Counselor:</strong>{' '}
               {log.reporting_counselor_first_name && log.reporting_counselor_last_name ? (

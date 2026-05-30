@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useBunk } from '../../contexts/BunkContext';
 import GenericAvatar from '../../images/avatar-generic.png';
+import RichText from '../ui/RichText';
 
 function CamperLogsBunkViewItem(props) {
 
@@ -66,15 +67,10 @@ function CamperLogsBunkViewItem(props) {
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-pre-line break-words align-top border border-gray-300 dark:border-gray-700" style={{ maxWidth: '400px' }}>
           <div className="text-gray-700 dark:text-gray-200 text-sm" style={{ whiteSpace: 'pre-line' }}>
             <div>
-              {props.description ? (
-                props.description.includes('<') ? (
-                  <span dangerouslySetInnerHTML={{ __html: props.description }} />
-                ) : (
-                  props.description
-                )
-              ) : (
-                <span className="text-gray-400">No description</span>
-              )}
+              <RichText
+                html={props.description}
+                fallback={<span className="text-gray-400">No description</span>}
+              />
             </div>
             <div className="mt-2 text-xs text-gray-500">
               <strong>Reporting Counselor:</strong>{' '}

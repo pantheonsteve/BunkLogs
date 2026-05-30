@@ -520,3 +520,406 @@ def test_conflict_detection_assignment_group(
     body = resp.json()
     assert body["conflicts"]
     assert body["choices"]
+
+
+# ---------------------------------------------------------------------------
+# Scored-camper grid-conflict guard
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def scored_camper_template(org):
+    """A template that targets campers AND has a rating_group field.
+
+    This is the kind of template that drives a bunk's score grid (Story 12).
+    Two of these active on the same bunk for overlapping dates have no defined
+    column merge, which is what the guard prevents.
+    """
+    return ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Camper Daily Rated",
+        slug="camper-daily-rated",
+        cadence="daily",
+        schema={
+            "fields": [
+                {
+                    "key": "ratings",
+                    "type": "rating_group",
+                    "prompts": {"en": "Rate each camper."},
+                    "categories": [{"key": "behavior", "labels": {"en": "Behavior"}}],
+                    "scale": [1, 4],
+                }
+            ]
+        },
+        languages=["en"],
+        subject_mode="single_subject",
+        subject_role_filter=["camper"],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+
+
+@pytest.mark.django_db
+def test_second_different_scored_camper_form_same_bunk_is_400(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """A second *different* scored camper template on the same bunk → 400.
+
+    Two scored camper forms on one bunk have no defined grid-column merge;
+    the guard blocks this before it silently shadows the first form.
+    """
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    second_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Camper Daily Rated B",
+        slug="camper-daily-rated-b",
+        cadence="daily",
+        schema={
+            "fields": [
+                {
+                    "key": "scores",
+                    "type": "rating_group",
+                    "prompts": {"en": "Score each camper."},
+                    "categories": [{"key": "overall", "labels": {"en": "Overall"}}],
+                    "scale": [1, 4],
+                }
+            ]
+        },
+        languages=["en"],
+        subject_mode="single_subject",
+        subject_role_filter=["camper"],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": second_template.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_scored_form_with_non_camper_subject_is_allowed(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """A scored form whose subject is NOT camper does not trigger the guard → 201."""
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    # rating_group field, but subject_role_filter is empty (not camper-targeted)
+    counselor_scored = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Counselor Self-Rated",
+        slug="counselor-self-rated",
+        cadence="daily",
+        schema={
+            "fields": [
+                {
+                    "key": "r",
+                    "type": "rating_group",
+                    "prompts": {"en": "Rate yourself."},
+                    "categories": [{"key": "effort", "labels": {"en": "Effort"}}],
+                    "scale": [1, 4],
+                }
+            ]
+        },
+        languages=["en"],
+        subject_mode="self",
+        subject_role_filter=[],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": counselor_scored.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-06-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+
+
+@pytest.mark.django_db
+def test_second_camper_form_without_rating_fields_is_allowed(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """A second camper form with no rating fields doesn't collide on the grid → 201."""
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    unscored_camper = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Camper Notes Only",
+        slug="camper-notes-only",
+        cadence="daily",
+        schema={
+            "fields": [{"key": "note", "type": "textarea", "prompts": {"en": "Notes?"}}]
+        },
+        languages=["en"],
+        subject_mode="single_subject",
+        subject_role_filter=["camper"],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": unscored_camper.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-06-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+
+
+@pytest.mark.django_db
+def test_non_overlapping_windows_not_blocked(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """Two different scored camper forms on the same bunk with non-overlapping
+    date windows are allowed — they never co-drive the grid on the same day.
+    """
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 6, 30),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    second_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Camper Rated July",
+        slug="camper-rated-july",
+        cadence="daily",
+        schema={
+            "fields": [
+                {
+                    "key": "r",
+                    "type": "rating_group",
+                    "prompts": {"en": "Rate."},
+                    "categories": [{"key": "x", "labels": {"en": "X"}}],
+                    "scale": [1, 4],
+                }
+            ]
+        },
+        languages=["en"],
+        subject_mode="single_subject",
+        subject_role_filter=["camper"],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": second_template.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+
+
+@pytest.mark.django_db
+def test_same_template_reuse_goes_through_conflict_resolution(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """A second assignment of the *same* scored camper template should not hit
+    the new guard — same template means identical grid columns, so it falls
+    through to the existing conflict_resolution flow (→ 409, not 400).
+    """
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": scored_camper_template.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-07-01",
+            },
+            format="json",
+        )
+    # Must be 409 (conflict_resolution required) not 400 (hard block).
+    assert resp.status_code == 409, resp.data
+
+
+@pytest.mark.django_db
+def test_scored_camper_form_on_different_bunk_is_allowed(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """The guard is per assignment group: a scored camper form on a different
+    bunk is not affected by an existing one on this bunk → 201.
+    """
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program,
+        name="Bunk C", slug="bunk-c", group_type="bunk",
+    )
+    second_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Camper Rated Alt",
+        slug="camper-rated-alt",
+        cadence="daily",
+        schema={
+            "fields": [
+                {
+                    "key": "r",
+                    "type": "rating_group",
+                    "prompts": {"en": "Rate."},
+                    "categories": [{"key": "x", "labels": {"en": "X"}}],
+                    "scale": [1, 4],
+                }
+            ]
+        },
+        languages=["en"],
+        subject_mode="single_subject",
+        subject_role_filter=["camper"],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": second_template.id,
+                "target_type": "assignment_group",
+                "assignment_group": other_bunk.id,
+                "target_payload": {},
+                "start_date": "2026-06-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+
+
+@pytest.mark.django_db
+def test_ended_scored_camper_assignment_does_not_block(
+    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+):
+    """An ENDED scored camper assignment does not trigger the guard even when
+    the date windows overlap — only SCHEDULED and ACTIVE assignments count.
+    """
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ENDED,
+        created_by=lt_membership,
+    )
+    second_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Camper Rated Successor",
+        slug="camper-rated-successor",
+        cadence="daily",
+        schema={
+            "fields": [
+                {
+                    "key": "r",
+                    "type": "rating_group",
+                    "prompts": {"en": "Rate."},
+                    "categories": [{"key": "x", "labels": {"en": "X"}}],
+                    "scale": [1, 4],
+                }
+            ]
+        },
+        languages=["en"],
+        subject_mode="single_subject",
+        subject_role_filter=["camper"],
+        author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": second_template.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-06-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data

@@ -139,6 +139,55 @@ describe('CamperCareFlags', () => {
     expect(sourceLabel).toBeInTheDocument();
   });
 
+  it('expands a flag row to fetch and show the full note plus team activity', async () => {
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    const flagId = '11111111-1111-1111-1111-111111111111';
+    getMock.mockResolvedValueOnce({
+      data: {
+        flag: samplePayload.items[0],
+        trigger: {
+          content_type: 'specialist_note',
+          body: 'Full note body with the entire account of what happened.',
+          author: 'Rivka G.',
+          created_at: '2026-07-04T10:00:00Z',
+        },
+        history: [
+          {
+            id: 'evt-1',
+            event_type: 'state_changed',
+            before_state: { status: 'active' },
+            after_state: { status: 'followed_up' },
+            reason_note: 'Checked in with the camper after dinner.',
+            actor: { membership_id: 9, name: 'Morgan C.', role: 'camper_care' },
+            created_at: '2026-07-04T12:00:00Z',
+          },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <CamperCareFlags />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByTestId(`flag-row-${flagId}`)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId(`flag-expand-${flagId}`));
+
+    await waitFor(() => {
+      expect(screen.getByTestId(`flag-activity-${flagId}`)).toBeInTheDocument();
+    });
+    expect(getMock).toHaveBeenLastCalledWith(`/api/v1/camper-care/flags/${flagId}/`);
+    const activity = screen.getByTestId(`flag-activity-${flagId}`);
+    expect(activity).toHaveTextContent(/Full note body with the entire account/);
+    expect(activity).toHaveTextContent(/Marked followed up/);
+    expect(activity).toHaveTextContent(/Checked in with the camper after dinner/);
+    expect(activity).toHaveTextContent(/Morgan C\./);
+  });
+
   it('shows the resolved section when toggled and fetches with status=resolved', async () => {
     getMock.mockResolvedValueOnce({ data: samplePayload });
     getMock.mockResolvedValueOnce({

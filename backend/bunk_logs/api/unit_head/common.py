@@ -33,8 +33,9 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
-from bunk_logs.core.reflection_scores import iter_scored_fields
-from bunk_logs.core.reflection_scores import resolve_rating_cells
+from bunk_logs.core.reflection_scores import iter_grid_fields
+from bunk_logs.core.reflection_scores import resolve_grid_cells
+from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ __all__ = [
     "off_camp_camper_ids",
     "supervised_bunk_ids",
     "supervised_bunks",
+    "unit_head_self_period",
     "unit_head_self_template",
     "viewer_or_403",
 ]
@@ -184,12 +186,15 @@ def unit_head_self_template(
     viewer: Person | None = None,
     as_of: date | None = None,
 ) -> ReflectionTemplate | None:
-    """Daily self-reflection template for the UH role.
+    """Self-reflection template for the UH role, at whatever cadence is assigned.
 
     Resolves via :func:`resolve_template_for` (Step 7_21): returns the
     template bound by an active ``TemplateAssignment`` for the
-    (org, program, ``unit_head``, ``self``, ``daily``) tuple, or
-    ``None`` when no assignment is active.
+    (org, program, ``unit_head``, ``self``) tuple, or ``None`` when no
+    assignment is active. Cadence is intentionally NOT constrained — the
+    read + write paths honour whatever cadence (daily / weekly / biweekly
+    / monthly) the admin assigned, using :func:`unit_head_self_period`
+    for the period bounds.
     """
     return resolve_template_for(
         organization=organization,
@@ -197,8 +202,25 @@ def unit_head_self_template(
         as_of=as_of or get_today(organization),
         role="unit_head",
         subject_mode="self",
-        cadence="daily",
         viewer=viewer,
+    )
+
+
+def unit_head_self_period(
+    template: ReflectionTemplate,
+    organization: Organization,
+    program: Program,
+    *,
+    today: date,
+) -> tuple[date, date]:
+    """``(period_start, period_end)`` for the UH self-reflection's cadence.
+
+    Daily templates collapse to ``(today, today)``; weekly / biweekly /
+    monthly templates return the period window containing ``today`` so the
+    dashboard state, submission, and edit window all agree on bounds.
+    """
+    return get_current_period(
+        template.cadence, organization, program=program, anchor=today,
     )
 
 
@@ -272,20 +294,42 @@ def compute_attention_badges(
 
 @dataclass(frozen=True)
 class ScoreGridColumn:
-    """One scored cell column in the Story 12 grid.
+    """One cell column in the Story 12 grid.
 
-    ``label`` matches the key emitted by ``resolve_rating_cells`` so a
+    ``label`` matches the key emitted by ``resolve_grid_cells`` so a
     consumer can directly index per-camper score dicts. ``field_key``
     is the schema field this column belongs to; for a ``rating_group``
     column ``category_key`` is the category, ``None`` for single
-    ratings. ``scale_max`` drives the frontend palette selection.
+    ratings. ``scale_max`` drives the frontend palette selection for
+    scored columns; ``None`` for text and other non-rating fields.
     """
 
     label: str
     field_key: str
     field_type: str
     category_key: str | None
-    scale_max: int
+    scale_max: int | None
+    header: str
+
+
+def _grid_column_header(field: dict, label: str, category_key: str | None) -> str:
+    """Human-readable column title for the score grid."""
+    if category_key:
+        for cat in field.get("categories") or []:
+            if isinstance(cat, dict) and cat.get("key") == category_key:
+                labels = cat.get("labels") or {}
+                en = labels.get("en")
+                if isinstance(en, str) and en.strip():
+                    return en.strip()
+        return category_key
+    prompts = field.get("prompts") or {}
+    en = prompts.get("en")
+    if isinstance(en, str) and en.strip():
+        return en.strip()
+    fkey = field.get("key")
+    if isinstance(fkey, str) and fkey.strip():
+        return fkey
+    return label
 
 
 def score_grid_columns(template: ReflectionTemplate) -> list[ScoreGridColumn]:
@@ -294,10 +338,10 @@ def score_grid_columns(template: ReflectionTemplate) -> list[ScoreGridColumn]:
     Order matches the template ``schema['fields']`` sequence (Story 12
     criterion 7 forbids viewer reordering). Each rating_group expands
     to one column per declared category in the template's category
-    order.
+    order. Text, yes/no, and other answer fields get one column each.
     """
     columns: list[ScoreGridColumn] = []
-    for field, label, sm in iter_scored_fields(template):
+    for field, label, sm in iter_grid_fields(template):
         ftype = field.get("type")
         fkey = field.get("key")
         if not isinstance(fkey, str):
@@ -312,6 +356,7 @@ def score_grid_columns(template: ReflectionTemplate) -> list[ScoreGridColumn]:
                 field_type=ftype or "",
                 category_key=category_key,
                 scale_max=sm,
+                header=_grid_column_header(field, label, category_key),
             ),
         )
     return columns
@@ -339,6 +384,7 @@ def build_score_grid(
             "field_type": col.field_type,
             "category_key": col.category_key,
             "scale_max": col.scale_max,
+            "header": col.header,
         }
         for col in columns
     ]
@@ -350,13 +396,13 @@ def build_score_grid(
     }
     for camper in campers:
         reflection = reflections_by_subject.get(camper.id)
-        cells: dict[str, float | None] = {col.label: None for col in columns}
+        cells: dict[str, float | str | None] = {col.label: None for col in columns}
         if reflection is not None and reflection.answers:
             for col in columns:
                 field = field_by_key.get(col.field_key)
                 if field is None:
                     continue
-                cells.update(resolve_rating_cells(field, reflection.answers or {}))
+                cells.update(resolve_grid_cells(field, reflection.answers or {}))
         rows.append(
             {
                 "camper": {
@@ -439,6 +485,34 @@ def help_requested_camper_ids_from(
             if not isinstance(field, dict):
                 continue
             if field.get("dashboard_role") != "help_request_unit_head":
+                continue
+            key = field.get("key")
+            if isinstance(key, str) and _is_truthy_yes_no(answers.get(key)):
+                out.add(camper_id)
+                break
+    return out
+
+
+def camper_care_help_requested_camper_ids_from(
+    reflections: dict[int, Reflection],
+) -> set[int]:
+    """Subject IDs whose reflection asked for Camper Care help today.
+
+    Mirror of :func:`help_requested_camper_ids_from` for the Camper Care
+    triage flag: looks for the canonical Crane Lake key
+    ``request_camper_care_help`` or any field tagged
+    ``dashboard_role="help_request_camper_care"``.
+    """
+    out: set[int] = set()
+    for camper_id, refl in reflections.items():
+        answers = refl.answers or {}
+        if _is_truthy_yes_no(answers.get("request_camper_care_help")):
+            out.add(camper_id)
+            continue
+        for field in (refl.template.schema or {}).get("fields") or []:
+            if not isinstance(field, dict):
+                continue
+            if field.get("dashboard_role") != "help_request_camper_care":
                 continue
             key = field.get("key")
             if isinstance(key, str) and _is_truthy_yes_no(answers.get(key)):

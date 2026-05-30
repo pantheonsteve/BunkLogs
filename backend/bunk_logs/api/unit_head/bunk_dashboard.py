@@ -9,6 +9,7 @@ spec order (criterion 1) and collapse them when empty (criterion 2):
 
 * ``header`` — bunk + date + counselor display names.
 * ``help_requested`` — campers who asked for UH help today.
+* ``camper_care_help_requested`` — campers who asked for Camper Care help today.
 * ``off_camp`` — campers flagged ``is_off_camp`` today.
 * ``bunk_concerns`` — counselor / UH self-reflections that referenced
   this bunk via ``bunk_concerns_bunks`` today.
@@ -49,6 +50,7 @@ from bunk_logs.core.time_utils import get_org_timezone
 
 from .common import build_score_grid
 from .common import bunk_concerns_referencing
+from .common import camper_care_help_requested_camper_ids_from
 from .common import help_requested_camper_ids_from
 from .common import off_camp_camper_ids
 from .common import supervised_bunk_ids
@@ -158,6 +160,11 @@ def build_bunk_dashboard_payload(
         _camper_brief(c) for c in campers if c.id in help_ids
     ]
 
+    cc_help_ids = camper_care_help_requested_camper_ids_from(reflections_by_subject)
+    cc_help_payload = [
+        _camper_brief(c) for c in campers if c.id in cc_help_ids
+    ]
+
     # Bunk-concerns referencing this bunk today.
     bc_map = bunk_concerns_referencing(
         organization=organization,
@@ -199,6 +206,7 @@ def build_bunk_dashboard_payload(
             "counselor_names": _counselor_names(bunk),
         },
         "help_requested": help_payload,
+        "camper_care_help_requested": cc_help_payload,
         "off_camp": off_camp_payload,
         "bunk_concerns": bc_payload,
         "score_grid": score_grid_payload,

@@ -17,9 +17,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
-  fetchFlags, followUpFlag, resolveFlag, reopenFlag,
+  fetchFlags, fetchFlagDetail, followUpFlag, resolveFlag, reopenFlag,
 } from '../../api/camperCare';
+import RichText from '../../components/ui/RichText';
 
 const TRIGGER_LABELS = {
   specialist_note: 'Specialist note',
@@ -66,13 +68,113 @@ function formatTimestamp(iso) {
   }
 }
 
+function historyLabel(ev) {
+  const after = ev?.after_state?.status;
+  if (ev?.event_type === 'created') return 'Flag raised';
+  if (after === 'followed_up') return 'Marked followed up';
+  if (after === 'resolved') return 'Resolved';
+  if (after === 'active') return 'Reopened';
+  return (ev?.event_type || 'Updated').replace(/_/g, ' ');
+}
+
+function FlagActivity({ flag }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const updatedAt = flag.updated_at;
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    fetchFlagDetail(flag.id)
+      .then((d) => { if (active) setDetail(d); })
+      .catch(() => { if (active) setError('Could not load activity.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // Re-fetch when the flag changes (e.g. after a transition adds a note).
+  }, [flag.id, updatedAt]);
+
+  if (loading) {
+    return <p className="text-sm text-gray-500 dark:text-gray-400">Loading activity…</p>;
+  }
+  if (error) {
+    return <p className="text-sm text-red-700 dark:text-red-300">{error}</p>;
+  }
+
+  const trigger = detail?.trigger;
+  const history = detail?.history ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1">
+          {triggerLabel(trigger?.content_type) || 'Source'}
+          {trigger?.author ? ` · ${trigger.author}` : ''}
+          {trigger?.created_at ? ` · ${formatTimestamp(trigger.created_at)}` : ''}
+        </p>
+        {trigger?.body ? (
+          <RichText
+            html={trigger.body}
+            className="text-sm text-gray-700 dark:text-gray-200 border-l-2 border-gray-300 dark:border-gray-600 pl-3"
+          />
+        ) : (
+          <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+            Source content is no longer available.
+          </p>
+        )}
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+          Activity &amp; responses
+        </p>
+        {history.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+            No follow-up activity yet.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {history.map((ev) => (
+              <li
+                key={ev.id}
+                data-testid={`flag-activity-event-${ev.id}`}
+                className="border-l-2 border-blue-200 dark:border-blue-900 pl-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {historyLabel(ev)}
+                  </span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                    {formatTimestamp(ev.created_at)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {ev.actor?.name || 'Unknown'}
+                  {ev.actor?.role ? ` (${ev.actor.role})` : ''}
+                </p>
+                {ev.reason_note && (
+                  <p className="text-sm text-gray-700 dark:text-gray-200 mt-1 whitespace-pre-wrap">
+                    {ev.reason_note}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FlagRow({ flag, onAction }) {
+  const [expanded, setExpanded] = useState(false);
   const raisedBy = flag.raised_by?.name || 'Unknown';
   const roleLabel = flag.raised_by?.role ? ` (${flag.raised_by.role})` : '';
   const camperId = flag.subject_camper?.id;
   const camperHref = camperId
     ? `/camper-care/campers/${camperId}?flagId=${encodeURIComponent(flag.id)}#flag-${flag.id}`
     : null;
+  const ChevronIcon = expanded ? ChevronDown : ChevronRight;
   return (
     <li
       data-testid={`flag-row-${flag.id}`}
@@ -105,13 +207,31 @@ function FlagRow({ flag, onAction }) {
           Source: {triggerLabel(flag.trigger_content_type)}
         </p>
       )}
-      {flag.trigger_preview && (
+      {flag.trigger_preview && !expanded && (
         <blockquote
           data-testid={`flag-trigger-preview-${flag.id}`}
           className="text-sm text-gray-700 dark:text-gray-200 italic border-l-2 border-gray-300 dark:border-gray-600 pl-3 mt-2 line-clamp-3"
         >
           {flag.trigger_preview}
         </blockquote>
+      )}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        data-testid={`flag-expand-${flag.id}`}
+        className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"
+      >
+        <ChevronIcon className="w-4 h-4" aria-hidden="true" />
+        {expanded ? 'Hide activity' : 'Show full note & activity'}
+      </button>
+      {expanded && (
+        <div
+          data-testid={`flag-activity-${flag.id}`}
+          className="mt-3 border-t border-gray-100 dark:border-gray-800 pt-3"
+        >
+          <FlagActivity flag={flag} />
+        </div>
       )}
       <div className="flex flex-wrap gap-2 mt-3">
         {(flag.status === 'active' || flag.status === 'followed_up') && (

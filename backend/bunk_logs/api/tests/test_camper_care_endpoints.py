@@ -1189,6 +1189,60 @@ class TestFlagWorkspaceTriggerPreview:
         assert items[0]["trigger_preview"] == ""
 
 
+class TestFlagDetail:
+    def test_detail_returns_full_body_and_team_activity(
+        self, api, org, program, cc_person_user, cc_membership,
+        counselor_person_user, camper,
+    ):
+        """Expanding a flag returns the untruncated source note plus the
+        audit history (every follow-up / resolve note the CC team wrote).
+        """
+        author_person, _ = counselor_person_user
+        long_body = "Camper had a very hard night. " + ("detail " * 60)
+        note = Note.all_objects.create(
+            organization=org, program=program, subject=camper,
+            author=author_person,
+            note_type=Note.NoteType.SPECIALIST,
+            body=long_body, is_sensitive=False,
+        )
+        flag = flag_helpers.raise_flag_from_specialist_note(note)
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            api.post(
+                f"/api/v1/camper-care/flags/{flag.id}/follow-up/",
+                {"note": "Checked in with the camper after dinner."},
+                format="json", **_hdr(org.slug),
+            )
+            r = api.get(
+                f"/api/v1/camper-care/flags/{flag.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        body = r.json()
+        # Full (untruncated) source body, not the 160-char preview.
+        assert body["trigger"]["body"] == long_body.strip()
+        assert len(body["trigger"]["body"]) > 161
+        # Team activity surfaces the follow-up note + its author.
+        history = body["history"]
+        assert any(
+            row["reason_note"] == "Checked in with the camper after dinner."
+            and row["after_state"].get("status") == "followed_up"
+            for row in history
+        )
+        assert history[-1]["actor"]["membership_id"] == cc_membership.id
+
+    def test_detail_404_for_unknown_flag(
+        self, api, org, cc_person_user, cc_membership,
+    ):
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/flags/{uuid4()}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 404
+
+
 class TestCamperDashboardFlagHistory:
     def test_flag_history_returned_newest_first(
         self, api, org, program, cc_person_user, cc_membership, cc_caseload,

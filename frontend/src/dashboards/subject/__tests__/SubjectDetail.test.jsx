@@ -206,7 +206,7 @@ describe('SubjectDetail', () => {
   // Notes panel
   // -------------------------------------------------------------------------
 
-  it('renders notes panel with existing notes', () => {
+  it('renders notes panel with existing notes sorted newest first', () => {
     const notes = [
       {
         id: 1,
@@ -246,6 +246,36 @@ describe('SubjectDetail', () => {
     const note2 = screen.getByTestId('subject-note-2');
     expect(within(note2).getByText('Had a tough morning.')).toBeInTheDocument();
     expect(within(note2).getByText('Admin only')).toBeInTheDocument();
+
+    const cards = within(panel).getAllByRole('listitem');
+    expect(cards[0]).toHaveAttribute('data-testid', 'subject-note-1');
+    expect(cards[1]).toHaveAttribute('data-testid', 'subject-note-2');
+  });
+
+  it('shows submission date and time on each note', () => {
+    renderDetail({
+      notes: [{
+        id: 3,
+        body: 'After lunch check-in.',
+        context: '',
+        visibility: 'team',
+        is_sensitive: false,
+        subject_visible: false,
+        amendment_of: null,
+        author: { id: 10, name: 'Jane Instructor' },
+        created_at: '2026-05-25T14:30:00Z',
+      }],
+    });
+
+    const note = screen.getByTestId('subject-note-3');
+    const submitted = new Date('2026-05-25T14:30:00Z').toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    expect(within(note).getByText(submitted, { exact: false })).toBeInTheDocument();
   });
 
   it('shows empty state when no notes', () => {

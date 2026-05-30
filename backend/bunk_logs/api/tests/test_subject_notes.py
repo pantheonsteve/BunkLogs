@@ -263,3 +263,287 @@ def test_subject_dashboard_includes_notes(api_client, org, program, setup):
     body = r.json()
     assert "notes" in body
     assert any(n["body"] == "Dashboard note" for n in body["notes"])
+
+
+# ---------------------------------------------------------------------------
+# Cross-subject feed: GET /api/v1/subject-notes/recent/
+# ---------------------------------------------------------------------------
+
+def test_recent_feed_returns_visible_notes(api_client, org, program, setup):
+    _, camper, cns_user, _, _, lt, _, _ = setup
+    SubjectNote.all_objects.create(
+        organization=org, program=program, subject=camper,
+        author_person=lt, body="Team note", visibility="team",
+    )
+    SubjectNote.all_objects.create(
+        organization=org, program=program, subject=camper,
+        author_person=lt, body="Domain note", visibility="domain_only",
+    )
+    api_client.force_authenticate(user=cns_user)
+    r = api_client.get("/api/v1/subject-notes/recent/", **_hdr(org.slug))
+    assert r.status_code == 200, r.content
+    data = r.json()
+    bodies = {n["body"] for n in data["notes"]}
+    # Counselor (participant supervising the camper) sees team + supervisors_only
+    # but not domain_only.
+    assert "Team note" in bodies
+    assert "Domain note" not in bodies
+    # Each row carries its subject envelope
+    for n in data["notes"]:
+        if n["body"] == "Team note":
+            assert n["subject"] == {"id": camper.id, "full_name": camper.full_name}
+
+
+def test_recent_feed_excludes_unsupervised_subjects(api_client, org, program, setup):
+    _, camper, _, _, _, lt, _, _ = setup
+    # An unrelated camper in another bunk the counselor doesn't author.
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Other Bunk",
+        slug="other-bunk", group_type="bunk",
+    )
+    other_camper = _person(org, "Other", "Camper")
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_camper, role_in_group="subject", is_active=True,
+    )
+    Membership.all_objects.create(
+        program=program, person=other_camper, role="camper", is_active=True,
+    )
+    SubjectNote.all_objects.create(
+        organization=org, program=program, subject=other_camper,
+        author_person=lt, body="Other-bunk note", visibility="team",
+    )
+
+    cns_user = setup[2]
+    api_client.force_authenticate(user=cns_user)
+    r = api_client.get("/api/v1/subject-notes/recent/", **_hdr(org.slug))
+    assert r.status_code == 200
+    bodies = {n["body"] for n in r.json()["notes"]}
+    assert "Other-bunk note" not in bodies
+
+
+def test_recent_feed_respects_org_isolation(api_client, org, program, setup):
+    _, _, cns_user, _, _, _, _, _ = setup
+    other_org = Organization.objects.create(name="Other", slug="notes-other")
+    other_program = Program.all_objects.create(
+        organization=other_org, name="Other Prog", slug="notes-other-prog",
+        program_type="summer_camp",
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+    )
+    other_camper = Person.all_objects.create(
+        organization=other_org, first_name="Cross", last_name="Org",
+    )
+    SubjectNote.all_objects.create(
+        organization=other_org, program=other_program, subject=other_camper,
+        author_person=other_camper, body="Cross-org leak", visibility="team",
+    )
+    api_client.force_authenticate(user=cns_user)
+    r = api_client.get("/api/v1/subject-notes/recent/", **_hdr(org.slug))
+    assert r.status_code == 200
+    bodies = {n["body"] for n in r.json()["notes"]}
+    assert "Cross-org leak" not in bodies
+
+
+def test_recent_feed_honors_limit(api_client, org, program, setup):
+    _, camper, _, _, lt_user, lt, _, _ = setup
+    for i in range(5):
+        SubjectNote.all_objects.create(
+            organization=org, program=program, subject=camper,
+            author_person=lt, body=f"Note {i}", visibility="team",
+        )
+    api_client.force_authenticate(user=lt_user)
+    r = api_client.get("/api/v1/subject-notes/recent/?limit=2", **_hdr(org.slug))
+    assert r.status_code == 200
+    assert len(r.json()["notes"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Searchable subjects: GET /api/v1/subject-notes/subjects/
+# ---------------------------------------------------------------------------
+
+def test_searchable_subjects_for_supervisor_role(api_client, org, setup):
+    _, camper, _, _, lt_user, _, _, _ = setup
+    api_client.force_authenticate(user=lt_user)
+    r = api_client.get("/api/v1/subject-notes/subjects/?q=Kim", **_hdr(org.slug))
+    assert r.status_code == 200
+    names = [s["full_name"] for s in r.json()["subjects"]]
+    assert any("Kim" in n for n in names)
+
+
+def test_searchable_subjects_filters_by_q(api_client, org, setup):
+    _, _, _, _, lt_user, _, _, _ = setup
+    api_client.force_authenticate(user=lt_user)
+    r = api_client.get("/api/v1/subject-notes/subjects/?q=zzznomatch", **_hdr(org.slug))
+    assert r.status_code == 200
+    assert r.json()["subjects"] == []
+
+
+def test_searchable_subjects_for_counselor_excludes_other_bunks(
+    api_client, org, program, setup,
+):
+    _, _, cns_user, _, _, _, _, _ = setup
+    # Camper on a different bunk the counselor doesn't author.
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Other2",
+        slug="other-bunk-2", group_type="bunk",
+    )
+    other_camper = _person(org, "Aoife", "Outsider")
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_camper, role_in_group="subject", is_active=True,
+    )
+    Membership.all_objects.create(
+        program=program, person=other_camper, role="camper", is_active=True,
+    )
+
+    api_client.force_authenticate(user=cns_user)
+    r = api_client.get("/api/v1/subject-notes/subjects/?q=Aoife", **_hdr(org.slug))
+    assert r.status_code == 200
+    # Counselor doesn't supervise that bunk -> not visible.
+    names = [s["full_name"] for s in r.json()["subjects"]]
+    assert all("Aoife" not in n for n in names)
+
+
+def test_searchable_subjects_org_isolated(api_client, org, setup):
+    _, _, _, _, lt_user, _, _, _ = setup
+    other_org = Organization.objects.create(name="Other", slug="notes-search-other")
+    Person.all_objects.create(organization=other_org, first_name="Foreign", last_name="Person")
+    api_client.force_authenticate(user=lt_user)
+    r = api_client.get("/api/v1/subject-notes/subjects/?q=Foreign", **_hdr(org.slug))
+    assert r.status_code == 200
+    names = [s["full_name"] for s in r.json()["subjects"]]
+    assert all("Foreign" not in n for n in names)
+
+
+# ---------------------------------------------------------------------------
+# Authoring scope: program-scoped roles (specialist) + overrides
+# ---------------------------------------------------------------------------
+
+def test_specialist_can_create_note_for_program_camper(api_client, org, program, setup):
+    """Activity specialists get program scope — no bunk authorship required."""
+    _, camper, _, _, _, _, _, _ = setup
+    sp_user = _user("sp-subject@a.com")
+    sp = _person(org, "Swim", "Coach", sp_user)
+    Membership.all_objects.create(program=program, person=sp, role="specialist", is_active=True)
+    api_client.force_authenticate(user=sp_user)
+    r = api_client.post(
+        f"/api/v1/subjects/{camper.id}/notes/",
+        {"body": "Great at swim today", "visibility": "team"},
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 201, r.content
+    assert SubjectNote.all_objects.filter(subject=camper, body="Great at swim today").exists()
+
+
+def test_specialist_can_read_own_note_after_create(api_client, org, program, setup):
+    """Authors always see notes they wrote, even without supervisor capability."""
+    _, camper, _, _, _, _, _, _ = setup
+    sp_user = _user("sp-read@a.com")
+    sp = _person(org, "Swim", "Coach", sp_user)
+    Membership.all_objects.create(program=program, person=sp, role="specialist", is_active=True)
+    api_client.force_authenticate(user=sp_user)
+    create = api_client.post(
+        f"/api/v1/subjects/{camper.id}/notes/",
+        {"body": "Needs extra goggles", "visibility": "supervisors_only"},
+        **_hdr(org.slug),
+    )
+    assert create.status_code == 201, create.content
+
+    per_subject = api_client.get(f"/api/v1/subjects/{camper.id}/notes/", **_hdr(org.slug))
+    assert per_subject.status_code == 200
+    bodies = [n["body"] for n in per_subject.json()["notes"]]
+    assert "Needs extra goggles" in bodies
+
+    recent = api_client.get("/api/v1/subject-notes/recent/", **_hdr(org.slug))
+    assert recent.status_code == 200
+    recent_bodies = [n["body"] for n in recent.json()["notes"]]
+    assert "Needs extra goggles" in recent_bodies
+
+
+def test_specialist_cannot_read_other_specialists_private_note(
+    api_client, org, program, setup,
+):
+    """Program-scoped authors do not inherit read access to peers' restricted notes."""
+    _, camper, _, _, _, _, _, _ = setup
+    sp1_user = _user("sp1-read@a.com")
+    sp2_user = _user("sp2-read@a.com")
+    sp1 = _person(org, "Swim", "One", sp1_user)
+    sp2 = _person(org, "Swim", "Two", sp2_user)
+    Membership.all_objects.create(program=program, person=sp1, role="specialist", is_active=True)
+    Membership.all_objects.create(program=program, person=sp2, role="specialist", is_active=True)
+
+    api_client.force_authenticate(user=sp1_user)
+    create = api_client.post(
+        f"/api/v1/subjects/{camper.id}/notes/",
+        {"body": "Private swim observation", "visibility": "admin_only"},
+        **_hdr(org.slug),
+    )
+    assert create.status_code == 201, create.content
+
+    api_client.force_authenticate(user=sp2_user)
+    per_subject = api_client.get(f"/api/v1/subjects/{camper.id}/notes/", **_hdr(org.slug))
+    assert per_subject.status_code == 200
+    bodies = [n["body"] for n in per_subject.json()["notes"]]
+    assert "Private swim observation" not in bodies
+
+
+def test_specialist_appears_in_searchable_subjects(api_client, org, program, setup):
+    _, camper, _, _, _, _, _, _ = setup
+    sp_user = _user("sp-search@a.com")
+    sp = _person(org, "Swim", "Coach", sp_user)
+    Membership.all_objects.create(program=program, person=sp, role="specialist", is_active=True)
+    api_client.force_authenticate(user=sp_user)
+    r = api_client.get("/api/v1/subject-notes/subjects/?q=Kim", **_hdr(org.slug))
+    assert r.status_code == 200
+    names = [s["full_name"] for s in r.json()["subjects"]]
+    assert any("Kim" in n for n in names)
+
+
+def test_kitchen_staff_blocked_by_default(api_client, org, program, setup):
+    _, camper, _, _, _, _, _, _ = setup
+    ks_user = _user("ks-subject@a.com")
+    ks = _person(org, "Kit", "Chen", ks_user)
+    Membership.all_objects.create(
+        program=program, person=ks, role="kitchen_staff", is_active=True,
+    )
+    api_client.force_authenticate(user=ks_user)
+    r = api_client.post(
+        f"/api/v1/subjects/{camper.id}/notes/",
+        {"body": "Ate well at lunch", "visibility": "team"},
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 403
+
+
+def test_kitchen_staff_override_allows_authoring(api_client, org, program, setup):
+    _, camper, _, _, _, _, _, _ = setup
+    ks_user = _user("ks-override@a.com")
+    ks = _person(org, "Kit", "Chen", ks_user)
+    Membership.all_objects.create(
+        program=program,
+        person=ks,
+        role="kitchen_staff",
+        is_active=True,
+        metadata={"can_author_subject_notes": True},
+    )
+    api_client.force_authenticate(user=ks_user)
+    r = api_client.post(
+        f"/api/v1/subjects/{camper.id}/notes/",
+        {"body": "Ate well at lunch", "visibility": "team"},
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 201, r.content
+
+
+def test_org_settings_can_disable_specialist_authoring(api_client, org, program, setup):
+    _, camper, _, _, _, _, _, _ = setup
+    org.settings = {"subject_notes": {"author_by_role": {"specialist": "none"}}}
+    org.save()
+    sp_user = _user("sp-disabled@a.com")
+    sp = _person(org, "Swim", "Coach", sp_user)
+    Membership.all_objects.create(program=program, person=sp, role="specialist", is_active=True)
+    api_client.force_authenticate(user=sp_user)
+    r = api_client.post(
+        f"/api/v1/subjects/{camper.id}/notes/",
+        {"body": "Should not save", "visibility": "team"},
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 403

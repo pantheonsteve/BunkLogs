@@ -1,14 +1,13 @@
 /**
  * ThreadView — single note thread with replies and reply composer (Story 68).
  *
- * Route: /notes/:noteId
+ * Route: /notes/:noteId. Mounted under AppLayout, which owns the chrome.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
-import Header from '../../partials/Header';
-import Sidebar from '../../partials/Sidebar';
 import SourceReferenceIndicator from '../../components/notes/SourceReferenceIndicator';
+import RichText from '../../components/ui/RichText';
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -47,7 +46,6 @@ function ReadSummary({ readSummary }) {
 export default function ThreadView() {
   const { noteId } = useParams();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -114,26 +112,20 @@ export default function ThreadView() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
-          <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-            {/* Back link */}
-            <button
-              type="button"
-              onClick={() => navigate('/notes')}
-              className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Notes
-            </button>
+    <main className="grow">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
+        <button
+          type="button"
+          onClick={() => navigate('/notes')}
+          className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Notes
+        </button>
 
-            {/* Thread card */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
               {/* Header */}
               <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                 <div className="flex items-start justify-between gap-3">
@@ -175,8 +167,11 @@ export default function ThreadView() {
               </div>
 
               {/* Original body */}
-              <div className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap border-b border-gray-100 dark:border-gray-700">
-                {note.body}
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                <RichText
+                  html={note.body}
+                  className="text-sm text-gray-800 dark:text-gray-200 break-words [&_p]:mb-2 last:[&_p]:mb-0"
+                />
               </div>
 
               {/* Replies */}
@@ -191,9 +186,10 @@ export default function ThreadView() {
                         <span className="text-xs text-gray-400">({reply.author_role_at_write})</span>
                         <span className="text-xs text-gray-400 ml-auto">{timeAgo(reply.created_at)}</span>
                       </div>
-                      <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                        {reply.body}
-                      </p>
+                      <RichText
+                        html={reply.body}
+                        className="text-sm text-gray-800 dark:text-gray-200 break-words [&_p]:mb-2 last:[&_p]:mb-0"
+                      />
                     </div>
                   ))}
                 </div>
@@ -227,7 +223,5 @@ export default function ThreadView() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
   );
 }

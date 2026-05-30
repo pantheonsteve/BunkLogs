@@ -18,7 +18,12 @@ function timeAgo(iso) {
 }
 
 export default function NoteListItem({ note, variant = 'inbox' }) {
-  const { id, subject, author, audience_summary, last_activity_at, unread } = note;
+  const { id, subject, author, audience_summary, last_activity_at, unread, viewer_is_author } = note;
+
+  // A note the viewer authored can surface in the Inbox once it's been replied
+  // to, so label by authorship rather than by the tab: their own threads read
+  // "To: <recipients>", received notes read "From: <author>".
+  const showRecipients = viewer_is_author ?? variant !== 'inbox';
 
   return (
     <Link
@@ -42,9 +47,9 @@ export default function NoteListItem({ note, variant = 'inbox' }) {
           <span className="text-xs text-gray-400 shrink-0">{timeAgo(last_activity_at)}</span>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-          {variant === 'inbox'
-            ? `From: ${author?.full_name ?? '—'}`
-            : `To: ${audience_summary ?? '—'}`}
+          {showRecipients
+            ? `To: ${audience_summary ?? '—'}`
+            : `From: ${author?.full_name ?? '—'}`}
         </p>
       </div>
     </Link>
