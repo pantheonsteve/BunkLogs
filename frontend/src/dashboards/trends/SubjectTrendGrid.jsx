@@ -108,7 +108,7 @@ export default function SubjectTrendGrid({ payload, category = '', onCategoryCha
                   className="sticky left-0 z-10 bg-white dark:bg-gray-900 px-3 py-1.5 text-left text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap font-normal"
                 >
                   <Link
-                    to={`/dashboards/subject/${s.person_id}`}
+                    to={`/profile/${s.person_id}`}
                     className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-400 rounded"
                   >
                     {s.name}

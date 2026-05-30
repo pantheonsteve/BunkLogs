@@ -104,7 +104,7 @@ export default function ConcernsInbox({ payload, onChanged }) {
                   <p className="text-sm text-gray-900 dark:text-white">
                     {it.subject_id ? (
                       <Link
-                        to={`/dashboards/subject/${it.subject_id}`}
+                        to={`/profile/${it.subject_id}`}
                         className="font-medium hover:underline"
                       >
                         {it.subject_name}

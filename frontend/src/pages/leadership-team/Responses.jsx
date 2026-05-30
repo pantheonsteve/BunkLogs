@@ -106,7 +106,7 @@ function shiftISO(iso, deltaDays) {
 function SubjectCell({ row, dateQs }) {
   const subjectId = row.subject?.id;
   const linkTo = subjectId
-    ? `/dashboards/subject/${subjectId}${dateQs ?? ''}`
+    ? `/profile/${subjectId}${dateQs ?? ''}`
     : null;
   return <SharedSubjectCell row={row} linkTo={linkTo} />;
 }

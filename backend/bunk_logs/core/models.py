@@ -1021,7 +1021,13 @@ class Reflection(models.Model):
 
 
 class Note(models.Model):
-    """Free-text note attached to a subject (camper profile, ticket, etc.)."""
+    """Free-text note attached to a subject (camper profile, ticket, etc.).
+
+    DEPRECATED for ``camper_care`` / ``specialist`` (Step 7_23): those rows are
+    converged into ``notes.Observation`` by ``migrate_observations`` and new
+    writes should use the Observations API. The ``maintenance`` note_type is
+    NOT part of the convergence and remains the live store for ticket notes.
+    """
 
     class NoteType(models.TextChoices):
         CAMPER_CARE = "camper_care", "Camper Care"
@@ -1115,6 +1121,11 @@ class Note(models.Model):
 
 class SubjectNote(models.Model):
     """Immutable ad-hoc observation about a subject Person.
+
+    DEPRECATED (Step 7_23): superseded by ``notes.Observation``. Existing rows
+    are converted by the ``migrate_observations`` command; new writes should go
+    through the Observations API. Kept read-only until a later cleanup prompt
+    drops the table after a stable window.
 
     Complements Reflection (structured/periodic) with free-text observations
     from any authorized staff member. Once created, a note cannot be edited;
