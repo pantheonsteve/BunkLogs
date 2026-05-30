@@ -53,6 +53,9 @@ import FieldKeyListPage from './pages/admin/field-keys/FieldKeyListPage';
 import TasksPage from './pages/TasksPage';
 import NotesPage from './pages/notes/NotesPage';
 import ThreadView from './pages/notes/ThreadView';
+import SubjectNotesPage from './pages/subject-notes/SubjectNotesPage';
+import ObservationsInbox from './pages/observations/ObservationsInbox';
+import ObservationThread from './pages/observations/ObservationThread';
 import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
 import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
 import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
@@ -123,6 +126,14 @@ function ProtectedRoute({ children }) {
   }
 
   return children;
+}
+
+// Step 7_23: redirect the legacy /dashboards/subject/:personId path to the
+// renamed /profile/:personId surface, preserving any query string.
+function SubjectProfileRedirect() {
+  const { personId } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/profile/${personId}${location.search}`} replace />;
 }
 
 // Admin-only route: Super Admin (is_staff || is_superuser) or User.role === 'admin'.
@@ -379,6 +390,9 @@ function Router() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/notes/:noteId" element={<ThreadView />} />
+          <Route path="/subject-notes" element={<SubjectNotesPage />} />
+          <Route path="/observations" element={<ObservationsInbox />} />
+          <Route path="/observations/:observationId" element={<ObservationThread />} />
           <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
           {/* 7_6d: Counselor mobile flow. Lives under AppLayout so the
               sidebar/header chrome (3.32 / 3.33) stays available on the
@@ -654,13 +668,19 @@ function Router() {
             </ProtectedRoute>
           }
         />
+        {/* Step 7_23: the per-person dashboard is now the "Profile". The old
+            /dashboards/subject/:personId path redirects here for compatibility. */}
         <Route
-          path="/dashboards/subject/:personId"
+          path="/profile/:personId"
           element={
             <ProtectedRoute>
               <SubjectDetailPage />
             </ProtectedRoute>
           }
+        />
+        <Route
+          path="/dashboards/subject/:personId"
+          element={<SubjectProfileRedirect />}
         />
         <Route
           path="/dashboards/authors"
