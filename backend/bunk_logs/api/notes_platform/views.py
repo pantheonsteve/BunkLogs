@@ -6,6 +6,7 @@ Endpoints:
   GET  /api/v1/notes/archive/           — Story 67
   GET  /api/v1/notes/unread-count/      — Story 67 c10 / sidebar badge
   GET  /api/v1/notes/audience-options/  — Story 66 c2
+  GET  /api/v1/notes/audience-candidates/ — composer autocomplete
   GET  /api/v1/notes/<id>/              — Story 68 thread view
   POST /api/v1/notes/                   — Story 66 compose
   POST /api/v1/notes/<id>/replies/      — Story 68 reply
@@ -278,8 +279,10 @@ class NotesAudienceCandidatesView(APIView):
             bunk_qs = bunk_qs.filter(id__in=bunk_ids)
         elif ctx.membership.role == "unit_head":
             from bunk_logs.core.models import Supervision
+
             bunk_ids = Supervision.objects.bunks_for_uh(ctx.membership).values_list(
-                "id", flat=True,
+                "id",
+                flat=True,
             )
             bunk_qs = bunk_qs.filter(id__in=bunk_ids)
         else:

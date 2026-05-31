@@ -3,6 +3,7 @@
 Endpoints:
 
 * ``GET    /api/v1/camper-care/flags/?status=<>`` — workspace listing
+* ``GET    /api/v1/camper-care/flags/<id>/`` — full flag activity
 * ``POST   /api/v1/camper-care/flags/<id>/follow-up/`` — interim transition
 * ``POST   /api/v1/camper-care/flags/<id>/resolve/`` — terminal, closing note required
 * ``POST   /api/v1/camper-care/flags/<id>/reopen/`` — reopen, reason required

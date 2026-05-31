@@ -7,17 +7,12 @@
  * those tags show literally, so anywhere that displays one of these fields
  * should use this component instead of `{value}`.
  *
- * Uses `html-react-parser` to turn the HTML string into React elements. When
- * the value has no markup it's rendered as plain text (with line breaks
+ * When the value has no markup it's rendered as plain text (with line breaks
  * preserved), so it's safe to use for fields that may or may not be HTML.
  *
- * Note: like the `dangerouslySetInnerHTML` it replaces, this does not
- * sanitize. Content originates from authenticated staff via the Quill
- * toolbar (formatting only), matching the app's existing trust model.
+ * Note: this does not sanitize. Content originates from authenticated staff
+ * via the Quill toolbar (formatting only), matching the app's existing trust model.
  */
-
-import parse from 'html-react-parser';
-
 const HTML_TAG_RE = /<[a-z][\s\S]*>/i;
 
 export function hasHtmlMarkup(value) {
@@ -30,5 +25,5 @@ export default function RichText({ html, className = '', as: Tag = 'div', fallba
   if (!hasHtmlMarkup(str)) {
     return <Tag className={`whitespace-pre-line ${className}`.trim()}>{str}</Tag>;
   }
-  return <Tag className={className}>{parse(str)}</Tag>;
+  return <Tag className={className} dangerouslySetInnerHTML={{ __html: str }} />;
 }

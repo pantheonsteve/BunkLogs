@@ -209,7 +209,9 @@ class TestCandidatesAndSearch:
             organization=other_org, first_name="O", last_name="Ther", user=other_user,
         )
         from bunk_logs.core.models import Membership
-        Membership.all_objects.create(program=other_program, person=other_person, role="admin", is_active=True)
+        Membership.all_objects.create(
+            program=other_program, person=other_person, role="counselor", is_active=True,
+        )
         client = _auth_client(other_user, other_org)
         resp = client.get(f"/api/v1/observations/{obs.id}/")
         assert resp.status_code == 404
