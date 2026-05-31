@@ -9,10 +9,8 @@ role-agnostic so Camper Care (Step 7_8), LT (Step 7_12), and Admin
 Visibility is enforced server-side per Story 13 criterion 7:
 
 * reflection content goes through ``reflections_visible_for_user``;
-* specialist + camper-care notes go through ``notes_visible_to`` and
-  sensitive notes excluded for the viewer are surfaced only as a
-  per-content-type count (the spec's *"1 sensitive note (Camper Care)"*
-  placeholder).
+* legacy typed notes were removed (Step 7_24); observations land in a
+  follow-up once the Unit Head dashboard consumes them.
 
 Trend ranges (criterion 2):
 
@@ -39,10 +37,8 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.counselor.common import camper_reflection_template
 from bunk_logs.api.counselor.common import person_display_name
-from bunk_logs.core.filters import notes_visible_to
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.reflection_scores import iter_scored_fields
@@ -412,52 +408,9 @@ def _scale_max(field: dict) -> int:
 def _build_notes_payload(
     *, request, camper: Person, target_date: date,
 ) -> dict[str, dict]:
-    """Visibility-filtered specialist + camper-care notes for one camper.
-
-    Sensitive notes that the viewer can't read are NOT serialized;
-    instead each content type returns a ``sensitive_count`` so the
-    frontend can render the placeholder per Story 13 / Story 15
-    criterion 4.
-    """
-    base = Note.all_objects.filter(subject=camper).select_related("author")
-    visible = notes_visible_to(request.user, base)
-    visible_ids = set(visible.values_list("id", flat=True))
-
-    return {
-        "specialist": _split_notes(
-            visible, base, visible_ids,
-            Note.NoteType.SPECIALIST, target_date,
-        ),
-        "camper_care": _split_notes(
-            visible, base, visible_ids,
-            Note.NoteType.CAMPER_CARE, target_date,
-        ),
-    }
-
-
-def _split_notes(
-    visible_qs, base_qs, visible_ids: set[int],
-    note_type: str, target_date: date,
-) -> dict[str, Any]:
-    filtered = visible_qs.filter(note_type=note_type).order_by("-created_at")
-    items: list[dict] = []
-    for n in filtered:
-        body = n.body or ""
-        preview = body if len(body) <= 200 else (body[:200].rstrip() + "…")
-        items.append({
-            "id": n.id,
-            "author": person_display_name(n.author),
-            "created_at": n.created_at.isoformat(),
-            "body": body,
-            "preview": preview,
-            "is_long": len(body) > 200,
-            "is_sensitive": bool(n.is_sensitive),
-            "is_today": n.created_at.date() == target_date,
-        })
-    sensitive_excluded = base_qs.exclude(id__in=visible_ids).filter(
-        note_type=note_type, is_sensitive=True,
-    ).count()
-    return {"items": items, "sensitive_excluded_count": sensitive_excluded}
+    """Placeholder until Unit Head dashboards consume Observations (Step 7_23)."""
+    empty = {"items": [], "sensitive_excluded_count": 0}
+    return {"specialist": empty, "camper_care": empty}
 
 
 # ---------------------------------------------------------------------------

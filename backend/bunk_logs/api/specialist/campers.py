@@ -32,8 +32,8 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Person
+from bunk_logs.notes.models import Observation
 
 from .common import specialist_program_ids
 from .common import viewer_or_403
@@ -147,20 +147,17 @@ def _recent_subject_ids(viewer: Person, program_ids: list[int]) -> list[int]:
     """Person IDs of campers the viewer noted in the last RECENT_DAYS days."""
     since = timezone.now() - timedelta(days=RECENT_DAYS)
     rows = (
-        Note.objects.filter(
+        Observation.objects.filter(
             program_id__in=program_ids,
             author=viewer,
-            note_type=Note.NoteType.SPECIALIST,
             created_at__gte=since,
-            subject__isnull=False,
         )
         .order_by("-created_at")
-        .values("subject_id")
+        .values_list("subject_links__subject_id", flat=True)
     )
     seen: list[int] = []
     seen_set: set[int] = set()
-    for row in rows:
-        sid = row["subject_id"]
+    for sid in rows:
         if sid and sid not in seen_set:
             seen.append(sid)
             seen_set.add(sid)

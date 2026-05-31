@@ -88,7 +88,7 @@ def resolve_group_dashboard_context(
     Superusers without a ``Person`` profile resolve as admin so Django
     superadmins can hit the endpoint for debugging without a tenant
     profile. Per-payload visibility filters (``reflections_visible_for_user``,
-    ``notes_visible_to``) already handle ``request.user`` without a Person.
+    ``reflections_visible_for_user``) already handle ``request.user`` without a Person.
 
     On any failure (missing org context, no Person, group not found,
     no qualifying role) we raise the same generic 403 so cross-org

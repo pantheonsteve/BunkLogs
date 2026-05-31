@@ -3,8 +3,7 @@
 Exactly three top-level sections (criterion 3):
   1. ``write_camper_note`` — entry point to the camper picker / note form.
   2. ``self_reflection`` — state card for the specialist's daily self-reflection.
-  3. ``recent_notes`` — chronological top-10, with Show-older expansion via
-     offset/limit on ``GET /api/v1/specialist/notes/recent/``.
+  3. ``recent_notes`` — chronological top-10 observations the specialist authored.
 
 Sort: ``recent_notes`` newest-first. ``my_reflection`` state follows
 the "missing / complete / day_off / no_template" pattern from other flows.
@@ -23,7 +22,7 @@ from bunk_logs.api.counselor.common import is_day_off_answer
 from bunk_logs.api.counselor.common import latest_self_reflection
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Flag
-from bunk_logs.core.models import Note
+from bunk_logs.notes.models import Observation
 
 from .common import specialist_label
 from .common import specialist_self_template
@@ -58,27 +57,30 @@ class SpecialistDashboardView(APIView):
                 self_reflection_id = existing.id
                 editable = True
 
-        recent_notes_qs = (
-            Note.objects.filter(
+        recent_obs_qs = (
+            Observation.objects.filter(
                 organization=org,
                 program=ctx.program,
                 author=viewer,
-                note_type=Note.NoteType.SPECIALIST,
             )
-            .select_related("subject")
+            .prefetch_related("subject_links__subject")
             .order_by("-created_at")[:RECENT_NOTES_LIMIT]
         )
-        recent_notes_list = list(recent_notes_qs)
-        note_ids = [n.id for n in recent_notes_list]
+        recent_obs_list = list(recent_obs_qs)
+        obs_ids = [o.id for o in recent_obs_list]
 
-        flagged_note_ids = set(
+        flagged_obs_ids = set(
             Flag.all_objects.filter(
                 trigger_content_type="specialist_note",
-                trigger_content_id__in=[str(nid) for nid in note_ids],
+                trigger_content_id__in=[str(oid) for oid in obs_ids],
             ).values_list("trigger_content_id", flat=True),
         )
 
-        subject_ids = {n.subject_id for n in recent_notes_list if n.subject_id}
+        subject_ids: set[int] = set()
+        for obs in recent_obs_list:
+            for link in obs.subject_links.all():
+                if link.subject_id:
+                    subject_ids.add(link.subject_id)
         bunk_names = _bunk_names_for_subjects(subject_ids)
 
         now = timezone.now()
@@ -90,7 +92,7 @@ class SpecialistDashboardView(APIView):
                 "program_name": ctx.program.name,
             },
             "write_camper_note": {
-                "url": "/specialist/notes/new",
+                "url": "/specialist/observations/new",
             },
             "self_reflection": {
                 "state": self_state,
@@ -99,8 +101,8 @@ class SpecialistDashboardView(APIView):
                 "editable": editable,
             },
             "recent_notes": [
-                _note_row(n, bunk_names, flagged_note_ids, now)
-                for n in recent_notes_list
+                _observation_row(o, bunk_names, flagged_obs_ids, now)
+                for o in recent_obs_list
             ],
         }
         return Response(payload)
@@ -133,13 +135,19 @@ def _bunk_names_for_subjects(subject_ids: set[int]) -> dict[int, str]:
     return out
 
 
-def _note_row(
-    note: Note,
+def _primary_subject(obs: Observation):
+    link = obs.subject_links.first()
+    return link.subject if link else None
+
+
+def _observation_row(
+    obs: Observation,
     bunk_names: dict[int, str],
-    flagged_note_ids: set[str],
+    flagged_obs_ids: set[str],
     now,
 ) -> dict:
-    subject = note.subject
+    subject = _primary_subject(obs)
+    subject_id = subject.id if subject else None
     first = (
         (subject.preferred_name or subject.first_name or "").strip()
         if subject else ""
@@ -148,17 +156,17 @@ def _note_row(
     subject_name = (
         f"{first} {last_initial}." if (first and last_initial) else (first or last_initial or "")
     )
-    body = note.body or ""
+    body = obs.body or ""
     preview = body if len(body) <= NOTE_PREVIEW_MAX_LEN else body[:NOTE_PREVIEW_MAX_LEN - 1] + "…"
     return {
-        "id": note.id,
-        "subject_id": note.subject_id,
+        "id": obs.id,
+        "subject_id": subject_id,
         "subject_name": subject_name,
-        "bunk_name": bunk_names.get(note.subject_id, ""),
-        "category": note.category or "",
+        "bunk_name": bunk_names.get(subject_id, "") if subject_id else "",
+        "category": obs.context or "",
         "body_preview": preview,
-        "is_sensitive": bool(note.is_sensitive),
-        "flag_raised": str(note.id) in flagged_note_ids,
-        "created_at": note.created_at.isoformat(),
-        "is_within_edit_window": (now - note.created_at) <= EDIT_WINDOW,
+        "is_sensitive": obs.sensitivity != Observation.Sensitivity.NORMAL,
+        "flag_raised": str(obs.id) in flagged_obs_ids,
+        "created_at": obs.created_at.isoformat(),
+        "is_within_edit_window": (now - obs.created_at) <= EDIT_WINDOW,
     }

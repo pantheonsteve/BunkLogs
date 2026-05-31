@@ -129,6 +129,20 @@ class TestInboxAndThread:
         ids = [o["id"] for o in resp.json().get("results", resp.json())]
         assert obs.id in ids
 
+    def test_sent_shows_authored_observations(
+        self, org, program, counselor_user, counselor_membership, counselor_person, camper,
+    ):
+        obs = _make_observation(org, program, counselor_person, subjects=[camper], recipients=[])
+        client = _auth_client(counselor_user, org)
+        resp = client.get("/api/v1/observations/sent/")
+        assert resp.status_code == 200
+        ids = [o["id"] for o in resp.json().get("results", resp.json())]
+        assert obs.id in ids
+
+        inbox = client.get("/api/v1/observations/inbox/")
+        inbox_ids = [o["id"] for o in inbox.json().get("results", inbox.json())]
+        assert obs.id not in inbox_ids
+
     def test_thread_updates_read_receipt(
         self, org, program, counselor_person, counselor_membership, uh_user, uh_membership, uh_person, camper,
     ):

@@ -36,12 +36,10 @@ from rest_framework.views import APIView
 from bunk_logs.api.counselor.common import bunk_camper_persons
 from bunk_logs.api.counselor.common import camper_reflection_template
 from bunk_logs.api.counselor.common import person_display_name
-from bunk_logs.core.filters import notes_visible_to
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import MaintenanceTicket
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
@@ -448,61 +446,5 @@ def _counselor_membership_ids_for_bunk(bunk: AssignmentGroup) -> list[int]:
 def _specialist_reports_for_bunk(
     *, request, camper_ids: list[int], target_date: date,
 ) -> dict:
-    """Visibility-filtered specialist notes for the bunk's campers.
-
-    Story 15 splits today vs recent (14-day cap). Sensitive notes are
-    excluded by ``notes_visible_to``; the placeholder count is
-    surfaced per camper so the frontend can render "1 sensitive note"
-    (Story 15 criterion 4).
-    """
-    from datetime import timedelta
-    if not camper_ids:
-        return {"today": [], "recent": [], "sensitive_counts_by_camper": {}}
-
-    cutoff = target_date - timedelta(days=14)
-
-    base = Note.all_objects.filter(
-        note_type=Note.NoteType.SPECIALIST,
-        subject_id__in=camper_ids,
-        created_at__date__lte=target_date,
-        created_at__date__gte=cutoff,
-    ).select_related("subject", "author")
-
-    visible = notes_visible_to(request.user, base)
-    visible_ids = set(visible.values_list("id", flat=True))
-
-    today_rows: list[dict] = []
-    recent_rows: list[dict] = []
-    for n in visible.order_by("-created_at"):
-        body = n.body or ""
-        preview = body if len(body) <= 200 else (body[:200].rstrip() + "…")
-        item = {
-            "id": n.id,
-            "subject": {
-                "id": n.subject_id,
-                "first_name": n.subject.first_name if n.subject else "",
-                "last_name": n.subject.last_name if n.subject else "",
-                "preferred_name": n.subject.preferred_name if n.subject else "",
-            },
-            "author": person_display_name(n.author),
-            "created_at": n.created_at.isoformat(),
-            "body": body,
-            "preview": preview,
-            "is_long": len(body) > 200,
-            "is_sensitive": bool(n.is_sensitive),
-        }
-        if n.created_at.date() == target_date:
-            today_rows.append(item)
-        else:
-            recent_rows.append(item)
-
-    # Sensitive count per camper for the placeholder pill.
-    sensitive_counts: dict[int, int] = {}
-    for row in base.exclude(id__in=visible_ids).filter(is_sensitive=True):
-        sensitive_counts[row.subject_id] = sensitive_counts.get(row.subject_id, 0) + 1
-
-    return {
-        "today": today_rows,
-        "recent": recent_rows,
-        "sensitive_counts_by_camper": sensitive_counts,
-    }
+    """Placeholder until bunk dashboard consumes Observations (Step 7_23)."""
+    return {"today": [], "recent": [], "sensitive_counts_by_camper": {}}

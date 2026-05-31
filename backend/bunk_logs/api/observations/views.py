@@ -1,7 +1,8 @@
 """Observations API (Step 7_23).
 
 Endpoints (all under /api/v1/observations/):
-  GET  inbox/                      — recipient observations, not archived, by activity
+  GET  inbox/                      — received + authored-with-reply (mirrors Notes inbox)
+  GET  sent/                       — authored observations without an inbound reply yet
   GET  unread-count/               — {count} for the nav badge
   GET  <id>/                       — thread view; updates the read receipt
   POST /                           — create (subjects + recipients + sensitivity gate)
@@ -20,6 +21,8 @@ sensitive observation can never out-run who it is sent to.
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.db.models import Exists
+from django.db.models import OuterRef
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
@@ -28,7 +31,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.notes_platform.common import viewer_or_403
+from bunk_logs.api.observations.common import viewer_or_403
 from bunk_logs.core import audit as audit_trail
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.observation_authoring import authorable_subject_queryset
@@ -58,6 +61,13 @@ class ObservationsPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+def _inbound_reply_exists(person: Person) -> Exists:
+    """True when someone other than ``person`` has replied (routes authored obs to Inbox)."""
+    return Exists(
+        ObservationReply.objects.filter(observation_id=OuterRef("pk")).exclude(author_id=person.id),
+    )
 
 
 def update_read_receipt(obs: Observation, person: Person) -> None:
@@ -104,11 +114,40 @@ class ObservationsInboxView(APIView):
         archived_ids = set(
             ObservationArchive.objects.filter(person=ctx.person).values_list("observation_id", flat=True),
         )
+        # Inbox = observations addressed to the viewer, plus ones they authored that
+        # have drawn a reply from someone else (same split as the Notes platform).
+        qs = (
+            Observation.all_objects.filter(organization=ctx.organization)
+            .annotate(has_inbound_reply=_inbound_reply_exists(ctx.person))
+            .filter(
+                Q(recipients__person=ctx.person)
+                | Q(author=ctx.person, has_inbound_reply=True),
+            )
+            .exclude(pk__in=archived_ids)
+            .distinct()
+            .select_related("author")
+            .prefetch_related("subject_links__subject", "replies", "read_receipts")
+            .order_by("-created_at")
+        )
+        paginator = ObservationsPagination()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = ObservationListSerializer(page, many=True, context={"request": request})
+        return paginator.get_paginated_response(serializer.data)
+
+
+class ObservationsSentView(APIView):
+    def get(self, request):
+        ctx = viewer_or_403(request)
+        archived_ids = set(
+            ObservationArchive.objects.filter(person=ctx.person).values_list("observation_id", flat=True),
+        )
         qs = (
             Observation.all_objects.filter(
                 organization=ctx.organization,
-                recipients__person=ctx.person,
+                author=ctx.person,
             )
+            .annotate(has_inbound_reply=_inbound_reply_exists(ctx.person))
+            .filter(has_inbound_reply=False)
             .exclude(pk__in=archived_ids)
             .distinct()
             .select_related("author")

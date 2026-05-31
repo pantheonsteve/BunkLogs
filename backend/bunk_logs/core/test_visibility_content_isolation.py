@@ -8,11 +8,9 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
-from bunk_logs.core.filters import notes_visible_to
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -279,63 +277,3 @@ class TestAdminSelfReflectionPrivateIsolation:
         with organization_context(org):
             assert len(api.get("/api/v1/reflections/", **_hdr(org.slug)).json()) == 0
 
-
-class TestNoteContentIsolation:
-    """Note types: camper_care, specialist, maintenance — via notes_visible_to."""
-
-    def _note(self, org, program, author, subject, note_type, **kwargs) -> Note:
-        return Note.all_objects.create(
-            organization=org,
-            program=program,
-            author=author,
-            subject=subject,
-            note_type=note_type,
-            body="note body",
-            **kwargs,
-        )
-
-    def test_camper_care_note_counselor_vs_health_center_sensitive(
-        self, org, program,
-    ):
-        camper = _person(org, "Cam", "Per")
-        cc_author = _person(org, "Cc", "Auth")
-        u_cns = _user("cns6@iso.com")
-        cns = _person(org, "Co", "Un", u_cns)
-        u_hc = _user("hc@iso.com")
-        hc = _person(org, "He", "Alth", u_hc)
-        Membership.all_objects.create(program=program, person=cns, role="counselor", is_active=True)
-        Membership.all_objects.create(program=program, person=hc, role="health_center", is_active=True)
-
-        self._note(
-            org, program, cc_author, camper,
-            Note.NoteType.CAMPER_CARE, is_sensitive=True,
-        )
-
-        with organization_context(org):
-            assert notes_visible_to(u_cns).count() == 0
-            assert notes_visible_to(u_hc).count() == 1
-
-    def test_specialist_note_sensitive_hides_from_counselor(self, org, program):
-        camper = _person(org, "Cam", "Per")
-        sp = _person(org, "Sp", "Ec")
-        u_cns = _user("cns7@iso.com")
-        cns = _person(org, "Co", "Un", u_cns)
-        Membership.all_objects.create(program=program, person=cns, role="counselor", is_active=True)
-        self._note(
-            org, program, sp, camper, Note.NoteType.SPECIALIST, is_sensitive=True,
-        )
-        with organization_context(org):
-            assert notes_visible_to(u_cns).count() == 0
-
-    def test_maintenance_team_only_hides_from_counselor(self, org, program):
-        maint = _person(org, "Ma", "Int")
-        camper = _person(org, "Cam", "Per")
-        u_cns = _user("cns8@iso.com")
-        cns = _person(org, "Co", "Un", u_cns)
-        Membership.all_objects.create(program=program, person=cns, role="counselor", is_active=True)
-        self._note(
-            org, program, maint, camper, Note.NoteType.MAINTENANCE,
-            maintenance_visibility=Note.MaintenanceVisibility.TEAM_ONLY,
-        )
-        with organization_context(org):
-            assert notes_visible_to(u_cns).count() == 0

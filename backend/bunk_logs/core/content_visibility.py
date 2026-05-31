@@ -8,7 +8,6 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bunk_logs.core.models import Note
     from bunk_logs.core.models import Reflection
 
 # Display labels for AudienceDisclosure (English defaults; i18n keys in frontend).
@@ -200,17 +199,6 @@ def reflection_content_type(reflection: Reflection) -> ContentType:
     if role == "madrich":
         return ContentType.MADRICH_REFLECTION
     return ContentType.CAMPER_REFLECTION
-
-
-def note_content_type(note: Note) -> ContentType:
-    from bunk_logs.core.models import Note as NoteModel
-
-    mapping = {
-        NoteModel.NoteType.CAMPER_CARE: ContentType.CAMPER_CARE_NOTE,
-        NoteModel.NoteType.SPECIALIST: ContentType.SPECIALIST_NOTE,
-        NoteModel.NoteType.MAINTENANCE: ContentType.MAINTENANCE_TICKET_NOTE,
-    }
-    return mapping[note.note_type]
 
 
 def reflection_is_private(reflection: Reflection) -> bool:

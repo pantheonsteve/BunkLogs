@@ -3,7 +3,6 @@
 Endpoints:
 
 * ``GET    /api/v1/camper-care/flags/?status=<>`` — workspace listing
-* ``GET    /api/v1/camper-care/flags/<id>/`` — full flag activity
 * ``POST   /api/v1/camper-care/flags/<id>/follow-up/`` — interim transition
 * ``POST   /api/v1/camper-care/flags/<id>/resolve/`` — terminal, closing note required
 * ``POST   /api/v1/camper-care/flags/<id>/reopen/`` — reopen, reason required
@@ -26,7 +25,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
-from bunk_logs.core.models import Note
+from bunk_logs.notes.models import Observation
 
 from .common import caseload_camper_ids
 from .common import viewer_or_403
@@ -218,6 +217,21 @@ def _flag_payload(flag: Flag, *, today) -> dict:
     }
 
 
+def _observation_for_flag_trigger(trigger_content_id: str) -> Observation | None:
+    """Resolve a legacy specialist/camper-care note id to a migrated Observation."""
+    if not trigger_content_id:
+        return None
+    obs = Observation.all_objects.filter(
+        legacy_source=f"core.note:{trigger_content_id}",
+    ).first()
+    if obs is not None:
+        return obs
+    try:
+        return Observation.all_objects.filter(pk=int(trigger_content_id)).first()
+    except (ValueError, TypeError):
+        return None
+
+
 def _trigger_preview(flag: Flag) -> str:
     """Short snippet of the row that raised the flag.
 
@@ -231,8 +245,8 @@ def _trigger_preview(flag: Flag) -> str:
         return ""
     try:
         if loader == "note":
-            note = Note.all_objects.filter(id=flag.trigger_content_id).first()
-            body = (note.body or "").strip() if note else ""
+            obs = _observation_for_flag_trigger(flag.trigger_content_id)
+            body = (obs.body or "").strip() if obs else ""
         else:
             # Reflection trigger preview — first non-empty string answer.
             # Lazy import keeps the test path narrow.
@@ -273,15 +287,11 @@ def _trigger_detail(flag: Flag) -> dict:
         return detail
     try:
         if loader == "note":
-            note = (
-                Note.all_objects.select_related("author")
-                .filter(id=flag.trigger_content_id)
-                .first()
-            )
-            if note is not None:
-                detail["body"] = (note.body or "").strip()
-                detail["created_at"] = note.created_at.isoformat()
-                detail["author"] = _person_name(note.author)
+            obs = _observation_for_flag_trigger(flag.trigger_content_id)
+            if obs is not None:
+                detail["body"] = (obs.body or "").strip()
+                detail["created_at"] = obs.created_at.isoformat()
+                detail["author"] = _person_name(obs.author)
         else:
             from bunk_logs.core.models import Reflection
             refl = Reflection.all_objects.filter(id=flag.trigger_content_id).first()

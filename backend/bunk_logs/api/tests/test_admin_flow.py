@@ -27,7 +27,6 @@ from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -162,20 +161,6 @@ def reflection(org, program, reflection_template, subject):
         answers={"summary": "great day"},
         language="en",
         is_complete=True,
-    )
-
-
-@pytest.fixture
-def note(org, program, subject, cc_membership):
-    return Note.all_objects.create(
-        organization=org,
-        program=program,
-        subject=subject,
-        author=cc_membership.person,
-        note_type=Note.NoteType.CAMPER_CARE,
-        body="Subject needed a quiet break.",
-        is_sensitive=False,
-        category=Note.Category.SOCIAL,
     )
 
 
@@ -378,24 +363,6 @@ class TestAdminOverrideEdit:
         assert evt.reason_note == "Camper asked to remove identifying detail"
         assert evt.before_state["answers"] == {"summary": "great day"}
         assert evt.after_state["answers"] == {"summary": "rewritten by admin"}
-
-    def test_note_override_updates_body(self, api, org, admin_user, note):
-        api.force_authenticate(user=admin_user)
-        with organization_context(org):
-            r = api.post(self.URL, {
-                "content_type": "note",
-                "content_id": str(note.id),
-                "patch": {"body": "Redacted by Admin"},
-                "reason": "Reviewed for sensitive identifiers",
-            }, format="json", **_hdr(org.slug))
-        assert r.status_code == 200, r.content
-        note.refresh_from_db()
-        assert note.body == "Redacted by Admin"
-        assert AuditEvent.all_objects.filter(
-            content_type="note",
-            content_id=str(note.id),
-            event_type=AuditEvent.EventType.OVERRIDE_EDIT,
-        ).exists()
 
     def test_cross_org_target_returns_404(
         self, api, org, other_org, other_program, admin_user,

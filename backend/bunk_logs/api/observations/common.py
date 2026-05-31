@@ -1,9 +1,4 @@
-"""Shared helpers for the Notes platform API endpoints (Step 7_19).
-
-Notes are open to every authenticated person with an active Membership in
-the requesting organization. Audience options differ per role (see
-``audience_options_for``), but read/compose/reply are not role-gated.
-"""
+"""Shared helpers for Observations API endpoints (Step 7_23)."""
 
 from __future__ import annotations
 
@@ -26,11 +21,7 @@ class ViewerContext:
 
 
 def viewer_or_403(request) -> ViewerContext:
-    """Resolve viewer context for Notes endpoints, or raise 403.
-
-    Requires: authenticated user, org context, Person profile, and at least one
-    active Membership in any role for a Program inside the requesting org.
-    """
+    """Resolve viewer context for Observations endpoints, or raise 403."""
     org = getattr(request, "organization", None)
     if org is None:
         msg = "Organization context required."
@@ -54,10 +45,8 @@ def viewer_or_403(request) -> ViewerContext:
         .first()
     )
     if membership is None:
-        msg = "Active membership required to use Notes."
+        msg = "Active membership required."
         raise PermissionDenied(msg)
-
-    request._notes_person = person
 
     return ViewerContext(
         person=person,
