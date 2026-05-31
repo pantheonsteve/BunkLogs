@@ -3,6 +3,7 @@
 Endpoints:
 
 * ``GET    /api/v1/camper-care/flags/?status=<>`` — workspace listing
+* ``GET    /api/v1/camper-care/flags/<id>/`` — full flag activity
 * ``POST   /api/v1/camper-care/flags/<id>/follow-up/`` — interim transition
 * ``POST   /api/v1/camper-care/flags/<id>/resolve/`` — terminal, closing note required
 * ``POST   /api/v1/camper-care/flags/<id>/reopen/`` — reopen, reason required
@@ -89,6 +90,33 @@ class FlagListView(APIView):
         today = ctx.today
         items = [_flag_payload(f, today=today) for f in rows]
         return Response({"items": items, "today": today.isoformat()})
+
+
+class FlagDetailView(APIView):
+    """``GET /api/v1/camper-care/flags/<id>/`` — full flag activity."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, flag_id, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        flag = (
+            Flag.objects.filter(pk=flag_id, program=ctx.program)
+            .select_related("subject_camper", "raised_by_membership__person")
+            .first()
+        )
+        if flag is None:
+            msg = "Flag not found."
+            raise NotFound(msg)
+        if flag.flagged_for_role != "camper_care":
+            msg = "This flag is not routed to Camper Care."
+            raise PermissionDenied(msg)
+        return Response(
+            {
+                "flag": _flag_payload(flag, today=ctx.today),
+                "trigger": _trigger_detail(flag),
+                "history": _audit_history(flag),
+            },
+        )
 
 
 class FlagFollowUpView(APIView):
@@ -219,10 +247,72 @@ def _trigger_preview(flag: Flag) -> str:
     return body
 
 
+def _trigger_detail(flag: Flag) -> dict:
+    """Full source content that raised the flag (note body / reflection text)."""
+    detail = {
+        "content_type": flag.trigger_content_type,
+        "content_id": flag.trigger_content_id,
+        "body": "",
+        "author": None,
+        "created_at": None,
+    }
+    loader = _PREVIEW_LOADERS.get(flag.trigger_content_type)
+    if not loader or not flag.trigger_content_id:
+        return detail
+    try:
+        if loader == "note":
+            note = (
+                Note.all_objects.select_related("author")
+                .filter(id=flag.trigger_content_id)
+                .first()
+            )
+            if note is not None:
+                detail["body"] = (note.body or "").strip()
+                detail["created_at"] = note.created_at.isoformat()
+                detail["author"] = _person_name(note.author)
+        else:
+            from bunk_logs.core.models import Reflection
+
+            refl = Reflection.all_objects.filter(id=flag.trigger_content_id).first()
+            if refl is not None:
+                detail["created_at"] = (
+                    refl.created_at.isoformat() if refl.created_at else None
+                )
+                if isinstance(refl.answers, dict):
+                    parts = [
+                        v.strip()
+                        for v in refl.answers.values()
+                        if isinstance(v, str) and v.strip()
+                    ]
+                    detail["body"] = "\n\n".join(parts)
+    except (ValueError, TypeError):
+        return detail
+    return detail
+
+
+def _person_name(person) -> str | None:
+    if person is None:
+        return None
+    name = f"{person.first_name} {person.last_name}".strip()
+    return name or None
+
+
+def _actor_brief(membership) -> dict:
+    if membership is None:
+        return {"membership_id": None, "name": None, "role": None}
+    return {
+        "membership_id": membership.id,
+        "name": _person_name(getattr(membership, "person", None)),
+        "role": membership.role,
+    }
+
+
 def _audit_history(flag: Flag) -> list[dict]:
-    rows = AuditEvent.objects.filter(
-        content_type="flag", content_id=str(flag.id),
-    ).order_by("created_at")
+    rows = (
+        AuditEvent.objects.filter(content_type="flag", content_id=str(flag.id))
+        .select_related("actor_membership__person")
+        .order_by("created_at")
+    )
     return [
         {
             "id": str(e.id),
@@ -230,6 +320,7 @@ def _audit_history(flag: Flag) -> list[dict]:
             "before_state": e.before_state,
             "after_state": e.after_state,
             "reason_note": e.reason_note,
+            "actor": _actor_brief(e.actor_membership),
             "actor_membership_id": e.actor_membership_id,
             "created_at": e.created_at.isoformat(),
         }
