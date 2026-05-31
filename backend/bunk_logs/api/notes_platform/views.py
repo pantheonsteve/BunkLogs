@@ -280,10 +280,7 @@ class NotesAudienceCandidatesView(APIView):
         elif ctx.membership.role == "unit_head":
             from bunk_logs.core.models import Supervision
 
-            bunk_ids = Supervision.objects.bunks_for_uh(ctx.membership).values_list(
-                "id",
-                flat=True,
-            )
+            bunk_ids = Supervision.objects.bunks_for_uh(ctx.membership).values_list("id", flat=True)
             bunk_qs = bunk_qs.filter(id__in=bunk_ids)
         else:
             # Roles without bunk-scoped audience options don't need a bunk list.
