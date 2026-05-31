@@ -17,7 +17,6 @@ from rest_framework.test import APIClient
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -134,21 +133,11 @@ class TestAdminGlobalSearch:
     def test_does_not_leak_cross_org(
         self, api, org, other_org, admin_user, other_program,
     ):
-        # Persons + Notes in OTHER org with the same keyword must not
-        # show up in the active-org's search results.
+        # Persons in OTHER org with the same keyword must not show up in search.
         with organization_context(other_org):
             Person.all_objects.create(
                 organization=other_org, first_name="Unique",
                 last_name="OtherOrg", email="u@example.com",
-            )
-            other_subject = Person.all_objects.create(
-                organization=other_org, first_name="Sub", last_name="J",
-            )
-            Note.all_objects.create(
-                organization=other_org, program=other_program,
-                subject=other_subject, author=other_subject,
-                note_type=Note.NoteType.SPECIALIST,
-                body="UniqueKeywordForOtherOrg should not leak",
             )
         api.force_authenticate(user=admin_user)
         with organization_context(org):

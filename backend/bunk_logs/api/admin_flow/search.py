@@ -7,7 +7,6 @@ Scope:
 
 * People       -- ``full_name``, ``email``, ``external_ids`` (JSON text-cast)
 * Reflections  -- ``answers`` (JSONField, text-cast)
-* Notes        -- ``body``
 * Orders       -- ``item``, ``item_note``, ``description``
 * Tickets      -- ``title``, ``location``, ``description``
 * Templates    -- ``name``, ``schema`` (JSON text-cast)
@@ -35,7 +34,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.models import MaintenanceTicket
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
@@ -65,7 +63,6 @@ class AdminGlobalSearchView(APIView):
         groups: dict[str, list[dict]] = {
             "people": _search_people(ctx, query, q),
             "reflections": _search_reflections(ctx, query),
-            "notes": _search_notes(ctx, query),
             "orders": _search_orders(ctx, query),
             "tickets": _search_tickets(ctx, query),
             "templates": _search_templates(ctx, query),
@@ -130,37 +127,6 @@ def _search_reflections(ctx, query) -> list[dict]:
         }
         for r in qs
     ]
-
-
-def _search_notes(ctx, query) -> list[dict]:
-    vector = SearchVector("body")
-    qs = (
-        Note.all_objects.filter(organization=ctx.organization)
-        .annotate(rank=SearchRank(vector, query))
-        .filter(rank__gt=0)
-        .select_related("subject")
-        .order_by(F("rank").desc())[:PER_GROUP_LIMIT]
-    )
-    return [
-        {
-            "id": n.id,
-            "label": f"{n.get_note_type_display()} note",
-            "secondary": (
-                f"{n.subject.full_name if n.subject_id else 'Unknown'} · "
-                f"{n.body[:80]}"
-            ),
-            "deep_link": _note_deep_link(n),
-        }
-        for n in qs
-    ]
-
-
-def _note_deep_link(n: Note) -> str:
-    if n.note_type == Note.NoteType.CAMPER_CARE:
-        return f"/camper-care/notes/{n.id}/edit"
-    if n.note_type == Note.NoteType.SPECIALIST:
-        return f"/specialist/notes/{n.id}/edit"
-    return f"/maintenance/notes/{n.id}"
 
 
 def _search_orders(ctx, query) -> list[dict]:

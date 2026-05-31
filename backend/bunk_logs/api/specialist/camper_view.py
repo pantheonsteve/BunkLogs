@@ -29,8 +29,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Person
+from bunk_logs.notes.models import Observation
 
 from .common import specialist_program_ids
 from .common import viewer_or_403
@@ -62,12 +62,12 @@ class SpecialistCamperView(APIView):
         date_to = _parse_date_param(request.query_params.get("date_to"))
 
         notes_qs = (
-            Note.objects.filter(
+            Observation.objects.filter(
                 organization=ctx.organization,
                 author=ctx.person,
-                subject=camper,
-                note_type=Note.NoteType.SPECIALIST,
+                subject_links__subject=camper,
             )
+            .distinct()
             .order_by("-created_at")
         )
         if date_from:
@@ -135,16 +135,16 @@ def _full_name(person: Person) -> str:
     return f"{first} {last}".strip()
 
 
-def _note_payload(note: Note, now) -> dict:
+def _note_payload(obs: Observation, now) -> dict:
     return {
-        "id": note.id,
-        "body": note.body,
-        "category": note.category or "",
-        "is_sensitive": bool(note.is_sensitive),
-        "language": note.language,
-        "created_at": note.created_at.isoformat(),
-        "updated_at": note.updated_at.isoformat(),
-        "is_within_edit_window": (now - note.created_at) <= EDIT_WINDOW,
+        "id": obs.id,
+        "body": obs.body,
+        "category": obs.context or "",
+        "is_sensitive": obs.sensitivity != Observation.Sensitivity.NORMAL,
+        "language": obs.language,
+        "created_at": obs.created_at.isoformat(),
+        "updated_at": obs.updated_at.isoformat(),
+        "is_within_edit_window": (now - obs.created_at) <= EDIT_WINDOW,
     }
 
 

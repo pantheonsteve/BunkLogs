@@ -26,9 +26,9 @@ from bunk_logs.api.counselor.common import is_day_off_answer
 from bunk_logs.api.counselor.common import latest_self_reflection
 from bunk_logs.api.unit_head.common import expected_by_passed
 from bunk_logs.core.models import AssignmentGroup
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import Supervision
+from bunk_logs.notes.models import Observation
 
 from .common import leadership_team_self_template
 from .common import resolve_period
@@ -263,16 +263,19 @@ def _team_sensitive_notes_count(
     if not person_ids:
         return 0
     return (
-        Note.all_objects.filter(
+        Observation.all_objects.filter(
             organization=organization,
             program=program,
-            subject_id__in=person_ids,
-            is_sensitive=True,
-            note_type__in=[
-                Note.NoteType.SPECIALIST, Note.NoteType.CAMPER_CARE,
+            subject_links__subject_id__in=person_ids,
+            sensitivity__in=[
+                Observation.Sensitivity.SENSITIVE,
+                Observation.Sensitivity.DOMAIN,
+                Observation.Sensitivity.CONFIDENTIAL,
             ],
             created_at__date=today,
-        ).count()
+        )
+        .distinct()
+        .count()
     )
 
 

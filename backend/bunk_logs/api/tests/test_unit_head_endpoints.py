@@ -29,7 +29,6 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import CamperDayState
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -624,45 +623,20 @@ def test_bunk_dashboard_orders_carries_over_open(
 
 
 @pytest.mark.django_db
-def test_bunk_dashboard_specialist_reports_excludes_sensitive(
+def test_bunk_dashboard_specialist_reports_placeholder_until_observations(
     org, program, uh_user, uh_membership, bunk,
     counselor_person, counselor_membership, counselor_authors_bunk,
-    uh_supervises_counselor, campers,
+    uh_supervises_counselor,
 ):
-    """Story 15 criterion 4 — sensitive notes excluded; placeholder count emitted."""
+    """Legacy specialist notes removed (7_24); section is empty until Observations wire-up."""
     today = _today_in_org(org)
-    specialist = Person.all_objects.create(
-        organization=org, first_name="Dr.", last_name="Avi",
-    )
-    Membership.all_objects.create(
-        program=program, person=specialist, role="specialist", is_active=True,
-    )
-    # Non-sensitive note: visible to UH.
-    Note.all_objects.create(
-        organization=org, program=program, subject=campers[0], author=specialist,
-        note_type=Note.NoteType.SPECIALIST,
-        body="Routine specialist observation about Sarah.",
-    )
-    # Sensitive note: NOT visible to UH (UH not in audience for SPECIALIST_NOTE sensitive variant).
-    Note.all_objects.create(
-        organization=org, program=program, subject=campers[1], author=specialist,
-        note_type=Note.NoteType.SPECIALIST,
-        body="Sensitive medical information.",
-        is_sensitive=True,
-    )
-
     c = _client(uh_user, org)
     with organization_context(org):
         resp = c.get(f"/api/v1/unit-head/bunks/{bunk.id}/?date={today.isoformat()}")
-    body = resp.json()
-    visible_bodies = [
-        n["body"] for n in (body["specialist_reports"]["today"]
-                            + body["specialist_reports"]["recent"])
-    ]
-    assert "Routine specialist observation about Sarah." in visible_bodies
-    assert all("Sensitive" not in b for b in visible_bodies)
-    counts = body["specialist_reports"]["sensitive_counts_by_camper"]
-    assert counts.get(str(campers[1].id)) == 1 or counts.get(campers[1].id) == 1
+    reports = resp.json()["specialist_reports"]
+    assert reports["today"] == []
+    assert reports["recent"] == []
+    assert reports["sensitive_counts_by_camper"] == {}
 
 
 # ---------------------------------------------------------------------------

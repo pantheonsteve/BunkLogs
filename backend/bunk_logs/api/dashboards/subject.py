@@ -26,10 +26,8 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
-from bunk_logs.core.models import SubjectNote
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
 from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
-from bunk_logs.core.permissions.subject_note_read import filter_subject_notes_readable
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.notes.models import Observation
@@ -176,48 +174,6 @@ def _can_view_subject_dashboard(
             return True
     # Program-scoped roles (e.g. activity specialists) and per-membership overrides.
     return can_author_subject_note(viewer_person, subject, org, user)
-
-
-def _subject_notes_for_viewer(
-    viewer_person: Person | None,
-    subject: Person,
-    org,
-    user,
-    limit: int = 50,
-) -> list[dict[str, Any]]:
-    """Return SubjectNote rows visible to viewer, newest first."""
-    qs = (
-        SubjectNote.objects.filter(subject=subject)
-        .select_related("author_person")
-        .order_by("-created_at")
-    )
-    notes = list(
-        filter_subject_notes_readable(
-            qs,
-            viewer_person,
-            org,
-            user,
-            subject=subject,
-        ).order_by("-created_at")[:limit],
-    )
-
-    return [
-        {
-            "id": n.id,
-            "body": n.body,
-            "context": n.context,
-            "visibility": n.visibility,
-            "is_sensitive": n.is_sensitive,
-            "subject_visible": n.subject_visible,
-            "amendment_of": n.amendment_of_id,
-            "author": (
-                {"id": n.author_person_id, "name": n.author_person.full_name}
-                if n.author_person_id and n.author_person else None
-            ),
-            "created_at": n.created_at.isoformat() if n.created_at else None,
-        }
-        for n in notes
-    ]
 
 
 def _observations_for_viewer(
@@ -474,7 +430,6 @@ class SubjectDetailView(APIView):
 
         concerns = _detect_concerning_patterns(all_series, today)
 
-        notes = _subject_notes_for_viewer(viewer_person, subject, org, request.user)
         observations = _observations_for_viewer(viewer_person, subject, org, request.user)
 
         return Response({
@@ -488,6 +443,6 @@ class SubjectDetailView(APIView):
             "templates": templates_out,
             "recent_texts": recent_texts,
             "concerning_patterns": concerns,
-            "notes": notes,
+            # TODO(7_23): legacy "notes" key removed; observations is the Profile feed.
             "observations": observations,
         })

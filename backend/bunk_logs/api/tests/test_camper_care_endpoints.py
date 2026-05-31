@@ -7,9 +7,7 @@ Coverage targets per lean mode:
   audit trail.
 * Order workspace team-shared visibility (CC7) -- every CC member in a
   program sees the same queue regardless of caseload.
-* Camper Care note visibility regression -- Counselor and Unit Head
-  cannot read non-sensitive CC notes (CC5).
-* Specialist-note -> Flag helper creates an Active flag with audit.
+* Flag workspace trigger preview resolves migrated observations.
 """
 
 from __future__ import annotations
@@ -24,14 +22,12 @@ from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from bunk_logs.core import flags as flag_helpers
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -39,6 +35,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.notes.models import Observation
+from bunk_logs.notes.models import ObservationSubject
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -406,37 +404,6 @@ class TestFlagLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# Specialist note -> Flag helper (Step 7_8 scope item 2)
-# ---------------------------------------------------------------------------
-
-
-class TestRaiseFlagFromSpecialistNote:
-    def test_creates_active_flag_with_trigger(
-        self, org, program, camper, counselor_person_user,
-    ):
-        # Specialist note authored by anyone is fine; we just need a Note row.
-        author_person, _ = counselor_person_user
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper,
-            author=author_person,
-            note_type=Note.NoteType.SPECIALIST,
-            body="needs follow-up",
-            is_sensitive=False,
-        )
-        flag = flag_helpers.raise_flag_from_specialist_note(note)
-        assert flag.status == Flag.Status.ACTIVE
-        assert flag.trigger_content_type == "specialist_note"
-        assert flag.trigger_content_id == str(note.id)
-        assert flag.subject_camper_id == camper.id
-        # Audit event written
-        evts = AuditEvent.all_objects.filter(
-            content_type="flag", content_id=str(flag.id),
-            event_type=AuditEvent.EventType.CREATED,
-        )
-        assert evts.count() == 1
-
-
-# ---------------------------------------------------------------------------
 # Orders workspace -- team shared (CC7)
 # ---------------------------------------------------------------------------
 
@@ -526,177 +493,6 @@ class TestCamperCareOrdersTeamShared:
             )
         assert r.status_code == 200, r.content
         assert len(r.json()["transitioned"]) == 3
-
-
-# ---------------------------------------------------------------------------
-# Camper Care notes -- visibility regression (CC5)
-# ---------------------------------------------------------------------------
-
-
-class TestCamperCareNotes:
-    def test_create_note_happy_path(
-        self, api, org, program, cc_person_user, cc_membership, camper,
-    ):
-        _, user = cc_person_user
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.post(
-                "/api/v1/camper-care/notes/",
-                {
-                    "subject_id": camper.id,
-                    "body": "Camper is settling in well.",
-                    "category": "social",
-                    "is_sensitive": False,
-                },
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 201, r.content
-        body = r.json()
-        assert body["category"] == "social"
-        assert body["note_type"] == "camper_care"
-
-    def test_invalid_category_400(
-        self, api, org, cc_person_user, cc_membership, camper,
-    ):
-        _, user = cc_person_user
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.post(
-                "/api/v1/camper-care/notes/",
-                {"subject_id": camper.id, "body": "x", "category": "bogus"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 400
-        assert "category" in r.json()
-
-    def test_edit_within_window_updates_and_audits(
-        self, api, org, program, cc_person_user, cc_membership, camper,
-    ):
-        person, user = cc_person_user
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper, author=person,
-            note_type=Note.NoteType.CAMPER_CARE,
-            body="initial", category="other",
-        )
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.patch(
-                f"/api/v1/camper-care/notes/{note.id}/",
-                {"body": "updated"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 200, r.content
-        note.refresh_from_db()
-        assert note.body == "updated"
-        assert AuditEvent.all_objects.filter(
-            content_type="note", content_id=str(note.id),
-            event_type=AuditEvent.EventType.EDITED,
-        ).exists()
-
-    def test_other_author_cannot_edit_within_window(
-        self, api, org, program, cc_person_user, cc_membership,
-        cc2_person_user, cc2_membership, camper,
-    ):
-        author, _ = cc_person_user
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper, author=author,
-            note_type=Note.NoteType.CAMPER_CARE,
-            body="initial", category="other",
-        )
-        _, user2 = cc2_person_user
-        api.force_authenticate(user=user2)
-        with organization_context(org):
-            r = api.patch(
-                f"/api/v1/camper-care/notes/{note.id}/",
-                {"body": "hostile edit"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 403  # criterion 7
-
-    def test_edit_after_24h_window_403(
-        self, api, org, program, cc_person_user, cc_membership, camper,
-    ):
-        author, user = cc_person_user
-        old = timezone.now() - timedelta(hours=25)
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper, author=author,
-            note_type=Note.NoteType.CAMPER_CARE,
-            body="old", category="other",
-        )
-        # Pin created_at to past via raw update so .save() doesn't refresh it.
-        Note.all_objects.filter(pk=note.pk).update(created_at=old)
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.patch(
-                f"/api/v1/camper-care/notes/{note.id}/",
-                {"body": "should fail"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 403
-
-    # ---- visibility regression: CC5 ------------------------------------
-
-    def test_counselor_cannot_read_cc_note(
-        self, api, org, program,
-        cc_person_user, cc_membership,
-        counselor_person_user, counselor_membership,
-        camper,
-    ):
-        author, _ = cc_person_user
-        Note.all_objects.create(
-            organization=org, program=program, subject=camper, author=author,
-            note_type=Note.NoteType.CAMPER_CARE,
-            body="restricted to CC",
-            is_sensitive=False,
-            category="behavioral",
-        )
-        # We don't expose a generic Note list endpoint to counselors;
-        # the regression check uses the visibility filter directly.
-        from bunk_logs.core.filters import notes_visible_to
-
-        _, co_user = counselor_person_user
-        with organization_context(org):
-            visible = notes_visible_to(co_user, Note.all_objects.all())
-            assert visible.count() == 0  # CC5: counselor does not see CC notes
-
-    def test_unit_head_cannot_read_cc_note(
-        self, api, org, program,
-        cc_person_user, cc_membership,
-        uh_person_user, uh_membership,
-        camper,
-    ):
-        author, _ = cc_person_user
-        Note.all_objects.create(
-            organization=org, program=program, subject=camper, author=author,
-            note_type=Note.NoteType.CAMPER_CARE,
-            body="restricted to CC",
-            is_sensitive=False,
-            category="behavioral",
-        )
-        from bunk_logs.core.filters import notes_visible_to
-
-        _, uh_user = uh_person_user
-        with organization_context(org):
-            visible = notes_visible_to(uh_user, Note.all_objects.all())
-            assert visible.count() == 0  # CC5: UH does not see CC notes
-
-    def test_audience_disclosure_endpoint(
-        self, api, org, cc_person_user, cc_membership,
-    ):
-        _, user = cc_person_user
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.get(
-                "/api/v1/camper-care/notes/audience/", **_hdr(org.slug),
-            )
-        assert r.status_code == 200
-        body = r.json()
-        assert body["is_sensitive"] is False
-        # Default audience: CC + LT + Admin per CC5
-        assert "Admin" in body["audience"]
-        assert "Camper Care" in body["audience"]
-        assert "Leadership Team" in body["audience"]
-        assert "Health Center" not in body["audience"]
 
 
 # ---------------------------------------------------------------------------
@@ -840,89 +636,6 @@ class TestCamperCareCamperDashboard:
                 f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
             )
         assert r.status_code == 403
-
-
-class TestCamperDashboardNotesDateFilter:
-    """`?notes_from=&notes_to=` clamps the notes lists (Step 7_8d).
-
-    Lives only on the CC endpoint; the UH camper dashboard is
-    unaffected. Defaults to the existing (unfiltered) behaviour when
-    neither bound is supplied.
-    """
-
-    def _make_note(self, *, org, program, author, subject, when, body):
-        note = Note.all_objects.create(
-            organization=org, program=program, author=author, subject=subject,
-            note_type=Note.NoteType.CAMPER_CARE, body=body,
-        )
-        Note.all_objects.filter(id=note.id).update(created_at=when)
-        return note
-
-    def test_notes_filter_clamps_camper_care_notes(
-        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
-        camper, camper_in_bunk,
-    ):
-        cc_person, user = cc_person_user
-        in_range = self._make_note(
-            org=org, program=program, author=cc_person, subject=camper,
-            when=timezone.now() - timedelta(days=5),
-            body="Recent visit — in window",
-        )
-        before_range = self._make_note(
-            org=org, program=program, author=cc_person, subject=camper,
-            when=timezone.now() - timedelta(days=60),
-            body="Old note from last month",
-        )
-        api.force_authenticate(user=user)
-        today = timezone.now().date()
-        notes_from = (today - timedelta(days=14)).isoformat()
-        notes_to = today.isoformat()
-        with organization_context(org):
-            r = api.get(
-                f"/api/v1/camper-care/campers/{camper.id}/"
-                f"?notes_from={notes_from}&notes_to={notes_to}",
-                **_hdr(org.slug),
-            )
-        assert r.status_code == 200, r.content
-        body = r.json()
-        ids = [n["id"] for n in body["camper_care_notes"]["items"]]
-        assert in_range.id in ids
-        assert before_range.id not in ids
-        assert body["camper_care_notes"]["filtered_by_date_range"] is True
-        assert body["notes_filter"] == {"from": notes_from, "to": notes_to}
-
-    def test_no_filter_returns_all_notes(
-        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
-        camper, camper_in_bunk,
-    ):
-        cc_person, user = cc_person_user
-        self._make_note(
-            org=org, program=program, author=cc_person, subject=camper,
-            when=timezone.now() - timedelta(days=120),
-            body="Ancient note — not clamped by default",
-        )
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.get(
-                f"/api/v1/camper-care/campers/{camper.id}/", **_hdr(org.slug),
-            )
-        assert r.status_code == 200
-        body = r.json()
-        assert len(body["camper_care_notes"]["items"]) == 1
-        assert body["notes_filter"] == {"from": None, "to": None}
-
-    def test_invalid_filter_date_rejected(
-        self, api, org, cc_person_user, cc_membership, cc_caseload,
-        camper, camper_in_bunk,
-    ):
-        _, user = cc_person_user
-        api.force_authenticate(user=user)
-        with organization_context(org):
-            r = api.get(
-                f"/api/v1/camper-care/campers/{camper.id}/?notes_from=not-a-date",
-                **_hdr(org.slug),
-            )
-        assert r.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -1119,6 +832,26 @@ class TestCamperCareSelfReflection:
 # ---------------------------------------------------------------------------
 
 
+def _flag_from_observation(org, program, author, camper, body: str) -> Flag:
+    obs = Observation.all_objects.create(
+        organization=org,
+        program=program,
+        author=author,
+        body=body,
+        author_role_at_write="specialist",
+    )
+    ObservationSubject.objects.create(observation=obs, subject=camper)
+    return Flag.all_objects.create(
+        organization=org,
+        program=program,
+        subject_camper=camper,
+        flagged_for_role="camper_care",
+        trigger_content_type="specialist_note",
+        trigger_content_id=str(obs.id),
+        status=Flag.Status.ACTIVE,
+    )
+
+
 class TestFlagWorkspaceTriggerPreview:
     def test_specialist_note_trigger_preview_returned(
         self, api, org, program, cc_person_user, cc_membership,
@@ -1128,17 +861,16 @@ class TestFlagWorkspaceTriggerPreview:
         can read the source without leaving the workspace.
         """
         author_person, _ = counselor_person_user
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper,
-            author=author_person,
-            note_type=Note.NoteType.SPECIALIST,
-            body=(
+        flag = _flag_from_observation(
+            org,
+            program,
+            author_person,
+            camper,
+            (
                 "Camper had a hard night, started crying after lights-out and "
                 "is asking for parent contact. Watching closely."
             ),
-            is_sensitive=False,
         )
-        flag = flag_helpers.raise_flag_from_specialist_note(note)
         _, user = cc_person_user
         api.force_authenticate(user=user)
         with organization_context(org):
@@ -1156,13 +888,7 @@ class TestFlagWorkspaceTriggerPreview:
     ):
         author_person, _ = counselor_person_user
         very_long = "a" * 500
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper,
-            author=author_person,
-            note_type=Note.NoteType.SPECIALIST,
-            body=very_long, is_sensitive=False,
-        )
-        flag_helpers.raise_flag_from_specialist_note(note)
+        _flag_from_observation(org, program, author_person, camper, very_long)
         _, user = cc_person_user
         api.force_authenticate(user=user)
         with organization_context(org):
@@ -1199,13 +925,7 @@ class TestFlagDetail:
         """
         author_person, _ = counselor_person_user
         long_body = "Camper had a very hard night. " + ("detail " * 60)
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper,
-            author=author_person,
-            note_type=Note.NoteType.SPECIALIST,
-            body=long_body, is_sensitive=False,
-        )
-        flag = flag_helpers.raise_flag_from_specialist_note(note)
+        flag = _flag_from_observation(org, program, author_person, camper, long_body)
         _, user = cc_person_user
         api.force_authenticate(user=user)
         with organization_context(org):

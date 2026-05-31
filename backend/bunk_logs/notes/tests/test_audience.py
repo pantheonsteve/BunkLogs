@@ -260,19 +260,17 @@ class TestCaptureDoNotResolve:
         bunk,
         uh_supervises_counselor,
     ):
-        from bunk_logs.notes.models import Note
-        from bunk_logs.notes.models import NoteAudienceCapture
+        from bunk_logs.notes.models import Observation
+        from bunk_logs.notes.models import ObservationRecipient
 
-        # Note was sent to uh_person; new counselor is NOT in audience.
-        note = Note.all_objects.create(
+        obs = Observation.all_objects.create(
             organization=org, program=program, author=counselor_person,
-            author_role_at_write="counselor", subject="Hi UH", body="Body",
+            author_role_at_write="counselor", body="Body",
         )
-        NoteAudienceCapture.objects.create(
-            note=note, person=uh_person, option_key="my_unit_head",
+        ObservationRecipient.objects.create(
+            observation=obs, person=uh_person, option_key="my_unit_head",
         )
 
-        # Add a new counselor to bunk AFTER the note was sent
         new_counselor = Person.all_objects.create(
             organization=org, first_name="Late", last_name="C",
         )
@@ -280,5 +278,4 @@ class TestCaptureDoNotResolve:
             group=bunk, person=new_counselor, role_in_group="author", is_active=True,
         )
 
-        # New counselor is not in audience captures for this note
-        assert not note.audience_captures.filter(person=new_counselor).exists()
+        assert not obs.recipients.filter(person=new_counselor).exists()

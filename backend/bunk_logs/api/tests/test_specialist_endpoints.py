@@ -26,13 +26,13 @@ from rest_framework.test import APIClient
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import Flag
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.notes.models import Observation
+from bunk_logs.notes.models import ObservationSubject
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -213,14 +213,14 @@ class TestSpecialistDashboard:
 
     def test_recent_notes_shows_authored_notes(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
         person, _ = sp_person_user
-        Note.all_objects.create(
+        obs = Observation.all_objects.create(
             organization=org,
             program=program,
-            subject=camper_person,
             author=person,
-            note_type=Note.NoteType.SPECIALIST,
             body="Good swimmer",
+            author_role_at_write="specialist",
         )
+        ObservationSubject.objects.create(observation=obs, subject=camper_person)
         with organization_context(org):
             r = api.get("/api/v1/specialist/dashboard/", **_hdr(org.slug))
         notes = r.json()["recent_notes"]
@@ -229,14 +229,14 @@ class TestSpecialistDashboard:
 
     def test_recent_notes_does_not_show_others_notes(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
         other, _ = _make_person(org, first="Oth", last="Sp", email="other@sp.test")
-        Note.all_objects.create(
+        obs = Observation.all_objects.create(
             organization=org,
             program=program,
-            subject=camper_person,
             author=other,
-            note_type=Note.NoteType.SPECIALIST,
             body="Someone else's note",
+            author_role_at_write="specialist",
         )
+        ObservationSubject.objects.create(observation=obs, subject=camper_person)
         with organization_context(org):
             r = api.get("/api/v1/specialist/dashboard/", **_hdr(org.slug))
         assert len(r.json()["recent_notes"]) == 0
@@ -305,118 +305,6 @@ class TestCamperPicker:
 
 
 # ---------------------------------------------------------------------------
-# Note create / edit tests
-# ---------------------------------------------------------------------------
-
-
-class TestSpecialistNoteCreate:
-    def test_create_note_happy_path(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
-        _person, _ = sp_person_user
-        payload = {
-            "subject_id": camper_person.id,
-            "body": "Great backstroke technique.",
-            "category": "positive",
-            "is_sensitive": False,
-            "flag_for_camper_care": False,
-        }
-        with organization_context(org):
-            r = api.post("/api/v1/specialist/notes/", payload, format="json", **_hdr(org.slug))
-        assert r.status_code == 201
-        data = r.json()
-        assert data["note_type"] == "specialist"
-        assert data["body"] == "Great backstroke technique."
-        assert data["flag_raised"] is False
-
-    def test_create_note_with_flag_creates_flag_record(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
-        _person, _ = sp_person_user
-        payload = {
-            "subject_id": camper_person.id,
-            "body": "Concerning behavior in water.",
-            "flag_for_camper_care": True,
-        }
-        with organization_context(org):
-            r = api.post("/api/v1/specialist/notes/", payload, format="json", **_hdr(org.slug))
-        assert r.status_code == 201
-        note_id = r.json()["id"]
-        assert r.json()["flag_raised"] is True
-
-        flag = Flag.all_objects.filter(
-            trigger_content_type="specialist_note",
-            trigger_content_id=str(note_id),
-        ).first()
-        assert flag is not None
-        assert flag.status == Flag.Status.ACTIVE
-        assert flag.subject_camper == camper_person
-
-    def test_create_note_missing_body_returns_400(self, api, org, sp_membership, camper_person, camper_agm):
-        with organization_context(org):
-            r = api.post(
-                "/api/v1/specialist/notes/",
-                {"subject_id": camper_person.id, "body": ""},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 400
-        assert "body" in r.json()
-
-    def test_create_note_missing_subject_returns_400(self, api, org, sp_membership):
-        with organization_context(org):
-            r = api.post(
-                "/api/v1/specialist/notes/",
-                {"body": "Some note"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 400
-        assert "subject_id" in r.json()
-
-
-class TestSpecialistNoteEdit:
-    def test_edit_within_window_succeeds(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
-        person, _ = sp_person_user
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper_person,
-            author=person, note_type=Note.NoteType.SPECIALIST, body="Original",
-        )
-        with organization_context(org):
-            r = api.patch(
-                f"/api/v1/specialist/notes/{note.id}/",
-                {"body": "Edited body"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 200
-        assert r.json()["body"] == "Edited body"
-
-    def test_edit_by_non_author_returns_403(self, api, org, program, sp_membership, camper_person, camper_agm):
-        other, _ = _make_person(org, first="Oth", last="Sp2", email="oth2@sp.test")
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper_person,
-            author=other, note_type=Note.NoteType.SPECIALIST, body="Not mine",
-        )
-        with organization_context(org):
-            r = api.patch(
-                f"/api/v1/specialist/notes/{note.id}/",
-                {"body": "Stealing edit"},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 403
-
-    def test_flag_retraction_blocked(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
-        """S5: Specialist cannot change flag state via PATCH (field rejected)."""
-        person, _ = sp_person_user
-        note = Note.all_objects.create(
-            organization=org, program=program, subject=camper_person,
-            author=person, note_type=Note.NoteType.SPECIALIST, body="Flagged",
-        )
-        with organization_context(org):
-            r = api.patch(
-                f"/api/v1/specialist/notes/{note.id}/",
-                {"flag_for_camper_care": False},
-                format="json", **_hdr(org.slug),
-            )
-        assert r.status_code == 400
-        assert "flag_for_camper_care" in str(r.json())
-
-
-# ---------------------------------------------------------------------------
 # Camper view visibility tests
 # ---------------------------------------------------------------------------
 
@@ -425,14 +313,16 @@ class TestSpecialistCamperView:
     def test_returns_own_notes_only(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
         person, _ = sp_person_user
         other, _ = _make_person(org, first="OtherSp", last="X", email="osp@sp.test")
-        Note.all_objects.create(
-            organization=org, program=program, subject=camper_person,
-            author=person, note_type=Note.NoteType.SPECIALIST, body="My note",
+        mine = Observation.all_objects.create(
+            organization=org, program=program, author=person,
+            body="My note", author_role_at_write="specialist",
         )
-        Note.all_objects.create(
-            organization=org, program=program, subject=camper_person,
-            author=other, note_type=Note.NoteType.SPECIALIST, body="Other's note",
+        ObservationSubject.objects.create(observation=mine, subject=camper_person)
+        theirs = Observation.all_objects.create(
+            organization=org, program=program, author=other,
+            body="Other's note", author_role_at_write="specialist",
         )
+        ObservationSubject.objects.create(observation=theirs, subject=camper_person)
         with organization_context(org):
             r = api.get(
                 f"/api/v1/specialist/campers/{camper_person.id}/", **_hdr(org.slug),
@@ -464,10 +354,11 @@ class TestSpecialistCamperView:
 
     def test_date_range_filter(self, api, org, program, sp_person_user, sp_membership, camper_person, camper_agm):
         person, _ = sp_person_user
-        Note.all_objects.create(
-            organization=org, program=program, subject=camper_person,
-            author=person, note_type=Note.NoteType.SPECIALIST, body="In range",
+        obs = Observation.all_objects.create(
+            organization=org, program=program, author=person,
+            body="In range", author_role_at_write="specialist",
         )
+        ObservationSubject.objects.create(observation=obs, subject=camper_person)
         with organization_context(org):
             r = api.get(
                 f"/api/v1/specialist/campers/{camper_person.id}/"
@@ -478,30 +369,3 @@ class TestSpecialistCamperView:
         assert len(r.json()["my_notes"]) == 1
 
 
-# ---------------------------------------------------------------------------
-# Audience disclosure test
-# ---------------------------------------------------------------------------
-
-
-class TestNoteAudience:
-    def test_audience_non_sensitive(self, api, org, sp_membership):
-        with organization_context(org):
-            r = api.get(
-                "/api/v1/specialist/notes/audience/?is_sensitive=false",
-                **_hdr(org.slug),
-            )
-        assert r.status_code == 200
-        audience = r.json()["audience"]
-        assert "Counselor" in audience
-        assert "Camper Care" in audience
-
-    def test_audience_sensitive_narrows(self, api, org, sp_membership):
-        with organization_context(org):
-            r = api.get(
-                "/api/v1/specialist/notes/audience/?is_sensitive=true",
-                **_hdr(org.slug),
-            )
-        assert r.status_code == 200
-        audience = r.json()["audience"]
-        assert "Counselor" not in audience
-        assert "Camper Care" in audience

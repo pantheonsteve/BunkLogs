@@ -7,12 +7,10 @@ authoring role's endpoint, and the action is captured in the audit log
 via :func:`bunk_logs.core.audit.override_edit` so reviewers can see
 *who* did *what*, *why*, with the before/after diff.
 
-Supported content types in PR1:
+Supported content types:
 
 * ``reflection`` -- patches ``answers``, ``language``,
   ``team_visibility``, ``is_complete``, ``is_sensitive``.
-* ``note`` -- patches ``body``, ``is_sensitive``,
-  ``maintenance_visibility``, ``language``.
 
 Other content types raise a 400. Override-close / override-resolve
 flows live alongside the order/flag endpoints in PR2.
@@ -28,9 +26,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit as audit_module
-from bunk_logs.core.models import Note
 from bunk_logs.core.models import Reflection
-from bunk_logs.core.models import note_snapshot
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 
@@ -46,14 +42,6 @@ ALLOWED_REFLECTION_FIELDS = frozenset({
     "is_complete",
     "is_sensitive",
 })
-ALLOWED_NOTE_FIELDS = frozenset({
-    "body",
-    "is_sensitive",
-    "maintenance_visibility",
-    "language",
-})
-
-
 class AdminOverrideEditView(APIView):
     """Admin override path with required reason."""
 
@@ -91,16 +79,12 @@ class AdminOverrideEditView(APIView):
                     payload = _apply_reflection_override(
                         ctx, content_id, patch, reason, actor,
                     )
-                elif content_type == "note":
-                    payload = _apply_note_override(
-                        ctx, content_id, patch, reason, actor,
-                    )
                 else:
                     return Response(
                         {
                             "detail": (
                                 "Unsupported content_type for override-edit. "
-                                "Supported: reflection, note."
+                                "Supported: reflection."
                             ),
                         },
                         status=status.HTTP_400_BAD_REQUEST,
@@ -139,37 +123,6 @@ def _apply_reflection_override(
     return {
         "content_type": "reflection",
         "content_id": reflection.id,
-        "before": before,
-        "after": after,
-        "fields_changed": sorted(changed),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Note override
-# ---------------------------------------------------------------------------
-
-
-def _apply_note_override(
-    ctx, content_id, patch: dict, reason: str, actor: Any,
-) -> dict:
-    try:
-        note = Note.all_objects.select_related("organization").get(
-            pk=content_id, organization=ctx.organization,
-        )
-    except Note.DoesNotExist as exc:
-        raise _OverrideNotFoundError from exc
-    before = note_snapshot(note)
-    changed = _apply_patch(note, patch, ALLOWED_NOTE_FIELDS)
-    if changed:
-        note.save()
-    after = note_snapshot(note)
-    audit_module.override_edit(
-        actor, note, before, after, reason=reason,
-    )
-    return {
-        "content_type": "note",
-        "content_id": note.id,
         "before": before,
         "after": after,
         "fields_changed": sorted(changed),

@@ -18,7 +18,6 @@ from .camper_care import bunk_dashboard as cc_bunk_dashboard
 from .camper_care import camper_dashboard as cc_camper_dashboard
 from .camper_care import dashboard as cc_dashboard
 from .camper_care import flags as cc_flags
-from .camper_care import notes as cc_notes
 from .camper_care import orders as cc_orders
 from .camper_care import self_reflection as cc_self_reflection
 from .counselor import camper_care_requests as counselor_camper_care_requests
@@ -32,8 +31,6 @@ from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
 from .dashboards import group_dashboard as group_dashboard_api
 from .dashboards import subject as subject_dashboard
-from .dashboards import subject_notes as subject_notes_api
-from .dashboards import subject_notes_global as subject_notes_global_api
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .kitchen_staff import dashboard as ks_dashboard
@@ -50,12 +47,10 @@ from .leadership_team import templates as lt_templates
 from .madrich import dashboard as md_dashboard
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
-from .notes_platform import views as notes_views
 from .observations import views as observations_views
 from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
 from .specialist import dashboard as sp_dashboard
-from .specialist import notes as sp_notes
 from .specialist import self_reflection as sp_self_reflection
 from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
@@ -290,28 +285,6 @@ urlpatterns = [
         name="dashboard-bunk",
     ),
 
-    # Subject notes (Prompt 3.15)
-    path(
-        "subjects/<int:person_id>/notes/",
-        subject_notes_api.SubjectNoteListCreateView.as_view(),
-        name="subject-notes",
-    ),
-    path(
-        "subjects/<int:person_id>/notes/<int:note_id>/amend/",
-        subject_notes_api.SubjectNoteAmendView.as_view(),
-        name="subject-note-amend",
-    ),
-    path(
-        "subject-notes/recent/",
-        subject_notes_global_api.RecentSubjectNotesView.as_view(),
-        name="subject-notes-recent",
-    ),
-    path(
-        "subject-notes/subjects/",
-        subject_notes_global_api.SearchableSubjectsView.as_view(),
-        name="subject-notes-searchable-subjects",
-    ),
-
     # Author attribution (commit 6 of 3.20)
     path(
         "dashboards/authors/",
@@ -489,21 +462,6 @@ urlpatterns = [
         name="camper-care-order-transition",
     ),
     path(
-        "camper-care/notes/",
-        cc_notes.CamperCareNoteCreateView.as_view(),
-        name="camper-care-note-create",
-    ),
-    path(
-        "camper-care/notes/audience/",
-        cc_notes.CamperCareNoteAudienceView.as_view(),
-        name="camper-care-note-audience",
-    ),
-    path(
-        "camper-care/notes/<int:note_id>/",
-        cc_notes.CamperCareNoteDetailView.as_view(),
-        name="camper-care-note-detail",
-    ),
-    path(
         "camper-care/self-reflection/",
         cc_self_reflection.CamperCareSelfReflectionCreateView.as_view(),
         name="camper-care-self-reflection",
@@ -536,21 +494,6 @@ urlpatterns = [
         "specialist/campers/<int:camper_id>/",
         sp_camper_view.SpecialistCamperView.as_view(),
         name="specialist-camper-view",
-    ),
-    path(
-        "specialist/notes/audience/",
-        sp_notes.SpecialistNoteAudienceView.as_view(),
-        name="specialist-note-audience",
-    ),
-    path(
-        "specialist/notes/",
-        sp_notes.SpecialistNoteCreateView.as_view(),
-        name="specialist-note-create",
-    ),
-    path(
-        "specialist/notes/<int:note_id>/",
-        sp_notes.SpecialistNoteDetailView.as_view(),
-        name="specialist-note-detail",
     ),
     path(
         "specialist/self-reflection/",
@@ -661,75 +604,6 @@ urlpatterns = [
     ),
 
     # ------------------------------------------------------------------
-    # Notes Platform (Step 7_19, Stories 66-70)
-    # ------------------------------------------------------------------
-    path(
-        "notes/inbox/",
-        notes_views.NotesInboxView.as_view(),
-        name="notes-inbox",
-    ),
-    path(
-        "notes/sent/",
-        notes_views.NotesSentView.as_view(),
-        name="notes-sent",
-    ),
-    path(
-        "notes/archive/",
-        notes_views.NotesArchiveView.as_view(),
-        name="notes-archive",
-    ),
-    path(
-        "notes/unread-count/",
-        notes_views.NotesUnreadCountView.as_view(),
-        name="notes-unread-count",
-    ),
-    path(
-        "notes/audience-options/",
-        notes_views.NotesAudienceOptionsView.as_view(),
-        name="notes-audience-options",
-    ),
-    path(
-        "notes/audience-candidates/",
-        notes_views.NotesAudienceCandidatesView.as_view(),
-        name="notes-audience-candidates",
-    ),
-    path(
-        "notes/from-bunk-concern/",
-        notes_views.NoteFromBunkConcernView.as_view(),
-        name="notes-from-bunk-concern",
-    ),
-    path(
-        "notes/from-specialist-note/",
-        notes_views.NoteFromSpecialistNoteView.as_view(),
-        name="notes-from-specialist-note",
-    ),
-    path(
-        "notes/",
-        notes_views.NoteCreateView.as_view(),
-        name="notes-create",
-    ),
-    path(
-        "notes/<int:note_id>/",
-        notes_views.NoteThreadView.as_view(),
-        name="notes-thread",
-    ),
-    path(
-        "notes/<int:note_id>/replies/",
-        notes_views.NoteReplyCreateView.as_view(),
-        name="notes-reply-create",
-    ),
-    path(
-        "notes/<int:note_id>/archive/",
-        notes_views.NoteArchiveView.as_view(),
-        name="notes-archive-action",
-    ),
-    path(
-        "notes/<int:note_id>/unarchive/",
-        notes_views.NoteUnarchiveView.as_view(),
-        name="notes-unarchive-action",
-    ),
-
-    # ------------------------------------------------------------------
     # Observations (Step 7_23) — the converged note system. Specific paths
     # are listed before ``observations/<id>/`` so they route correctly.
     # ------------------------------------------------------------------
@@ -737,6 +611,11 @@ urlpatterns = [
         "observations/inbox/",
         observations_views.ObservationsInboxView.as_view(),
         name="observations-inbox",
+    ),
+    path(
+        "observations/sent/",
+        observations_views.ObservationsSentView.as_view(),
+        name="observations-sent",
     ),
     path(
         "observations/unread-count/",
