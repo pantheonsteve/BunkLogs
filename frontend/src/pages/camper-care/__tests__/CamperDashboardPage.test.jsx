@@ -46,7 +46,7 @@ function renderAt(path) {
 }
 
 describe('CamperCareCamperDashboardPage', () => {
-  it('renders the shared CamperDashboard and offers an in-context Add Camper Care note CTA (Story 21)', async () => {
+  it('renders the shared CamperDashboard (legacy note CTA removed in 7_24)', async () => {
     getMock.mockResolvedValueOnce({ data: samplePayload });
     renderAt('/camper-care/campers/7');
     await waitFor(() => {
@@ -56,9 +56,7 @@ describe('CamperCareCamperDashboardPage', () => {
       '/api/v1/camper-care/campers/7/',
       expect.any(Object),
     );
-    const cta = screen.getByTestId('cc-camper-add-note');
-    expect(cta).toHaveTextContent(/add camper care note/i);
-    expect(cta).toHaveAttribute('href', '/camper-care/notes/new?camperId=7');
+    expect(screen.queryByTestId('cc-camper-add-note')).not.toBeInTheDocument();
   });
 
   it('renders the flag history section newest-first and highlights the anchored row from ?flagId=', async () => {

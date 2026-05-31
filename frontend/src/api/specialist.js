@@ -47,55 +47,6 @@ export async function fetchSpecialistCamperView(camperId, { dateFrom, dateTo } =
 }
 
 /**
- * Submit a specialist note (Story 26).
- * Returns `{ data, status }` so the caller can distinguish 201 from retries.
- */
-export async function createSpecialistNote({
-  subjectId, body, category = '', isSensitive = false,
-  flagForCamperCare = false, language = 'en',
-}) {
-  const payload = {
-    subject_id: subjectId,
-    body,
-    is_sensitive: isSensitive,
-    flag_for_camper_care: flagForCamperCare,
-    language,
-  };
-  if (category) payload.category = category;
-  const res = await api.post('/api/v1/specialist/notes/', payload);
-  return { data: res.data, status: res.status };
-}
-
-/** Edit a specialist note within the 24h window (Story 27). */
-export async function patchSpecialistNote(noteId, { body, isSensitive, category, language }) {
-  const payload = {};
-  if (body !== undefined) payload.body = body;
-  if (isSensitive !== undefined) payload.is_sensitive = isSensitive;
-  if (category !== undefined) payload.category = category;
-  if (language !== undefined) payload.language = language;
-  const { data } = await api.patch(`/api/v1/specialist/notes/${noteId}/`, payload);
-  return data;
-}
-
-/**
- * Resolve the audience disclosure copy for the note form (Story 26.5).
- */
-export async function fetchSpecialistNoteAudience({ isSensitive = false } = {}) {
-  const params = { is_sensitive: isSensitive ? 'true' : 'false' };
-  const { data } = await api.get('/api/v1/specialist/notes/audience/', { params });
-  return data;
-}
-
-/** Categories enum for specialist notes (Story 26 criterion 2). */
-export const SPECIALIST_NOTE_CATEGORIES = Object.freeze([
-  { value: 'positive', label: 'Positive observation' },
-  { value: 'concern', label: 'Concern' },
-  { value: 'milestone', label: 'Skill milestone' },
-  { value: 'behavioral', label: 'Behavioral' },
-  { value: 'other', label: 'Other' },
-]);
-
-/**
  * Submit a Specialist self-reflection (Story 29).
  * Mirrors the CC/UH write contract.
  */

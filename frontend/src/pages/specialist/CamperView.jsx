@@ -59,11 +59,10 @@ function NoteCard({ note }) {
           <span className="text-xs text-gray-500 dark:text-gray-400">{dateStr} {timeStr}</span>
           {editable && (
             <Link
-              to={`/specialist/notes/${note.id}/edit`}
-              state={{ note }}
+              to={`/observations/${note.id}`}
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
-              Edit
+              View
             </Link>
           )}
         </div>
@@ -221,7 +220,7 @@ export default function SpecialistCamperView() {
             My notes about this camper
           </h2>
           <Link
-            to={`/specialist/notes/new?camperId=${camper?.id}`}
+            to={`/specialist/campers/${camper?.id}`}
             className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
           >
             + Add note

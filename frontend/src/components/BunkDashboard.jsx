@@ -324,7 +324,7 @@ export default function BunkDashboard({
   onDateChange,
   camperDashboardPath = '/unit-head/campers',
   backTo = '/unit-head',
-  notesLink = '/notes',
+  notesLink = '/observations',
 }) {
   const today = data?.header?.today;
   const date = data?.header?.date;
