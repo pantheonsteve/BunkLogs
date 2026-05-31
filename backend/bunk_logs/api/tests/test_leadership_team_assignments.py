@@ -548,8 +548,8 @@ def scored_camper_template(org):
                     "prompts": {"en": "Rate each camper."},
                     "categories": [{"key": "behavior", "labels": {"en": "Behavior"}}],
                     "scale": [1, 4],
-                }
-            ]
+                },
+            ],
         },
         languages=["en"],
         subject_mode="single_subject",
@@ -591,8 +591,8 @@ def test_second_different_scored_camper_form_same_bunk_is_400(
                     "prompts": {"en": "Score each camper."},
                     "categories": [{"key": "overall", "labels": {"en": "Overall"}}],
                     "scale": [1, 4],
-                }
-            ]
+                },
+            ],
         },
         languages=["en"],
         subject_mode="single_subject",
@@ -646,8 +646,8 @@ def test_scored_form_with_non_camper_subject_is_allowed(
                     "prompts": {"en": "Rate yourself."},
                     "categories": [{"key": "effort", "labels": {"en": "Effort"}}],
                     "scale": [1, 4],
-                }
-            ]
+                },
+            ],
         },
         languages=["en"],
         subject_mode="self",
@@ -693,7 +693,7 @@ def test_second_camper_form_without_rating_fields_is_allowed(
         slug="camper-notes-only",
         cadence="daily",
         schema={
-            "fields": [{"key": "note", "type": "textarea", "prompts": {"en": "Notes?"}}]
+            "fields": [{"key": "note", "type": "textarea", "prompts": {"en": "Notes?"}}],
         },
         languages=["en"],
         subject_mode="single_subject",
@@ -748,8 +748,8 @@ def test_non_overlapping_windows_not_blocked(
                     "prompts": {"en": "Rate."},
                     "categories": [{"key": "x", "labels": {"en": "X"}}],
                     "scale": [1, 4],
-                }
-            ]
+                },
+            ],
         },
         languages=["en"],
         subject_mode="single_subject",
@@ -841,8 +841,8 @@ def test_scored_camper_form_on_different_bunk_is_allowed(
                     "prompts": {"en": "Rate."},
                     "categories": [{"key": "x", "labels": {"en": "X"}}],
                     "scale": [1, 4],
-                }
-            ]
+                },
+            ],
         },
         languages=["en"],
         subject_mode="single_subject",
@@ -897,8 +897,8 @@ def test_ended_scored_camper_assignment_does_not_block(
                     "prompts": {"en": "Rate."},
                     "categories": [{"key": "x", "labels": {"en": "X"}}],
                     "scale": [1, 4],
-                }
-            ]
+                },
+            ],
         },
         languages=["en"],
         subject_mode="single_subject",
