@@ -6,6 +6,7 @@ Endpoints:
   GET  /api/v1/notes/archive/           — Story 67
   GET  /api/v1/notes/unread-count/      — Story 67 c10 / sidebar badge
   GET  /api/v1/notes/audience-options/  — Story 66 c2
+  GET  /api/v1/notes/audience-candidates/ — composer autocomplete
   GET  /api/v1/notes/<id>/              — Story 68 thread view
   POST /api/v1/notes/                   — Story 66 compose
   POST /api/v1/notes/<id>/replies/      — Story 68 reply
@@ -185,6 +186,56 @@ class NotesAudienceOptionsView(APIView):
         options = audience_options_for(ctx.person, ctx.organization, ctx.program)
         serializer = AudienceOptionSerializer(options, many=True)
         return Response(serializer.data)
+
+
+class NotesAudienceCandidatesView(APIView):
+    """Return persons + bunks for the composer autocomplete dropdowns."""
+
+    def get(self, request):
+        from bunk_logs.core.models import AssignmentGroup
+        from bunk_logs.core.models import AssignmentGroupMembership
+
+        ctx = viewer_or_403(request)
+
+        person_qs = (
+            Person.all_objects.filter(
+                organization=ctx.organization,
+                memberships__is_active=True,
+                memberships__program__organization=ctx.organization,
+            )
+            .exclude(id=ctx.person.id)
+            .distinct()
+            .order_by("last_name", "first_name")
+        )
+        persons = [
+            {"id": p.id, "full_name": p.full_name}
+            for p in person_qs[:500]
+        ]
+
+        bunk_qs = AssignmentGroup.all_objects.filter(
+            organization=ctx.organization,
+            group_type="bunk",
+        )
+        if ctx.membership.role in ("counselor", "junior_counselor"):
+            bunk_ids = AssignmentGroupMembership.all_objects.filter(
+                person=ctx.person,
+                group__group_type="bunk",
+                role_in_group="author",
+            ).values_list("group_id", flat=True)
+            bunk_qs = bunk_qs.filter(id__in=bunk_ids)
+        elif ctx.membership.role == "unit_head":
+            from bunk_logs.core.models import Supervision
+
+            bunk_ids = Supervision.objects.bunks_for_uh(ctx.membership).values_list(
+                "id",
+                flat=True,
+            )
+            bunk_qs = bunk_qs.filter(id__in=bunk_ids)
+        else:
+            bunk_qs = bunk_qs.none()
+
+        bunks = [{"id": b.id, "name": b.name} for b in bunk_qs.order_by("name")]
+        return Response({"persons": persons, "bunks": bunks})
 
 
 class NoteThreadView(APIView):

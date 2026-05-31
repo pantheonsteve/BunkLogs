@@ -155,9 +155,9 @@ describe('LeadershipTeamResponses', () => {
     // per-subject dashboard, deep-linked to the current ?date= value so the
     // dashboard opens on the same day.
     const subjectLink = within(row1).getByRole('link', { name: 'Rose Postman' });
-    expect(subjectLink).toHaveAttribute('href', expect.stringMatching(/^\/dashboards\/subject\/88\?date=/));
+    expect(subjectLink).toHaveAttribute('href', expect.stringMatching(/^\/profile\/88\?date=/));
     expect(within(row2).getByRole('link', { name: 'Naomi Fossale' })).toHaveAttribute(
-      'href', expect.stringMatching(/^\/dashboards\/subject\/89\?date=/),
+      'href', expect.stringMatching(/^\/profile\/89\?date=/),
     );
 
     // Colour-coded rating cells render the numeric value with an

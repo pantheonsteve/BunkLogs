@@ -1,5 +1,11 @@
 # Notes Platform — Role Flows
 
+> **DEPRECATED (Step 7_23).** The notes platform has been converged into the
+> single **Observations** system. Notes about a person (`camper_reference`) are
+> migrated to Observations; pure peer-to-peer notes are retired. See
+> [`observations.md`](observations.md). The endpoints below remain as shims
+> until legacy callers are migrated and a later cleanup prompt removes them.
+
 **Step 7_19** | Affects: Counselor, Unit Head
 
 ## Overview

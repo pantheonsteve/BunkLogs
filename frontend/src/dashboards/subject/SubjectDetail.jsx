@@ -12,10 +12,12 @@
  * page exactly. Data shape: see `GET /api/v1/dashboards/subject/<id>/`.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import RichText from '../../components/ui/RichText';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, FileText, MessageSquarePlus, Users } from 'lucide-react';
 import { VISIBILITY_OPTIONS, createSubjectNote } from '../../api/subjects';
+import ObservationComposer from '../../components/observations/ObservationComposer';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
 import { ratingColor } from '../colors';
 import {
@@ -484,9 +486,22 @@ const VISIBILITY_BADGE = {
   admin_only: { label: 'Admin only', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200' },
 };
 
+function formatNoteDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function NoteCard({ note }) {
   const badge = VISIBILITY_BADGE[note.visibility] ?? { label: note.visibility, cls: 'bg-gray-100 text-gray-700' };
-  const dateStr = note.created_at ? new Date(note.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const submittedAt = formatNoteDateTime(note.created_at);
   return (
     <li
       className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3"
@@ -494,7 +509,8 @@ function NoteCard({ note }) {
     >
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          {note.author?.name ?? 'Unknown'} · {dateStr}
+          {note.author?.name ?? 'Unknown'}
+          {submittedAt ? ` · ${submittedAt}` : ''}
         </span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls}`}>
           {badge.label}
@@ -643,6 +659,15 @@ function NotesPanel({ notes = [], personId, onNoteCreated }) {
   const [open, setOpen] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
 
+  const sortedNotes = useMemo(
+    () => [...notes].sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tb - ta;
+    }),
+    [notes],
+  );
+
   const handleSuccess = () => {
     setFormOpen(false);
     if (onNoteCreated) onNoteCreated();
@@ -693,13 +718,13 @@ function NotesPanel({ notes = [], personId, onNoteCreated }) {
               onCancel={() => setFormOpen(false)}
             />
           )}
-          {notes.length === 0 && !formOpen ? (
+          {sortedNotes.length === 0 && !formOpen ? (
             <p className="text-sm text-gray-500 dark:text-gray-400 italic" data-testid="subject-notes-empty">
               No notes yet.
             </p>
           ) : (
             <ul className="mt-4 space-y-3">
-              {notes.map((n) => (
+              {sortedNotes.map((n) => (
                 <NoteCard key={n.id} note={n} />
               ))}
             </ul>
@@ -734,9 +759,9 @@ function RecentTexts({ texts }) {
               </span>
               <PrivacyChip teamVisibility={t.team_visibility} />
             </p>
-            <p
-              className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: t.text }}
+            <RichText
+              html={t.text}
+              className="text-sm text-gray-800 dark:text-gray-200"
             />
       
           </li>
@@ -750,6 +775,110 @@ function RecentTexts({ texts }) {
 // Root
 // ---------------------------------------------------------------------------
 
+const SENSITIVITY_LABEL = {
+  normal: 'Normal',
+  sensitive: 'Sensitive',
+  domain: 'Domain',
+  confidential: 'Confidential',
+};
+
+function ObservationsPanel({ observations = [], subject, personId, onCreated }) {
+  const [open, setOpen] = useState(true);
+  const [composing, setComposing] = useState(false);
+
+  const sorted = useMemo(
+    () => [...observations].sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tb - ta;
+    }),
+    [observations],
+  );
+
+  return (
+    <section
+      className="mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+      data-testid="observations-panel"
+    >
+      <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2">
+          <MessageSquarePlus className="w-5 h-5 text-indigo-500" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Observations</h2>
+          {observations.length > 0 && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+              {observations.length}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2 items-center">
+          {personId && (
+            <button
+              type="button"
+              onClick={() => setComposing(true)}
+              className="text-xs font-medium px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+              data-testid="observation-add-btn"
+            >
+              + Add observation
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            {open ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
+      </header>
+
+      {open && (
+        <div className="p-4">
+          {sorted.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 italic" data-testid="observations-empty">
+              No observations yet.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {sorted.map((o) => (
+                <li key={o.id}>
+                  <Link
+                    to={`/observations/${o.id}`}
+                    className="block rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
+                        {SENSITIVITY_LABEL[o.sensitivity] ?? o.sensitivity}
+                      </span>
+                      {o.context && (
+                        <span className="text-xs text-gray-400">{o.context}</span>
+                      )}
+                      {o.author && (
+                        <span className="text-xs text-gray-400 ml-auto">{o.author.name}</span>
+                      )}
+                    </div>
+                    <RichText
+                      html={o.body}
+                      className="text-sm text-gray-800 dark:text-gray-200 break-words [&_p]:mb-1 last:[&_p]:mb-0"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {composing && (
+        <ObservationComposer
+          initialSubjects={subject ? [{ id: personId, full_name: subject.name }] : []}
+          onClose={() => setComposing(false)}
+          onSent={() => { setComposing(false); if (onCreated) onCreated(); }}
+        />
+      )}
+    </section>
+  );
+}
+
 export default function SubjectDetail({ payload, onRangeChange, personId, onNoteCreated }) {
   if (!payload) return null;
   const {
@@ -760,6 +889,7 @@ export default function SubjectDetail({ payload, onRangeChange, personId, onNote
     recent_texts: recentTexts,
     concerning_patterns: concerns,
     notes,
+    observations,
   } = payload;
   const language = profile?.preferred_language ?? 'en';
   return (
@@ -782,7 +912,13 @@ export default function SubjectDetail({ payload, onRangeChange, personId, onNote
         ))
       )}
 
-      <RecentTexts texts={recentTexts} />
+      {/*<RecentTexts texts={recentTexts} />*/} 
+      <ObservationsPanel
+        observations={observations ?? []}
+        subject={subject}
+        personId={personId}
+        onCreated={onNoteCreated}
+      />
       <NotesPanel notes={notes ?? []} personId={personId} onNoteCreated={onNoteCreated} />
     </div>
   );
