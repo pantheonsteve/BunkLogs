@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import RichText from '../../components/ui/RichText';
 import { useAuth } from '../../auth/AuthContext';
 import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
@@ -671,13 +672,7 @@ function UnitHeadBunkGrid({ selectedDate }) {
                     <div>
                       <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Elaboration</p>
                       <div className="text-lg text-gray-900 dark:text-white prose dark:prose-invert max-w-none">
-                        {selectedLog.elaboration ? (
-                          <span
-                            dangerouslySetInnerHTML={{ __html: selectedLog.elaboration }}
-                          />
-                        ) : (
-                          <span>None</span>
-                        )}
+                        <RichText html={selectedLog.elaboration} fallback={<span>None</span>} />
                       </div>
                     </div>
                     <div>
@@ -698,9 +693,7 @@ function UnitHeadBunkGrid({ selectedDate }) {
                       <div className="md:col-span-2">
                         <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Values Reflection</p>
                         <div className="text-lg text-gray-900 dark:text-white prose dark:prose-invert max-w-none">
-                          <span
-                            dangerouslySetInnerHTML={{ __html: selectedLog.values_reflection }}
-                          />
+                          <RichText html={selectedLog.values_reflection} />
                         </div>
                       </div>
                     )}

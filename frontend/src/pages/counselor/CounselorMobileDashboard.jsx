@@ -1,5 +1,5 @@
 /**
- * Counselor mobile dashboard — Step 7_6d (Stories 2 + 9).
+ * Counselor dashboard — Step 7_6d (Stories 2 + 9).
  *
  * Renders the three-section payload from
  * `GET /api/v1/counselor/dashboard/`:
@@ -14,6 +14,12 @@
  * "All set" banner appears when the first two sections are complete.
  * The Requests section never blocks all-set (Story 9 criterion 2).
  *
+ * Layout: mobile-first single column (matches the approved mockup);
+ * on desktop the three task cards lay out as an equal-height 3-up grid
+ * in the shared dashboard design language (rounded-xl cards, shadow-sm,
+ * uppercase context line + large date header) used by the Bunk/Unit
+ * dashboards.
+ *
  * Auto-refresh on a 60-second interval so co-counselor submissions
  * surface without a manual reload (matches dashboard cache TTL of 30s
  * with one round-trip of buffer).
@@ -21,6 +27,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CheckCircle } from 'lucide-react';
 import { fetchCounselorDashboard } from '../../api/counselor';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -29,12 +36,12 @@ function SectionCard({ title, state, children, actionLabel, actionTo, dataTestid
   const stateBadge = (() => {
     switch (state) {
       case 'complete':
-        return { label: 'Done', className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' };
+        return { label: 'Done', className: 'border border-green-200 dark:border-green-900 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300' };
       case 'in_progress':
-        return { label: 'In progress', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' };
+        return { label: 'In progress', className: 'border border-amber-200 dark:border-amber-900 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' };
       case 'none':
       default:
-        return { label: 'Not started', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200' };
+        return { label: 'Not started', className: 'border border-gray-200 dark:border-gray-700 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' };
     }
   })();
 
@@ -42,12 +49,12 @@ function SectionCard({ title, state, children, actionLabel, actionTo, dataTestid
     <section
       data-testid={dataTestid}
       data-state={state}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-4 shadow-sm"
+      className="flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm"
     >
-      <div className="flex items-center justify-between gap-2 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-2">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
         <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${stateBadge.className}`}
+          className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${stateBadge.className}`}
           data-testid={`${dataTestid}-state`}
         >
           {stateBadge.label}
@@ -55,11 +62,11 @@ function SectionCard({ title, state, children, actionLabel, actionTo, dataTestid
       </div>
       <div className="text-sm text-gray-700 dark:text-gray-300">{children}</div>
       {actionTo ? (
-        <div className="mt-3">
+        <div className="mt-auto pt-4">
           <Link
             to={actionTo}
             data-testid={`${dataTestid}-action`}
-            className="inline-flex items-center justify-center min-h-[44px] px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            className="inline-flex items-center justify-center min-h-[44px] px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
           >
             {actionLabel}
           </Link>
@@ -259,12 +266,12 @@ export default function CounselorMobileDashboard() {
   const requestsSection = sections?.requests;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[96rem] mx-auto space-y-4">
-        <header className="mb-2">
-          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[80rem] mx-auto space-y-5">
+        <header>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
             {program?.name ? `${program.name} · ` : ''}Today
           </p>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white">
             {today}
           </h1>
           {refreshing ? (
@@ -279,22 +286,27 @@ export default function CounselorMobileDashboard() {
 
         {allSet ? (
           <div
-            className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/40 dark:border-green-800 px-4 py-3"
+            className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/40 dark:border-green-800 px-4 py-3"
             data-testid="counselor-all-set"
             role="status"
           >
-            <p className="text-sm font-medium text-green-900 dark:text-green-100">
-              You&apos;re all set for today — nice work.
-            </p>
-            <p className="text-xs text-green-800 dark:text-green-200 mt-1">
-              Edits stay open until the day rolls over.
-            </p>
+            <CheckCircle className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400 mt-0.5" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                You&apos;re all set for today — nice work.
+              </p>
+              <p className="text-xs text-green-800 dark:text-green-200 mt-1">
+                Edits stay open until the day rolls over.
+              </p>
+            </div>
           </div>
         ) : null}
 
-        <CamperSection section={camperSection} />
-        <SelfSection section={selfSection} />
-        <RequestsSection section={requestsSection} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-stretch">
+          <CamperSection section={camperSection} />
+          <SelfSection section={selfSection} />
+          <RequestsSection section={requestsSection} />
+        </div>
     </div>
   );
 }

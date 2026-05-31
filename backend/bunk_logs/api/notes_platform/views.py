@@ -18,7 +18,10 @@ Endpoints:
 
 from __future__ import annotations
 
+from django.db.models import Exists
 from django.db.models import Max
+from django.db.models import OuterRef
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -57,6 +60,18 @@ def _notes_last_activity(qs):
     )
 
 
+def _inbound_reply_exists(person: Person) -> Exists:
+    """Exists() flag: the note has at least one reply from someone other than `person`.
+
+    Used to route a note the viewer *authored* into their Inbox once a recipient
+    replies (the same event that bumps the sidebar badge), and out of Sent so it
+    isn't duplicated across both tabs.
+    """
+    return Exists(
+        NoteReply.objects.filter(note_id=OuterRef("pk")).exclude(author_id=person.id),
+    )
+
+
 def _active_note_for(viewer, note_id: int) -> Note | None:
     """Fetch a note visible to the viewer (in audience or authored)."""
     person = viewer.person
@@ -86,16 +101,45 @@ def _update_read_receipt(note: Note, person: Person) -> None:
     )
 
 
+def _has_unread_activity(note: Note, person: Person, *, is_author: bool) -> bool:
+    """Return True if `person` has unseen activity on `note`.
+
+    For audience members: a note with no receipt is unread (they've never
+    seen the original). For authors: only new replies after their receipt
+    count, since the author already knows about the note they wrote.
+    """
+    receipt = next(
+        (r for r in note.read_receipts.all() if r.person_id == person.id),
+        None,
+    )
+    replies = list(note.replies.all())
+    if receipt is None:
+        if is_author:
+            # Author created the note; only count if someone else has replied.
+            return any(r.author_id != person.id for r in replies)
+        return True
+    latest = receipt.last_read_at
+    for r in replies:
+        if r.created_at > latest:
+            return True
+    return bool(not is_author and note.created_at > latest)
+
+
 class NotesInboxView(APIView):
     def get(self, request):
         ctx = viewer_or_403(request)
         archived_note_ids = set(
             NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
+        # Inbox = notes received (in audience) PLUS notes the viewer authored
+        # that have drawn a reply from someone else. The latter is what bumps the
+        # sidebar badge, so the alert must land the viewer on a tab that holds it.
         qs = (
-            Note.all_objects.filter(
-                organization=ctx.organization,
-                audience_captures__person=ctx.person,
+            Note.all_objects.filter(organization=ctx.organization)
+            .annotate(has_inbound_reply=_inbound_reply_exists(ctx.person))
+            .filter(
+                Q(audience_captures__person=ctx.person)
+                | Q(author=ctx.person, has_inbound_reply=True),
             )
             .exclude(pk__in=archived_note_ids)
             .distinct()
@@ -115,11 +159,16 @@ class NotesSentView(APIView):
         archived_note_ids = set(
             NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
+        # Sent = notes the viewer authored that have NOT yet drawn a reply from
+        # anyone else. Once a recipient replies, the note moves to the Inbox (see
+        # NotesInboxView) so it lives in exactly one place.
         qs = (
             Note.all_objects.filter(
                 organization=ctx.organization,
                 author=ctx.person,
             )
+            .annotate(has_inbound_reply=_inbound_reply_exists(ctx.person))
+            .filter(has_inbound_reply=False)
             .exclude(pk__in=archived_note_ids)
             .prefetch_related("audience_captures__person", "replies", "read_receipts")
             .select_related("author")
@@ -158,23 +207,20 @@ class NotesUnreadCountView(APIView):
         archived_note_ids = set(
             NoteArchive.objects.filter(person=ctx.person).values_list("note_id", flat=True),
         )
-        inbox_notes = Note.all_objects.filter(
-            organization=ctx.organization,
-            audience_captures__person=ctx.person,
-        ).exclude(pk__in=archived_note_ids).distinct()
+        # Notes the user is involved in: either captured in the audience or
+        # authored. Replies on sent notes also bump the badge per spec.
+        relevant_notes = (
+            Note.all_objects.filter(organization=ctx.organization)
+            .filter(Q(audience_captures__person=ctx.person) | Q(author=ctx.person))
+            .exclude(pk__in=archived_note_ids)
+            .distinct()
+            .prefetch_related("replies", "read_receipts")
+        )
 
         unread_count = 0
-        for note in inbox_notes.prefetch_related("replies", "read_receipts"):
-            receipt = next(
-                (r for r in note.read_receipts.all() if r.person_id == ctx.person.id),
-                None,
-            )
-            if receipt is None:
-                unread_count += 1
-                continue
-            last_reply = note.replies.order_by("-created_at").first()
-            latest = last_reply.created_at if last_reply else note.created_at
-            if latest > receipt.last_read_at:
+        for note in relevant_notes:
+            is_author = note.author_id == ctx.person.id
+            if _has_unread_activity(note, ctx.person, is_author=is_author):
                 unread_count += 1
 
         return Response({"count": unread_count})
@@ -189,7 +235,14 @@ class NotesAudienceOptionsView(APIView):
 
 
 class NotesAudienceCandidatesView(APIView):
-    """Return persons + bunks for the composer autocomplete dropdowns."""
+    """Return persons + bunks that can fill the composer's autocomplete dropdowns.
+
+    The shape feeds AudiencePicker's `persons` and `bunks` props directly. We
+    return a permissive superset (every active staff Person in the org, plus
+    every bunk the viewer is in or supervises). Final authorization lives in
+    `resolve_audience` at submit time, so anything the user picks here that
+    isn't actually reachable by their role is silently dropped.
+    """
 
     def get(self, request):
         from bunk_logs.core.models import AssignmentGroup
@@ -217,6 +270,7 @@ class NotesAudienceCandidatesView(APIView):
             group_type="bunk",
         )
         if ctx.membership.role in ("counselor", "junior_counselor"):
+            # Bunks the counselor authors on (current or past).
             bunk_ids = AssignmentGroupMembership.all_objects.filter(
                 person=ctx.person,
                 group__group_type="bunk",
@@ -226,15 +280,16 @@ class NotesAudienceCandidatesView(APIView):
         elif ctx.membership.role == "unit_head":
             from bunk_logs.core.models import Supervision
 
-            bunk_ids = Supervision.objects.bunks_for_uh(ctx.membership).values_list(
-                "id",
-                flat=True,
-            )
+            bunk_ids = Supervision.objects.bunks_for_uh(ctx.membership).values_list("id", flat=True)
             bunk_qs = bunk_qs.filter(id__in=bunk_ids)
         else:
+            # Roles without bunk-scoped audience options don't need a bunk list.
             bunk_qs = bunk_qs.none()
 
-        bunks = [{"id": b.id, "name": b.name} for b in bunk_qs.order_by("name")]
+        bunks = [
+            {"id": b.id, "name": b.name}
+            for b in bunk_qs.order_by("name")
+        ]
         return Response({"persons": persons, "bunks": bunks})
 
 

@@ -93,7 +93,13 @@ class FlagListView(APIView):
 
 
 class FlagDetailView(APIView):
-    """``GET /api/v1/camper-care/flags/<id>/`` — full flag activity."""
+    """``GET /api/v1/camper-care/flags/<id>/`` — full flag activity.
+
+    Returns the flag, the *full* source note/reflection body (the list
+    endpoint only sends a truncated ``trigger_preview``), and the audit
+    history so Camper Care can expand a row to read every follow-up,
+    resolution, and reopen note their team has written on it.
+    """
 
     permission_classes = [IsAuthenticated]
 
@@ -248,7 +254,13 @@ def _trigger_preview(flag: Flag) -> str:
 
 
 def _trigger_detail(flag: Flag) -> dict:
-    """Full source content that raised the flag (note body / reflection text)."""
+    """Full source content that raised the flag (note body / reflection text).
+
+    Unlike :func:`_trigger_preview` this returns the untruncated body plus
+    author + timestamp so the workspace can render the whole source inline
+    when a row is expanded. Falls back gracefully when the trigger is an
+    unknown type or the underlying row was deleted.
+    """
     detail = {
         "content_type": flag.trigger_content_type,
         "content_id": flag.trigger_content_id,
@@ -272,7 +284,6 @@ def _trigger_detail(flag: Flag) -> dict:
                 detail["author"] = _person_name(note.author)
         else:
             from bunk_logs.core.models import Reflection
-
             refl = Reflection.all_objects.filter(id=flag.trigger_content_id).first()
             if refl is not None:
                 detail["created_at"] = (

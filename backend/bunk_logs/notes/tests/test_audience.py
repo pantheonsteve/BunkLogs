@@ -2,13 +2,13 @@
 
 Covers Counselor and UH option matrices, self-exclusion, active Membership
 filtering, and cross-org isolation. Also tests the capture-don't-resolve
-semantics.
+semantics and the universal default option set used by roles without a
+spec'd matrix.
 """
 
 from __future__ import annotations
 
 import pytest
-from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -37,11 +37,14 @@ class TestAudienceOptionsFor:
         assert "specific_counselor" in keys
         assert "all_counselors_in_unit" in keys
 
-    def test_no_v1_role_returns_empty(self, org, program):
+    def test_non_v1_role_gets_default_options(self, org, program):
         person = Person.all_objects.create(organization=org, first_name="Admin", last_name="X")
         Membership.all_objects.create(program=program, person=person, role="admin", is_active=True)
         opts = audience_options_for(person, org, program)
-        assert opts == []
+        keys = [o["option_key"] for o in opts]
+        assert "administration" in keys
+        assert "leadership_team" in keys
+        assert "specific_person" in keys
 
     def test_inactive_membership_returns_empty(self, org, program, counselor_person, counselor_membership):
         counselor_membership.is_active = False
@@ -166,23 +169,48 @@ class TestUHAllCounselorsInUnit:
         assert uh_person.id not in person_ids
 
 # ---------------------------------------------------------------------------
-# resolve_audience — non-v1 role raises 403
+# resolve_audience — non-spec roles get the universal default matrix
 # ---------------------------------------------------------------------------
 
-class TestNonV1RoleRejected:
-    def test_kitchen_staff_raises(self, org, program):
-        person = Person.all_objects.create(organization=org, first_name="KS", last_name="X")
-        membership = Membership.all_objects.create(
-            program=program, person=person, role="kitchen_staff", is_active=True,
+class TestNonV1RoleUsesDefaults:
+    def test_kitchen_staff_can_resolve_administration(self, org, program):
+        author = Person.all_objects.create(organization=org, first_name="KS", last_name="X")
+        author_membership = Membership.all_objects.create(
+            program=program, person=author, role="kitchen_staff", is_active=True,
         )
-        with pytest.raises(PermissionDenied):
-            resolve_audience(
-                author_person=person,
-                author_membership=membership,
+        # An Admin exists in the org so administration resolves to them.
+        admin_person = Person.all_objects.create(organization=org, first_name="Adm", last_name="X")
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="admin", is_active=True,
+        )
+
+        with organization_context(org):
+            rows = resolve_audience(
+                author_person=author,
+                author_membership=author_membership,
                 organization=org,
                 program=program,
                 audience_requests=[{"option_key": "administration"}],
             )
+
+        person_ids = {r["person"].id for r in rows}
+        assert admin_person.id in person_ids
+
+    def test_kitchen_staff_unknown_option_drops_silently(self, org, program):
+        author = Person.all_objects.create(organization=org, first_name="KS2", last_name="X")
+        membership = Membership.all_objects.create(
+            program=program, person=author, role="kitchen_staff", is_active=True,
+        )
+        with organization_context(org):
+            rows = resolve_audience(
+                author_person=author,
+                author_membership=membership,
+                organization=org,
+                program=program,
+                # 'all_counselors_in_unit' isn't a default option for KS — drop it.
+                audience_requests=[{"option_key": "all_counselors_in_unit"}],
+            )
+        assert rows == []
 
 
 # ---------------------------------------------------------------------------

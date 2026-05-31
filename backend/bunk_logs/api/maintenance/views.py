@@ -36,6 +36,7 @@ from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import TicketPhoto
 
+from .common import resolve_queue_viewer
 from .common import viewer_or_403
 
 logger = logging.getLogger(__name__)
@@ -75,16 +76,18 @@ class MaintenanceQueueView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx, scope = resolve_queue_viewer(request)
         filt = (request.query_params.get("filter") or "open").lower()
         if filt not in VALID_FILTERS:
             raise ValidationError({"filter": f"Must be one of: {', '.join(sorted(VALID_FILTERS))}."})
 
-        qs = (
-            MaintenanceTicket.objects.filter(program=ctx.program)
-            .select_related("submitted_by__person")
-        )
+        # Everyone sees the full program queue; ``viewer`` scope just renders it
+        # read-only (transition actions are stripped in ``_ticket_row``).
+        base = MaintenanceTicket.objects.select_related(
+            "submitted_by__person", "last_transition_by__person",
+        ).filter(program=ctx.program)
 
+        qs = base
         if filt == "open":
             qs = qs.filter(status__in=STATUS_OPEN)
         elif filt == "new":
@@ -103,10 +106,10 @@ class MaintenanceQueueView(APIView):
         else:
             tickets.sort(key=lambda t: t.updated_at, reverse=True)
 
-        counts = _build_counts(ctx.program)
-        rows = [_ticket_row(t) for t in tickets]
+        counts = _build_counts(base)
+        rows = [_ticket_row(t, scope=scope) for t in tickets]
 
-        return Response({"tickets": rows, "counts": counts})
+        return Response({"tickets": rows, "counts": counts, "scope": scope})
 
 
 def _apply_closed_filters(qs, request):
@@ -144,11 +147,11 @@ def _apply_closed_filters(qs, request):
     return qs
 
 
-def _build_counts(program) -> dict:
-    qs = MaintenanceTicket.objects.filter(program=program)
-    new_count = qs.filter(status=MaintenanceTicket.Status.NEW).count()
-    in_progress_count = qs.filter(status=MaintenanceTicket.Status.IN_PROGRESS).count()
-    urgent_open_count = qs.filter(
+def _build_counts(base_qs) -> dict:
+    """Header counts over the scope's base queryset (program or submitter)."""
+    new_count = base_qs.filter(status=MaintenanceTicket.Status.NEW).count()
+    in_progress_count = base_qs.filter(status=MaintenanceTicket.Status.IN_PROGRESS).count()
+    urgent_open_count = base_qs.filter(
         status__in=STATUS_OPEN, urgency=MaintenanceTicket.Urgency.URGENT,
     ).count()
     return {
@@ -158,7 +161,7 @@ def _build_counts(program) -> dict:
     }
 
 
-def _ticket_row(ticket: MaintenanceTicket) -> dict:
+def _ticket_row(ticket: MaintenanceTicket, *, scope: str = "team") -> dict:
     submitter = ticket.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
     age_seconds = int((timezone.now() - ticket.created_at).total_seconds()) if ticket.created_at else None
@@ -170,6 +173,17 @@ def _ticket_row(ticket: MaintenanceTicket) -> dict:
         ack_person = getattr(ack_membership, "person", None) if ack_membership else None
         acknowledger = {
             "name": ack_person.full_name if ack_person else None,
+            "at": ticket.last_transition_at.isoformat() if ticket.last_transition_at else None,
+        }
+
+    # Who resolved a closed ticket (fulfilled / unable to fulfill), for the
+    # queue card's "Fulfilled: 2d ago by Mike R" line.
+    resolution: dict | None = None
+    if ticket.last_transition_by_id and ticket.status in STATUS_CLOSED:
+        res_membership = ticket.last_transition_by
+        res_person = getattr(res_membership, "person", None) if res_membership else None
+        resolution = {
+            "name": res_person.full_name if res_person else None,
             "at": ticket.last_transition_at.isoformat() if ticket.last_transition_at else None,
         }
 
@@ -187,7 +201,9 @@ def _ticket_row(ticket: MaintenanceTicket) -> dict:
         "age_seconds": age_seconds,
         "has_photos": has_photos,
         "acknowledger": acknowledger,
-        "available_transitions": ticket.available_transitions(),
+        "resolution": resolution,
+        # Non-team viewers get a read-only view — no transition actions.
+        "available_transitions": ticket.available_transitions() if scope == "team" else [],
         "is_within_correction_window": ticket.can_correct_last_transition(),
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
         "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None,
@@ -205,7 +221,9 @@ class MaintenanceTicketDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, ticket_id, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        # Any active member can open a ticket to follow its progress; ``viewer``
+        # scope is read-only (no actions) and can't see team-only notes.
+        ctx, scope = resolve_queue_viewer(request)
         ticket = MaintenanceTicket.objects.filter(
             pk=ticket_id, program=ctx.program,
         ).select_related("submitted_by__person", "last_transition_by__person").first()
@@ -225,15 +243,27 @@ class MaintenanceTicketDetailView(APIView):
             .select_related("actor_membership__person")
             .order_by("created_at"),
         )
+        if scope != "team":
+            # Hide internal "team only" notes from non-maintenance viewers; the
+            # progress (state changes, corrections, submitter-visible notes) stays.
+            activity = [e for e in activity if not _is_team_only_note(e)]
 
         return Response({
-            "ticket": _ticket_detail_payload(ticket),
+            "ticket": _ticket_detail_payload(ticket, scope=scope),
             "photos": [_photo_payload(p) for p in photos],
             "activity": [_activity_event_payload(e) for e in activity],
+            "scope": scope,
         })
 
 
-def _ticket_detail_payload(ticket: MaintenanceTicket) -> dict:
+def _is_team_only_note(event: OrderActivityEvent) -> bool:
+    if event.event_type != OrderActivityEvent.EventType.NOTE:
+        return False
+    visibility = event.metadata.get("visibility", "team_only") if event.metadata else "team_only"
+    return visibility == "team_only"
+
+
+def _ticket_detail_payload(ticket: MaintenanceTicket, *, scope: str = "team") -> dict:
     submitter = ticket.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
     return {
@@ -250,8 +280,9 @@ def _ticket_detail_payload(ticket: MaintenanceTicket) -> dict:
             if submitter_person else None
         ),
         "submitted_by_membership_id": str(ticket.submitted_by_id) if ticket.submitted_by_id else None,
-        "available_transitions": ticket.available_transitions(),
-        "is_within_correction_window": ticket.can_correct_last_transition(),
+        # Non-team viewers get a read-only payload — no transitions or undo.
+        "available_transitions": ticket.available_transitions() if scope == "team" else [],
+        "is_within_correction_window": ticket.can_correct_last_transition() if scope == "team" else False,
         "last_transition_at": (
             ticket.last_transition_at.isoformat() if ticket.last_transition_at else None
         ),

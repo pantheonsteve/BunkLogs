@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import RichText from '../components/ui/RichText';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Calendar, Users, FileText, Eye, ChevronLeft, ChevronRight, Download, Filter, X, Search } from 'lucide-react';
 
@@ -1072,9 +1073,9 @@ function AdminBunkLogs() {
                       {selectedLog.description && (
                         <div>
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Description</h4>
-                          <div 
+                          <RichText
+                            html={selectedLog.description}
                             className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg"
-                            dangerouslySetInnerHTML={{ __html: selectedLog.description }}
                           />
                         </div>
                       )}

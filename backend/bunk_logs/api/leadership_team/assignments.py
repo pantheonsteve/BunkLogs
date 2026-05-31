@@ -156,6 +156,67 @@ def _find_conflicts(
     )
 
 
+# Rating-style field types that produce score-grid columns (Story 12).
+SCORED_FIELD_TYPES = ("rating_group", "single_rating")
+
+
+def _is_scored_camper_template(template: ReflectionTemplate | None) -> bool:
+    """True when a template targets campers AND collects at least one rating
+    field -- i.e. the kind of template that drives a bunk's score grid.
+
+    The score grid renders one column per scored dimension of a *single*
+    camper template; two such templates active on the same bunk on the same
+    day have no defined column merge. So "scored + camper-subject" is the
+    uniqueness key we enforce per assignment group.
+    """
+    if template is None:
+        return False
+    targets_campers = "camper" in (template.subject_role_filter or [])
+    schema = template.schema if isinstance(template.schema, dict) else {}
+    fields = schema.get("fields", [])
+    is_scored = any(
+        isinstance(f, dict) and f.get("type") in SCORED_FIELD_TYPES
+        for f in fields
+    )
+    return targets_campers and is_scored
+
+
+def _find_scored_camper_grid_conflict(
+    *, organization, template: ReflectionTemplate,
+    assignment_group_id: int | None, start: date, end: date | None,
+) -> TemplateAssignment | None:
+    """Return a live, date-overlapping assignment of a *different* scored
+    camper template on the same assignment group, or None.
+
+    Same-template overlaps are excluded on purpose: those go through the
+    conflict_resolution flow (replace / run_both), and a second assignment of
+    the *same* template produces identical grid columns, so it doesn't create
+    the ambiguity this guard exists to prevent.
+    """
+    if assignment_group_id is None or not _is_scored_camper_template(template):
+        return None
+    end_filter = end or date.max
+    qs = (
+        TemplateAssignment.all_objects.filter(
+            organization=organization,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            assignment_group_id=assignment_group_id,
+            status__in=[
+                TemplateAssignment.Status.SCHEDULED,
+                TemplateAssignment.Status.ACTIVE,
+            ],
+        )
+        .exclude(template_id=template.pk)
+        .filter(start_date__lte=end_filter)
+        .filter(Q(end_date__gte=start) | Q(end_date__isnull=True))
+        .select_related("template")
+    )
+    for other in qs:
+        if _is_scored_camper_template(other.template):
+            return other
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -239,6 +300,30 @@ class LeadershipTeamAssignmentListCreateView(APIView):
         if end and end < start:
             msg = "end_date must be on or after start_date."
             raise ValidationError(msg)
+
+        # Guard: a bunk's score grid is driven by a single scored camper
+        # template (Story 12). Block a second *different* scored camper form
+        # on the same assignment group with an overlapping window -- that
+        # combination silently fails to drive the grid today. Multiple scored
+        # camper forms per bunk is deferred product work.
+        if target_type == "assignment_group":
+            grid_conflict = _find_scored_camper_grid_conflict(
+                organization=ctx.organization,
+                template=template,
+                assignment_group_id=assignment_group_id,
+                start=start,
+                end=end,
+            )
+            if grid_conflict is not None:
+                existing = grid_conflict.title or grid_conflict.template.name
+                msg = (
+                    "This bunk already has an active scored camper form "
+                    f"('{existing}') for an overlapping date range. Only one "
+                    "scored camper form can drive a bunk's score grid. End or "
+                    "replace the existing assignment first. (Multiple scored "
+                    "camper forms per bunk is not yet supported.)"
+                )
+                raise ValidationError(msg)
 
         conflicts = list(_find_conflicts(
             organization=ctx.organization,

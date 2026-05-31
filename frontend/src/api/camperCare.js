@@ -66,6 +66,16 @@ export async function fetchFlags({ status, caseloadOnly = false } = {}) {
   return data;
 }
 
+/**
+ * Full activity for a single flag (Story 20 expand): the untruncated
+ * source note/reflection body plus the audit history (every follow-up,
+ * resolve, and reopen note the Camper Care team wrote).
+ */
+export async function fetchFlagDetail(flagId) {
+  const { data } = await api.get(`/api/v1/camper-care/flags/${flagId}/`);
+  return data;
+}
+
 /** Transition a flag to followed_up (interim, note optional). */
 export async function followUpFlag(flagId, { note } = {}) {
   const { data } = await api.post(

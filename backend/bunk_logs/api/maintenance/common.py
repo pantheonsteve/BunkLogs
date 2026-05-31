@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from typing import Literal
 
 from rest_framework.exceptions import PermissionDenied
 
@@ -16,6 +17,11 @@ from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
     from datetime import date
+
+# Queue audiences. ``team`` = maintenance/admin with the full program queue and
+# transition actions; ``viewer`` = any other org member, who sees the same full
+# program queue but read-only (no transition actions).
+QueueScope = Literal["team", "viewer"]
 
 
 @dataclass(frozen=True)
@@ -68,3 +74,54 @@ def viewer_or_403(request) -> ViewerContext:
         program=membership.program,
         today=get_today(org),
     )
+
+
+def resolve_queue_viewer(request) -> tuple[ViewerContext, QueueScope]:
+    """Resolve the queue viewer and their scope.
+
+    Maintenance/admin/super-admin members get ``team`` scope (the full program
+    queue with actions). Any other authenticated org member with an active
+    Membership gets ``viewer`` scope — the same full program queue, but
+    read-only. Transition/note/detail endpoints stay team-only via
+    :func:`viewer_or_403`.
+    """
+    org = getattr(request, "organization", None)
+    if org is None:
+        msg = "Organization context required."
+        raise PermissionDenied(msg)
+    if not request.user.is_authenticated:
+        msg = "Authentication required."
+        raise PermissionDenied(msg)
+    person = Person.all_objects.filter(user=request.user).first()
+    if person is None:
+        msg = "Person profile required."
+        raise PermissionDenied(msg)
+
+    memberships = Membership.objects.filter(
+        person=person, is_active=True,
+    ).select_related("program", "program__organization")
+
+    team_qs = memberships
+    if not is_super_admin(request.user):
+        team_qs = memberships.filter(role__in=("maintenance", "admin"))
+    team_membership = team_qs.order_by("-created_at").first()
+    if team_membership is not None:
+        return ViewerContext(
+            person=person,
+            organization=org,
+            membership=team_membership,
+            program=team_membership.program,
+            today=get_today(org),
+        ), "team"
+
+    viewer_membership = memberships.order_by("-created_at").first()
+    if viewer_membership is None:
+        msg = "Active membership required."
+        raise PermissionDenied(msg)
+    return ViewerContext(
+        person=person,
+        organization=org,
+        membership=viewer_membership,
+        program=viewer_membership.program,
+        today=get_today(org),
+    ), "viewer"

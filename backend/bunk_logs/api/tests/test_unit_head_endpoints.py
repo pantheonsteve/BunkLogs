@@ -418,7 +418,11 @@ def test_bunk_dashboard_payload_shape(
         template=camper_template, assignment_group=bunk,
         subject=campers[0], author=counselor_person,
         period_start=today, period_end=today,
-        answers={"overall": 4, "camper_scores": {"behavior": 5, "participation": 3}},
+        answers={
+            "overall": 4,
+            "camper_scores": {"behavior": 5, "participation": 3},
+            "notes": "Great day at the lake.",
+        },
         is_complete=True,
     )
     c = _client(uh_user, org)
@@ -427,13 +431,27 @@ def test_bunk_dashboard_payload_shape(
     assert resp.status_code == 200
     body = resp.json()
     expected_sections = {
-        "header", "help_requested", "off_camp", "bunk_concerns",
-        "score_grid", "orders", "specialist_reports",
+        "header", "help_requested", "camper_care_help_requested", "off_camp",
+        "bunk_concerns", "score_grid", "orders", "specialist_reports",
     }
     assert expected_sections.issubset(body.keys())
-    # Score grid: 3 columns (overall, behavior, participation), 3 rows.
+    # Score grid: ratings + yes/no + textarea columns, 3 rows.
     cols = [c["label"] for c in body["score_grid"]["columns"]]
-    assert cols == ["overall", "camper_scores__behavior", "camper_scores__participation"]
+    assert cols == [
+        "overall",
+        "camper_scores__behavior",
+        "camper_scores__participation",
+        "request_unit_head_help",
+        "notes",
+    ]
+    headers = [c["header"] for c in body["score_grid"]["columns"]]
+    assert headers == [
+        "overall",
+        "Behavior",
+        "Participation",
+        "Help requested?",
+        "Notes",
+    ]
     rows = body["score_grid"]["rows"]
     assert len(rows) == 3
     # Submitted camper has cell values; the others have None.
@@ -442,13 +460,41 @@ def test_bunk_dashboard_payload_shape(
         "overall": 4.0,
         "camper_scores__behavior": 5.0,
         "camper_scores__participation": 3.0,
+        "request_unit_head_help": None,
+        "notes": "Great day at the lake.",
     }
     maya_row = next(r for r in rows if r["camper"]["first_name"] == "Maya")
     assert maya_row["cells"] == {
         "overall": None,
         "camper_scores__behavior": None,
         "camper_scores__participation": None,
+        "request_unit_head_help": None,
+        "notes": None,
     }
+
+
+@pytest.mark.django_db
+def test_bunk_dashboard_surfaces_camper_care_help(
+    org, program, uh_user, uh_membership, bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor, campers, camper_template,
+):
+    """A camper reflection flagging `request_camper_care_help` surfaces in the card list."""
+    today = _today_in_org(org)
+    Reflection.all_objects.create(
+        organization=org, program=program,
+        template=camper_template, assignment_group=bunk,
+        subject=campers[0], author=counselor_person,
+        period_start=today, period_end=today,
+        answers={"request_camper_care_help": "yes"},
+        is_complete=True,
+    )
+    c = _client(uh_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/bunks/{bunk.id}/?date={today.isoformat()}")
+    assert resp.status_code == 200
+    cc = resp.json()["camper_care_help_requested"]
+    assert [p["id"] for p in cc] == [campers[0].id]
 
 
 @pytest.mark.django_db
@@ -920,3 +966,57 @@ def test_self_reflection_history_does_not_show_other_uh_rows(
     today_row = rows[today.isoformat()]
     assert today_row["submitted"] is False
     assert today_row["reflection_id"] is None
+
+
+@pytest.mark.django_db
+def test_self_reflection_supports_non_daily_cadence(
+    org, program, uh_user, uh_membership, uh_person,
+):
+    """A biweekly UH template resolves, submits, and reports state per period."""
+    from bunk_logs.core.time_utils import get_current_period
+
+    template = ReflectionTemplate.all_objects.get(slug="unit-head-self-reflection")
+    template.cadence = "biweekly"
+    template.save(update_fields=["cadence"])
+
+    today = _today_in_org(org)
+    p_start, p_end = get_current_period("biweekly", org, program=program, anchor=today)
+    assert p_start != p_end  # a real multi-day window, not today-only
+
+    c = _client(uh_user, org)
+
+    # Dashboard resolves the template despite the non-daily cadence.
+    with organization_context(org):
+        resp = c.get("/api/v1/unit-head/dashboard/?nocache=1")
+    body = resp.json()["self_reflection"]
+    assert body["template_id"] == template.id
+    assert body["state"] == "missing"
+    assert body["cadence"] == "biweekly"
+    assert body["period_start"] == p_start.isoformat()
+    assert body["period_end"] == p_end.isoformat()
+
+    # Submitting stores the reflection across the whole period window.
+    with organization_context(org):
+        post = c.post(
+            "/api/v1/unit-head/self-reflection/",
+            data={"day_off": True, "client_submission_id": str(uuid4())},
+            format="json",
+        )
+    assert post.status_code == 201, post.content
+    refl = Reflection.all_objects.get(author=uh_person, template=template)
+    assert (refl.period_start, refl.period_end) == (p_start, p_end)
+
+    # Dashboard now reports complete for the current period + history shows it.
+    with organization_context(org):
+        resp2 = c.get("/api/v1/unit-head/dashboard/?nocache=1")
+        hist = c.get("/api/v1/unit-head/self-reflection/history/")
+    body2 = resp2.json()["self_reflection"]
+    assert body2["state"] == "day_off"
+    assert body2["reflection_id"] == refl.id
+    assert body2["editable"] is True
+
+    rows = {r["date"]: r for r in hist.json()["results"]}
+    period_row = rows[p_start.isoformat()]
+    assert period_row["submitted"] is True
+    assert period_row["editable"] is True
+    assert period_row["period_end"] == p_end.isoformat()

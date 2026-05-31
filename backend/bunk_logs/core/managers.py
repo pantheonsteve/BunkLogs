@@ -172,53 +172,66 @@ class SupervisionQuerySet(models.QuerySet):
         return self.filter(supervisor_membership=supervisor_membership)
 
     def bunks_for_uh(self, uh_membership, *, today=None):
-        """Transitive: UH -> Counselors -> Bunks (AssignmentGroups).
+        """Bunks (AssignmentGroups) a Unit Head supervises, via two paths.
 
-        Returns the set of AssignmentGroup ids (group_type='bunk') the
-        Counselor Persons supervised by ``uh_membership`` author in. The two
-        intentional simplifications:
+        Path A (transitive): UH -> supervised Counselor Memberships
+        (``target_type=MEMBERSHIP``) -> the bunks those Counselor Persons
+        author. Authorship is taken from
+        ``AssignmentGroupMembership.role_in_group`` rather than fanning out
+        via Supervision rows (Counselors aren't supervisors -- per spec
+        they're direct assignments, not supervision rows).
 
-        * we only consider direct ``target_type=MEMBERSHIP`` supervisions
-          (UH's never have BUNK / ROLE_IN_PROGRAM supervisions);
-        * authorship is taken from ``AssignmentGroupMembership.role_in_group``
-          rather than fanning out via Supervision rows for Counselor -> Bunk
-          (Counselors aren't supervisors -- per spec they're direct
-          assignments, not supervision rows).
+        Path B (direct): UH supervises a bunk / unit group, or is attached
+        as an author on one (the common admin workflow of adding a UH to a
+        unit via the group-membership UI). This mirrors the Camper Care
+        caseload resolution and expands unit groups to their descendant
+        bunks, so a UH on the "Upper Bonim" unit sees its child bunks.
 
         Pass ``today`` to evaluate against a specific date; defaults to the
         current date via ``django.utils.timezone``.
         """
         from bunk_logs.core.models import AssignmentGroup
         from bunk_logs.core.models import AssignmentGroupMembership
+        from bunk_logs.core.models import Membership as _Membership
 
+        bunk_ids: set[int] = set()
+
+        # Path A: transitive walk through supervised counselor memberships.
         counselor_membership_ids = list(
             self.active(today=today)
             .for_supervisor(uh_membership)
             .filter(target_type="membership", target_membership__isnull=False)
             .values_list("target_membership_id", flat=True),
         )
-        if not counselor_membership_ids:
-            return AssignmentGroup.all_objects.none()
+        if counselor_membership_ids:
+            # The Membership FK only carries the role, not the Person -> we
+            # resolve Persons via a Membership lookup, then their authoring
+            # AssignmentGroupMemberships.
+            counselor_person_ids = list(
+                _Membership.all_objects.filter(
+                    pk__in=counselor_membership_ids,
+                ).values_list("person_id", flat=True),
+            )
+            bunk_ids.update(
+                AssignmentGroupMembership.all_objects.filter(
+                    person_id__in=counselor_person_ids,
+                    role_in_group="author",
+                    is_active=True,
+                    group__group_type="bunk",
+                    group__is_active=True,
+                ).values_list("group_id", flat=True),
+            )
 
-        # The Membership FK only carries the role, not the Person -> we
-        # resolve Persons via a Membership lookup, then their authoring
-        # AssignmentGroupMemberships.
-        from bunk_logs.core.models import Membership as _Membership
-
-        counselor_person_ids = list(
-            _Membership.all_objects.filter(
-                pk__in=counselor_membership_ids,
-            ).values_list("person_id", flat=True),
+        # Path B: direct bunk / unit-group / author supervision, expanded to
+        # descendant bunks (shared resolver with Camper Care caseloads).
+        bunk_ids.update(
+            _caseload_bunk_ids_for_membership(self, uh_membership, today=today),
         )
-        group_ids = AssignmentGroupMembership.all_objects.filter(
-            person_id__in=counselor_person_ids,
-            role_in_group="author",
-            is_active=True,
-            group__group_type="bunk",
-            group__is_active=True,
-        ).values_list("group_id", flat=True)
+
+        if not bunk_ids:
+            return AssignmentGroup.all_objects.none()
         return AssignmentGroup.all_objects.filter(
-            pk__in=group_ids, is_active=True,
+            pk__in=bunk_ids, is_active=True,
         ).distinct()
 
     def caseload_campers(self, camper_care_membership, *, today=None):

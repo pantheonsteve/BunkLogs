@@ -368,6 +368,57 @@ class TestBunksForUH:
             result = Supervision.objects.bunks_for_uh(uh, today=_ACTIVE_DAY)
         assert list(result) == []
 
+    def test_uh_author_on_unit_resolves_child_bunks(self, org, program):
+        """A UH attached as author on a unit sees the unit's child bunks.
+
+        Mirrors the admin workflow where a Unit Head has no counselor
+        supervisions but is added directly to a unit group (e.g. "Upper
+        Bonim"), which contains bunks.
+        """
+        uh_person = _person(org, first="Uh")
+        uh = _member(program, uh_person, role="unit_head")
+        unit = AssignmentGroup.all_objects.create(
+            organization=org,
+            program=program,
+            name="Upper Bonim",
+            slug="upper-bonim",
+            group_type="unit",
+        )
+        child = _bunk(program, slug="bunk-23", name="Bunk 23")
+        child.parent = unit
+        child.save()
+        _author(unit, uh_person)
+
+        with organization_context(org):
+            result = Supervision.objects.bunks_for_uh(uh, today=_ACTIVE_DAY)
+            slugs = sorted(result.values_list("slug", flat=True))
+        assert slugs == ["bunk-23"]
+
+    def test_uh_group_supervision_resolves_child_bunks(self, org, program):
+        """``target_type=assignment_group`` supervision expands to bunks."""
+        uh = _member(program, _person(org, first="Uh"), role="unit_head")
+        unit = AssignmentGroup.all_objects.create(
+            organization=org,
+            program=program,
+            name="Lower Bonim",
+            slug="lower-bonim",
+            group_type="unit",
+        )
+        child = _bunk(program, slug="bunk-9", name="Bunk 9")
+        child.parent = unit
+        child.save()
+        Supervision.all_objects.create(
+            supervisor_membership=uh,
+            target_type="assignment_group",
+            target_group=unit,
+            start_date=date(2026, 6, 1),
+        )
+
+        with organization_context(org):
+            result = Supervision.objects.bunks_for_uh(uh, today=_ACTIVE_DAY)
+            slugs = sorted(result.values_list("slug", flat=True))
+        assert slugs == ["bunk-9"]
+
 
 class TestCaseloadCampers:
     def test_returns_active_subjects(self, org, program):

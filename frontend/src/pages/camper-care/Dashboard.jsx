@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Flag, ClipboardList, Users, Heart } from 'lucide-react';
 import { fetchCamperCareDashboard } from '../../api/camperCare';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -21,27 +22,27 @@ const REFRESH_INTERVAL_MS = 60_000;
 const BADGE_META = {
   cc_flagged: {
     label: 'Flagged',
-    className: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+    className: 'border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-900/30 dark:text-rose-200',
   },
   cc_pending_order: {
     label: 'Pending order',
-    className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
+    className: 'border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-900/30 dark:text-orange-200',
   },
   help_requested: {
     label: 'Help requested',
-    className: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+    className: 'border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-900/30 dark:text-rose-200',
   },
   bunk_concerns: {
     label: 'Bunk concerns',
-    className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+    className: 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-200',
   },
   off_camp: {
     label: 'Off-camp',
-    className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+    className: 'border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-200',
   },
   low_completion: {
     label: 'Low completion',
-    className: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100',
+    className: 'border border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200',
   },
 };
 
@@ -87,46 +88,32 @@ function CompletionLabel({ completion }) {
 function BunkRow({ bunk }) {
   const { completion } = bunk;
   return (
-    <li
-      data-testid={`cc-bunk-row-${bunk.id}`}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
-    >
+    <li data-testid={`cc-bunk-row-${bunk.id}`}>
       <Link
         to={`/dashboards/group/${bunk.id}`}
         data-testid={`cc-bunk-link-${bunk.id}`}
-        className="block px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl"
+        className="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="font-semibold text-gray-900 dark:text-white truncate">{bunk.name}</h3>
             {bunk.counselor_names?.length > 0 && (
-              <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 truncate">
-                {bunk.counselor_names.join(' · ')}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                {bunk.counselor_names.join(', ')}
               </p>
             )}
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-white">
+          <div className="flex items-center justify-end gap-3 shrink-0 flex-wrap">
+            <span className="text-sm text-gray-700 dark:text-gray-300">
               {completion?.expected === 0 ? (
                 <span className="text-gray-400 dark:text-gray-500">—</span>
               ) : (
                 `${completion?.submitted ?? 0} of ${completion?.expected ?? 0} submitted`
               )}
-            </p>
-            {completion?.off_camp > 0 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                {completion.off_camp} off-camp
-              </p>
-            )}
+            </span>
+            {bunk.badges?.length > 0 && bunk.badges.map((b) => <Badge key={b} kind={b} />)}
           </div>
         </div>
-        {bunk.badges?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {bunk.badges.map((b) => (
-              <Badge key={b} kind={b} />
-            ))}
-          </div>
-        )}
       </Link>
     </li>
   );
@@ -161,26 +148,30 @@ function UnitSection({ unit, collapsed, onToggle }) {
     <section
       data-testid={`cc-unit-${unit.id ?? 'unassigned'}`}
       data-collapsed={collapsed ? 'true' : 'false'}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
     >
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors"
         aria-expanded={open}
         data-testid={`cc-unit-toggle-${unit.id ?? 'unassigned'}`}
       >
-        <div className="min-w-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white">{unit.name}</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {unit.bunks.length} bunk{unit.bunks.length === 1 ? '' : 's'} ·{' '}
-            <CompletionLabel completion={unit.completion} />
-          </p>
-        </div>
-        <span aria-hidden="true" className="text-gray-400 text-sm">{open ? '–' : '+'}</span>
+        <span className="flex items-center gap-3 min-w-0">
+          <span
+            aria-hidden="true"
+            className="shrink-0 w-6 h-6 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300 text-base leading-none"
+          >
+            {open ? '−' : '+'}
+          </span>
+          <span className="font-semibold text-gray-900 dark:text-white truncate">{unit.name}</span>
+        </span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 text-right">
+          {unit.bunks.length} bunk{unit.bunks.length === 1 ? '' : 's'} ·{' '}
+          <CompletionLabel completion={unit.completion} />
+        </span>
       </button>
-      {open && (
-        <ul className="px-3 pb-3 space-y-2">
+      {open && unit.bunks.length > 0 && (
+        <ul className="border-t border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800 bg-gray-50/40 dark:bg-gray-800/20">
           {unit.bunks.map((b) => (
             <BunkRow key={b.id} bunk={b} />
           ))}
@@ -190,23 +181,42 @@ function UnitSection({ unit, collapsed, onToggle }) {
   );
 }
 
-function WorkspaceCard({ to, label, count, testid, accent = 'blue' }) {
-  const accents = {
-    blue: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100',
-    red: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-red-900 dark:text-red-100',
-    amber: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100',
-  };
+const WORKSPACE_ACCENTS = {
+  red: {
+    card: 'border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30',
+    iconWrap: 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300',
+    count: 'text-rose-600 dark:text-rose-300',
+  },
+  amber: {
+    card: 'border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30',
+    iconWrap: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+    count: 'text-amber-700 dark:text-amber-300',
+  },
+};
+
+function WorkspaceCard({ to, label, description, count, testid, accent = 'red', icon: Icon }) {
+  const a = WORKSPACE_ACCENTS[accent] || WORKSPACE_ACCENTS.red;
   return (
     <Link
       to={to}
       data-testid={testid}
-      className={`flex items-center justify-between rounded-xl border px-4 py-3 shadow-sm hover:shadow-md transition-shadow ${accents[accent]}`}
+      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-4 shadow-sm hover:shadow-md transition-shadow ${a.card}`}
     >
-      <span className="font-semibold">{label}</span>
-      {typeof count === 'number' && count > 0 && (
+      <span className="flex items-center gap-3 min-w-0">
+        <span className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${a.iconWrap}`}>
+          {Icon && <Icon className="w-5 h-5" aria-hidden="true" />}
+        </span>
+        <span className="min-w-0">
+          <span className="block font-semibold text-gray-900 dark:text-white">{label}</span>
+          {description && (
+            <span className="block text-sm text-gray-600 dark:text-gray-400 mt-0.5">{description}</span>
+          )}
+        </span>
+      </span>
+      {typeof count === 'number' && (
         <span
           data-testid={`${testid}-count`}
-          className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full bg-white/70 dark:bg-black/30 text-sm font-semibold"
+          className={`shrink-0 text-3xl font-bold leading-none ${a.count}`}
         >
           {count}
         </span>
@@ -331,7 +341,7 @@ export default function CamperCareDashboard() {
 
   if (loading && !data) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
         <p className="text-gray-600 dark:text-gray-400">Loading dashboard…</p>
       </div>
     );
@@ -339,7 +349,7 @@ export default function CamperCareDashboard() {
 
   if (error && !data) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
         <div
           role="alert"
           className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
@@ -355,18 +365,16 @@ export default function CamperCareDashboard() {
   const summary = data?.summary ?? {};
 
   return (
-    <div data-testid="cc-dashboard" className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+    <div data-testid="cc-dashboard" className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
 
       {/* Hero header */}
       <div className="mb-8">
         <div className="flex items-center space-x-3 mb-4">
-          <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center shrink-0">
-            <svg className="w-6 h-6 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
+          <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center shrink-0">
+            <Heart className="w-7 h-7 text-rose-600 dark:text-rose-400" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
               Camper Care Dashboard
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
@@ -378,46 +386,56 @@ export default function CamperCareDashboard() {
 
         {/* Date + summary row */}
         <div className="flex flex-wrap items-center gap-4">
-          <label className="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-2">
-            <span>Date:</span>
-            <input
-              type="date"
-              value={dateParam || data?.date || ''}
-              max={data?.today || undefined}
-              onChange={(e) => handleDateChange(e.target.value)}
-              data-testid="cc-dashboard-date"
-              className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
-            />
-          </label>
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 shadow-sm">
+            <label className="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-2">
+              <span className="font-medium">Date:</span>
+              <input
+                type="date"
+                value={dateParam || data?.date || ''}
+                max={data?.today || undefined}
+                onChange={(e) => handleDateChange(e.target.value)}
+                data-testid="cc-dashboard-date"
+                className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+              />
+            </label>
+          </div>
           <div
             data-testid="cc-dashboard-summary"
-            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm text-gray-800 dark:text-gray-200 shadow-sm"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-sm text-gray-800 dark:text-gray-200 shadow-sm"
           >
-            <span data-testid="cc-summary-submitted">
-              {summary.submitted ?? 0} of {summary.expected ?? 0}
-            </span>{' '}
-            reflections submitted across your caseload
+            <span className="shrink-0 w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 flex items-center justify-center">
+              <Users className="w-4 h-4" aria-hidden="true" />
+            </span>
+            <p>
+              <span data-testid="cc-summary-submitted" className="font-semibold text-gray-900 dark:text-white">
+                {summary.submitted ?? 0} of {summary.expected ?? 0}
+              </span>{' '}
+              reflections submitted across your caseload
+            </p>
           </div>
         </div>
       </div>
 
       {/* Two-column content grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
 
         {/* Left — caseload tree (spans 2 of 3 columns on xl) */}
-        <section data-testid="cc-caseload" className="xl:col-span-2">
-          <div className="flex items-center justify-between mb-3">
+        <section
+          data-testid="cc-caseload"
+          className="xl:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden"
+        >
+          <div className="px-5 pt-5 pb-3">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My caseload</h2>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
               {units.length} unit{units.length === 1 ? '' : 's'} · Today is {data?.today}
-            </span>
+            </p>
           </div>
           {units.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="px-5 pb-5 text-sm text-gray-600 dark:text-gray-400">
               No bunks on your caseload yet. Once a bunk is assigned to your supervision, it will appear here.
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="border-t border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
               {units.map((u) => {
                 const key = String(u.id ?? 'unassigned');
                 return (
@@ -435,22 +453,24 @@ export default function CamperCareDashboard() {
 
         {/* Right — workspace cards + self-reflection */}
         <aside className="space-y-4">
-          <section className="grid grid-cols-1 gap-2" data-testid="cc-workspaces">
-            <WorkspaceCard
-              to="/camper-care/flags"
-              label="Flagged campers"
-              count={summary.flag_count}
-              testid="cc-workspace-flags"
-              accent="red"
-            />
-            <WorkspaceCard
-              to="/camper-care/orders"
-              label="Orders"
-              count={summary.order_count}
-              testid="cc-workspace-orders"
-              accent="amber"
-            />
-          </section>
+          <WorkspaceCard
+            to="/camper-care/flags"
+            label="Flagged campers"
+            description="View and follow up on campers that need attention."
+            count={summary.flag_count}
+            testid="cc-workspace-flags"
+            accent="red"
+            icon={Flag}
+          />
+          <WorkspaceCard
+            to="/camper-care/orders"
+            label="Orders"
+            description="Review and manage pending and completed orders."
+            count={summary.order_count}
+            testid="cc-workspace-orders"
+            accent="amber"
+            icon={ClipboardList}
+          />
 
           <SelfReflectionCard section={data?.self_reflection} today={data?.today} />
         </aside>

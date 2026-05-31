@@ -55,7 +55,7 @@ function formatAge(seconds) {
   return `${Math.round(h / 24)}d ago`;
 }
 
-function ActivityEvent({ event, ticketId, onNoteUpdated }) {
+function ActivityEvent({ event, ticketId, onNoteUpdated, readOnly = false }) {
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(event.note || '');
   const [editVisibility, setEditVisibility] = useState(event.visibility || 'team_only');
@@ -114,7 +114,7 @@ function ActivityEvent({ event, ticketId, onNoteUpdated }) {
         {isNote && !editing ? (
           <>
             <p className="text-sm text-gray-800 dark:text-gray-100 mt-1 whitespace-pre-wrap">{event.note}</p>
-            {event.is_within_edit_window && (
+            {!readOnly && event.is_within_edit_window && (
               <button
                 type="button"
                 onClick={() => setEditing(true)}
@@ -513,6 +513,7 @@ export default function TicketDetail() {
   }
 
   const { ticket, photos = [], activity = [] } = data || {};
+  const isReadOnly = data?.scope && data.scope !== 'team';
   const isOpen = ticket && ['new', 'in_progress'].includes(ticket.status);
   // After a closing transition the ticket leaves the "open" queue — send the
   // user to "closed" so they can still find it.
@@ -612,13 +613,14 @@ export default function TicketDetail() {
                     event={e}
                     ticketId={ticketId}
                     onNoteUpdated={handleNoteUpdated}
+                    readOnly={isReadOnly}
                   />
                 ))}
               </div>
             )}
 
             {/* Inline note form */}
-            {isOpen && (
+            {isOpen && !isReadOnly && (
               <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Add note</h3>
                 <NoteForm ticketId={ticketId} onNoteAdded={handleNoteAdded} />
@@ -626,7 +628,7 @@ export default function TicketDetail() {
             )}
 
             {/* Follow-up photo upload */}
-            {isOpen && (
+            {isOpen && !isReadOnly && (
               <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Add photo</h3>
                 <PhotoUploadForm ticketId={ticketId} onPhotoAdded={handlePhotoAdded} />
@@ -634,19 +636,21 @@ export default function TicketDetail() {
             )}
           </section>
 
-          <section data-testid="ticket-audit">
-            <AuditTrail
-              user={user}
-              contentType="maintenance_ticket"
-              contentId={ticketId}
-              emptyMessage="No audit events yet for this ticket."
-            />
-          </section>
+          {!isReadOnly && (
+            <section data-testid="ticket-audit">
+              <AuditTrail
+                user={user}
+                contentType="maintenance_ticket"
+                contentId={ticketId}
+                emptyMessage="No audit events yet for this ticket."
+              />
+            </section>
+          )}
         </div>
       )}
 
       {/* Actions pinned to bottom */}
-      {ticket && (
+      {ticket && !isReadOnly && (
         <TransitionActions
           ticket={ticket}
           onTransition={(toState) => setModal(toState)}

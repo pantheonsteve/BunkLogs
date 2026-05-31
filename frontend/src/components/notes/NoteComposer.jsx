@@ -55,6 +55,15 @@ export default function NoteComposer({ initialDraft = null, onClose, onSent }) {
   const [sourceObjectId] = useState(initialDraft?.source_object_id ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [candidates, setCandidates] = useState({ persons: [], bunks: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/api/v1/notes/audience-candidates/').then(r => {
+      if (!cancelled) setCandidates(r.data ?? { persons: [], bunks: [] });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Auto-save every 30s
   useEffect(() => {
@@ -145,7 +154,12 @@ export default function NoteComposer({ initialDraft = null, onClose, onSent }) {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               To <span className="text-red-500">*</span>
             </label>
-            <AudiencePicker value={audience} onChange={setAudience} />
+            <AudiencePicker
+              value={audience}
+              onChange={setAudience}
+              persons={candidates.persons}
+              bunks={candidates.bunks}
+            />
           </div>
 
           {/* Subject */}

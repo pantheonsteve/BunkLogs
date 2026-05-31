@@ -1,162 +1,131 @@
 /**
- * Shared Bunk Dashboard — Step 7_7, Story 11.
+ * Shared Bunk Dashboard — Step 7_7 (redesigned).
  *
  * Renders the full per-bunk payload returned by the unified
- * `GET /api/v1/dashboards/group/<id>/` endpoint when
- * `group_type='bunk'`. Counselor, Camper Care, Unit Head, Leadership
- * Team, and Admin all read here. Built as a presentational
- * component; the wrapping `GroupDashboardPage` resolves the caller's
- * role from the payload's `role_context` and feeds the right
- * `backTo` link.
+ * `GET /api/v1/dashboards/group/<id>/` endpoint when `group_type='bunk'`.
+ * Counselor, Camper Care, Unit Head, Leadership Team, and Admin all read
+ * here via `GroupDashboardPage`, which resolves the caller's role from
+ * `role_context` and feeds the right `backTo` / camper-dashboard paths.
  *
- * Section order matches the spec (criterion 1): Header → Help
- * requested → Off-camp today → Bunk concerns → Camper score grid
- * → Today's orders → Specialist reports. Empty sections collapse
- * to a single-line summary (criterion 2). The view is read-only in
- * v1; future role-conditional edit affordances will be gated via
- * the payload's `role_context.can_edit` flag.
+ * Layout mirrors the production bunk page: header (name, date, counselors,
+ * completion, view-only) → three attention summary cards (Not on Camp /
+ * Unit Head Help / Camper Care Help) → Camper Daily Scores grid → Orders &
+ * Tickets → Notes (bunk concerns + specialist reports). The view is
+ * read-only in v1. Completion is derived from the score-grid rows. The grid
+ * shows only substantive columns (ratings + free text); the yes/no triage
+ * fields (on-camp, help requests) are surfaced as the On Camp column and the
+ * summary cards instead, so they aren't duplicated as grid columns.
  */
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ScoreGrid from './ScoreGrid';
 
-function CollapsibleSection({
-  title,
-  emptyMessage,
-  isEmpty,
-  count,
-  children,
-  defaultOpen = true,
-  testid,
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  if (isEmpty) {
-    return (
-      <section
-        data-testid={testid}
-        data-state="empty"
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
-      >
-        <div className="text-sm">
-          <span className="font-semibold text-gray-900 dark:text-white">{title}</span>{' '}
-          <span className="text-gray-500 dark:text-gray-400">— {emptyMessage}</span>
-        </div>
-      </section>
-    );
-  }
+// Field types kept as grid columns. Triage single_choice/yes-no fields
+// (on-camp, UH/CC help requests) are surfaced as cards + the On Camp column.
+const GRID_COLUMN_TYPES = new Set([
+  'single_rating',
+  'rating_group',
+  'textarea',
+  'text',
+]);
+
+function camperDisplayName(c) {
+  if (!c) return '';
+  const first = c.preferred_name || c.first_name || '';
+  const lastInitial = (c.last_name || '').slice(0, 1);
+  return lastInitial ? `${first} ${lastInitial}.` : first;
+}
+
+function SectionCard({ title, count, action, children, testid, state = 'populated' }) {
   return (
     <section
       data-testid={testid}
-      data-state="populated"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
+      data-state={state}
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 text-left"
-        aria-expanded={open}
-      >
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 pt-4 pb-3">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">
           {title}
           {typeof count === 'number' && (
-            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({count})</span>
+            <span className="ml-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {count}
+            </span>
           )}
         </h2>
-        <span className="text-gray-400 text-sm" aria-hidden="true">
-          {open ? '–' : '+'}
-        </span>
-      </button>
-      {open && <div className="mt-3">{children}</div>}
+        {action}
+      </div>
+      <div className="px-4 sm:px-5 pb-5">{children}</div>
     </section>
   );
 }
 
-function CamperPill({ camper, dashboardPath }) {
-  const name = `${camper.preferred_name || camper.first_name} ${camper.last_name?.[0] || ''}.`;
-  return (
-    <Link
-      to={`${dashboardPath}/${camper.id}`}
-      data-testid={`camper-pill-${camper.id}`}
-      className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm hover:bg-gray-200 dark:hover:bg-gray-700"
-    >
-      {name}
-    </Link>
-  );
-}
+const SUMMARY_TONES = {
+  slate: { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+  amber: { dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
+  rose: { dot: 'bg-rose-500', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
+};
 
-function BunkConcernsList({ items }) {
+function SummaryCard({ title, tone, people, bunkLabel, camperDashboardPath, testid }) {
+  const t = SUMMARY_TONES[tone] || SUMMARY_TONES.slate;
   return (
-    <ul className="space-y-2">
-      {items.map((item) => (
-        <li key={item.reflection_id} data-testid={`bunk-concern-${item.reflection_id}`} className="text-sm">
-          <p className="font-medium text-gray-900 dark:text-white">
-            {item.author}
-            {item.author_role && (
-              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                ({item.author_role})
-              </span>
-            )}
-          </p>
-          {item.note && <p className="text-gray-700 dark:text-gray-200 mt-1">{item.note}</p>}
-          {item.open_concern && (
-            <p className="text-gray-600 dark:text-gray-300 mt-1 italic">{item.open_concern}</p>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function OrdersSection({ orders }) {
-  const { today = [], carried_over: carriedOver = [], counts = {} } = orders || {};
-  const totalCount = (today?.length || 0) + (carriedOver?.length || 0);
-  return (
-    <CollapsibleSection
-      title="Today's orders"
-      emptyMessage="none today."
-      isEmpty={totalCount === 0}
-      count={totalCount}
-      testid="section-orders"
+    <div
+      data-testid={testid}
+      data-count={people.length}
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4"
     >
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        {counts.open || 0} open · {counts.in_progress || 0} in progress · {counts.resolved || 0} resolved
-      </p>
-      {carriedOver.length > 0 && (
-        <div className="mb-3">
-          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">
-            Carried over from prior days
-          </p>
-          <ul className="space-y-1">
-            {carriedOver.map((o) => (
-              <OrderRow key={o.id} order={o} />
-            ))}
-          </ul>
-        </div>
-      )}
-      {today.length > 0 && (
-        <ul className="space-y-1">
-          {today.map((o) => (
-            <OrderRow key={o.id} order={o} />
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+          <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} aria-hidden="true" />
+          {title}
+        </span>
+        <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${t.badge}`}>
+          {people.length}
+        </span>
+      </div>
+      {people.length === 0 ? (
+        <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">None today.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          {people.map((p) => (
+            <li key={p.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+              <Link
+                to={`${camperDashboardPath}/${p.id}`}
+                className="font-medium text-gray-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+              >
+                {p.name}
+              </Link>
+              {bunkLabel && (
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{bunkLabel}</span>
+              )}
+            </li>
           ))}
         </ul>
       )}
-    </CollapsibleSection>
+    </div>
   );
 }
 
+const STATUS_LABELS = {
+  new: 'New',
+  in_progress: 'In progress',
+  fulfilled: 'Fulfilled',
+  unable_to_fulfill: 'Unable to fulfill',
+};
+
+const STATUS_TONES = {
+  new: 'text-amber-700 dark:text-amber-300',
+  in_progress: 'text-blue-700 dark:text-blue-300',
+  fulfilled: 'text-green-700 dark:text-green-300',
+  unable_to_fulfill: 'text-gray-500 dark:text-gray-400',
+};
+
 function OrderRow({ order }) {
   const isMaintenance = order.kind === 'maintenance';
-  const statusLabel = {
-    new: 'New',
-    in_progress: 'In progress',
-    fulfilled: 'Fulfilled',
-    unable_to_fulfill: 'Unable to fulfill',
-  }[order.status] || order.status;
   return (
     <li
       data-testid={`order-${order.id}`}
-      className="rounded-lg border border-gray-100 dark:border-gray-800 px-3 py-2 text-sm"
+      className="rounded-lg border border-gray-100 dark:border-gray-800 px-3 py-2.5"
     >
       <div className="flex items-center justify-between gap-2">
         <span
@@ -168,82 +137,83 @@ function OrderRow({ order }) {
         >
           {isMaintenance ? 'Maintenance' : 'Camper care'}
         </span>
-        <span className="text-xs text-gray-500 dark:text-gray-400">{statusLabel}</span>
+        <span className={`text-xs font-semibold ${STATUS_TONES[order.status] || 'text-gray-500'}`}>
+          {STATUS_LABELS[order.status] || order.status}
+        </span>
       </div>
-      <p className="mt-1 text-gray-900 dark:text-white">
+      <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
         {isMaintenance ? order.location : order.item}
       </p>
-      <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-        by {order.submitter || 'unknown'} · {new Date(order.submitted_at).toLocaleString()}
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+        by {order.submitter || 'unknown'}
+        {order.submitted_at ? ` · ${new Date(order.submitted_at).toLocaleString()}` : ''}
       </p>
     </li>
   );
 }
 
-function SpecialistReportsSection({ reports, dashboardPath }) {
-  const today = reports?.today || [];
-  const recent = reports?.recent || [];
-  const sensitiveCounts = reports?.sensitive_counts_by_camper || {};
-  const sensitiveTotal = Object.values(sensitiveCounts).reduce((s, n) => s + n, 0);
-  const totalVisible = today.length + recent.length;
-  const isEmpty = totalVisible === 0 && sensitiveTotal === 0;
-
+function OrdersSection({ orders }) {
+  const { today = [], carried_over: carriedOver = [], counts = {} } = orders || {};
+  const total = today.length + carriedOver.length;
   return (
-    <CollapsibleSection
-      title="Specialist reports"
-      emptyMessage="none today."
-      isEmpty={isEmpty}
-      count={totalVisible || undefined}
-      testid="section-specialist-reports"
+    <SectionCard
+      title="Orders & Tickets"
+      count={total}
+      testid="section-orders"
+      state={total === 0 ? 'empty' : 'populated'}
     >
-      {sensitiveTotal > 0 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 italic">
-          {sensitiveTotal} sensitive note{sensitiveTotal === 1 ? '' : 's'} not visible (Camper Care).
-        </p>
-      )}
-      {today.length > 0 && (
-        <div className="mb-3">
-          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">
-            Today
+      {total === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">None today.</p>
+      ) : (
+        <>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {counts.open || 0} open · {counts.in_progress || 0} in progress ·{' '}
+            {counts.resolved || 0} resolved today
           </p>
-          <ul className="space-y-2">
-            {today.map((n) => (
-              <SpecialistNote key={n.id} note={n} dashboardPath={dashboardPath} />
-            ))}
-          </ul>
-        </div>
+          {carriedOver.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+                Carried over from prior days
+              </p>
+              <ul className="space-y-2">
+                {carriedOver.map((o) => (
+                  <OrderRow key={o.id} order={o} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {today.length > 0 && (
+            <div>
+              {carriedOver.length > 0 && (
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+                  Today
+                </p>
+              )}
+              <ul className="space-y-2">
+                {today.map((o) => (
+                  <OrderRow key={o.id} order={o} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
-      {recent.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">
-            Recent
-          </p>
-          <ul className="space-y-2">
-            {recent.map((n) => (
-              <SpecialistNote key={n.id} note={n} dashboardPath={dashboardPath} />
-            ))}
-          </ul>
-        </div>
-      )}
-    </CollapsibleSection>
+    </SectionCard>
   );
 }
 
 function SpecialistNote({ note, dashboardPath }) {
   const [expanded, setExpanded] = useState(false);
-  const camperName = `${note.subject.preferred_name || note.subject.first_name} ${note.subject.last_name?.[0] || ''}.`;
   return (
     <li data-testid={`specialist-note-${note.id}`} className="text-sm">
-      <p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
         <Link
           to={`${dashboardPath}/${note.subject.id}`}
-          className="font-medium hover:underline text-blue-700 dark:text-blue-300"
+          className="font-semibold text-blue-700 dark:text-blue-300 hover:underline"
         >
-          {camperName}
+          {camperDisplayName(note.subject)}
         </Link>{' '}
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          · {note.author} · {new Date(note.created_at).toLocaleDateString()}
-        </span>
+        · {note.author} · {new Date(note.created_at).toLocaleDateString()}
       </p>
       <p className="mt-1 text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
         {expanded || !note.is_long ? note.body : note.preview}
@@ -261,40 +231,174 @@ function SpecialistNote({ note, dashboardPath }) {
   );
 }
 
+function NotesSection({ bunkConcerns, specialistReports, dashboardPath, notesLink }) {
+  const today = specialistReports?.today || [];
+  const recent = specialistReports?.recent || [];
+  const sensitiveCounts = specialistReports?.sensitive_counts_by_camper || {};
+  const sensitiveTotal = Object.values(sensitiveCounts).reduce((s, n) => s + n, 0);
+  const specialistNotes = [...today, ...recent];
+  const isEmpty =
+    bunkConcerns.length === 0 && specialistNotes.length === 0 && sensitiveTotal === 0;
+
+  return (
+    <SectionCard
+      title="Notes"
+      testid="section-notes"
+      state={isEmpty ? 'empty' : 'populated'}
+      action={
+        notesLink ? (
+          <Link to={notesLink} className="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline">
+            Open notes →
+          </Link>
+        ) : undefined
+      }
+    >
+      {isEmpty ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">No notes today.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+              Bunk concerns
+            </p>
+            {bunkConcerns.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">None today.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {bunkConcerns.map((item) => (
+                  <li
+                    key={item.reflection_id}
+                    data-testid={`bunk-concern-${item.reflection_id}`}
+                    className="rounded-lg border-l-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm"
+                  >
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {item.author}
+                      {item.author_role && (
+                        <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">
+                          · {item.author_role}
+                        </span>
+                      )}
+                    </p>
+                    {item.note && (
+                      <p className="text-gray-700 dark:text-gray-200 mt-1">{item.note}</p>
+                    )}
+                    {item.open_concern && (
+                      <p className="text-gray-600 dark:text-gray-300 mt-1 italic">
+                        {item.open_concern}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+              Specialist reports &amp; recent notes
+            </p>
+            {specialistNotes.length === 0 && sensitiveTotal === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">None today.</p>
+            ) : (
+              <ul className="space-y-3">
+                {specialistNotes.map((n) => (
+                  <SpecialistNote key={n.id} note={n} dashboardPath={dashboardPath} />
+                ))}
+                {sensitiveTotal > 0 && (
+                  <li className="text-xs text-gray-500 dark:text-gray-400 italic">
+                    {sensitiveTotal} sensitive note{sensitiveTotal === 1 ? '' : 's'} not visible
+                    (Camper Care).
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 export default function BunkDashboard({
   data,
   selectedDate,
   onDateChange,
   camperDashboardPath = '/unit-head/campers',
   backTo = '/unit-head',
+  notesLink = '/notes',
 }) {
   const today = data?.header?.today;
   const date = data?.header?.date;
   const helpRequested = data?.help_requested || [];
+  const camperCareHelpRequested = data?.camper_care_help_requested || [];
   const offCamp = data?.off_camp || [];
   const bunkConcerns = data?.bunk_concerns || [];
+  const orders = data?.orders;
   const scoreGrid = useMemo(() => data?.score_grid || { columns: [], rows: [] }, [data]);
 
+  const gridColumns = useMemo(
+    () => (scoreGrid.columns || []).filter((c) => GRID_COLUMN_TYPES.has(c.field_type)),
+    [scoreGrid],
+  );
+
+  const offCampIds = useMemo(() => new Set(offCamp.map((c) => c.id)), [offCamp]);
+
+  // Completion derived from the score-grid rows (one row per rostered camper;
+  // `reflection_id` is null until submitted). Off-camp campers aren't expected.
+  const completion = useMemo(() => {
+    const rows = scoreGrid.rows || [];
+    const expectedRows = rows.filter((r) => !offCampIds.has(r.camper?.id));
+    const submitted = expectedRows.filter((r) => r.reflection_id != null).length;
+    return { submitted, expected: expectedRows.length };
+  }, [scoreGrid, offCampIds]);
+
+  const notOnCamp = useMemo(
+    () => offCamp.map((c) => ({ id: c.id, name: camperDisplayName(c) })),
+    [offCamp],
+  );
+  const uhHelp = useMemo(
+    () => helpRequested.map((c) => ({ id: c.id, name: camperDisplayName(c) })),
+    [helpRequested],
+  );
+  const camperCareHelp = useMemo(
+    () => camperCareHelpRequested.map((c) => ({ id: c.id, name: camperDisplayName(c) })),
+    [camperCareHelpRequested],
+  );
+
   return (
-    <div data-testid="bunk-dashboard" className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
-      <header className="space-y-2">
-        <Link
-          to={backTo}
-          className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
-        >
+    <div
+      data-testid="bunk-dashboard"
+      className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto space-y-5"
+    >
+      <header className="space-y-3">
+        <Link to={backTo} className="text-sm font-semibold text-blue-700 dark:text-blue-300 hover:underline">
           ← Back
         </Link>
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-            {data?.header?.bunk?.name}
-          </h1>
-          {data?.header?.bunk?.unit_name && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {data.header.bunk.unit_name}
-            </p>
-          )}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {data?.header?.bunk?.name}
+            </h1>
+            {data?.header?.bunk?.unit_name && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {data.header.bunk.unit_name}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {completion.expected > 0 && (
+              <span
+                data-testid="bunk-completion"
+                className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/30 px-3 py-1 text-xs font-semibold text-green-700 dark:text-green-300"
+              >
+                {completion.submitted} of {completion.expected} reflections submitted
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300">
+              View only
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
           <label className="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-2">
             <span>Date:</span>
             <input
@@ -303,72 +407,68 @@ export default function BunkDashboard({
               max={today}
               onChange={(e) => onDateChange?.(e.target.value)}
               data-testid="bunk-dashboard-date"
-              className="rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+              className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-sm"
             />
           </label>
           {data?.header?.counselor_names?.length > 0 && (
-            <p className="text-xs text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Counselors: {data.header.counselor_names.join(' · ')}
             </p>
           )}
         </div>
       </header>
 
-      <CollapsibleSection
-        title="Help requested"
-        emptyMessage="none today."
-        isEmpty={helpRequested.length === 0}
-        count={helpRequested.length}
-        testid="section-help-requested"
-      >
-        <div className="flex flex-wrap gap-2">
-          {helpRequested.map((c) => (
-            <CamperPill key={c.id} camper={c} dashboardPath={camperDashboardPath} />
-          ))}
-        </div>
-      </CollapsibleSection>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <SummaryCard
+          title="Not on Camp"
+          tone="slate"
+          people={notOnCamp}
+          bunkLabel={data?.header?.bunk?.name}
+          camperDashboardPath={camperDashboardPath}
+          testid="card-not-on-camp"
+        />
+        <SummaryCard
+          title="Unit Head Help Requested"
+          tone="amber"
+          people={uhHelp}
+          bunkLabel={data?.header?.bunk?.name}
+          camperDashboardPath={camperDashboardPath}
+          testid="card-uh-help"
+        />
+        <SummaryCard
+          title="Camper Care Help"
+          tone="rose"
+          people={camperCareHelp}
+          bunkLabel={data?.header?.bunk?.name}
+          camperDashboardPath={camperDashboardPath}
+          testid="card-cc-help"
+        />
+      </div>
 
-      <CollapsibleSection
-        title="Off-camp today"
-        emptyMessage="none today."
-        isEmpty={offCamp.length === 0}
-        count={offCamp.length}
-        testid="section-off-camp"
-      >
-        <div className="flex flex-wrap gap-2">
-          {offCamp.map((c) => (
-            <CamperPill key={c.id} camper={c} dashboardPath={camperDashboardPath} />
-          ))}
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Bunk concerns"
-        emptyMessage="none today."
-        isEmpty={bunkConcerns.length === 0}
-        count={bunkConcerns.length}
-        testid="section-bunk-concerns"
-      >
-        <BunkConcernsList items={bunkConcerns} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Camper score grid"
-        emptyMessage="no reflections submitted today."
-        isEmpty={scoreGrid.rows.length === 0 && scoreGrid.columns.length === 0}
+      <SectionCard
+        title="Camper Daily Scores"
         testid="section-score-grid"
+        action={
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            {scoreGrid.rows?.length || 0} campers
+          </span>
+        }
       >
         <ScoreGrid
-          columns={scoreGrid.columns}
+          columns={gridColumns}
           rows={scoreGrid.rows}
           camperLinkPrefix={camperDashboardPath}
+          offCampIds={offCampIds}
         />
-      </CollapsibleSection>
+      </SectionCard>
 
-      <OrdersSection orders={data?.orders} />
-      <SpecialistReportsSection
-        reports={data?.specialist_reports}
+      <OrdersSection orders={orders} />
+
+      <NotesSection
+        bunkConcerns={bunkConcerns}
+        specialistReports={data?.specialist_reports}
         dashboardPath={camperDashboardPath}
+        notesLink={notesLink}
       />
     </div>
   );

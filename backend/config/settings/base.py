@@ -537,7 +537,13 @@ ACCOUNT_LOGOUT_REDIRECT_URL = env("ACCOUNT_LOGOUT_REDIRECT_URL", default=f"{FRON
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
 SPECTACULAR_SETTINGS = {
     "TITLE": "Bunk Logs API",
-    "DESCRIPTION": "Documentation of API endpoints of Bunk Logs",
+    "DESCRIPTION": (
+        "Documentation of API endpoints of Bunk Logs.\n\n"
+        "**Local development:** When calling the API on `localhost`, set organization "
+        "context via the `X-Organization-Slug` header (e.g. `clc`) or the `org` query "
+        "parameter on each `/api/v1/` request. Obtain a JWT from `POST /api/auth/token/` "
+        "and use **Authorize** for Bearer auth."
+    ),
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SCHEMA_PATH_PREFIX": "/api/",
@@ -549,8 +555,27 @@ SPECTACULAR_SETTINGS = {
         "UserRoleEnum": "bunk_logs.users.models.User.ROLE_CHOICES",
         "UnitStaffRoleEnum": "bunk_logs.bunks.models.UnitStaffAssignment.ROLE_CHOICES",
     },
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "organizationSlug": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-Organization-Slug",
+                "description": (
+                    "Organization slug for localhost / non-subdomain hosts (e.g. clc). "
+                    "Set once here or per-request on each operation."
+                ),
+            },
+        },
+    },
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+    },
     # Resolve operationId collisions
-    "POSTPROCESSING_HOOKS": ["drf_spectacular.hooks.postprocess_schema_enums"],
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "config.utils.add_organization_context_to_schema",
+    ],
 }
 # Your stuff...
 # ------------------------------------------------------------------------------

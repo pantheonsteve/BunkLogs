@@ -135,6 +135,38 @@ describe('Sidebar — section gating (3.32)', () => {
   });
 });
 
+describe('Sidebar — maintenance-only nav', () => {
+  it('shows only Maintenance Queue + Notes for a maintenance member', () => {
+    renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
+
+    const links = hrefs();
+    expect(links).toContain('/maintenance');
+    expect(links).toContain('/notes');
+    // Everything else is hidden.
+    expect(links).not.toContain('/dashboard');
+    expect(links).not.toContain('/tasks');
+    expect(links).not.toContain('/counselor');
+    expect(links).not.toContain('/reflect');
+    expect(links).not.toContain('/orders');
+    expect(links).not.toContain('/subject-notes');
+    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
+  });
+
+  it('orders Maintenance Queue before Notes', () => {
+    renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
+    const appLinks = hrefs().filter((h) => h === '/maintenance' || h === '/notes');
+    expect(appLinks[0]).toBe('/maintenance');
+    expect(appLinks[1]).toBe('/notes');
+  });
+
+  it('keeps full nav when the user also holds an admin membership', () => {
+    renderWith({ role: 'Admin', membership_roles: ['maintenance', 'admin'] });
+    const links = hrefs();
+    expect(links).toContain('/dashboard');
+    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+  });
+});
+
 describe('Sidebar — de-duplication of Wellness / Unit head dashboard (3.32)', () => {
   it('renders /dashboards/team and /dashboards/wellness exactly once for admins', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });

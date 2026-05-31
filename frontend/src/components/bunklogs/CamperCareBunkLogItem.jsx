@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import GenericAvatar from '../../images/avatar-generic.png';
+import RichText from '../ui/RichText';
 
 function CamperCareBunkLogItem(props) {
   // Score background color mapping
@@ -87,17 +88,10 @@ function CamperCareBunkLogItem(props) {
                 </span>
               )}
             </div>
-            <div>
-              {props.description ? (
-                props.description.includes('<') ? (
-                  <span dangerouslySetInnerHTML={{ __html: props.description }} />
-                ) : (
-                  props.description
-                )
-              ) : (
-                <span className="text-gray-400">No description</span>
-              )}
-            </div>
+            <RichText
+              html={props.description}
+              fallback={<span className="text-gray-400">No description</span>}
+            />
             <div className="mt-2 text-xs text-gray-500">
               <strong>Reporting Counselor:</strong>{' '}
               {props.counselor_first_name && props.counselor_last_name ? (

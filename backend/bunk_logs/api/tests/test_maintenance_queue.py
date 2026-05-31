@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
+from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -54,15 +55,21 @@ def maint_user(org, program):
 
 
 @pytest.fixture
-def counselor_user(org, program):
+def counselor_membership(org, program):
     user = User.objects.create_user(email="counselor@mq.com", password="pw")
     person = Person.all_objects.create(
         organization=org, first_name="Coun", last_name="Selor", user=user,
     )
-    Membership.all_objects.create(
+    membership = Membership.all_objects.create(
         program=program, person=person, role="counselor", is_active=True,
     )
-    return user
+    membership.user = user  # convenience handle for tests
+    return membership
+
+
+@pytest.fixture
+def counselor_user(counselor_membership):
+    return counselor_membership.user
 
 
 @pytest.fixture
@@ -157,15 +164,52 @@ class TestMaintenanceQueue:
 
 
 # ---------------------------------------------------------------------------
-# Permission: counselors cannot access maintenance queue
+# Scope: non-maintenance members get a read-only view of the full queue
 # ---------------------------------------------------------------------------
 
 
-class TestMaintenanceQueuePermission:
-    def test_counselor_forbidden(self, api, org, counselor_user):
-        api.force_authenticate(user=counselor_user)
+class TestMaintenanceQueueViewerScope:
+    def test_team_scope_for_maintenance(self, api, org, ticket, maint_user):
+        api.force_authenticate(user=maint_user)
         r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
-        assert r.status_code == 403
+        assert r.status_code == 200
+        assert r.json()["scope"] == "team"
+        # Team scope keeps transition actions available.
+        rows = r.json()["tickets"]
+        assert any(row["available_transitions"] for row in rows)
+
+    def test_viewer_sees_full_queue(
+        self, api, org, program, ticket, counselor_membership,
+    ):
+        # A counselor (non-maintenance) sees every ticket in the program, even
+        # ones they did not file (the `ticket` fixture has no submitter).
+        with organization_context(org):
+            mine = MaintenanceTicket.objects.create(
+                organization=org,
+                program=program,
+                location="Bunk 5",
+                category=MaintenanceTicket.Category.PLUMBING,
+                description="My leak",
+                urgency=MaintenanceTicket.Urgency.NORMAL,
+                submitted_by=counselor_membership,
+            )
+        api.force_authenticate(user=counselor_membership.user)
+        r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        data = r.json()
+        assert data["scope"] == "viewer"
+        ids = [t["id"] for t in data["tickets"]]
+        assert str(mine.id) in ids
+        assert str(ticket.id) in ids
+
+    def test_viewer_rows_are_read_only(
+        self, api, org, ticket, counselor_membership,
+    ):
+        api.force_authenticate(user=counselor_membership.user)
+        r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
+        rows = r.json()["tickets"]
+        assert rows
+        assert all(row["available_transitions"] == [] for row in rows)
 
     def test_unauthenticated_rejected(self, api, org):
         r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
@@ -186,6 +230,52 @@ class TestMaintenanceTicketDetail:
         assert data["ticket"]["id"] == str(ticket.id)
         assert "activity" in data
         assert "photos" in data
+
+    def test_viewer_can_read_detail_readonly(
+        self, api, org, ticket, counselor_membership,
+    ):
+        # Any active member can open a ticket to follow progress, but read-only.
+        api.force_authenticate(user=counselor_membership.user)
+        r = api.get(f"/api/v1/maintenance/tickets/{ticket.id}/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        data = r.json()
+        assert data["scope"] == "viewer"
+        assert data["ticket"]["available_transitions"] == []
+
+    def test_viewer_cannot_see_team_only_notes(
+        self, api, org, program, ticket, counselor_membership, maint_user,
+    ):
+        with organization_context(org):
+            OrderActivityEvent.objects.create(
+                organization=org,
+                program=program,
+                event_type=OrderActivityEvent.EventType.NOTE,
+                content_type="maintenance_ticket",
+                content_id=ticket.id,
+                note="Internal only",
+                metadata={"visibility": "team_only"},
+            )
+            OrderActivityEvent.objects.create(
+                organization=org,
+                program=program,
+                event_type=OrderActivityEvent.EventType.NOTE,
+                content_type="maintenance_ticket",
+                content_id=ticket.id,
+                note="Shared with submitter",
+                metadata={"visibility": "submitter_visible"},
+            )
+        api.force_authenticate(user=counselor_membership.user)
+        r = api.get(f"/api/v1/maintenance/tickets/{ticket.id}/", **_hdr(org.slug))
+        notes = [e["note"] for e in r.json()["activity"] if e["event_type"] == "note"]
+        assert "Shared with submitter" in notes
+        assert "Internal only" not in notes
+
+        # The maintenance team still sees both notes.
+        api.force_authenticate(user=maint_user)
+        r2 = api.get(f"/api/v1/maintenance/tickets/{ticket.id}/", **_hdr(org.slug))
+        team_notes = [e["note"] for e in r2.json()["activity"] if e["event_type"] == "note"]
+        assert "Internal only" in team_notes
+        assert "Shared with submitter" in team_notes
 
     def test_404_for_wrong_program(self, api, org, maint_user):
         other_org = Organization.objects.create(name="Other", slug="other-mq")

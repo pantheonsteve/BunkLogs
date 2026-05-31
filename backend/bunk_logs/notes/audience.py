@@ -1,7 +1,10 @@
 """Audience resolution for the Notes platform (Step 7_19, Story 66).
 
 Implements per-role option matrices from docs/user_stories/10_notes_platform/audience_matrices.md.
-v1 supports Counselor and Unit Head authors only; all other roles raise PermissionDenied.
+Counselor and Unit Head have spec'd matrices (v1); every other role gets a
+universal baseline set (Administration / Leadership Team / a specific person)
+so all roles can compose. Role-specific matrices for Specialist, Camper Care,
+Maintenance, etc. land in their respective role-flow prompts.
 
 Architecture:
   Each role has a list of (option_key, label, resolve_fn) triples. resolve_fn takes
@@ -18,8 +21,6 @@ Public API:
 from __future__ import annotations
 
 from typing import Any
-
-from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -277,6 +278,16 @@ UH_OPTIONS: list[tuple[str, str]] = [
     ("specific_person", "A specific person"),
 ]
 
+# Baseline options available to every role that doesn't have a custom matrix
+# yet (Specialist, Camper Care, Maintenance, Kitchen Staff, etc.). These are
+# the universally safe escalation paths: any role can send to Admin/LT or
+# pick a specific person from the org.
+DEFAULT_OPTIONS: list[tuple[str, str]] = [
+    ("administration", "Administration"),
+    ("leadership_team", "Leadership Team"),
+    ("specific_person", "A specific person"),
+]
+
 _COUNSELOR_RESOLVERS: dict[str, Any] = {
     "my_unit_head": _counselor_my_unit_head,
     "administration": _counselor_administration,
@@ -295,21 +306,27 @@ _UH_RESOLVERS: dict[str, Any] = {
     "specific_person": _uh_specific_person,
 }
 
+_DEFAULT_RESOLVERS: dict[str, Any] = {
+    "administration": _counselor_administration,
+    "leadership_team": _uh_leadership_team,
+    "specific_person": _counselor_specific_person,
+}
 
-def _role_resolvers(role: str) -> dict[str, Any] | None:
+
+def _role_resolvers(role: str) -> dict[str, Any]:
     if role in ("counselor", "junior_counselor"):
         return _COUNSELOR_RESOLVERS
     if role == "unit_head":
         return _UH_RESOLVERS
-    return None
+    return _DEFAULT_RESOLVERS
 
 
-def _role_options(role: str) -> list[tuple[str, str]] | None:
+def _role_options(role: str) -> list[tuple[str, str]]:
     if role in ("counselor", "junior_counselor"):
         return COUNSELOR_OPTIONS
     if role == "unit_head":
         return UH_OPTIONS
-    return None
+    return DEFAULT_OPTIONS
 
 
 # ---------------------------------------------------------------------------
@@ -368,23 +385,25 @@ def audience_options_for(
 ) -> list[dict]:
     """Return the list of audience option keys + labels for person's active roles.
 
-    Returns empty list if no v1-enabled role is active for the person.
+    Returns the empty list only if the person has no active Membership in
+    ``organization``. Every other role gets at least ``DEFAULT_OPTIONS``.
     """
     roles = set(
         Membership.all_objects.filter(
             person=person,
             program__organization=organization,
             is_active=True,
-            role__in=V1_AUTHOR_ROLES,
         ).values_list("role", flat=True),
     )
-    # Prefer unit_head over counselor if the person has both (edge case).
+    if not roles:
+        return []
+    # Prefer the richest matrix the person qualifies for.
     if "unit_head" in roles:
         options = UH_OPTIONS
     elif roles & {"counselor", "junior_counselor"}:
         options = COUNSELOR_OPTIONS
     else:
-        return []
+        options = DEFAULT_OPTIONS
     return [{"option_key": key, "label": label} for key, label in options]
 
 
@@ -405,14 +424,13 @@ def resolve_audience(
       3. Org-scoping (enforced inside each resolver)
       4. Dedup by person — one capture row per person
 
-    Raises PermissionDenied if the author role is not v1-enabled.
+    Roles without a spec'd matrix fall through to ``DEFAULT_OPTIONS``
+    (administration / leadership_team / specific_person). Unknown option_keys
+    for the author's role are silently dropped.
     Raises ValidationError (via caller) if the resolved audience is empty after
     self-exclusion (decision N1).
     """
     resolvers = _role_resolvers(author_membership.role)
-    if resolvers is None:
-        msg = "Notes not yet enabled for this role."
-        raise PermissionDenied(msg)
 
     seen_person_ids: set[int] = set()
     results: list[dict] = []

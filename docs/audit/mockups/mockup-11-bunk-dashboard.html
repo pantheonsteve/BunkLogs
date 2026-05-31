@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bunk Dashboard — Mockup</title>
+<style>
+  :root {
+    --r1: #c0473a; /* 1 red */
+    --r2: #d97a2a; /* 2 orange */
+    --r3: #e9c14a; /* 3 yellow */
+    --r4: #62b372; /* 4 light green */
+    --r5: #1b6e3f; /* 5 dark green */
+    --nodata: #e5e7eb;
+    --blue: #2563eb;
+    --ink: #111827;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --bg: #f3f4f6;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { display: flex; width: 980px; margin: 0 auto; background: var(--bg); }
+
+  /* Sidebar */
+  .sidebar {
+    width: 188px;
+    background: #fff;
+    border-right: 1px solid var(--line);
+    flex-shrink: 0;
+    padding: 16px 10px;
+  }
+  .logo { display:flex; align-items:center; gap:8px; padding: 4px 6px 16px; }
+  .logo .mark { width:34px; height:34px; border-radius:8px; background:linear-gradient(135deg,#7cc4e8,#2f7d4f); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:10px; text-align:center; line-height:1.05; flex-shrink:0; }
+  .logo .name { font-weight:700; font-size:12px; letter-spacing:.2px; }
+  .navgroup { margin-top: 12px; }
+  .navgroup .gl { font-size: 9.5px; font-weight:700; letter-spacing:.12em; color:#9ca3af; padding: 0 8px 5px; }
+  .nav a { display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:7px; color:#374151; text-decoration:none; font-size:12.5px; font-weight:500; }
+  .nav a .ic { width:15px; opacity:.7; font-size:13px; }
+  .nav a.active { background:#eef2ff; color:#1e40af; }
+  .nav a.active .ic { opacity:1; }
+
+  /* Main */
+  .main { flex:1; min-width:0; }
+  .topbar { height:52px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:flex-end; gap:16px; padding:0 22px; }
+  .topbar .user { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; }
+  .topbar .avatar { width:26px; height:26px; border-radius:50%; background:#111827; color:#fff; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .topbar .moon { color:#9ca3af; font-size:15px; }
+
+  .content { padding: 20px 24px 44px; }
+
+  .back { color: var(--blue); font-size:12.5px; text-decoration:none; font-weight:600; }
+  .back:hover { text-decoration:underline; }
+
+  .pagehead { margin-top: 10px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .pagehead h1 { font-size:24px; margin:0 0 2px; letter-spacing:-.3px; }
+  .pagehead .sub { color:var(--muted); font-size:13px; }
+  .headmeta { display:flex; align-items:center; gap:14px; margin-top:10px; flex-wrap:wrap; }
+  .datebox { display:flex; align-items:center; gap:7px; font-size:12.5px; color:#374151; }
+  .datebox .field { border:1px solid #d1d5db; border-radius:8px; padding:5px 9px; background:#fff; font-size:12.5px; display:flex; align-items:center; gap:7px; }
+  .counselors { font-size:12px; color:var(--muted); }
+  .viewonly { border:1px solid #d1d5db; border-radius:8px; padding:5px 11px; font-size:12px; font-weight:600; color:#374151; background:#fff; display:flex; align-items:center; gap:6px; }
+  .completion { display:inline-flex; align-items:center; gap:7px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; }
+
+  /* Summary cards */
+  .cards { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 2px rgba(16,24,40,.04); padding:13px 14px; }
+  .card .ch { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .card .ct { font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:7px; line-height:1.2; }
+  .card .badge { font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; flex-shrink:0; }
+  .b-amber { background:#fef3c7; color:#92400e; }
+  .b-rose  { background:#ffe4e6; color:#9f1239; }
+  .b-slate { background:#f1f5f9; color:#475569; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .d-amber{background:#f59e0b;} .d-rose{background:#e11d48;} .d-slate{background:#94a3b8;}
+  .person { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid #f1f3f5; font-size:12.5px; }
+  .person:first-of-type { border-top:0; }
+  .person .nm { font-weight:600; }
+  .person .bk { color:var(--muted); font-size:11px; flex-shrink:0; }
+  .empty { color:#9ca3af; font-size:12px; padding:8px 0 4px; }
+
+  /* Section block */
+  .section { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 2px rgba(16,24,40,.04); margin-top:16px; }
+  .section > .sh { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 10px; }
+  .section .stitle { font-size:15px; font-weight:700; display:flex; align-items:center; gap:9px; }
+  .section .scount { font-size:11px; color:var(--muted); font-weight:600; }
+  .section .sbody { padding: 0 16px 16px; }
+
+  /* Score grid */
+  .gridwrap { border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  table.grid { width:100%; border-collapse:collapse; table-layout:fixed; }
+  table.grid th, table.grid td { border:1px solid #eef0f2; font-size:12.5px; }
+  table.grid thead th { background:#f8fafc; color:#475569; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:8px 8px; text-align:center; }
+  table.grid thead th.l { text-align:left; }
+  table.grid col.c-name { width:104px; } table.grid col.c-on { width:62px; }
+  table.grid col.c-sc { width:64px; } table.grid col.c-exp { width:auto; }
+  table.grid td.camper { text-align:left; padding:9px 11px; font-weight:600; white-space:nowrap; }
+  table.grid td.camper a { color:#1d4ed8; text-decoration:none; }
+  table.grid td.camper a:hover { text-decoration:underline; }
+  table.grid td.oncamp { text-align:center; font-weight:600; color:#15803d; }
+  table.grid td.oncamp.off { color:#b91c1c; }
+  td.score { text-align:center; font-weight:700; color:#fff; font-size:13px; }
+  td.score.t3 { color:#3a2a05; }
+  td.score.t4 { color:#0b1d12; }
+  td.nd { background:var(--nodata); color:#9ca3af; text-align:center; font-weight:700; }
+  td.exp { text-align:left; color:#374151; padding:9px 12px; line-height:1.3; font-size:12px; }
+  .legend { display:flex; align-items:center; gap:9px; flex-wrap:wrap; font-size:11.5px; color:#6b7280; margin-top:11px; }
+  .legend .sw { display:inline-flex; align-items:center; gap:5px; }
+  .legend .swb { width:15px; height:12px; border-radius:3px; display:inline-block; }
+
+  /* Orders */
+  .order { border:1px solid #eef0f2; border-radius:10px; padding:10px 12px; margin-top:10px; }
+  .order:first-child { margin-top:0; }
+  .order .or-top { display:flex; align-items:center; justify-content:space-between; }
+  .tag { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:6px; }
+  .t-maint { background:#ffedd5; color:#9a3412; }
+  .t-care  { background:#ede9fe; color:#6d28d9; }
+  .status { font-size:11.5px; font-weight:600; }
+  .s-new { color:#b45309; } .s-prog { color:#1d4ed8; } .s-done { color:#15803d; }
+  .order .ot { font-weight:600; margin-top:7px; font-size:14px; }
+  .order .om { color:var(--muted); font-size:12px; margin-top:3px; }
+  .subhead { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#9ca3af; margin:4px 0 8px; }
+  .ordstats { font-size:12px; color:var(--muted); margin-bottom:12px; }
+
+  /* Notes */
+  .note { border-top:1px solid #f1f3f5; padding:12px 0; font-size:13.5px; }
+  .note:first-child { border-top:0; padding-top:2px; }
+  .note .nh { font-size:12.5px; color:var(--muted); margin-bottom:3px; }
+  .note .nh a { color:#1d4ed8; text-decoration:none; font-weight:600; }
+  .note .nb { color:#1f2937; line-height:1.45; }
+  .pill-link { color:#1d4ed8; font-size:12.5px; font-weight:600; text-decoration:none; }
+  .twocol { display:grid; grid-template-columns: 1.1fr 1fr; gap:18px; }
+  .mini { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#9ca3af; margin-bottom:8px; }
+  .concern { border-left:3px solid #f59e0b; background:#fffbeb; border-radius:6px; padding:9px 12px; margin-bottom:10px; font-size:13px; }
+  .concern .ca { font-weight:700; }
+  .concern .cr { color:var(--muted); font-weight:500; font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="mark">CLC</div>
+      <div class="name">Crane Lake Camp</div>
+    </div>
+    <div class="navgroup">
+      <div class="gl">MY WORK</div>
+      <nav class="nav">
+        <a href="#"><span class="ic">🏠</span> Home</a>
+        <a href="#"><span class="ic">✓</span> My tasks</a>
+        <a href="#" class="active"><span class="ic">🏕️</span> Unit Head home</a>
+        <a href="#"><span class="ic">✎</span> File a reflection</a>
+        <a href="#"><span class="ic">🗂️</span> My reflections</a>
+        <a href="#"><span class="ic">💬</span> Notes</a>
+        <a href="#"><span class="ic">📋</span> Subject notes</a>
+      </nav>
+    </div>
+    <div class="navgroup">
+      <div class="gl">SUPERVISE</div>
+      <nav class="nav">
+        <a href="#"><span class="ic">▦</span> Coverage</a>
+        <a href="#"><span class="ic">⏱️</span> Concerns about my unit</a>
+      </nav>
+    </div>
+    <div class="navgroup">
+      <div class="gl">OTHER</div>
+      <nav class="nav">
+        <a href="#"><span class="ic">🧾</span> Orders</a>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <span class="moon">☾</span>
+      <div class="user"><span class="avatar">RU</span> Richard UnitHead ▾</div>
+    </div>
+
+    <div class="content">
+      <a class="back" href="#">← Back to unit</a>
+
+      <div class="pagehead">
+        <div>
+          <h1>Bunk 23</h1>
+          <div class="sub">Upper Bonim · Session 2 — 2026</div>
+          <div class="headmeta">
+            <div class="datebox">
+              <span>Date</span>
+              <span class="field">📅 May 29, 2026</span>
+            </div>
+            <span class="counselors">Counselors: Jordan B. · Sam K. · Riley C.</span>
+          </div>
+        </div>
+        <div class="headmeta" style="margin-top:4px;">
+          <span class="completion">● 10 of 12 reflections submitted</span>
+          <span class="viewonly">👁 View only</span>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="cards">
+        <div class="card">
+          <div class="ch">
+            <span class="ct"><span class="dot d-slate"></span> Not on Camp</span>
+            <span class="badge b-slate">2</span>
+          </div>
+          <div class="person"><span class="nm">Carter Hughes</span><span class="bk">Bunk 23</span></div>
+          <div class="person"><span class="nm">Zac Stoller</span><span class="bk">Bunk 23</span></div>
+        </div>
+
+        <div class="card">
+          <div class="ch">
+            <span class="ct"><span class="dot d-amber"></span> Unit Head Help Requested</span>
+            <span class="badge b-amber">1</span>
+          </div>
+          <div class="person"><span class="nm">Micah Schneider</span><span class="bk">Bunk 23</span></div>
+        </div>
+
+        <div class="card">
+          <div class="ch">
+            <span class="ct"><span class="dot d-rose"></span> Camper Care Help</span>
+            <span class="badge b-rose">2</span>
+          </div>
+          <div class="person"><span class="nm">Isaac Peckman</span><span class="bk">Bunk 23</span></div>
+          <div class="person"><span class="nm">Marcus Pressman</span><span class="bk">Bunk 23</span></div>
+        </div>
+      </div>
+
+      <!-- Score grid -->
+      <div class="section">
+        <div class="sh">
+          <span class="stitle">Camper Daily Scores <span class="scount">12 campers · May 29, 2026</span></span>
+        </div>
+        <div class="sbody">
+          <div class="gridwrap">
+            <table class="grid">
+              <colgroup>
+                <col class="c-name" /><col class="c-on" /><col class="c-sc" />
+                <col class="c-sc" /><col class="c-sc" /><col class="c-exp" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th class="l">Camper</th>
+                  <th>On Camp</th>
+                  <th>Behavior</th>
+                  <th>Social</th>
+                  <th>Particip.</th>
+                  <th class="l">Today's Experience</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="camper"><a href="#">Asher K.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="exp">Great day — very well behaved during nikayon and loved the lake.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Carter H.</a></td>
+                  <td class="oncamp off">No</td>
+                  <td class="nd">—</td>
+                  <td class="nd">—</td>
+                  <td class="nd">—</td>
+                  <td class="exp" style="color:#9ca3af">Off camp — home visit.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Eli W.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="exp">Good day, enjoyed rope burn and got involved in football.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Ezzy N.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="exp">Got involved in all activities, loved the inflatables.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Isaac P.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="score" style="background:var(--r2)">2</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="exp">Quiet and withdrawn today, not himself. Flagged for Camper Care.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Jack K.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="exp">Enjoyed lake time and the tag game at the start of football.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Lucas B.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score" style="background:var(--r5)">5</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="exp">Helped keep the bunk on track and participated brilliantly.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Marcus P.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r2)">2</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="score" style="background:var(--r2)">2</td>
+                  <td class="exp">Struggled in the morning, low energy. Camper Care follow-up.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Max R.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="exp">Solid all-around day, quieted down nicely during unit huddle.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Micah S.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r1)">1</td>
+                  <td class="score" style="background:var(--r2)">2</td>
+                  <td class="score t3" style="background:var(--r3)">3</td>
+                  <td class="exp">Disrespectful during tfilah and meals. Unit Head help requested.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Natan P.</a></td>
+                  <td class="oncamp">Yes</td>
+                  <td class="score" style="background:var(--r5)">5</td>
+                  <td class="score" style="background:var(--r5)">5</td>
+                  <td class="score" style="background:var(--r4)">4</td>
+                  <td class="exp">Behaved excellently and chilled with the group during rope burn.</td>
+                </tr>
+                <tr>
+                  <td class="camper"><a href="#">Zac S.</a></td>
+                  <td class="oncamp off">No</td>
+                  <td class="nd">—</td>
+                  <td class="nd">—</td>
+                  <td class="nd">—</td>
+                  <td class="exp" style="color:#9ca3af">Off camp — appointment.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="legend">
+            <span style="font-weight:600;color:#475569;">Legend:</span>
+            <span class="sw"><span class="swb" style="background:var(--r1)"></span>1</span>
+            <span class="sw"><span class="swb" style="background:var(--r2)"></span>2</span>
+            <span class="sw"><span class="swb" style="background:var(--r3)"></span>3</span>
+            <span class="sw"><span class="swb" style="background:var(--r4)"></span>4</span>
+            <span class="sw"><span class="swb" style="background:var(--r5)"></span>5</span>
+            <span class="sw"><span class="swb" style="background:var(--nodata)"></span>no data</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders & Tickets -->
+      <div class="section">
+        <div class="sh">
+          <span class="stitle">Orders &amp; Tickets <span class="scount">3 total</span></span>
+          <a class="pill-link" href="#">View all →</a>
+        </div>
+        <div class="sbody">
+          <div class="ordstats">2 open · 1 in progress · 1 resolved today</div>
+
+          <div class="subhead">Carried over from prior days</div>
+          <div class="order">
+            <div class="or-top"><span class="tag t-maint">Maintenance</span><span class="status s-new">New</span></div>
+            <div class="ot">Broken bunk steps — front entrance</div>
+            <div class="om">by Jordan B. · May 27, 2026, 10:04 AM</div>
+          </div>
+
+          <div class="subhead" style="margin-top:16px;">Today</div>
+          <div class="order">
+            <div class="or-top"><span class="tag t-care">Camper Care</span><span class="status s-prog">In progress</span></div>
+            <div class="ot">Refill of allergy medication for Isaac P.</div>
+            <div class="om">by Sam K. · May 29, 2026, 8:12 AM</div>
+          </div>
+          <div class="order">
+            <div class="or-top"><span class="tag t-maint">Maintenance</span><span class="status s-done">Fulfilled</span></div>
+            <div class="ot">Replace screen on cabin window</div>
+            <div class="om">by Riley C. · May 29, 2026, 9:40 AM</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="section">
+        <div class="sh">
+          <span class="stitle">Notes</span>
+          <a class="pill-link" href="#">Open notes →</a>
+        </div>
+        <div class="sbody">
+          <div class="twocol">
+            <div>
+              <div class="mini">Bunk concerns</div>
+              <div class="concern">
+                <div class="ca">Jordan B. <span class="cr">· Counselor · today</span></div>
+                <div style="margin-top:4px;color:#1f2937;">Two campers had a falling out at dinner — keeping an eye on the dynamic and will update tomorrow.</div>
+              </div>
+              <div class="concern">
+                <div class="ca">Sam K. <span class="cr">· Counselor · yesterday</span></div>
+                <div style="margin-top:4px;color:#1f2937;">Bunk has been low energy after late nights — planning an earlier lights-out.</div>
+              </div>
+            </div>
+            <div>
+              <div class="mini">Specialist reports &amp; recent notes</div>
+              <div class="note">
+                <div class="nh"><a href="#">Isaac P.</a> · RBAC S. (Waterfront) · May 26</div>
+                <div class="nb">Caught Isaac at the pool eating during the deep-end session. Redirected him and notified the bunk.</div>
+              </div>
+              <div class="note">
+                <div class="nh"><a href="#">Micah S.</a> · Camper Care · May 28</div>
+                <div class="nb">Follow-up scheduled after repeated behavior flags. Counselors notified of the plan.</div>
+              </div>
+              <div class="note">
+                <div class="nh">2 sensitive notes not visible (Camper Care)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

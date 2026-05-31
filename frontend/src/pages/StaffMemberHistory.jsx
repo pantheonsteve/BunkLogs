@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import RichText from '../components/ui/RichText';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Users, AlertCircle } from 'lucide-react';
 
@@ -383,18 +384,20 @@ function StaffMemberHistory() {
                 {/* Elaboration */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Day Elaboration</h4>
-                  <div
+                  <RichText
+                    html={selectedLog.elaboration}
                     className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg"
-                    dangerouslySetInnerHTML={{ __html: selectedLog.elaboration || '<em>No elaboration provided.</em>' }}
+                    fallback={<em className="text-gray-400">No elaboration provided.</em>}
                   />
                 </div>
 
                 {/* Values Reflection */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Values Reflection</h4>
-                  <div
+                  <RichText
+                    html={selectedLog.values_reflection}
                     className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg"
-                    dangerouslySetInnerHTML={{ __html: selectedLog.values_reflection || '<em>No reflection provided.</em>' }}
+                    fallback={<em className="text-gray-400">No reflection provided.</em>}
                   />
                 </div>
 
