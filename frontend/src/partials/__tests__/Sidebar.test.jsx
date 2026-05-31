@@ -136,12 +136,12 @@ describe('Sidebar — section gating (3.32)', () => {
 });
 
 describe('Sidebar — maintenance-only nav', () => {
-  it('shows only Maintenance Queue + Notes for a maintenance member', () => {
+  it('shows only Maintenance Queue + Observations for a maintenance member', () => {
     renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
 
     const links = hrefs();
     expect(links).toContain('/maintenance');
-    expect(links).toContain('/notes');
+    expect(links).toContain('/observations');
     // Everything else is hidden.
     expect(links).not.toContain('/dashboard');
     expect(links).not.toContain('/tasks');
@@ -152,11 +152,11 @@ describe('Sidebar — maintenance-only nav', () => {
     expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
   });
 
-  it('orders Maintenance Queue before Notes', () => {
+  it('orders Maintenance Queue before Observations', () => {
     renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
-    const appLinks = hrefs().filter((h) => h === '/maintenance' || h === '/notes');
+    const appLinks = hrefs().filter((h) => h === '/maintenance' || h === '/observations');
     expect(appLinks[0]).toBe('/maintenance');
-    expect(appLinks[1]).toBe('/notes');
+    expect(appLinks[1]).toBe('/observations');
   });
 
   it('keeps full nav when the user also holds an admin membership', () => {

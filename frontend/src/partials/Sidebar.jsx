@@ -152,24 +152,6 @@ function Sidebar({
     membershipRoles.includes('maintenance') &&
     !membershipRoles.includes('admin') &&
     !canAdmin;
-  // Notes are open to every authenticated member of the org.
-  const canSeeNotes = true;
-
-  // Poll unread notes count every 60 seconds. Endpoint short-circuits to 403
-  // for users without an active Membership; the .catch swallows that.
-  const [notesUnread, setNotesUnread] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    function fetchUnread() {
-      api.get('/api/v1/notes/unread-count/').then(r => {
-        if (!cancelled) setNotesUnread(r.data.count ?? 0);
-      }).catch(() => {});
-    }
-    fetchUnread();
-    const id = setInterval(fetchUnread, 60000);
-    return () => { cancelled = true; clearInterval(id); };
-  }, []);
-
   // Poll unread Observations count every 60 seconds (Step 7_23 nav badge).
   const [observationsUnread, setObservationsUnread] = useState(0);
   useEffect(() => {
@@ -213,10 +195,10 @@ function Sidebar({
                 icon={IconWrench}
               />
               <NavItem
-                to="/notes"
-                label="Notes"
+                to="/observations"
+                label="Observations"
                 icon={IconChat}
-                badge={notesUnread > 0 ? notesUnread : null}
+                badge={observationsUnread > 0 ? observationsUnread : null}
               />
             </Section>
           ) : (
@@ -251,24 +233,11 @@ function Sidebar({
             {canFileReflection && (
               <NavItem to="/my-reflections" label="My reflections" icon={IconClipboard} />
             )}
-            {canSeeNotes && (
-              <NavItem
-                to="/notes"
-                label="Notes"
-                icon={IconChat}
-                badge={notesUnread > 0 ? notesUnread : null}
-              />
-            )}
             <NavItem
               to="/observations"
               label="Observations"
               icon={IconClipboard}
               badge={observationsUnread > 0 ? observationsUnread : null}
-            />
-            <NavItem
-              to="/subject-notes"
-              label="Subject notes"
-              icon={IconClipboard}
             />
             <NavItem
               to="/maintenance"

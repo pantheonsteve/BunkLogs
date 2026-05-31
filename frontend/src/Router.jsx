@@ -51,9 +51,6 @@ import GroupListPage from './pages/admin/groups/GroupListPage';
 import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
 import FieldKeyListPage from './pages/admin/field-keys/FieldKeyListPage';
 import TasksPage from './pages/TasksPage';
-import NotesPage from './pages/notes/NotesPage';
-import ThreadView from './pages/notes/ThreadView';
-import SubjectNotesPage from './pages/subject-notes/SubjectNotesPage';
 import ObservationsInbox from './pages/observations/ObservationsInbox';
 import ObservationThread from './pages/observations/ObservationThread';
 import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
@@ -75,7 +72,6 @@ import CamperCareDashboardV2 from './pages/camper-care/Dashboard';
 import CamperCareCamperDashboardPage from './pages/camper-care/CamperDashboardPage';
 import CamperCareFlagsPage from './pages/camper-care/Flags';
 import CamperCareOrdersPage from './pages/camper-care/Orders';
-import CamperCareNoteFormPage from './pages/camper-care/NoteForm';
 import CamperCareSelfReflectionPage from './pages/camper-care/SelfReflectionPage';
 import CamperCareSelfReflectionHistoryPage from './pages/camper-care/SelfReflectionHistoryPage';
 import KitchenStaffDashboard from './pages/kitchen-staff/Dashboard';
@@ -92,7 +88,6 @@ import LeadershipTeamTemplateLibrary from './pages/leadership-team/TemplateLibra
 import LeadershipTeamTemplateBuilderPage from './pages/leadership-team/TemplateBuilder/TemplateBuilderPage';
 import LeadershipTeamResponses from './pages/leadership-team/Responses';
 import SpecialistDashboard from './pages/specialist/Dashboard';
-import SpecialistNoteForm from './pages/specialist/NoteForm';
 import SpecialistCamperView from './pages/specialist/CamperView';
 import SpecialistSelfReflectionPage from './pages/specialist/SelfReflectionPage';
 import MaintenanceQueue from './pages/maintenance/Queue';
@@ -388,9 +383,9 @@ function Router() {
           <Route path="/reflect" element={<ReflectionFormPage />} />
           <Route path="/reflect/summary" element={<ReflectionSummaryPage />} />
           <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/notes" element={<NotesPage />} />
-          <Route path="/notes/:noteId" element={<ThreadView />} />
-          <Route path="/subject-notes" element={<SubjectNotesPage />} />
+          <Route path="/notes" element={<Navigate to="/observations" replace />} />
+          <Route path="/notes/*" element={<Navigate to="/observations" replace />} />
+          <Route path="/subject-notes" element={<Navigate to="/observations" replace />} />
           <Route path="/observations" element={<ObservationsInbox />} />
           <Route path="/observations/:observationId" element={<ObservationThread />} />
           <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
@@ -497,11 +492,7 @@ function Router() {
           />
           <Route path="/camper-care/flags" element={<CamperCareFlagsPage />} />
           <Route path="/camper-care/orders" element={<CamperCareOrdersPage />} />
-          <Route path="/camper-care/notes/new" element={<CamperCareNoteFormPage />} />
-          <Route
-            path="/camper-care/notes/:noteId/edit"
-            element={<CamperCareNoteFormPage />}
-          />
+          <Route path="/camper-care/notes/*" element={<Navigate to="/camper-care" replace />} />
           <Route
             path="/camper-care/self-reflection"
             element={<CamperCareSelfReflectionPage />}
@@ -530,8 +521,7 @@ function Router() {
           {/* Specialist (Step 7_9, Stories 24-29)                               */}
           {/* ------------------------------------------------------------------ */}
           <Route path="/specialist" element={<SpecialistDashboard />} />
-          <Route path="/specialist/notes/new" element={<SpecialistNoteForm />} />
-          <Route path="/specialist/notes/:noteId/edit" element={<SpecialistNoteForm />} />
+          <Route path="/specialist/notes/*" element={<Navigate to="/specialist/campers" replace />} />
           <Route path="/specialist/campers/:camperId" element={<SpecialistCamperView />} />
           <Route path="/specialist/self-reflection/new" element={<SpecialistSelfReflectionPage />} />
           <Route

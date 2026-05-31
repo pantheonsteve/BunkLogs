@@ -149,64 +149,6 @@ export async function bulkTransitionOrders({ ids, toState, note, reason } = {}) 
 }
 
 /**
- * Submit a Camper Care note (Story 21). Returns `{ data, status }` so
- * the caller can distinguish 201 (created) from any retry semantics
- * the backend grows later.
- */
-export async function createCamperCareNote({
-  subjectId, body, category, isSensitive = false, language = 'en',
-}) {
-  const payload = {
-    subject_id: subjectId,
-    body,
-    category,
-    is_sensitive: isSensitive,
-    language,
-  };
-  const res = await api.post('/api/v1/camper-care/notes/', payload);
-  return { data: res.data, status: res.status };
-}
-
-/** Edit a Camper Care note within the 24h window (Story 21.6). */
-export async function patchCamperCareNote(noteId, {
-  body, isSensitive, category, language,
-}) {
-  const payload = {};
-  if (body !== undefined) payload.body = body;
-  if (isSensitive !== undefined) payload.is_sensitive = isSensitive;
-  if (category !== undefined) payload.category = category;
-  if (language !== undefined) payload.language = language;
-  const { data } = await api.patch(
-    `/api/v1/camper-care/notes/${noteId}/`,
-    payload,
-  );
-  return data;
-}
-
-/**
- * Resolve the audience disclosure copy for the note form (Story 21.10).
- * Server-side resolution keeps a single source of truth for the role
- * labels so the Sensitive toggle gets the authoritative list.
- */
-export async function fetchCamperCareNoteAudience({ isSensitive = false } = {}) {
-  const params = { is_sensitive: isSensitive ? 'true' : 'false' };
-  const { data } = await api.get(
-    '/api/v1/camper-care/notes/audience/',
-    { params },
-  );
-  return data;
-}
-
-/** Categories enum mirroring `Note.Category` on the backend. */
-export const NOTE_CATEGORIES = Object.freeze([
-  { value: 'medical', label: 'Medical' },
-  { value: 'family', label: 'Family' },
-  { value: 'social', label: 'Social' },
-  { value: 'behavioral', label: 'Behavioral' },
-  { value: 'other', label: 'Other' },
-]);
-
-/**
  * Submit a Camper Care self-reflection (Step 7_8d). Mirrors the UH
  * write contract: `dayOff: true` is the canonical shortcut and a
  * complete payload — server fills `answers: { day_off: true }`.

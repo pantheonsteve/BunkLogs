@@ -330,37 +330,36 @@ function SummaryBar({ tasks }) {
 // Notes requiring response section (Step 7_19, FA8 — Notes are distinct from tasks)
 // ---------------------------------------------------------------------------
 
-function NotesRequiringResponseSection() {
-  const [notes, setNotes] = useState([]);
+function ObservationsRequiringResponseSection() {
+  const [items, setItems] = useState([]);
 
   useEffect(() => {
-    api.get('/api/v1/notes/inbox/').then(r => {
+    api.get('/api/v1/observations/inbox/').then(r => {
       const inbox = r.data.results ?? r.data;
-      // Show only notes with unread activity
-      setNotes(inbox.filter(n => n.unread).slice(0, 5));
+      setItems(inbox.filter(n => n.unread).slice(0, 5));
     }).catch(() => {});
   }, []);
 
-  if (notes.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className="mt-6">
       <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-        Notes requiring response
+        Observations requiring response
       </h2>
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
-        {notes.map(note => (
+        {items.map(item => (
           <Link
-            key={note.id}
-            to={`/notes/${note.id}`}
+            key={item.id}
+            to={`/observations/${item.id}`}
             className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors border-b border-gray-100 dark:border-gray-700/50 last:border-0"
           >
             <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
             <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">
-              {note.subject}
+              {item.preview ?? item.body?.slice(0, 80) ?? 'Observation'}
             </span>
             <span className="text-xs text-gray-400 shrink-0">
-              From {note.author?.full_name}
+              From {item.author?.name ?? item.author?.full_name}
             </span>
           </Link>
         ))}
@@ -498,7 +497,7 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
             })}
           </div>
 
-          <NotesRequiringResponseSection />
+          <ObservationsRequiringResponseSection />
         </>
       )}
     </>

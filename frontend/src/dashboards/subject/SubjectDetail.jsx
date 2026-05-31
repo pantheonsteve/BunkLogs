@@ -14,9 +14,8 @@
 
 import { useMemo, useState } from 'react';
 import RichText from '../../components/ui/RichText';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, FileText, MessageSquarePlus, Users } from 'lucide-react';
-import { VISIBILITY_OPTIONS, createSubjectNote } from '../../api/subjects';
 import ObservationComposer from '../../components/observations/ObservationComposer';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
 import { ratingColor } from '../colors';
@@ -476,266 +475,6 @@ function FormResponsesCard({ block, language = 'en' }) {
 }
 
 // ---------------------------------------------------------------------------
-// Notes panel
-// ---------------------------------------------------------------------------
-
-const VISIBILITY_BADGE = {
-  team: { label: 'Team', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200' },
-  supervisors_only: { label: 'Supervisors', cls: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200' },
-  domain_only: { label: 'Domain specialists', cls: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200' },
-  admin_only: { label: 'Admin only', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200' },
-};
-
-function formatNoteDateTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function NoteCard({ note }) {
-  const badge = VISIBILITY_BADGE[note.visibility] ?? { label: note.visibility, cls: 'bg-gray-100 text-gray-700' };
-  const submittedAt = formatNoteDateTime(note.created_at);
-  return (
-    <li
-      className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3"
-      data-testid={`subject-note-${note.id}`}
-    >
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          {note.author?.name ?? 'Unknown'}
-          {submittedAt ? ` · ${submittedAt}` : ''}
-        </span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls}`}>
-          {badge.label}
-        </span>
-        {note.context && (
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-            {note.context}
-          </span>
-        )}
-        {note.subject_visible && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-800">
-            visible to subject
-          </span>
-        )}
-        {note.amendment_of && (
-          <span className="text-xs italic text-gray-400">amendment</span>
-        )}
-      </div>
-      <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{note.body}</p>
-    </li>
-  );
-}
-
-function NoteForm({ personId, onSuccess, onCancel }) {
-  const [body, setBody] = useState('');
-  const [context, setContext] = useState('');
-  const [visibility, setVisibility] = useState('supervisors_only');
-  const [subjectVisible, setSubjectVisible] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!body.trim()) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await createSubjectNote(personId, { body: body.trim(), context: context.trim(), visibility, subjectVisible });
-      setBody('');
-      setContext('');
-      setVisibility('supervisors_only');
-      setSubjectVisible(false);
-      onSuccess();
-    } catch (err) {
-      setError(err.response?.data?.detail ?? err.message ?? 'Failed to save note.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="mt-4 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4 space-y-3"
-      data-testid="subject-note-form"
-    >
-      <div>
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="note-body">
-          Note <span className="text-rose-500">*</span>
-        </label>
-        <textarea
-          id="note-body"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={4}
-          required
-          placeholder="Write your observation…"
-          className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
-          data-testid="subject-note-body"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="note-context">
-            Context tag <span className="text-gray-400">(optional)</span>
-          </label>
-          <input
-            id="note-context"
-            type="text"
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            placeholder="e.g. swim_instruction"
-            maxLength={64}
-            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            data-testid="subject-note-context"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="note-visibility">
-            Visibility
-          </label>
-          <select
-            id="note-visibility"
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value)}
-            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            data-testid="subject-note-visibility"
-          >
-            {VISIBILITY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={subjectVisible}
-          onChange={(e) => setSubjectVisible(e.target.checked)}
-          className="rounded border-gray-300 dark:border-gray-600 text-indigo-600"
-          data-testid="subject-note-subject-visible"
-        />
-        Make visible to the subject on their dashboard
-      </label>
-
-      {error && (
-        <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>
-      )}
-
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          type="submit"
-          disabled={submitting || !body.trim()}
-          className="px-4 py-1.5 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          data-testid="subject-note-submit"
-        >
-          {submitting ? 'Saving…' : 'Save note'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-          data-testid="subject-note-cancel"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function NotesPanel({ notes = [], personId, onNoteCreated }) {
-  const [open, setOpen] = useState(true);
-  const [formOpen, setFormOpen] = useState(false);
-
-  const sortedNotes = useMemo(
-    () => [...notes].sort((a, b) => {
-      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return tb - ta;
-    }),
-    [notes],
-  );
-
-  const handleSuccess = () => {
-    setFormOpen(false);
-    if (onNoteCreated) onNoteCreated();
-  };
-
-  return (
-    <section
-      className="mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-      data-testid="subject-notes-panel"
-    >
-      <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <MessageSquarePlus className="w-5 h-5 text-indigo-500" />
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notes</h2>
-          {notes.length > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-              {notes.length}
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2 items-center">
-          {personId && !formOpen && (
-            <button
-              type="button"
-              onClick={() => { setOpen(true); setFormOpen(true); }}
-              className="text-xs font-medium px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-              data-testid="subject-note-add-btn"
-            >
-              + Add note
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            {open ? 'Collapse' : 'Expand'}
-          </button>
-        </div>
-      </header>
-
-      {open && (
-        <div className="p-4">
-          {formOpen && (
-            <NoteForm
-              personId={personId}
-              onSuccess={handleSuccess}
-              onCancel={() => setFormOpen(false)}
-            />
-          )}
-          {sortedNotes.length === 0 && !formOpen ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic" data-testid="subject-notes-empty">
-              No notes yet.
-            </p>
-          ) : (
-            <ul className="mt-4 space-y-3">
-              {sortedNotes.map((n) => (
-                <NoteCard key={n.id} note={n} />
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Recent text responses
 // ---------------------------------------------------------------------------
 
@@ -783,6 +522,7 @@ const SENSITIVITY_LABEL = {
 };
 
 function ObservationsPanel({ observations = [], subject, personId, onCreated }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [composing, setComposing] = useState(false);
 
@@ -872,7 +612,11 @@ function ObservationsPanel({ observations = [], subject, personId, onCreated }) 
         <ObservationComposer
           initialSubjects={subject ? [{ id: personId, full_name: subject.name }] : []}
           onClose={() => setComposing(false)}
-          onSent={() => { setComposing(false); if (onCreated) onCreated(); }}
+          onSent={(data) => {
+            setComposing(false);
+            if (onCreated) onCreated();
+            if (data?.id) navigate(`/observations/${data.id}`);
+          }}
         />
       )}
     </section>
@@ -888,7 +632,6 @@ export default function SubjectDetail({ payload, onRangeChange, personId, onNote
     templates,
     recent_texts: recentTexts,
     concerning_patterns: concerns,
-    notes,
     observations,
   } = payload;
   const language = profile?.preferred_language ?? 'en';
@@ -919,7 +662,7 @@ export default function SubjectDetail({ payload, onRangeChange, personId, onNote
         personId={personId}
         onCreated={onNoteCreated}
       />
-      <NotesPanel notes={notes ?? []} personId={personId} onNoteCreated={onNoteCreated} />
+      {/* TODO(7_23): legacy SubjectNote panel removed in 7_24 */}
     </div>
   );
 }

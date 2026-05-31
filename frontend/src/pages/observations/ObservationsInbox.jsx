@@ -1,11 +1,16 @@
 /**
- * ObservationsInbox — list of observations addressed to the viewer, with a
- * compose button (Step 7_23). Route: /observations.
+ * ObservationsInbox — Inbox / Sent tabs with compose button (Step 7_23).
+ * Route: /observations.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ObservationComposer from '../../components/observations/ObservationComposer';
-import { fetchObservationInbox } from '../../api/observations';
+import { fetchObservationInbox, fetchObservationSent } from '../../api/observations';
+
+const TABS = [
+  { key: 'inbox', label: 'Inbox' },
+  { key: 'sent', label: 'Sent' },
+];
 
 const SENSITIVITY_LABEL = {
   normal: 'Normal',
@@ -27,16 +32,17 @@ function timeAgo(iso) {
 
 export default function ObservationsInbox() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('inbox');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [composing, setComposing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (tab) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchObservationInbox();
+      const data = tab === 'sent' ? await fetchObservationSent() : await fetchObservationInbox();
       setItems(data.results ?? data);
     } catch {
       setError('Failed to load observations.');
@@ -46,8 +52,21 @@ export default function ObservationsInbox() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(activeTab);
+  }, [activeTab, load]);
+
+  function handleTabChange(tab) {
+    setActiveTab(tab);
+    setItems([]);
+  }
+
+  function handleSent(data) {
+    if (data?.id) {
+      navigate(`/observations/${data.id}`);
+      return;
+    }
+    setActiveTab('sent');
+  }
 
   return (
     <main className="grow">
@@ -66,10 +85,30 @@ export default function ObservationsInbox() {
           </button>
         </div>
 
+        <div className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-700">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => handleTabChange(tab.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === tab.key
+                  ? 'border-violet-600 text-violet-600 dark:text-violet-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {loading && <div className="py-12 text-center text-gray-400">Loading…</div>}
         {!loading && error && <div className="py-8 text-center text-red-500">{error}</div>}
         {!loading && !error && items.length === 0 && (
-          <div className="py-12 text-center text-gray-400">Your observations inbox is empty.</div>
+          <div className="py-12 text-center text-gray-400">
+            {activeTab === 'inbox' && 'Your observations inbox is empty.'}
+            {activeTab === 'sent' && "You haven't sent any observations yet."}
+          </div>
         )}
         {!loading && !error && items.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
@@ -89,7 +128,9 @@ export default function ObservationsInbox() {
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    From {o.author?.full_name}
+                    {o.viewer_is_author || activeTab === 'sent'
+                      ? 'You wrote this'
+                      : `From ${o.author?.full_name}`}
                   </span>
                   <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
                     {SENSITIVITY_LABEL[o.sensitivity] ?? o.sensitivity}
@@ -104,7 +145,7 @@ export default function ObservationsInbox() {
       {composing && (
         <ObservationComposer
           onClose={() => setComposing(false)}
-          onSent={() => { setComposing(false); load(); }}
+          onSent={handleSent}
         />
       )}
     </main>

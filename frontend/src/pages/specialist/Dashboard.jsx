@@ -176,7 +176,7 @@ export default function SpecialistDashboard() {
       {/* 1. Write a camper note */}
       <button
         type="button"
-        onClick={() => navigate('/specialist/notes/new')}
+        onClick={() => navigate('/specialist/campers')}
         className="w-full flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 px-4 py-3 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
         data-testid="sp-write-note-btn"
       >
@@ -205,7 +205,7 @@ export default function SpecialistDashboard() {
             </ul>
             {recent_notes.length >= 10 && (
               <Link
-                to="/specialist/notes/history"
+                to="/observations"
                 className="block mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Show older notes

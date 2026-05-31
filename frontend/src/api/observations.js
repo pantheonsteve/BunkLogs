@@ -53,6 +53,11 @@ export async function fetchObservationInbox() {
   return r.data;
 }
 
+export async function fetchObservationSent() {
+  const r = await api.get('/api/v1/observations/sent/');
+  return r.data;
+}
+
 export async function fetchObservationThread(id) {
   const r = await api.get(`/api/v1/observations/${id}/`);
   return r.data;
