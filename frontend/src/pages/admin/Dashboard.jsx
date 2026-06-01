@@ -204,6 +204,24 @@ function RecentActivity({ events }) {
   );
 }
 
+function YourReflections() {
+  return (
+    <section data-testid="admin-reflections" className="mb-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 mb-2">
+        Your reflections
+      </h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <Link to="/reflect" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 hover:shadow-md">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">File a reflection</p>
+        </Link>
+        <Link to="/my-reflections" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 hover:shadow-md">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">My reflections</p>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function Navigation() {
   return (
     <section data-testid="admin-navigation" className="mb-6">
@@ -271,6 +289,7 @@ export default function AdminDashboard() {
           <OrgSnapshot snapshot={data?.org_snapshot} />
           <AttentionRequired cards={data?.attention_required} />
           <RecentActivity events={data?.recent_activity} />
+          <YourReflections />
           <Navigation />
         </>
       )}

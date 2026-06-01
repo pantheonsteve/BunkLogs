@@ -175,9 +175,9 @@ describe('SubjectDetail', () => {
     expect(within(row228).getByTestId('subject-flag-16-request_camper_care_help')).toBeInTheDocument();
     expect(within(row234).queryByTestId('subject-flag-16-request_camper_care_help')).not.toBeInTheDocument();
 
-    // Reflection link present.
-    expect(within(row228).getByRole('link', { name: /Open/ })).toHaveAttribute(
-      'href', '/reflections/228',
+    // Group dashboard link for the reflection's assignment group on that date.
+    expect(within(row228).getByRole('link', { name: /RBAC Bulk Bunk 5/ })).toHaveAttribute(
+      'href', '/dashboards/group/36?date=2026-05-23',
     );
   });
 

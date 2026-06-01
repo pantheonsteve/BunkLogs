@@ -216,6 +216,43 @@ export async function fetchResponses(orgSlug, templateId, params = {}) {
   return data;
 }
 
+// Backend paginates the individual tab at page_size<=100. A single-day view
+// is meant to show every entry for that day, so page through and merge the
+// results. Aggregate-tab responses aren't paginated (no `results`/`total`),
+// so they're returned untouched after the first call. The page cap is a
+// runaway guard, not an expected limit.
+const RESPONSES_PAGE_SIZE = 100;
+const RESPONSES_MAX_PAGES = 50;
+
+export async function fetchAllResponses(orgSlug, templateId, params = {}) {
+  const first = await fetchResponses(orgSlug, templateId, {
+    ...params,
+    page: 1,
+    page_size: RESPONSES_PAGE_SIZE,
+  });
+
+  const total = typeof first?.total === 'number' ? first.total : null;
+  if (total == null || !Array.isArray(first.results)) {
+    return first;
+  }
+
+  const rows = [...first.results];
+  let page = 1;
+  while (rows.length < total && page < RESPONSES_MAX_PAGES) {
+    page += 1;
+    // eslint-disable-next-line no-await-in-loop
+    const next = await fetchResponses(orgSlug, templateId, {
+      ...params,
+      page,
+      page_size: RESPONSES_PAGE_SIZE,
+    });
+    if (!Array.isArray(next?.results) || next.results.length === 0) break;
+    rows.push(...next.results);
+  }
+
+  return { ...first, results: rows, page: 1, page_size: rows.length };
+}
+
 export function exportResponsesUrl(templateId, params = {}) {
   const qs = new URLSearchParams(params).toString();
   return `${BASE}/templates/${templateId}/responses/export/${qs ? `?${qs}` : ''}`;

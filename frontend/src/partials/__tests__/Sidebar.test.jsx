@@ -116,14 +116,32 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
   });
 
-  it('admin sees every section including Crane Lake legacy', () => {
-    renderWith({ role: 'Admin' });
+  it('admin sees the curated Admin IA, not the default My work nav', () => {
+    renderWith({ role: 'Admin' }, { path: '/admin' });
 
-    expect(screen.getAllByText('My work').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Dashboards').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Crane Lake legacy').length).toBeGreaterThan(0);
+
+    const links = hrefs();
+    expect(links).toContain('/admin');
+    expect(links).toContain('/admin/templates');
+    expect(links).toContain('/observations');
+    expect(links).toContain('/maintenance');
+    expect(links).toContain('/supervisor/coverage');
+    expect(links).toContain('/dashboards/concerns');
+    expect(links).toContain('/orders');
+
+    // Personal reflection flows + My tasks fold into the Admin dashboard,
+    // not the nav. Leadership Team is the LT's own home, not the Admin IA.
+    expect(links).not.toContain('/dashboard');
+    expect(links).not.toContain('/tasks');
+    expect(links).not.toContain('/reflect');
+    expect(links).not.toContain('/my-reflections');
+    expect(links).not.toContain('/leadership-team');
+    expect(screen.queryByText('Leadership Team')).not.toBeInTheDocument();
   });
 
   it('super admin via is_staff alone sees Admin + Dashboards even without a role', () => {
@@ -159,10 +177,10 @@ describe('Sidebar — maintenance-only nav', () => {
     expect(appLinks[1]).toBe('/observations');
   });
 
-  it('keeps full nav when the user also holds an admin membership', () => {
+  it('keeps the full Admin nav when the user also holds an admin membership', () => {
     renderWith({ role: 'Admin', membership_roles: ['maintenance', 'admin'] });
     const links = hrefs();
-    expect(links).toContain('/dashboard');
+    expect(links).toContain('/admin');
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
   });
 });

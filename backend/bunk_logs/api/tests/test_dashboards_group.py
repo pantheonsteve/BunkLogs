@@ -22,7 +22,11 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -191,6 +195,46 @@ class TestBunkAccess:
         assert body["role_context"]["can_edit"] is False
         # Bunk payload retains the existing header.bunk shape.
         assert body["header"]["bunk"]["id"] == bunk.id
+
+    def test_payload_includes_member_roster_with_roles(
+        self, api, org, program, bunk, url,
+    ):
+        """The group payload lists authors + subjects with their program role,
+        authors first."""
+        admin_person, admin_user = _make_person(
+            org, first="Aaron", last="Admin", email="roster-admin@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="admin", is_active=True,
+        )
+        counselor_person, _ = _make_person(
+            org, first="Mira", last="Sandberg", email="roster-counselor@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=counselor_person, role="counselor", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor_person, role_in_group="author", is_active=True,
+        )
+        camper_person = Person.all_objects.create(
+            organization=org, first_name="Alex", last_name="Camper",
+        )
+        Membership.all_objects.create(
+            program=program, person=camper_person, role="camper", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=camper_person, role_in_group="subject", is_active=True,
+        )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            resp = api.get(url, **_hdr(org.slug))
+        assert resp.status_code == 200, resp.content
+        roster = resp.json()["roster"]
+        assert [m["role_in_group"] for m in roster] == ["author", "subject"]
+        by_id = {m["person_id"]: m for m in roster}
+        assert by_id[counselor_person.id]["membership_role"] == "counselor"
+        assert by_id[counselor_person.id]["name"] == "Mira Sandberg"
+        assert by_id[camper_person.id]["membership_role"] == "camper"
 
     def test_counselor_without_authorship_denied(
         self, api, org, program, bunk, url,
@@ -730,6 +774,112 @@ class TestPrecedenceAndIsolation:
 # ---------------------------------------------------------------------------
 # Date handling
 # ---------------------------------------------------------------------------
+
+
+class TestAssignedTemplateCards:
+    """The unified payload exposes a ``templates`` array of per-template
+    response cards for templates assigned to the group (target_type=
+    'assignment_group') whose date window contains the selected date."""
+
+    def _template(self, org):
+        return ReflectionTemplate.all_objects.create(
+            organization=org, name="Bunk Pulse", slug="grp-bunk-pulse",
+            cadence="daily", subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            author_role_filter=["counselor"], subject_role_filter=["camper"],
+            schema={
+                "fields": [
+                    {
+                        "key": "overall", "type": "single_rating",
+                        "scale": [1, 5], "required": True,
+                    },
+                ],
+            },
+        )
+
+    def _admin(self, api, org, program, email):
+        person, user = _make_person(org, first="Adi", last="Tpl", email=email)
+        Membership.all_objects.create(
+            program=program, person=person, role="admin", is_active=True,
+        )
+        api.force_authenticate(user=user)
+        return person
+
+    def test_assigned_template_card_with_reflection(
+        self, api, org, program, bunk, url,
+    ):
+        self._admin(api, org, program, "adi-tpl1@dash.test")
+        tpl = self._template(org)
+        today = get_today(org)
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=tpl,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            assignment_group=bunk, start_date=today - timedelta(days=3),
+            end_date=None, status=TemplateAssignment.Status.ACTIVE,
+        )
+        camper = _make_person(org, first="Cam", last="Per", email="cam-tpl@dash.test")[0]
+        Reflection.all_objects.create(
+            organization=org, program=program, template=tpl,
+            subject=camper, assignment_group=bunk,
+            period_start=today, period_end=today,
+            answers={"overall": 5}, language="en", is_complete=True,
+        )
+        with organization_context(org):
+            resp = api.get(url, **_hdr(org.slug))
+        assert resp.status_code == 200, resp.content
+        cards = resp.json()["templates"]
+        assert len(cards) == 1
+        card = cards[0]
+        assert card["template"]["id"] == tpl.id
+        assert card["summary"]["total_reflections"] == 1
+        assert card["reflections"][0]["subject"]["id"] == camper.id
+        assert any(s["label"] == "overall" for s in card["rating_series"])
+
+    def test_assignment_shown_even_with_zero_reflections(
+        self, api, org, program, bunk, url,
+    ):
+        self._admin(api, org, program, "adi-tpl2@dash.test")
+        tpl = self._template(org)
+        today = get_today(org)
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=tpl,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            assignment_group=bunk, start_date=today, end_date=None,
+            status=TemplateAssignment.Status.ACTIVE,
+        )
+        with organization_context(org):
+            resp = api.get(url, **_hdr(org.slug))
+        cards = resp.json()["templates"]
+        assert len(cards) == 1
+        assert cards[0]["summary"]["total_reflections"] == 0
+
+    def test_assignment_outside_date_window_excluded(
+        self, api, org, program, bunk, url,
+    ):
+        self._admin(api, org, program, "adi-tpl3@dash.test")
+        tpl = self._template(org)
+        today = get_today(org)
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=tpl,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            assignment_group=bunk,
+            start_date=today - timedelta(days=10),
+            end_date=today - timedelta(days=5),
+            status=TemplateAssignment.Status.ENDED,
+        )
+        with organization_context(org):
+            resp = api.get(url, **_hdr(org.slug))
+        assert resp.json()["templates"] == []
+
+    def test_group_without_assignments_has_empty_templates(
+        self, api, org, program, bunk, url,
+    ):
+        self._admin(api, org, program, "adi-tpl4@dash.test")
+        with organization_context(org):
+            resp = api.get(url, **_hdr(org.slug))
+        assert resp.status_code == 200
+        assert resp.json()["templates"] == []
 
 
 class TestDateHandling:

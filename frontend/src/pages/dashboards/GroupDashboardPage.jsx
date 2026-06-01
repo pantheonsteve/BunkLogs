@@ -20,6 +20,8 @@ import ClassroomDashboard from '../../components/ClassroomDashboard';
 import DivisionDashboard from '../../components/DivisionDashboard';
 import UnitDashboard from '../../components/UnitDashboard';
 import UnsupportedGroupDashboard from '../../components/UnsupportedGroupDashboard';
+import GroupTemplateResponses from '../../components/GroupTemplateResponses';
+import GroupRoster from '../../components/GroupRoster';
 import { fetchGroupDashboard } from '../../api/dashboards';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -170,8 +172,27 @@ export default function GroupDashboardPage() {
     backTo,
   };
 
-  if (groupType === 'bunk') {
-    return <Dash {...sharedProps} camperDashboardPath="/dashboards/subject" />;
-  }
-  return <Dash {...sharedProps} />;
+  const rosterSection = (
+    <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[96rem] mx-auto">
+      <GroupRoster roster={data?.roster} />
+    </div>
+  );
+
+  const templatesSection = (
+    <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[96rem] mx-auto">
+      <GroupTemplateResponses templates={data?.templates} />
+    </div>
+  );
+
+  return (
+    <>
+      {groupType === 'bunk' ? (
+        <Dash {...sharedProps} camperDashboardPath="/dashboards/subject" />
+      ) : (
+        <Dash {...sharedProps} />
+      )}
+      {rosterSection}
+      {templatesSection}
+    </>
+  );
 }

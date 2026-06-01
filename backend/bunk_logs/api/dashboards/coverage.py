@@ -103,17 +103,35 @@ class CoverageDashboardView(APIView):
                 return Response({
                     "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
                     "org_summary": {"covered": 0, "total": 0, "percent": 0},
+                    "programs": [],
                     "groups": [],
                 })
             groups_qs = groups_qs.filter(id__in=visible_group_ids)
 
+        # Program (session) picker options, derived from the type/visibility
+        # filtered set so they stay stable while a single program is selected.
+        program_options = [
+            {"id": pid, "name": name}
+            for pid, name in groups_qs.values_list("program_id", "program__name")
+            .distinct()
+            .order_by("program__name")
+        ]
+
+        # Filter to a single program (session) when requested.
+        program_filter = (request.query_params.get("program") or "").strip()
+        if program_filter.isdigit():
+            groups_qs = groups_qs.filter(program_id=int(program_filter))
+
         groups = list(
-            groups_qs.values("id", "name", "group_type").order_by("group_type", "name"),
+            groups_qs.values(
+                "id", "name", "group_type", "program_id", "program__name",
+            ).order_by("group_type", "name"),
         )
         if not groups:
             return Response({
                 "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
                 "org_summary": {"covered": 0, "total": 0, "percent": 0},
+                "programs": program_options,
                 "groups": [],
             })
         group_ids = [g["id"] for g in groups]
@@ -219,6 +237,8 @@ class CoverageDashboardView(APIView):
                 "id": gid,
                 "name": g["name"],
                 "group_type": g["group_type"],
+                "program_id": g["program_id"],
+                "program_name": g["program__name"],
                 "days": day_rows,
             })
 
@@ -230,5 +250,6 @@ class CoverageDashboardView(APIView):
                 "total": total_total,
                 "percent": org_percent,
             },
+            "programs": program_options,
             "groups": result_groups,
         })

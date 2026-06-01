@@ -77,6 +77,17 @@ export function deriveSchemaSections(schema, language = 'en') {
   return { ratingCols, flagFields, chipFields, descTextFields };
 }
 
+/** Map a ``rating_series`` API label (field key or ``field__category``) to a
+ *  short display name, e.g. ``camper_scores__behavior`` → ``Behavior``. */
+export function seriesDisplayLabel(seriesLabel, ratingCols) {
+  const col = ratingCols.find((c) =>
+    c.subKey ? `${c.key}__${c.subKey}` === seriesLabel : c.key === seriesLabel,
+  );
+  if (!col) return seriesLabel;
+  const short = col.label.split(/\s+[—–-]\s+/)[0]?.trim();
+  return short || col.label;
+}
+
 /**
  * FA4 rating palette (decisions.md). Inline hex matches the per-row
  * implementation in ``components/bunklogs/AdminBunkLogItem.jsx`` so the

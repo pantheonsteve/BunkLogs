@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { COVERAGE_TIERS, COVERAGE_TIER_ORDER, INACTIVE_PATTERN_ID } from '../colors';
 
 function formatShortDate(iso) {
@@ -116,7 +117,18 @@ export default function GroupCoverageHeatmap({
                   <span className="text-xs uppercase text-gray-400 mr-1">
                     {g.group_type}
                   </span>
-                  {g.name}
+                  <Link
+                    to={`/dashboards/group/${g.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    {g.name}
+                  </Link>
+                  {g.program_name && (
+                    <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                      {g.program_name}
+                    </span>
+                  )}
                 </td>
                 {g.days.map((cell) => (
                   <CoverageCell key={cell.date} cell={cell} groupName={g.name} />

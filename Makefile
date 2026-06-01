@@ -120,7 +120,7 @@ lint-frontend:
 	@echo "Frontend lint is not configured (no eslint config present)"
 
 sync-prod-db:
-	./sync-prod-db.sh
+	./scripts/sync-prod-db.sh
 
 reset-db:
 	$(COMPOSE) down -v
