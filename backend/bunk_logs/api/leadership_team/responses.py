@@ -31,6 +31,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.counselor.common import person_display_name
 from bunk_logs.core.filters import reflections_visible_for_user
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.reflection_scores import _as_float
@@ -146,6 +147,7 @@ class LeadershipTeamTemplateResponsesView(APIView):
         total = ordered.count()
         start = (page - 1) * size
         rows = list(ordered[start:start + size])
+        groups_by_subject = self._active_groups_by_subject(rows)
 
         return {
             "tab": "individual",
@@ -153,8 +155,44 @@ class LeadershipTeamTemplateResponsesView(APIView):
             "total": total,
             "page": page,
             "page_size": size,
-            "results": [self._serialize_row(r) for r in rows],
+            "results": [self._serialize_row(r, groups_by_subject) for r in rows],
         }
+
+    @staticmethod
+    def _active_groups_by_subject(rows) -> dict[int, list]:
+        """Map subject_id -> their active subject-role group memberships.
+
+        One bulk query for the whole page (no N+1). Date-window filtering
+        is applied per row at serialization time so a camper who changed
+        bunks mid-summer shows the right group for the reflection's date.
+        """
+        subject_ids = {r.subject_id for r in rows if r.subject_id}
+        if not subject_ids:
+            return {}
+        org_ids = {r.organization_id for r in rows}
+        out: dict[int, list] = defaultdict(list)
+        memberships = (
+            AssignmentGroupMembership.all_objects.filter(
+                person_id__in=subject_ids,
+                role_in_group="subject",
+                is_active=True,
+                group__is_active=True,
+                group__organization_id__in=org_ids,
+            )
+            .select_related("group")
+            .order_by("group__group_type", "group__name")
+        )
+        for m in memberships:
+            out[m.person_id].append(m)
+        return out
+
+    @staticmethod
+    def _membership_active_on(membership, on_date) -> bool:
+        if on_date is None:
+            return True
+        if membership.start_date and membership.start_date > on_date:
+            return False
+        return not (membership.end_date and membership.end_date < on_date)
 
     @staticmethod
     def _rating_filter_ids(reflections, threshold: int) -> list[int]:
@@ -172,8 +210,19 @@ class LeadershipTeamTemplateResponsesView(APIView):
                     break
         return ids
 
-    @staticmethod
-    def _serialize_row(r: Reflection) -> dict[str, Any]:
+    @classmethod
+    def _serialize_row(cls, r: Reflection, groups_by_subject=None) -> dict[str, Any]:
+        groups_by_subject = groups_by_subject or {}
+        row_date = r.period_end or r.period_start
+        groups = [
+            {
+                "id": m.group_id,
+                "name": m.group.name,
+                "group_type": m.group.group_type,
+            }
+            for m in groups_by_subject.get(r.subject_id, [])
+            if cls._membership_active_on(m, row_date)
+        ]
         return {
             "id": r.pk,
             "period_start": r.period_start.isoformat() if r.period_start else None,
@@ -187,6 +236,7 @@ class LeadershipTeamTemplateResponsesView(APIView):
                 "id": r.subject_id,
                 "name": person_display_name(r.subject) if r.subject_id else None,
             } if r.subject_id else None,
+            "groups": groups,
             "template_version": r.template.version if r.template_id else None,
             "answers": r.answers or {},
         }

@@ -1,0 +1,35 @@
+/**
+ * Assigned-template responses for the unified group dashboard.
+ *
+ * Renders one `FormResponsesCard` per reflection template assigned to
+ * the group (via `TemplateAssignment` with target_type='assignment_group')
+ * whose date window contains the selected date. Data shape: see
+ * `api/dashboards/group_template_cards.py` (payload key `templates`).
+ *
+ * Reuses the per-subject dashboard card so the visual treatment matches
+ * exactly; `showSubject` adds the Subject column since group rows span
+ * multiple people.
+ */
+
+import FormResponsesCard from '../dashboards/subject/responseTable/FormResponsesCard';
+
+export default function GroupTemplateResponses({ templates = [], language = 'en' }) {
+  if (!templates || templates.length === 0) return null;
+  return (
+    <section className="mt-8" data-testid="group-template-responses">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+        Assigned forms
+      </h2>
+      {templates.map((block) => (
+        <FormResponsesCard
+          key={block.template?.id ?? block.assignment?.id}
+          block={block}
+          language={language}
+          testidPrefix="group-template"
+          showSubject
+          subjectLinkBase="/dashboards/subject"
+        />
+      ))}
+    </section>
+  );
+}

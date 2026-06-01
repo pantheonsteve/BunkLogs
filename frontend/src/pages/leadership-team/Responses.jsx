@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import {
   exportResponsesUrl,
-  fetchResponses,
+  fetchAllResponses,
   getTemplate,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
@@ -111,6 +111,54 @@ function SubjectCell({ row, dateQs }) {
   return <SharedSubjectCell row={row} linkTo={linkTo} />;
 }
 
+// The camper's active groups for the reflection's date. ``row.groups`` is a
+// list of {id, name, group_type} (id = AssignmentGroup pk). Each renders as a
+// badge linking to the unified group dashboard for the same day; a camper in
+// multiple groups gets multiple badges.
+function BunkCell({ row }) {
+  const groups = row.groups ?? [];
+  const rowDate = row.period_end || row.period_start;
+  if (groups.length === 0) {
+    return (
+      <td className="px-3 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500">
+        —
+      </td>
+    );
+  }
+  return (
+    <td className="px-3 py-3 border border-gray-300 dark:border-gray-700">
+      <div className="flex flex-wrap gap-1">
+        {groups.map((g) => (
+          <Link
+            key={g.id}
+            to={`/dashboards/group/${g.id}${rowDate ? `?date=${rowDate}` : ''}`}
+            title={g.group_type ? `${g.name} (${g.group_type})` : g.name}
+            className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200"
+          >
+            {g.name || `Group ${g.id}`}
+          </Link>
+        ))}
+      </div>
+    </td>
+  );
+}
+
+// Fixed display order for the legacy camper-score dimensions, matching
+// the legacy Admin Bunk Logs table. Unknown dimensions keep their schema
+// order after these.
+const RATING_COLUMN_ORDER = { social: 0, behavior: 1, participation: 2 };
+
+function orderRatingCols(cols) {
+  return cols
+    .map((c, idx) => ({ c, idx }))
+    .sort((a, b) => {
+      const ra = RATING_COLUMN_ORDER[a.c.subKey ?? a.c.key] ?? 99;
+      const rb = RATING_COLUMN_ORDER[b.c.subKey ?? b.c.key] ?? 99;
+      return ra - rb || a.idx - b.idx;
+    })
+    .map(({ c }) => c);
+}
+
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
@@ -151,9 +199,8 @@ function KpiCard({ icon: Icon, label, value, tone = 'neutral', active = false, o
 function IndividualTab({
   payload, template, language, filteredRows, sections, dateStr,
 }) {
-  const { ratingCols, flagFields, chipFields, descTextFields } = sections;
-  const subjectMode = template?.subject_mode ?? 'other';
-  const showSubjectColumn = subjectMode !== 'self';
+  const { ratingCols: rawRatingCols, flagFields, chipFields, descTextFields } = sections;
+  const ratingCols = orderRatingCols(rawRatingCols);
   const dateQs = dateStr ? `?date=${dateStr}` : '';
 
   if (filteredRows.length === 0) {
@@ -176,52 +223,14 @@ function IndividualTab({
     );
   }
 
-  // Render a header-group row only when at least one rating_group is in
-  // play -- otherwise the extra row is visual noise.
-  const hasRatingGroups = ratingCols.some((c) => c.subKey);
-  const groupedHeader = [];
-  let i = 0;
-  while (i < ratingCols.length) {
-    const col = ratingCols[i];
-    if (col.subKey) {
-      let j = i + 1;
-      while (j < ratingCols.length && ratingCols[j].key === col.key && ratingCols[j].subKey) j += 1;
-      groupedHeader.push({ label: col.groupLabel, span: j - i });
-      i = j;
-    } else {
-      groupedHeader.push({ label: '', span: 1 });
-      i += 1;
-    }
-  }
-
-  const leadingCols = (showSubjectColumn ? 1 : 0) + 1; // subject + date
-
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="table-auto w-full text-sm dark:text-gray-300" data-testid="lt-responses-rows">
           <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-            {hasRatingGroups && (
-              <tr>
-                <th colSpan={leadingCols} className="p-2 border-b border-gray-200 dark:border-gray-700" />
-                {groupedHeader.map((h, idx) => (
-                  <th
-                    key={`g-${idx}`}
-                    colSpan={h.span}
-                    className="p-2 border-b border-gray-200 dark:border-gray-700 text-center text-[10px] tracking-wide"
-                  >
-                    {h.label}
-                  </th>
-                ))}
-                <th className="p-2 border-b border-gray-200 dark:border-gray-700" />
-              </tr>
-            )}
             <tr>
-              {showSubjectColumn && (
-                <th className="p-2 text-left border-b border-gray-200 dark:border-gray-700 font-semibold">
-                  {subjectMode === 'self' ? 'Author' : 'Subject'}
-                </th>
-              )}
+              <th className="p-2 text-left border-b border-gray-200 dark:border-gray-700 font-semibold">Name</th>
+              <th className="p-2 text-left border-b border-gray-200 dark:border-gray-700 font-semibold">Bunk</th>
               <th className="p-2 text-center border-b border-gray-200 dark:border-gray-700 font-semibold">Date</th>
               {ratingCols.map((c, idx) => (
                 <th
@@ -238,7 +247,8 @@ function IndividualTab({
           <tbody className="text-sm font-medium divide-y divide-gray-200 dark:divide-gray-700/60">
             {filteredRows.map((r) => (
               <tr key={r.id} data-testid={`lt-responses-row-${r.id}`}>
-                {showSubjectColumn && <SubjectCell row={r} dateQs={dateQs} />}
+                <SubjectCell row={r} dateQs={dateQs} />
+                <BunkCell row={r} />
                 <td className="px-3 py-3 whitespace-nowrap text-center border border-gray-300 dark:border-gray-700">
                   <div className="text-sm text-gray-800 dark:text-gray-100">
                     {formatShortDate(r.period_end || r.period_start)}
@@ -427,7 +437,7 @@ export default function LeadershipTeamResponses() {
       try {
         const [tpl, data] = await Promise.all([
           getTemplate(orgSlug, id),
-          fetchResponses(orgSlug, id, JSON.parse(apiParamsKey)),
+          fetchAllResponses(orgSlug, id, JSON.parse(apiParamsKey)),
         ]);
         if (cancelled) return;
         setTemplate(tpl);
