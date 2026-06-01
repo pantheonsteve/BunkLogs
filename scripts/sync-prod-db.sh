@@ -186,8 +186,11 @@ info "running 'manage.py migrate' (handles any branch-vs-prod schema drift)..."
 $CMP -f "$COMPOSE_FILE" exec -T django python manage.py migrate --noinput
 
 info "running 'manage.py scrub_pii --confirm'..."
+# Guard the array expansion: under `set -u`, an empty array triggers an
+# "unbound variable" error on bash 3.2 (macOS default). The `+` form
+# expands to nothing when the array is empty.
 $CMP -f "$COMPOSE_FILE" exec -T django \
-    python manage.py scrub_pii --confirm "${SCRUB_EXTRA_ARGS[@]}"
+    python manage.py scrub_pii --confirm "${SCRUB_EXTRA_ARGS[@]+"${SCRUB_EXTRA_ARGS[@]}"}"
 
 # --- cleanup ---------------------------------------------------------------
 
