@@ -24,46 +24,59 @@ const SUPERVISOR_PLUS = ['supervisor'];
 const PROGRAM_LEAD_PLUS = ['program_lead'];
 
 /**
- * 3.32 navigation IA:
+ * Navigation IA.
  *
- *   MY WORK         everyone with a session
- *     Home          /dashboard
- *     My tasks      /tasks
- *     Counselor home /counselor-dashboard   (only for User.role==='Counselor')
- *     Unit Head home /unit-head             (only for User.role==='Unit Head')
- *     Camper Care home /camper-care         (only for User.role==='Camper Care')
- *     File a reflection  /reflect           (REFLECTION_FORM_ROLES)
- *     My reflections     /my-reflections    (REFLECTION_FORM_ROLES)
+ * The nav is role-dependent. There are three render paths:
  *
- *   SUPERVISE       supervisor + program_lead + admin + super_admin
- *     Coverage                /supervisor/coverage
- *     Concerns about my unit  /dashboards/concerns
+ *   1. maintenance-only members  — stripped nav (Maintenance + Observations)
+ *   2. admins / super-admins     — curated Admin IA (see below)
+ *   3. everyone else             — the shared default nav
  *
- *   DASHBOARDS      program_lead + admin + super_admin
+ * Admin IA (admin + super_admin) — Phase 1 of the role-based nav refactor:
+ *
+ *   ADMIN (top, primary)
+ *     Admin home        /admin
+ *     People            /admin/people
+ *     Assignments       /admin/assignments
+ *     Memberships       /admin/memberships
+ *     Assignment groups /admin/groups
+ *     Field keys        /admin/field-keys
+ *     Settings          /admin/settings
+ *
+ *   TEMPLATES (primary)  /admin/templates
+ *
+ *   MY WORK
+ *     Observations      /observations
+ *     Maintenance Queue /maintenance
+ *
+ *   SUPERVISE
+ *     Coverage          /supervisor/coverage
+ *     Concerns inbox    /dashboards/concerns
+ *
+ *   DASHBOARDS
  *     Overview          /dashboards
  *     Coverage          /dashboards/coverage
  *     Author attribution /dashboards/authors
- *     Unit head dashboard /dashboards/team
- *     Wellness dashboard  /dashboards/wellness
+ *     Team dashboards   /dashboards/team
+ *     Wellness dashboard /dashboards/wellness
  *
- *   ADMIN           admin + super_admin
- *     Admin home       /admin
- *     Memberships      /admin/memberships
- *     Templates        /admin/templates
- *     Assignment groups /admin/groups
- *     Field keys       /admin/field-keys
- *
- *   CRANE LAKE LEGACY    admin + super_admin (transitional)
- *     Bunk logs              /admin-bunk-logs
- *     Staff reflections      /admin-dashboard
+ *   CRANE LAKE LEGACY (transitional)
+ *     Bunk logs         /admin-bunk-logs
+ *     Staff reflections /admin-dashboard
  *
  *   OTHER
- *     Orders /orders   (everyone)
+ *     Orders            /orders
  *
- * Gates use hasCapability(user, [...]) || isSuperAdmin(user). The
- * only remaining direct `user.role` reference is the Counselor-home
- * shortcut, because that's a per-role workspace deep link rather
- * than a capability gate.
+ * Admins land on /admin (see pages/Dashboard.jsx). My tasks / File a
+ * reflection / My reflections are folded into the Admin dashboard
+ * rather than the global nav. The Leadership Team group is intentionally
+ * absent from the Admin IA (it's the Leadership Team's own home).
+ *
+ * Default nav (non-admin): My work (Home/tasks/role-home/reflections/
+ * observations/maintenance), Supervise (supervisor+), Leadership Team +
+ * Dashboards (program_lead+). Gates use hasCapability(user, [...]) ||
+ * isSuperAdmin(user); direct `user.role` references remain only for
+ * per-role workspace deep links and reflection-form access.
  *
  * Crane Lake legacy section disappears in wave 5 once
  * /admin-bunk-logs and /admin-dashboard are retired (see
@@ -142,7 +155,6 @@ function Sidebar({
   const canSeeDashboards = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
   const canSeeLeadershipTeam = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
-  const canSeeLegacy = canAdmin;
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
   // Maintenance staff get a stripped-down nav: just the queue + notes. The
   // canonical role lives on Membership (legacy User.role has no maintenance
@@ -201,6 +213,92 @@ function Sidebar({
                 badge={observationsUnread > 0 ? observationsUnread : null}
               />
             </Section>
+          ) : canAdmin ? (
+          <>
+          <CollapsibleSection
+            heading="Admin"
+            activeWhen={
+              pathname === '/admin' || pathname.startsWith('/admin/')
+            }
+            icon={IconGear}
+            setSidebarExpanded={setSidebarExpanded}
+          >
+            <SubItem to="/admin" label="Admin home" end />
+            <SubItem to="/admin/people" label="People" />
+            <SubItem to="/admin/assignments" label="Assignments" />
+            <SubItem to="/admin/memberships" label="Memberships" />
+            <SubItem to="/admin/groups" label="Assignment groups" />
+            <SubItem to="/admin/field-keys" label="Field keys" />
+            <SubItem to="/admin/settings" label="Settings" />
+          </CollapsibleSection>
+
+          <Section heading="Templates">
+            <NavItem to="/admin/templates" label="Templates" icon={IconClipboard} />
+          </Section>
+
+          <Section heading="My work">
+            <NavItem
+              to="/observations"
+              label="Observations"
+              icon={IconChat}
+              badge={observationsUnread > 0 ? observationsUnread : null}
+            />
+            <NavItem
+              to="/maintenance"
+              label="Maintenance Queue"
+              icon={IconWrench}
+            />
+          </Section>
+
+          <Section heading="Supervise">
+            <NavItem
+              to="/supervisor/coverage"
+              label="Coverage"
+              icon={IconGrid}
+            />
+            <NavItem
+              to="/dashboards/concerns"
+              label="Concerns inbox"
+              icon={IconAlert}
+            />
+          </Section>
+
+          <CollapsibleSection
+            heading="Dashboards"
+            activeWhen={
+              pathname === '/dashboards' || pathname.startsWith('/dashboards/')
+            }
+            icon={IconBars}
+            setSidebarExpanded={setSidebarExpanded}
+          >
+            <SubItem to="/dashboards" label="Overview" end />
+            <SubItem to="/dashboards/coverage" label="Coverage" />
+            <SubItem to="/dashboards/authors" label="Author attribution" />
+            <SubItem to="/dashboards/team" label="Team dashboards" />
+            <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
+          </CollapsibleSection>
+
+          <Section
+            heading="Crane Lake legacy"
+            headingTitle="Migrating to new schema in wave 5"
+            data-testid="sidebar-legacy"
+          >
+            <NavItem
+              to="/admin-bunk-logs"
+              label="Bunk logs"
+              icon={IconArchive}
+            />
+            <NavItem
+              to="/admin-dashboard"
+              label="Staff reflections"
+              icon={IconArchive}
+            />
+          </Section>
+
+          <Section heading="Other">
+            <NavItem to="/orders" label="Orders" icon={IconReceipt} end />
+          </Section>
+          </>
           ) : (
           <>
           <Section heading="My work">
@@ -291,45 +389,6 @@ function Sidebar({
               <SubItem to="/dashboards/team" label="Unit head dashboard" />
               <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
             </CollapsibleSection>
-          )}
-
-          {canAdmin && (
-            <CollapsibleSection
-              heading="Admin"
-              activeWhen={
-                pathname === '/admin' || pathname.startsWith('/admin/')
-              }
-              icon={IconGear}
-              setSidebarExpanded={setSidebarExpanded}
-            >
-              <SubItem to="/admin" label="Admin home" end />
-              <SubItem to="/admin/people" label="People" />
-              <SubItem to="/admin/assignments" label="Assignments" />
-              <SubItem to="/admin/memberships" label="Memberships" />
-              <SubItem to="/admin/templates" label="Templates" />
-              <SubItem to="/admin/groups" label="Assignment groups" />
-              <SubItem to="/admin/field-keys" label="Field keys" />
-              <SubItem to="/admin/settings" label="Settings" />
-            </CollapsibleSection>
-          )}
-
-          {canSeeLegacy && (
-            <Section
-              heading="Crane Lake legacy"
-              headingTitle="Migrating to new schema in wave 5"
-              data-testid="sidebar-legacy"
-            >
-              <NavItem
-                to="/admin-bunk-logs"
-                label="Bunk logs"
-                icon={IconArchive}
-              />
-              <NavItem
-                to="/admin-dashboard"
-                label="Staff reflections"
-                icon={IconArchive}
-              />
-            </Section>
           )}
 
           <Section heading="Other">

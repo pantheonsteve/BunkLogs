@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import isSuperAdmin from '../utils/auth/isSuperAdmin';
 
 import Sidebar from '../partials/Sidebar';
 import Header from '../partials/Header';
@@ -20,6 +21,7 @@ import UserProfile from '../partials/dashboard/UserProfile';
  */
 
 const ROLE_DESTINATIONS = {
+  'Admin':          '/admin',
   'Counselor':      '/counselor',
   'Unit Head':      '/unit-head',
   'Camper Care':    '/camper-care',
@@ -39,7 +41,9 @@ function Dashboard() {
   useEffect(() => {
     if (authLoading || isAuthenticating) return;
 
-    const destination = user?.role ? ROLE_DESTINATIONS[user.role] : null;
+    const destination = user?.role
+      ? ROLE_DESTINATIONS[user.role]
+      : (isSuperAdmin(user) ? '/admin' : null);
     if (destination) {
       navigate(destination, { replace: true });
     }
