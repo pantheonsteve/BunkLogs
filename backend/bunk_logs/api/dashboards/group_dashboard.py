@@ -22,6 +22,8 @@ from bunk_logs.api.dashboards.group_dashboard_common import resolve_group_dashbo
 from bunk_logs.api.dashboards.group_payloads import build_classroom_dashboard_payload
 from bunk_logs.api.dashboards.group_payloads import build_division_dashboard_payload
 from bunk_logs.api.dashboards.group_payloads import build_unit_dashboard_payload
+from bunk_logs.api.dashboards.group_roster import build_group_roster
+from bunk_logs.api.dashboards.group_template_cards import build_group_template_cards
 from bunk_logs.api.unit_head.bunk_dashboard import build_bunk_dashboard_payload
 
 # Dispatch table. Group types not represented here surface a 400 with
@@ -88,6 +90,23 @@ class GroupDashboardView(APIView):
                 program=ctx.program,
                 today=ctx.today,
             )
+
+        # Assigned-template response cards (target_type='assignment_group').
+        # Added here, after type-specific dispatch, so every group type
+        # gets the section without each builder re-implementing it.
+        payload["templates"] = build_group_template_cards(
+            request=request,
+            group=ctx.group,
+            target_date=target_date,
+            organization=ctx.organization,
+        )
+
+        # Full member roster (authors + subjects) with their program roles.
+        # Added generically so every group type surfaces "who's in this group".
+        payload["roster"] = build_group_roster(
+            group=ctx.group,
+            program=ctx.program,
+        )
 
         payload["role_context"] = {
             "role": ctx.role,
