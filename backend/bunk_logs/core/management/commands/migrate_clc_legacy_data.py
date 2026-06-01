@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import date
+from typing import TYPE_CHECKING
 from typing import Any
 
 from django.contrib.auth import get_user_model
@@ -64,6 +64,9 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
+
+if TYPE_CHECKING:
+    from datetime import date
 
 User = get_user_model()
 

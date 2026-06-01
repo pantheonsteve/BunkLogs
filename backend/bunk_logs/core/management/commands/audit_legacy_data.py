@@ -388,7 +388,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             f"  Unit AssignmentGroups to create:   "
-            f"{len(units) * len(sessions)} ({len(units)} units × {len(sessions)} sessions)",
+            f"{len(units) * len(sessions)} ({len(units)} units x {len(sessions)} sessions)",
         )
         self.stdout.write(
             f"  Bunk AssignmentGroups to create:   {bunks_qs.count()}",

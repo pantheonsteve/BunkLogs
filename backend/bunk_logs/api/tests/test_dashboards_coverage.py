@@ -208,7 +208,7 @@ def test_program_filter_and_options(
         program_type="summer_camp",
         start_date=date(2026, 7, 1), end_date=date(2026, 8, 31),
     )
-    s2_bunk = AssignmentGroup.all_objects.create(
+    AssignmentGroup.all_objects.create(
         organization=org, program=program2, name="Bunk Birch",
         slug="bunk-birch", group_type="bunk",
     )
