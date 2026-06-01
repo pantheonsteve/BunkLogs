@@ -27,6 +27,8 @@ function isoDaysAgo(n) {
 
 export default function CoverageDashboard() {
   const [groupType, setGroupType] = useState('');
+  const [program, setProgram] = useState('');
+  const [programOptions, setProgramOptions] = useState([]);
   const [dateStart, setDateStart] = useState(() => isoDaysAgo(13));
   const [dateEnd, setDateEnd] = useState(todayIso);
   const [payload, setPayload] = useState(null);
@@ -41,11 +43,15 @@ export default function CoverageDashboard() {
       const { data } = await api.get('/api/v1/dashboards/coverage/', {
         params: {
           group_type: groupType || undefined,
+          program: program || undefined,
           date_start: dateStart,
           date_end: dateEnd,
         },
       });
       setPayload(data);
+      // Keep the program picker populated even after a program is selected
+      // (the backend returns the full option set regardless of the filter).
+      if (Array.isArray(data.programs)) setProgramOptions(data.programs);
     } catch (e) {
       const status = e.response?.status;
       if (status === 403) setError('access');
@@ -54,7 +60,7 @@ export default function CoverageDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [groupType, dateStart, dateEnd]);
+  }, [groupType, program, dateStart, dateEnd]);
 
   useEffect(() => {
     load();
@@ -72,6 +78,19 @@ export default function CoverageDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <span>Program</span>
+            <select
+              value={program}
+              onChange={(e) => setProgram(e.target.value)}
+              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm"
+            >
+              <option value="">All programs</option>
+              {programOptions.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <span>Group type</span>
             <select

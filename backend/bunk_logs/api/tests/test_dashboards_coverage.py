@@ -197,6 +197,47 @@ def test_group_type_filter(
     assert types == {"bunk"}
 
 
+def test_program_filter_and_options(
+    api_client, org, program, unit_and_bunks, bunk_obs_template,
+):
+    """A second program's groups are hidden when filtering to one program,
+    and both programs are always offered as picker options."""
+    unit, maple, oak = unit_and_bunks
+    program2 = Program.all_objects.create(
+        organization=org, name="Cov Org Session 2", slug="cov-prog-2",
+        program_type="summer_camp",
+        start_date=date(2026, 7, 1), end_date=date(2026, 8, 31),
+    )
+    s2_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program2, name="Bunk Birch",
+        slug="bunk-birch", group_type="bunk",
+    )
+    u = _user("admin@a.com")
+    p = _person(org, "Ad", "Min", u)
+    Membership.all_objects.create(
+        program=program, person=p, role="admin", is_active=True,
+    )
+    api_client.force_authenticate(user=u)
+
+    # Without a program filter: both programs' groups + both picker options.
+    r = api_client.get("/api/v1/dashboards/coverage/", **_hdr(org.slug))
+    body = r.json()
+    names = {g["name"] for g in body["groups"]}
+    assert {"Bunk Maple", "Bunk Birch"} <= names
+    program_ids = {opt["id"] for opt in body["programs"]}
+    assert {program.id, program2.id} <= program_ids
+
+    # Filter to program 2: only its group shows, picker still lists both.
+    r2 = api_client.get(
+        f"/api/v1/dashboards/coverage/?program={program2.id}", **_hdr(org.slug),
+    )
+    body2 = r2.json()
+    names2 = {g["name"] for g in body2["groups"]}
+    assert names2 == {"Bunk Birch"}
+    assert {opt["id"] for opt in body2["programs"]} >= {program.id, program2.id}
+    assert body2["groups"][0]["program_name"] == "Cov Org Session 2"
+
+
 # ── Coverage percentages and tier mapping ────────────────────────────────────
 
 
