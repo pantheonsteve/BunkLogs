@@ -30,6 +30,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -54,6 +55,7 @@ __all__ = [
     "caseload_bunks_with_unit",
     "caseload_camper_ids",
     "caseload_campers",
+    "orders_viewer_or_403",
     "viewer_or_403",
 ]
 
@@ -99,6 +101,49 @@ def viewer_or_403(request) -> ViewerContext:
     )
     if membership is None:
         msg = "Camper Care role required."
+        raise PermissionDenied(msg)
+    return ViewerContext(
+        person=person,
+        organization=org,
+        membership=membership,
+        program=membership.program,
+        today=get_today(org),
+    )
+
+
+def orders_viewer_or_403(request) -> ViewerContext:
+    """Resolve viewer for camper-care orders endpoints.
+
+    Accepts active ``camper_care`` or ``admin`` membership in the request
+    organization. The orders workspace stays program-scoped (CC7); admins
+    see the full team queue. Super admins may use any active membership
+    in the org, mirroring the maintenance queue gate.
+    """
+    org = getattr(request, "organization", None)
+    if org is None:
+        msg = "Organization context required."
+        raise PermissionDenied(msg)
+    if not request.user.is_authenticated:
+        msg = "Authentication required."
+        raise PermissionDenied(msg)
+    person = Person.objects.filter(user=request.user).first()
+    if person is None:
+        msg = "Person profile required."
+        raise PermissionDenied(msg)
+
+    qs = Membership.objects.filter(
+        person=person, is_active=True, program__organization=org,
+    ).select_related("program", "program__organization")
+    if not is_super_admin(request.user):
+        qs = qs.filter(role__in=("camper_care", "admin"))
+
+    membership = qs.filter(role="camper_care").order_by("-created_at").first()
+    if membership is None:
+        membership = qs.filter(role="admin").order_by("-created_at").first()
+    if membership is None:
+        membership = qs.order_by("-created_at").first()
+    if membership is None:
+        msg = "Camper Care or Admin role required."
         raise PermissionDenied(msg)
     return ViewerContext(
         person=person,

@@ -117,6 +117,17 @@ def counselor_person_user(org):
 
 
 @pytest.fixture
+def admin_person_user(org):
+    return _make_person(org, first="Ada", last="Min", email="admin@cc.test")
+
+
+@pytest.fixture
+def admin_membership(program, admin_person_user):
+    person, _ = admin_person_user
+    return _make_membership(program, person, "admin")
+
+
+@pytest.fixture
 def counselor_membership(program, counselor_person_user):
     person, _ = counselor_person_user
     return _make_membership(program, person, "counselor")
@@ -409,6 +420,19 @@ class TestFlagLifecycle:
 
 
 class TestCamperCareOrdersTeamShared:
+    def test_admin_can_list_program_orders(
+        self, api, org, program, admin_person_user, admin_membership, camper,
+    ):
+        Order.all_objects.create(
+            organization=org, program=program, subject=camper, item="Soap",
+        )
+        _, user = admin_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/orders/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        assert len(r.json()["new"]) == 1
+
     def test_both_cc_members_see_same_orders(
         self, api, org, program, cc_person_user, cc_membership,
         cc2_person_user, cc2_membership, camper, bunk, other_bunk,

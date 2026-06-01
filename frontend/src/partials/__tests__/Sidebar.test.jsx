@@ -119,6 +119,11 @@ describe('Sidebar — section gating (3.32)', () => {
   it('admin sees the curated Admin IA, not the default My work nav', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
 
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin');
+    expect(screen.getByRole('link', { name: 'Reflections Dashboard' })).toHaveAttribute(
+      'href',
+      '/dashboards/team',
+    );
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
@@ -127,11 +132,15 @@ describe('Sidebar — section gating (3.32)', () => {
 
     const links = hrefs();
     expect(links).toContain('/admin');
+    expect(links).toContain('/dashboards/team');
     expect(links).toContain('/admin/templates');
+    expect(links).toContain('/dashboards/coverage');
     expect(links).toContain('/observations');
     expect(links).toContain('/maintenance');
+    expect(links).toContain('/camper-care/orders');
     expect(links).toContain('/supervisor/coverage');
     expect(links).toContain('/dashboards/concerns');
+    expect(links).toContain('/dashboards/authors');
     expect(links).toContain('/orders');
 
     // Personal reflection flows + My tasks fold into the Admin dashboard,
@@ -203,6 +212,13 @@ describe('Sidebar — de-duplication of Wellness / Unit head dashboard (3.32)', 
     const concerns = links.filter((h) => h === '/dashboards/concerns');
     expect(concerns).toHaveLength(1);
   });
+
+  it('moves Author attribution to Supervise only — not duplicated under Dashboards', () => {
+    renderWith({ role: 'Admin' });
+    const links = hrefs();
+    const authors = links.filter((h) => h === '/dashboards/authors');
+    expect(authors).toHaveLength(1);
+  });
 });
 
 describe('Sidebar — Admin submenu items (3.32)', () => {
@@ -211,7 +227,7 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     expect(hrefs()).toContain('/admin/field-keys');
   });
 
-  it('still includes Memberships / Templates / Groups / Admin home', () => {
+  it('still includes Memberships / Templates / Groups and top-level Home', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
     const links = hrefs();
     expect(links).toEqual(
@@ -222,6 +238,24 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
         '/admin/groups',
       ]),
     );
+  });
+
+  it('renders Admin submenu after Supervise and before Dashboards', () => {
+    renderWith({ role: 'Admin' }, { path: '/admin' });
+    const links = hrefs();
+    const homeIdx = links.indexOf('/admin');
+    const reflectionsIdx = links.indexOf('/dashboards/team');
+    const authorsIdx = links.indexOf('/dashboards/authors');
+    const templatesIdx = links.indexOf('/admin/templates');
+    const peopleIdx = links.indexOf('/admin/people');
+    const dashboardsIdx = links.indexOf('/dashboards');
+    const ordersIdx = links.indexOf('/orders');
+    expect(homeIdx).toBeGreaterThanOrEqual(0);
+    expect(reflectionsIdx).toBeGreaterThan(homeIdx);
+    expect(authorsIdx).toBeLessThan(templatesIdx);
+    expect(peopleIdx).toBeGreaterThan(templatesIdx);
+    expect(dashboardsIdx).toBeGreaterThan(peopleIdx);
+    expect(ordersIdx).toBeGreaterThan(dashboardsIdx);
   });
 });
 

@@ -34,30 +34,32 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *
  * Admin IA (admin + super_admin) — Phase 1 of the role-based nav refactor:
  *
- *   ADMIN (top, primary)
- *     Admin home        /admin
- *     People            /admin/people
- *     Assignments       /admin/assignments
- *     Memberships       /admin/memberships
- *     Assignment groups /admin/groups
- *     Field keys        /admin/field-keys
- *     Settings          /admin/settings
- *
- *   TEMPLATES (primary)  /admin/templates
+ *   HOME (top)           /admin
+ *   Reflections Dashboard /dashboards/team
  *
  *   MY WORK
+ *     Coverage dashboard /dashboards/coverage
  *     Observations      /observations
  *     Maintenance Queue /maintenance
+ *     Camper Care orders /camper-care/orders
  *
  *   SUPERVISE
  *     Coverage          /supervisor/coverage
  *     Concerns inbox    /dashboards/concerns
+ *     Author attribution /dashboards/authors
+ *
+ *   ADMIN (collapsible, below Supervise)
+ *     Templates           /admin/templates
+ *     People              /admin/people
+ *     Assignments         /admin/assignments
+ *     Memberships         /admin/memberships
+ *     Assignment groups   /admin/groups
+ *     Field keys          /admin/field-keys
+ *     Settings            /admin/settings
  *
  *   DASHBOARDS
  *     Overview          /dashboards
  *     Coverage          /dashboards/coverage
- *     Author attribution /dashboards/authors
- *     Team dashboards   /dashboards/team
  *     Wellness dashboard /dashboards/wellness
  *
  *   CRANE LAKE LEGACY (transitional)
@@ -215,28 +217,23 @@ function Sidebar({
             </Section>
           ) : canAdmin ? (
           <>
-          <CollapsibleSection
-            heading="Admin"
-            activeWhen={
-              pathname === '/admin' || pathname.startsWith('/admin/')
-            }
-            icon={IconGear}
-            setSidebarExpanded={setSidebarExpanded}
-          >
-            <SubItem to="/admin" label="Admin home" end />
-            <SubItem to="/admin/people" label="People" />
-            <SubItem to="/admin/assignments" label="Assignments" />
-            <SubItem to="/admin/memberships" label="Memberships" />
-            <SubItem to="/admin/groups" label="Assignment groups" />
-            <SubItem to="/admin/field-keys" label="Field keys" />
-            <SubItem to="/admin/settings" label="Settings" />
-          </CollapsibleSection>
-
-          <Section heading="Templates">
-            <NavItem to="/admin/templates" label="Templates" icon={IconClipboard} />
-          </Section>
+          <div>
+            <ul>
+              <NavItem to="/admin" label="Home" icon={IconHome} end />
+              <NavItem
+                to="/dashboards/team"
+                label="Reflections Dashboard"
+                icon={IconBars}
+              />
+            </ul>
+          </div>
 
           <Section heading="My work">
+            <NavItem
+              to="/dashboards/coverage"
+              label="Coverage dashboard"
+              icon={IconGrid}
+            />
             <NavItem
               to="/observations"
               label="Observations"
@@ -247,6 +244,11 @@ function Sidebar({
               to="/maintenance"
               label="Maintenance Queue"
               icon={IconWrench}
+            />
+            <NavItem
+              to="/camper-care/orders"
+              label="Camper Care orders"
+              icon={IconHeart}
             />
           </Section>
 
@@ -261,7 +263,29 @@ function Sidebar({
               label="Concerns inbox"
               icon={IconAlert}
             />
+            <NavItem
+              to="/dashboards/authors"
+              label="Author attribution"
+              icon={IconCounselor}
+            />
           </Section>
+
+          <CollapsibleSection
+            heading="Admin"
+            activeWhen={
+              pathname === '/admin' || pathname.startsWith('/admin/')
+            }
+            icon={IconGear}
+            setSidebarExpanded={setSidebarExpanded}
+          >
+            <SubItem to="/admin/templates" label="Templates" />
+            <SubItem to="/admin/people" label="People" />
+            <SubItem to="/admin/assignments" label="Assignments" />
+            <SubItem to="/admin/memberships" label="Memberships" />
+            <SubItem to="/admin/groups" label="Assignment groups" />
+            <SubItem to="/admin/field-keys" label="Field keys" />
+            <SubItem to="/admin/settings" label="Settings" />
+          </CollapsibleSection>
 
           <CollapsibleSection
             heading="Dashboards"
@@ -273,8 +297,6 @@ function Sidebar({
           >
             <SubItem to="/dashboards" label="Overview" end />
             <SubItem to="/dashboards/coverage" label="Coverage" />
-            <SubItem to="/dashboards/authors" label="Author attribution" />
-            <SubItem to="/dashboards/team" label="Team dashboards" />
             <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
           </CollapsibleSection>
 

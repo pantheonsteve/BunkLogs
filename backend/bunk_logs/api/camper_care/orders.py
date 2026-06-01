@@ -35,7 +35,7 @@ from bunk_logs.core.models import OrderActivityEvent
 from .common import bunk_camper_ids
 from .common import caseload_bunks
 from .common import caseload_camper_ids
-from .common import viewer_or_403
+from .common import orders_viewer_or_403
 
 ACTIVE_STATUSES: tuple[str, ...] = (Order.Status.NEW, Order.Status.IN_PROGRESS)
 CLOSED_STATUSES: tuple[str, ...] = (Order.Status.FULFILLED, Order.Status.UNABLE_TO_FULFILL)
@@ -57,7 +57,7 @@ class CamperCareOrdersListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = orders_viewer_or_403(request)
         filt = (request.query_params.get("filter") or "all").lower()
         if filt not in FILTER_CHOICES:
             msg = f"Unknown filter {filt!r}."
