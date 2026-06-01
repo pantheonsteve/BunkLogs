@@ -1,0 +1,103 @@
+{
+  "name": "CLC Legacy — Staff log daily (Summer 2025 migration)",
+  "slug": "clc-legacy-staff-log-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "Schema mirrors the legacy StaffLog model. Used for migrated Summer 2025 staff self-reflections (counselor, leadership, kitchen). Role is null because the legacy table was shared across roles; the new role-specific templates live elsewhere.",
+  "languages": ["en"],
+  "is_active": true,
+  "subject_mode": "self",
+  "assignment_scope": "none",
+  "assignment_group_types": [],
+  "author_role_filter": [],
+  "subject_role_filter": [],
+  "schema": {
+    "fields": [
+      {
+        "key": "day_off",
+        "type": "single_choice",
+        "required": true,
+        "prompts": {
+          "en": "Day off today?"
+        },
+        "options": [
+          {
+            "value": "no",
+            "labels": {
+              "en": "No \u2014 I worked today"
+            }
+          },
+          {
+            "value": "yes",
+            "labels": {
+              "en": "Yes \u2014 day off"
+            }
+          }
+        ]
+      },
+      {
+        "key": "day_quality_score",
+        "type": "single_rating",
+        "required": true,
+        "scale": [1, 5],
+        "scale_labels": {
+          "en": ["1 \u2014 Terrible", "2 \u2014 Poor", "3 \u2014 Okay", "4 \u2014 Good", "5 \u2014 Best day ever"]
+        },
+        "prompts": {
+          "en": "How was your day? (1 = terrible, 5 = best day ever)"
+        }
+      },
+      {
+        "key": "support_level_score",
+        "type": "single_rating",
+        "required": true,
+        "scale": [1, 5],
+        "scale_labels": {
+          "en": ["1 \u2014 Unsupported", "2 \u2014 Poorly supported", "3 \u2014 Adequately supported", "4 \u2014 Well supported", "5 \u2014 Fully supported"]
+        },
+        "prompts": {
+          "en": "How supported did you feel today? (1 = unsupported, 5 = fully supported)"
+        }
+      },
+      {
+        "key": "elaboration",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "Elaborate on why \u2014 positive or negative (providing more information about questions above)"
+        }
+      },
+      {
+        "key": "staff_care_support_needed",
+        "type": "single_choice",
+        "required": true,
+        "prompts": {
+          "en": "Would you like staff care / engagement support?"
+        },
+        "options": [
+          {
+            "value": "no",
+            "labels": {
+              "en": "No"
+            }
+          },
+          {
+            "value": "yes",
+            "labels": {
+              "en": "Yes"
+            }
+          }
+        ]
+      },
+      {
+        "key": "values_reflection",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "How did you / your team exemplify our values today?"
+        }
+      }
+    ]
+  }
+}

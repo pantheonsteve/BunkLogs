@@ -1,0 +1,123 @@
+{
+  "name": "CLC Legacy — Counselor daily (Summer 2025 migration)",
+  "slug": "clc-legacy-counselor-daily",
+  "version": 1,
+  "cadence": "daily",
+  "program_type": "summer_camp",
+  "description": "Schema mirrors the legacy BunkLog model. Used exclusively for migrated Summer 2025 bunk-log Reflections. Separate from clc-2026-counselor-daily so future schema changes to the 2026 template do not affect validation of historical reflections.",
+  "languages": ["en"],
+  "is_active": true,
+  "subject_mode": "single_subject",
+  "assignment_scope": "per_subject_in_group",
+  "assignment_group_types": ["bunk"],
+  "author_role_filter": ["counselor"],
+  "subject_role_filter": ["camper"],
+  "schema": {
+    "fields": [
+      {
+        "key": "not_on_camp",
+        "type": "single_choice",
+        "required": true,
+        "prompts": {
+          "en": "Camper not on camp today"
+        },
+        "options": [
+          {
+            "value": "no",
+            "labels": {
+              "en": "No \u2014 camper was on camp"
+            }
+          },
+          {
+            "value": "yes",
+            "labels": {
+              "en": "Yes \u2014 camper was absent"
+            }
+          }
+        ]
+      },
+      {
+        "key": "request_unit_head_help",
+        "type": "single_choice",
+        "required": true,
+        "prompts": {
+          "en": "Unit Head help requested"
+        },
+        "options": [
+          {
+            "value": "no",
+            "labels": {
+              "en": "No"
+            }
+          },
+          {
+            "value": "yes",
+            "labels": {
+              "en": "Yes"
+            }
+          }
+        ]
+      },
+      {
+        "key": "request_camper_care_help",
+        "type": "single_choice",
+        "required": true,
+        "prompts": {
+          "en": "Camper Care help requested"
+        },
+        "options": [
+          {
+            "value": "no",
+            "labels": {
+              "en": "No"
+            }
+          },
+          {
+            "value": "yes",
+            "labels": {
+              "en": "Yes"
+            }
+          }
+        ]
+      },
+      {
+        "key": "camper_scores",
+        "type": "rating_group",
+        "required": false,
+        "dashboard_role": "category_ratings",
+        "scale": [1, 5],
+        "scale_labels": {
+          "en": ["1 \u2014 Poor", "2", "3", "4", "5 \u2014 Excellent"]
+        },
+        "categories": [
+          {
+            "key": "behavior",
+            "labels": {
+              "en": "Behavior \u2014 How was this camper's behavior today? (5: Very good day. 4: Had a challenge they resolved on their own. 3: One minor challenge. 2: A few challenging moments. 1: Several challenging moments.)"
+            }
+          },
+          {
+            "key": "participation",
+            "labels": {
+              "en": "Participation \u2014 How often did the camper participate in the day's activities? (5: Always in all activities. 4: Mostly. 3: Sometimes in activities they enjoyed. 2: Reluctantly or with hesitation. 1: Did not participate.)"
+            }
+          },
+          {
+            "key": "social",
+            "labels": {
+              "en": "Social \u2014 Was the camper included socially today? (5: Sense of belonging all day. 4: Mostly included. 3: Sometimes included. 2: Only included with staff encouragement. 1: Rarely or not at all.)"
+            }
+          }
+        ]
+      },
+      {
+        "key": "daily_report",
+        "type": "textarea",
+        "required": false,
+        "prompts": {
+          "en": "Daily report"
+        }
+      }
+    ]
+  }
+}
