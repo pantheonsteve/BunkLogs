@@ -5,7 +5,7 @@
  */
 
 import { Link } from 'react-router-dom';
-import { getInitials, ratingTierClass } from './schema';
+import { getInitials, ratingTierClass, isTruthyFlag } from './schema';
 import RichText from '../../../components/ui/RichText';
 
 /** Avatar + name + optional subtitle. When ``linkTo`` is provided
@@ -101,9 +101,7 @@ export function DescriptionCell({
   flagTestidPrefix,
 }) {
   const answers = row.answers ?? {};
-  const activeFlags = flagFields.filter((f) =>
-    String(answers[f.key] ?? '').toLowerCase() === 'yes',
-  );
+  const activeFlags = flagFields.filter((f) => isTruthyFlag(answers[f.key]));
   const author = row.author?.name;
   const createdAt = row.created_at ?? row.updated_at;
 

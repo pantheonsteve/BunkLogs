@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SubjectDetail from '../SubjectDetail';
 
@@ -48,6 +47,15 @@ const payload = {
           ],
         },
         {
+          key: 'request_unit_head_help',
+          type: 'single_choice',
+          prompts: { en: 'Unit Head help requested' },
+          options: [
+            { value: 'no', labels: { en: 'No' } },
+            { value: 'yes', labels: { en: 'Yes' } },
+          ],
+        },
+        {
           key: 'camper_scores',
           type: 'rating_group',
           scale: [1, 5],
@@ -68,6 +76,7 @@ const payload = {
         flag_counts: {
           not_on_camp: { yes: 0, no: 3, total: 3 },
           request_camper_care_help: { yes: 1, no: 2, total: 3 },
+          request_unit_head_help: { yes: 0, no: 3, total: 3 },
         },
       },
       rating_series: [
@@ -158,8 +167,8 @@ describe('SubjectDetail', () => {
     expect(within(kpis).getByText('3')).toBeInTheDocument();
     // request_camper_care_help: 1 yes / 3 total
     expect(within(kpis).getByText('1 / 3')).toBeInTheDocument();
-    // not_on_camp: 0 yes / 3 total
-    expect(within(kpis).getByText('0 / 3')).toBeInTheDocument();
+    // not_on_camp + unit head help: 0 yes / 3 total each
+    expect(within(kpis).getAllByText('0 / 3').length).toBeGreaterThanOrEqual(2);
   });
 
   it('renders one form-response row per reflection with colour-coded ratings + flag chip', () => {
@@ -181,9 +190,52 @@ describe('SubjectDetail', () => {
     );
   });
 
+  it('shows help request badges when help was requested in the period', () => {
+    renderDetail();
+    expect(screen.getByTestId('subject-help-badges')).toBeInTheDocument();
+    expect(screen.getByTestId('subject-help-request_camper_care_help')).toBeInTheDocument();
+    expect(screen.queryByTestId('subject-help-request_unit_head_help')).not.toBeInTheDocument();
+  });
+
+  it('shows unit head help badge for boolean true answers', () => {
+    renderDetail({
+      templates: [{
+        ...payload.templates[0],
+        reflections: [{
+          ...payload.templates[0].reflections[0],
+          answers: {
+            ...payload.templates[0].reflections[0].answers,
+            request_unit_head_help: true,
+            request_camper_care_help: 'no',
+          },
+        }],
+      }],
+    });
+    expect(screen.getByTestId('subject-help-request_unit_head_help')).toBeInTheDocument();
+    expect(within(screen.getByTestId('subject-row-228')).getByTestId(
+      'subject-flag-16-request_unit_head_help',
+    )).toBeInTheDocument();
+  });
+
   it('renders the empty state when there are no templates', () => {
     renderDetail({ templates: [] });
     expect(screen.getByTestId('subject-empty')).toBeInTheDocument();
+  });
+
+  it('calls onRangeChange when custom start/end dates are selected', () => {
+    const onRangeChange = vi.fn();
+    renderDetail({}, { onRangeChange });
+
+    fireEvent.change(screen.getByTestId('subject-period-start'), {
+      target: { value: '2026-05-01' },
+    });
+    expect(onRangeChange).toHaveBeenCalledWith('2026-05-01', '2026-05-23');
+
+    onRangeChange.mockClear();
+    fireEvent.change(screen.getByTestId('subject-period-end'), {
+      target: { value: '2026-05-31' },
+    });
+    expect(onRangeChange).toHaveBeenCalledWith('2026-05-21', '2026-05-31');
   });
 
 });

@@ -57,8 +57,11 @@ export default function SubjectDetailPage() {
     else next.delete('date_start');
     if (nextEnd) next.set('date_end', nextEnd);
     else next.delete('date_end');
-    setSearchParams(next, { replace: false });
+    setSearchParams(next, { replace: true });
   };
+
+  const rangeStart = start || payload?.period?.start || '';
+  const rangeEnd = end || payload?.period?.end || '';
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -66,24 +69,29 @@ export default function SubjectDetailPage() {
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
-          {loading && <p className="text-gray-500 dark:text-gray-400 text-sm">Loading…</p>}
-          {!loading && error === 'access' && (
+          {loading && !payload && (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Loading…</p>
+          )}
+          {!loading && !payload && error === 'access' && (
             <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-4 text-amber-900 dark:text-amber-100 text-sm">
               You do not have permission to view this subject.
             </div>
           )}
-          {!loading && error === 'not_found' && (
+          {!loading && !payload && error === 'not_found' && (
             <p className="text-rose-600 dark:text-rose-400 text-sm">Subject not found.</p>
           )}
-          {!loading && error && error !== 'access' && error !== 'not_found' && (
+          {!loading && !payload && error && error !== 'access' && error !== 'not_found' && (
             <p className="text-rose-600 dark:text-rose-400 text-sm">{error}</p>
           )}
-          {!loading && payload && (
+          {payload && (
             <SubjectDetail
               payload={payload}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
               onRangeChange={updateRange}
               personId={personId}
               onNoteCreated={load}
+              refreshing={loading}
             />
           )}
         </main>

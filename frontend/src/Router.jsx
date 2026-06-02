@@ -36,6 +36,7 @@ import ReflectionDetailPage from './pages/ReflectionDetailPage';
 import ReflectionFormPage from './pages/ReflectionFormPage';
 import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
 import ReflectionsDashboardPage from './pages/ReflectionsDashboardPage';
+import LogsDashboardPage from './pages/LogsDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
 import AdminHub from './pages/admin/AdminHub';
@@ -49,7 +50,7 @@ import FieldKeyListPage from './pages/admin/field-keys/FieldKeyListPage';
 import TasksPage from './pages/TasksPage';
 import ObservationsInbox from './pages/observations/ObservationsInbox';
 import ObservationThread from './pages/observations/ObservationThread';
-import SupervisorCoveragePage from './pages/SupervisorCoveragePage';
+import PerformanceDashboardPage from './pages/groups/PerformanceDashboardPage';
 import CoverageDashboardPage from './pages/dashboards/CoverageDashboardPage';
 import SubjectTrendsPage from './pages/dashboards/SubjectTrendsPage';
 import SubjectDetailPage from './pages/dashboards/SubjectDetailPage';
@@ -398,7 +399,8 @@ function Router() {
           <Route path="/subject-notes" element={<Navigate to="/observations" replace />} />
           <Route path="/observations" element={<ObservationsInbox />} />
           <Route path="/observations/:observationId" element={<ObservationThread />} />
-          <Route path="/supervisor/coverage" element={<SupervisorCoveragePage />} />
+          <Route path="/groups/performance" element={<PerformanceDashboardPage />} />
+          <Route path="/supervisor/coverage" element={<Navigate to="/groups/performance" replace />} />
           {/* 7_6d: Counselor mobile flow. Lives under AppLayout so the
               sidebar/header chrome (3.32 / 3.33) stays available on the
               dashboard, roster, and form screens. The legacy
@@ -630,7 +632,7 @@ function Router() {
             under /dashboards/* (see below). */}
         <Route
           path="/team/dashboard"
-          element={<Navigate to="/dashboards/reflections" replace />}
+          element={<Navigate to="/dashboards/logs" replace />}
         />
         <Route
           path="/wellness/dashboard"
@@ -688,7 +690,15 @@ function Router() {
         />
         <Route
           path="/dashboards/team"
-          element={<Navigate to="/dashboards/reflections" replace />}
+          element={<Navigate to="/dashboards/logs" replace />}
+        />
+        <Route
+          path="/dashboards/logs"
+          element={
+            <ProtectedRoute>
+              <LogsDashboardPage />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dashboards/reflections"

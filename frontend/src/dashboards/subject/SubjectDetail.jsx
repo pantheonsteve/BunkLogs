@@ -21,7 +21,10 @@ import PrivacyChip from '../../components/reflection/PrivacyChip';
 import {
   formatShortDate,
   getInitials,
+  isTruthyFlag,
+  pickLabel,
 } from './responseTable/schema';
+import { FlagChip } from './responseTable/cells';
 import { SubjectCell } from './responseTable/cells';
 import FormResponsesCard from './responseTable/FormResponsesCard';
 
@@ -87,14 +90,93 @@ function ProfileHeader({ subject, profile }) {
   );
 }
 
+function isUnitHeadHelpField(field) {
+  if (!field) return false;
+  if (field.key === 'request_unit_head_help') return true;
+  return field.dashboard_role === 'help_request_unit_head';
+}
+
+function isCamperCareHelpField(field) {
+  if (!field) return false;
+  if (field.key === 'request_camper_care_help') return true;
+  return field.dashboard_role === 'help_request_camper_care';
+}
+
+function collectHelpRequests(templates) {
+  const unitHead = [];
+  const camperCare = [];
+  for (const block of templates ?? []) {
+    for (const r of block.reflections ?? []) {
+      const answers = r.answers ?? {};
+      for (const field of block.schema_fields ?? []) {
+        const key = field?.key;
+        if (!key || !isTruthyFlag(answers[key])) continue;
+        const entry = { date: r.date, reflectionId: r.id, group: r.assignment_group };
+        if (isUnitHeadHelpField(field)) unitHead.push(entry);
+        else if (isCamperCareHelpField(field)) camperCare.push(entry);
+      }
+    }
+  }
+  return { unitHead, camperCare };
+}
+
+function HelpRequestBadges({ templates, language = 'en' }) {
+  const { unitHead, camperCare } = useMemo(
+    () => collectHelpRequests(templates),
+    [templates],
+  );
+  if (unitHead.length === 0 && camperCare.length === 0) return null;
+
+  const uhLabel = pickLabel(
+    { en: 'Unit Head Help Requested' },
+    language,
+    'Unit Head Help Requested',
+  );
+  const ccLabel = pickLabel(
+    { en: 'Camper Care Help Requested' },
+    language,
+    'Camper Care Help Requested',
+  );
+
+  return (
+    <div
+      className="mb-6 flex flex-wrap items-center gap-2"
+      data-testid="subject-help-badges"
+    >
+      {unitHead.length > 0 && (
+        <FlagChip
+          field={{
+            key: 'request_unit_head_help',
+            label: `${uhLabel} · ${unitHead.length} day${unitHead.length === 1 ? '' : 's'}`,
+          }}
+          testidPrefix="subject-help"
+        />
+      )}
+      {camperCare.length > 0 && (
+        <FlagChip
+          field={{
+            key: 'request_camper_care_help',
+            label: `${ccLabel} · ${camperCare.length} day${camperCare.length === 1 ? '' : 's'}`,
+          }}
+          testidPrefix="subject-help"
+        />
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Period stepper
 // ---------------------------------------------------------------------------
 
 const PRESET_DAYS = [7, 30, 90];
 
-function PeriodStepper({ period, onRangeChange }) {
+function PeriodStepper({ period, rangeStart, rangeEnd, onRangeChange, refreshing }) {
   if (!period) return null;
+
+  const inputStart = rangeStart || period.start;
+  const inputEnd = rangeEnd || period.end;
+
   const setPreset = (days) => {
     if (!onRangeChange) return;
     const end = new Date();
@@ -103,6 +185,16 @@ function PeriodStepper({ period, onRangeChange }) {
     const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     onRangeChange(fmt(start), fmt(end));
   };
+
+  const applyRange = (nextStart, nextEnd) => {
+    if (!onRangeChange || !nextStart || !nextEnd) return;
+    if (nextStart > nextEnd) {
+      onRangeChange(nextEnd, nextStart);
+    } else {
+      onRangeChange(nextStart, nextEnd);
+    }
+  };
+
   return (
     <section
       className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-6 flex flex-wrap items-center gap-3"
@@ -111,10 +203,13 @@ function PeriodStepper({ period, onRangeChange }) {
       <div>
         <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Period</p>
         <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
-          {formatShortDate(period.start)} — {formatShortDate(period.end)}
+          {formatShortDate(inputStart)} — {formatShortDate(inputEnd)}
+          {refreshing && (
+            <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">Updating…</span>
+          )}
         </p>
       </div>
-      <div className="flex gap-2 ml-auto">
+      <div className="flex flex-wrap items-center gap-2 ml-auto">
         {PRESET_DAYS.map((days) => (
           <button
             key={days}
@@ -126,6 +221,28 @@ function PeriodStepper({ period, onRangeChange }) {
             Last {days} days
           </button>
         ))}
+        <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+          <span className="sr-only">Start date</span>
+          <span aria-hidden="true">From</span>
+          <input
+            type="date"
+            value={inputStart}
+            onChange={(e) => applyRange(e.target.value, inputEnd)}
+            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-xs"
+            data-testid="subject-period-start"
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+          <span className="sr-only">End date</span>
+          <span aria-hidden="true">To</span>
+          <input
+            type="date"
+            value={inputEnd}
+            onChange={(e) => applyRange(inputStart, e.target.value)}
+            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-xs"
+            data-testid="subject-period-end"
+          />
+        </label>
       </div>
     </section>
   );
@@ -348,7 +465,15 @@ function ObservationsPanel({ observations = [], subject, personId, onCreated }) 
   );
 }
 
-export default function SubjectDetail({ payload, onRangeChange, personId, onNoteCreated }) {
+export default function SubjectDetail({
+  payload,
+  rangeStart,
+  rangeEnd,
+  onRangeChange,
+  personId,
+  onNoteCreated,
+  refreshing = false,
+}) {
   if (!payload) return null;
   const {
     subject,
@@ -367,7 +492,14 @@ export default function SubjectDetail({ payload, onRangeChange, personId, onNote
   return (
     <div>
       <ProfileHeader subject={subject} profile={profile} />
-      <PeriodStepper period={period} onRangeChange={onRangeChange} />
+      <HelpRequestBadges templates={templates} language={language} />
+      <PeriodStepper
+        period={period}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
+        onRangeChange={onRangeChange}
+        refreshing={refreshing}
+      />
       <ConcernsAlert concerns={concerns} reflectionGroupById={reflectionGroupById} />
 
       {(!templates || templates.length === 0) ? (

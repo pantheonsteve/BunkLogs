@@ -90,7 +90,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
 
     const links = hrefs();
-    expect(links).toContain('/supervisor/coverage');
+    expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
     // Supervisors don't get the role-specific Counselor-home link.
     expect(links).not.toContain('/counselor');
@@ -101,7 +101,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     const links = hrefs();
-    expect(links).toContain('/supervisor/coverage');
+    expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
     expect(links).toContain('/reflect');
     expect(links).toContain('/my-reflections');
@@ -121,10 +121,13 @@ describe('Sidebar — section gating (3.32)', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
 
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin');
-    expect(screen.getByRole('link', { name: 'Reflections Dashboard' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Logs' })).toHaveAttribute(
       'href',
-      '/dashboards/reflections',
+      '/dashboards/logs',
     );
+    expect(screen.getAllByRole('link', { name: 'Reflections' }).some(
+      (el) => el.getAttribute('href') === '/dashboards/reflections',
+    )).toBe(true);
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
@@ -133,13 +136,14 @@ describe('Sidebar — section gating (3.32)', () => {
 
     const links = hrefs();
     expect(links).toContain('/admin');
+    expect(links).toContain('/dashboards/logs');
     expect(links).toContain('/dashboards/reflections');
     expect(links).toContain('/admin/templates');
     expect(links).toContain('/dashboards/coverage');
     expect(links).toContain('/observations');
     expect(links).toContain('/maintenance');
     expect(links).toContain('/camper-care/orders');
-    expect(links).toContain('/supervisor/coverage');
+    expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
     expect(links).toContain('/dashboards/authors');
     expect(links).toContain('/orders');
@@ -196,11 +200,13 @@ describe('Sidebar — maintenance-only nav', () => {
 });
 
 describe('Sidebar — de-duplication of Wellness / Unit head dashboard (3.32)', () => {
-  it('renders /dashboards/reflections and /dashboards/wellness exactly once for admins', () => {
+  it('renders /dashboards/logs, /dashboards/reflections, and /dashboards/wellness exactly once for admins', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
     const links = hrefs();
+    const logsMatches = links.filter((h) => h === '/dashboards/logs');
     const reflectionsMatches = links.filter((h) => h === '/dashboards/reflections');
     const wellnessMatches = links.filter((h) => h === '/dashboards/wellness');
+    expect(logsMatches).toHaveLength(1);
     expect(reflectionsMatches).toHaveLength(1);
     expect(wellnessMatches).toHaveLength(1);
   });
@@ -243,6 +249,8 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
     const links = hrefs();
     const homeIdx = links.indexOf('/admin');
+    const performanceIdx = links.indexOf('/groups/performance');
+    const logsIdx = links.indexOf('/dashboards/logs');
     const reflectionsIdx = links.indexOf('/dashboards/reflections');
     const authorsIdx = links.indexOf('/dashboards/authors');
     const templatesIdx = links.indexOf('/admin/templates');
@@ -250,7 +258,9 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     const dashboardsIdx = links.indexOf('/dashboards');
     const ordersIdx = links.indexOf('/orders');
     expect(homeIdx).toBeGreaterThanOrEqual(0);
-    expect(reflectionsIdx).toBeGreaterThan(homeIdx);
+    expect(performanceIdx).toBeGreaterThan(homeIdx);
+    expect(logsIdx).toBeGreaterThan(performanceIdx);
+    expect(reflectionsIdx).toBeGreaterThan(logsIdx);
     expect(authorsIdx).toBeLessThan(templatesIdx);
     expect(peopleIdx).toBeGreaterThan(templatesIdx);
     expect(dashboardsIdx).toBeGreaterThan(peopleIdx);

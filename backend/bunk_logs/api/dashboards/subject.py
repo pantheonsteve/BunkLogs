@@ -21,7 +21,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.core.filters import reflections_visible_for_user
+from bunk_logs.api.unit_head.common import _is_truthy_yes_no
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
@@ -105,7 +105,9 @@ def _subject_profile(subject: Person, organization) -> dict[str, Any]:
 
 
 def _is_yes_no_field(field: dict) -> bool:
-    """Two-option ``single_choice`` field with yes/no values (case-insensitive)."""
+    """Yes/no flag field: ``yes_no`` type or two-option ``single_choice``."""
+    if field.get("type") == "yes_no":
+        return True
     if field.get("type") != "single_choice":
         return False
     options = field.get("options") or []
@@ -354,11 +356,10 @@ class SubjectDetailView(APIView):
             tpl_entry["summary"]["total_reflections"] += 1
             for fkey, counts in tpl_entry["summary"]["flag_counts"].items():
                 raw = (r.answers or {}).get(fkey)
-                val = str(raw).lower() if raw is not None else ""
-                if val == "yes":
+                if _is_truthy_yes_no(raw):
                     counts["yes"] += 1
                     counts["total"] += 1
-                elif val == "no":
+                elif raw is not None and str(raw).lower() == "no":
                     counts["no"] += 1
                     counts["total"] += 1
             for field in schema_fields:

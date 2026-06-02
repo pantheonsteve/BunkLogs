@@ -456,11 +456,11 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
           </div>
           {showCoverageLink && (
             <Link
-              to="/supervisor/coverage"
+              to="/groups/performance"
               data-testid="tasks-coverage-link"
               className="shrink-0 inline-flex items-center gap-1 mt-1 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              Coverage →
+              Performance →
             </Link>
           )}
         </header>

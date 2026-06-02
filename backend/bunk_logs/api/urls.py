@@ -31,6 +31,7 @@ from .dashboards import authors as authors_dashboard
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
 from .dashboards import group_dashboard as group_dashboard_api
+from .dashboards import performance as performance_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
@@ -261,6 +262,13 @@ urlpatterns = [
         "dashboards/coverage/",
         coverage_dashboard.CoverageDashboardView.as_view(),
         name="dashboard-coverage",
+    ),
+
+    # Group performance dashboard (supervised groups, single-day view)
+    path(
+        "dashboards/groups/performance/",
+        performance_dashboard.GroupPerformanceDashboardView.as_view(),
+        name="dashboard-groups-performance",
     ),
 
     # Subject Trend Grid (commit 4 of 3.20)

@@ -108,7 +108,7 @@ describe('ReflectionsDashboardPage', () => {
     await waitFor(() => expect(getMock).toHaveBeenCalledWith(
       '/api/v1/dashboards/assignment-templates/',
       expect.objectContaining({
-        params: expect.objectContaining({ status: 'active' }),
+        params: expect.objectContaining({ status: 'active', scope: 'reflections' }),
       }),
     ));
   });
@@ -120,7 +120,7 @@ describe('ReflectionsDashboardPage', () => {
     await waitFor(() => expect(getMock).toHaveBeenCalledWith(
       '/api/v1/dashboards/assignment-templates/',
       expect.objectContaining({
-        params: expect.objectContaining({ status: 'completed' }),
+        params: expect.objectContaining({ status: 'completed', scope: 'reflections' }),
       }),
     ));
   });
@@ -142,7 +142,7 @@ describe('ReflectionsDashboardPage', () => {
     });
     renderPage();
     await waitFor(() =>
-      expect(screen.getByText(/no active forms are visible/i)).toBeInTheDocument(),
+      expect(screen.getByText(/no active reflections are visible/i)).toBeInTheDocument(),
     );
   });
 

@@ -588,65 +588,66 @@ export default function LeadershipTeamResponses() {
 
             {tab === 'individual' && (
               <>
-                {/* Search */}
+                {/* Search + date */}
                 <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 mb-6">
-                  <div className="relative max-w-md">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Search className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search by name..."
-                      value={searchQuery}
-                      onChange={(e) => setParam('q', e.target.value)}
-                      className="block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      data-testid="lt-responses-search"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setParam('q', '')}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Date stepper */}
-                <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 mb-6">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center space-x-3">
-                      <button
-                        type="button"
-                        onClick={() => stepDate(-1)}
-                        className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        aria-label="Previous day"
-                        data-testid="lt-responses-prev-day"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                        <SingleDatePicker
-                          date={dateFromISO(dateStr)}
-                          setDate={(d) => d && setSingleDate(isoFromDate(d))}
-                        />
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="relative min-w-0 flex-1 lg:max-w-md">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-400" />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => stepDate(1)}
-                        className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        aria-label="Next day"
-                        data-testid="lt-responses-next-day"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                      <input
+                        type="text"
+                        placeholder="Search by name..."
+                        value={searchQuery}
+                        onChange={(e) => setParam('q', e.target.value)}
+                        className="block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        data-testid="lt-responses-search"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setParam('q', '')}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                          aria-label="Clear search"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400" data-testid="lt-responses-long-date">
-                      {formatLongDate(dateStr)}
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
+                      <div className="flex items-center space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => stepDate(-1)}
+                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          aria-label="Previous day"
+                          data-testid="lt-responses-prev-day"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-5 h-5 text-gray-400" />
+                          <SingleDatePicker
+                            date={dateFromISO(dateStr)}
+                            setDate={(d) => d && setSingleDate(isoFromDate(d))}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => stepDate(1)}
+                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          aria-label="Next day"
+                          data-testid="lt-responses-next-day"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div
+                        className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap"
+                        data-testid="lt-responses-long-date"
+                      >
+                        {formatLongDate(dateStr)}
+                      </div>
                     </div>
                   </div>
                 </div>
