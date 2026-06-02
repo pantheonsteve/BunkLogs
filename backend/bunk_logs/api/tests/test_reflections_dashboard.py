@@ -15,6 +15,8 @@ from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentDashboardGrant
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -151,7 +153,6 @@ def test_selector_groups_assignments_under_one_template(
     """Two bunk assignments of one template collapse to a single selector row
     with two groups underneath."""
     admin_user, _, _ = _person(org, "Admin", "admin", program)
-    from bunk_logs.core.models import AssignmentGroup
     bunk_a = AssignmentGroup.all_objects.create(
         organization=org, program=program, name="Bunk A", slug="bunk-a", group_type="bunk",
     )
@@ -296,8 +297,6 @@ def test_template_dashboard_completed_tab_shows_historical_responses(
 ):
     """Completed tab lists ended assignments; the date picker scopes responses."""
     admin_user, _, _ = _person(org, "Admin", "admin", program)
-    from bunk_logs.core.models import AssignmentGroup
-    from bunk_logs.core.models import AssignmentGroupMembership
 
     historical = date(2025, 7, 17)
     bunk = AssignmentGroup.all_objects.create(
@@ -339,8 +338,6 @@ def test_template_dashboard_historical_date_active_tab(
     """Active tab + a past date resolves assignments in effect then, even if
     their lifecycle status is now ``ended``."""
     admin_user, _, _ = _person(org, "Admin", "admin", program)
-    from bunk_logs.core.models import AssignmentGroup
-    from bunk_logs.core.models import AssignmentGroupMembership
 
     historical = date(2025, 7, 17)
     bunk = AssignmentGroup.all_objects.create(
@@ -350,7 +347,7 @@ def test_template_dashboard_historical_date_active_tab(
     AssignmentGroupMembership.all_objects.create(
         group=bunk, person=author, role_in_group="author", is_active=True,
     )
-    assignment = TemplateAssignment.all_objects.create(
+    TemplateAssignment.all_objects.create(
         organization=org, program=program, template=counselor_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
@@ -383,8 +380,6 @@ def test_template_dashboard_aggregates_groups_then_drills_down(
 ):
     """Default view aggregates both bunks; ?group= narrows to one bunk."""
     admin_user, _, _ = _person(org, "Admin", "admin", program)
-    from bunk_logs.core.models import AssignmentGroup
-    from bunk_logs.core.models import AssignmentGroupMembership
 
     def _bunk_with_author(name, slug, author_first):
         bunk = AssignmentGroup.all_objects.create(
@@ -408,7 +403,7 @@ def test_template_dashboard_aggregates_groups_then_drills_down(
         return bunk, person, assignment
 
     _, p_east, a_east = _bunk_with_author("Mountainview East", "mv-east", "East")
-    _, p_west, a_west = _bunk_with_author("Mountainview West", "mv-west", "West")
+    _, p_west, _ = _bunk_with_author("Mountainview West", "mv-west", "West")
 
     c = _client(admin_user, org)
     with organization_context(org):
@@ -435,8 +430,6 @@ def test_template_dashboard_aggregates_groups_then_drills_down(
 def test_template_dashboard_program_scope(org, program, counselor_template):
     """A template assigned across two programs scopes to one via ?program=."""
     admin_user, _, _ = _person(org, "Admin", "admin", program)
-    from bunk_logs.core.models import AssignmentGroup
-    from bunk_logs.core.models import AssignmentGroupMembership
 
     program2 = Program.all_objects.create(
         organization=org, name="Reflections Camp Winter", slug="winter-2026",
