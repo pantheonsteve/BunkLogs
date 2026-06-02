@@ -23,7 +23,7 @@ describe('DashboardsHub', () => {
     expect(screen.getByTestId('dashboards-hub-card-coverage')).toBeInTheDocument();
     expect(screen.getByTestId('dashboards-hub-card-authors')).toBeInTheDocument();
     expect(screen.getByTestId('dashboards-hub-card-concerns')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboards-hub-card-team')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboards-hub-card-reflections')).toBeInTheDocument();
     expect(screen.getByTestId('dashboards-hub-card-wellness')).toBeInTheDocument();
     expect(screen.getByTestId('dashboards-hub-card-subjects')).toBeInTheDocument();
   });
@@ -33,7 +33,7 @@ describe('DashboardsHub', () => {
     expect(screen.getByTestId('dashboards-hub-card-coverage')).toHaveAttribute('href', '/dashboards/coverage');
     expect(screen.getByTestId('dashboards-hub-card-authors')).toHaveAttribute('href', '/dashboards/authors');
     expect(screen.getByTestId('dashboards-hub-card-concerns')).toHaveAttribute('href', '/dashboards/concerns');
-    expect(screen.getByTestId('dashboards-hub-card-team')).toHaveAttribute('href', '/dashboards/team');
+    expect(screen.getByTestId('dashboards-hub-card-reflections')).toHaveAttribute('href', '/dashboards/reflections');
     expect(screen.getByTestId('dashboards-hub-card-wellness')).toHaveAttribute('href', '/dashboards/wellness');
     expect(screen.getByTestId('dashboards-hub-card-subjects')).toHaveAttribute('href', '/admin/groups');
   });

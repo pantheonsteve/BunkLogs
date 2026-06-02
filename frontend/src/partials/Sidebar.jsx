@@ -35,7 +35,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * Admin IA (admin + super_admin) — Phase 1 of the role-based nav refactor:
  *
  *   HOME (top)           /admin
- *   Reflections Dashboard /dashboards/team
+ *   Reflections Dashboard /dashboards/reflections
  *
  *   MY WORK
  *     Coverage dashboard /dashboards/coverage
@@ -221,7 +221,7 @@ function Sidebar({
             <ul>
               <NavItem to="/admin" label="Home" icon={IconHome} end />
               <NavItem
-                to="/dashboards/team"
+                to="/dashboards/reflections"
                 label="Reflections Dashboard"
                 icon={IconBars}
               />
@@ -391,7 +391,6 @@ function Sidebar({
               setSidebarExpanded={setSidebarExpanded}
             >
               <SubItem to="/leadership-team" label="Overview" end />
-              <SubItem to="/leadership-team/templates" label="Templates" />
               <SubItem to="/leadership-team/self-reflection" label="My reflection" />
             </CollapsibleSection>
           )}
@@ -408,7 +407,7 @@ function Sidebar({
               <SubItem to="/dashboards" label="Overview" end />
               <SubItem to="/dashboards/coverage" label="Coverage" />
               <SubItem to="/dashboards/authors" label="Author attribution" />
-              <SubItem to="/dashboards/team" label="Unit head dashboard" />
+              <SubItem to="/dashboards/reflections" label="Reflections" />
               <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
             </CollapsibleSection>
           )}

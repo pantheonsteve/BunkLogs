@@ -852,6 +852,51 @@ class TemplateAssignment(models.Model):
         )
 
 
+class AssignmentDashboardGrant(models.Model):
+    """Admin-only per-case override granting a Membership access to one assignment.
+
+    The Reflections Dashboard scopes which assignments a viewer can see through
+    the Supervision-based visibility backbone. This grant is the additive
+    exception channel: an admin (via the Django admin) can hand a specific
+    Membership read access to a specific TemplateAssignment's dashboard without
+    creating a Supervision relationship. Grants only ever widen access.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="assignment_dashboard_grants",
+    )
+    assignment = models.ForeignKey(
+        TemplateAssignment,
+        on_delete=models.CASCADE,
+        related_name="dashboard_grants",
+    )
+    membership = models.ForeignKey(
+        Membership,
+        on_delete=models.CASCADE,
+        related_name="assignment_dashboard_grants",
+        help_text="The grantee — this Membership's Person can view the assignment dashboard.",
+    )
+    granted_by = models.ForeignKey(
+        Membership,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assignment_dashboard_grants_made",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("assignment", "membership")]
+        indexes = [
+            models.Index(fields=["organization", "membership"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"grant assignment:{self.assignment_id} -> membership:{self.membership_id}"
+
+
 class Reflection(models.Model):
     class TeamVisibility(models.TextChoices):
         TEAM = "team", "Visible to team"

@@ -555,7 +555,7 @@ export default function TemplateBuilderPage() {
         const data = await patchTemplate(orgSlug, id, payload, { forceNewVersion });
         if (data?.warnings?.length) setWarnings(data.warnings);
         if (data?.id && data.id !== Number(id)) {
-          navigate(`/leadership-team/templates/${data.id}`);
+          navigate(`/admin/templates/${data.id}`);
           return data;
         }
         await load();
@@ -564,7 +564,7 @@ export default function TemplateBuilderPage() {
       }
       const created = await createTemplate(orgSlug, payload);
       if (created?.id) {
-        navigate(`/leadership-team/templates/${created.id}`);
+        navigate(`/admin/templates/${created.id}`);
       }
       return created;
     } catch (err) {
@@ -612,7 +612,7 @@ export default function TemplateBuilderPage() {
     setSaving(true);
     try {
       await archiveTemplate(orgSlug, id);
-      navigate('/leadership-team/templates');
+      navigate('/admin/templates');
     } catch (err) {
       setError(err?.response?.data?.detail ?? 'Archive failed.');
     } finally {
@@ -624,7 +624,7 @@ export default function TemplateBuilderPage() {
     setSaving(true);
     try {
       const cloned = await cloneTemplate(orgSlug, id);
-      if (cloned?.id) navigate(`/leadership-team/templates/${cloned.id}`);
+      if (cloned?.id) navigate(`/admin/templates/${cloned.id}`);
     } catch (err) {
       setError(err?.response?.data?.detail ?? 'Clone failed.');
     } finally {
@@ -650,7 +650,7 @@ export default function TemplateBuilderPage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <Link
-              to="/leadership-team/templates"
+              to="/admin/templates"
               className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               ← Template library

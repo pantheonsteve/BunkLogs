@@ -10,11 +10,9 @@
  * Layout mirrors the production bunk page: header (name, date, counselors,
  * completion, view-only) → three attention summary cards (Not on Camp /
  * Unit Head Help / Camper Care Help) → Camper Daily Scores grid → Orders &
- * Tickets → Notes (bunk concerns + specialist reports). The view is
- * read-only in v1. Completion is derived from the score-grid rows. The grid
- * shows only substantive columns (ratings + free text); the yes/no triage
- * fields (on-camp, help requests) are surfaced as the On Camp column and the
- * summary cards instead, so they aren't duplicated as grid columns.
+ * Tickets → Notes (bunk concerns + specialist reports). On the unified group
+ * dashboard page the score grid is omitted and orders/notes render after
+ * template responses instead (see ``GroupDashboardPage``).
  */
 
 import { useMemo, useState } from 'react';
@@ -318,6 +316,24 @@ function NotesSection({ bunkConcerns, specialistReports, dashboardPath, notesLin
   );
 }
 
+export function BunkDashboardOrdersAndNotes({
+  data,
+  camperDashboardPath = '/unit-head/campers',
+  notesLink = '/observations',
+}) {
+  return (
+    <>
+      <OrdersSection orders={data?.orders} />
+      <NotesSection
+        bunkConcerns={data?.bunk_concerns || []}
+        specialistReports={data?.specialist_reports}
+        dashboardPath={camperDashboardPath}
+        notesLink={notesLink}
+      />
+    </>
+  );
+}
+
 export default function BunkDashboard({
   data,
   selectedDate,
@@ -325,9 +341,14 @@ export default function BunkDashboard({
   camperDashboardPath = '/unit-head/campers',
   backTo = '/unit-head',
   notesLink = '/observations',
+  programName,
+  showScoreGrid = true,
+  showOrders = true,
+  showNotes = true,
 }) {
   const today = data?.header?.today;
   const date = data?.header?.date;
+  const resolvedProgramName = programName ?? data?.header?.program_name;
   const helpRequested = data?.help_requested || [];
   const camperCareHelpRequested = data?.camper_care_help_requested || [];
   const offCamp = data?.off_camp || [];
@@ -367,7 +388,7 @@ export default function BunkDashboard({
   return (
     <div
       data-testid="bunk-dashboard"
-      className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto space-y-5"
+      className={`px-4 sm:px-6 lg:px-8 pt-8 ${showOrders || showNotes ? 'pb-8' : 'pb-0'} w-full max-w-[80rem] mx-auto space-y-5`}
     >
       <header className="space-y-3">
         <Link to={backTo} className="text-sm font-semibold text-blue-700 dark:text-blue-300 hover:underline">
@@ -378,6 +399,11 @@ export default function BunkDashboard({
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
               {data?.header?.bunk?.name}
             </h1>
+            {resolvedProgramName && (
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {resolvedProgramName}
+              </p>
+            )}
             {data?.header?.bunk?.unit_name && (
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {data.header.bunk.unit_name}
@@ -445,31 +471,34 @@ export default function BunkDashboard({
         />
       </div>
 
-      <SectionCard
-        title="Camper Daily Scores"
-        testid="section-score-grid"
-        action={
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-            {scoreGrid.rows?.length || 0} campers
-          </span>
-        }
-      >
-        <ScoreGrid
-          columns={gridColumns}
-          rows={scoreGrid.rows}
-          camperLinkPrefix={camperDashboardPath}
-          offCampIds={offCampIds}
+      {showScoreGrid && (
+        <SectionCard
+          title="Camper Daily Scores"
+          testid="section-score-grid"
+          action={
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {scoreGrid.rows?.length || 0} campers
+            </span>
+          }
+        >
+          <ScoreGrid
+            columns={gridColumns}
+            rows={scoreGrid.rows}
+            camperLinkPrefix={camperDashboardPath}
+            offCampIds={offCampIds}
+          />
+        </SectionCard>
+      )}
+
+      {showOrders && <OrdersSection orders={orders} />}
+      {showNotes && (
+        <NotesSection
+          bunkConcerns={bunkConcerns}
+          specialistReports={data?.specialist_reports}
+          dashboardPath={camperDashboardPath}
+          notesLink={notesLink}
         />
-      </SectionCard>
-
-      <OrdersSection orders={orders} />
-
-      <NotesSection
-        bunkConcerns={bunkConcerns}
-        specialistReports={data?.specialist_reports}
-        dashboardPath={camperDashboardPath}
-        notesLink={notesLink}
-      />
+      )}
     </div>
   );
 }

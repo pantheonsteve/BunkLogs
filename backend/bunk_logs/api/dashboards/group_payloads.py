@@ -201,7 +201,9 @@ def build_unit_dashboard_payload(
         ).select_related("organization", "program"),
     )
 
-    camper_template = camper_reflection_template(organization, program)
+    camper_template = camper_reflection_template(
+        organization, program, as_of=target_date,
+    )
     expected_passed = expected_by_passed(organization, target_date)
     bc_map = bunk_concerns_referencing(
         organization=organization, program=program, target_date=target_date,
@@ -322,7 +324,9 @@ def build_division_dashboard_payload(
         ),
     )
 
-    camper_template = camper_reflection_template(organization, program)
+    camper_template = camper_reflection_template(
+        organization, program, as_of=target_date,
+    )
     expected_passed = expected_by_passed(organization, target_date)
     bc_map = bunk_concerns_referencing(
         organization=organization, program=program, target_date=target_date,

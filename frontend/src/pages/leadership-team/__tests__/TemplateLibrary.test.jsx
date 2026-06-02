@@ -29,7 +29,7 @@ beforeEach(() => {
 
 function renderLib() {
   return render(
-    <MemoryRouter initialEntries={['/leadership-team/templates']}>
+    <MemoryRouter initialEntries={['/admin/templates']}>
       <TemplateLibrary />
     </MemoryRouter>,
   );
@@ -127,6 +127,26 @@ describe('LeadershipTeamTemplateLibrary', () => {
         expect.anything(),
       ),
     );
+  });
+
+  it('links New template to /admin/templates/new', async () => {
+    getMock.mockResolvedValue({ data: { templates: [] } });
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-templates-new')).toBeInTheDocument());
+    expect(screen.getByTestId('lt-templates-new')).toHaveAttribute('href', '/admin/templates/new');
+  });
+
+  it('links edit rows to /admin/templates/:id', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        templates: [
+          { id: 11, name: 'Draft One', status: 'draft', version: 1, languages: ['en'], cadence: 'daily' },
+        ],
+      },
+    });
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-edit-11')).toBeInTheDocument());
+    expect(screen.getByTestId('lt-tpl-edit-11')).toHaveAttribute('href', '/admin/templates/11');
   });
 
   it('shows an Edit button for every template', async () => {

@@ -91,6 +91,89 @@ describe('ObservationsInbox', () => {
       expect(screen.getByText('Your observations inbox is empty.')).toBeDefined();
     });
   });
+
+  it('shows message counts next to the Inbox and Sent tabs', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/sent/')) {
+        return Promise.resolve({ data: { count: 4, results: [] } });
+      }
+      return Promise.resolve({ data: INBOX }); // count: 1
+    });
+    render(
+      <MemoryRouter>
+        <ObservationsInbox />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('observations-tab-count-inbox')).toHaveTextContent('1');
+      expect(screen.getByTestId('observations-tab-count-sent')).toHaveTextContent('4');
+    });
+  });
+
+  it('filters the list by search query and shows a no-match state', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/sent/')) return Promise.resolve({ data: { count: 0, results: [] } });
+      return Promise.resolve({
+        data: {
+          count: 2,
+          results: [
+            { id: 1, author: { full_name: 'Bob UH' }, sensitivity: 'normal', subjects_summary: 'Cam Per', last_activity_at: new Date().toISOString(), unread: false },
+            { id: 2, author: { full_name: 'Dana C' }, sensitivity: 'normal', subjects_summary: 'Sam Smith', last_activity_at: new Date().toISOString(), unread: false },
+          ],
+        },
+      });
+    });
+    render(
+      <MemoryRouter>
+        <ObservationsInbox />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Cam Per')).toBeDefined());
+
+    await userEvent.type(screen.getByTestId('observations-search'), 'Sam');
+    await waitFor(() => {
+      expect(screen.queryByText('Cam Per')).toBeNull();
+      expect(screen.getByText('Sam Smith')).toBeDefined();
+    });
+
+    await userEvent.clear(screen.getByTestId('observations-search'));
+    await userEvent.type(screen.getByTestId('observations-search'), 'nobody');
+    await waitFor(() => {
+      expect(screen.getByText('No observations match your search.')).toBeDefined();
+    });
+  });
+
+  it('reorders the list when sort changes to oldest first', async () => {
+    const older = new Date(Date.now() - 7200000).toISOString();
+    const newer = new Date(Date.now() - 600000).toISOString();
+    getMock.mockImplementation((url) => {
+      if (url.includes('/sent/')) return Promise.resolve({ data: { count: 0, results: [] } });
+      return Promise.resolve({
+        data: {
+          count: 2,
+          results: [
+            { id: 1, author: { full_name: 'A' }, sensitivity: 'normal', subjects_summary: 'Newer One', last_activity_at: newer, unread: false },
+            { id: 2, author: { full_name: 'B' }, sensitivity: 'normal', subjects_summary: 'Older One', last_activity_at: older, unread: false },
+          ],
+        },
+      });
+    });
+    render(
+      <MemoryRouter>
+        <ObservationsInbox />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId('observation-inbox-item').length).toBe(2));
+
+    const recentOrder = screen.getAllByTestId('observation-inbox-item');
+    expect(recentOrder[0]).toHaveTextContent('Newer One');
+
+    await userEvent.selectOptions(screen.getByTestId('observations-sort'), 'oldest');
+    await waitFor(() => {
+      const oldestOrder = screen.getAllByTestId('observation-inbox-item');
+      expect(oldestOrder[0]).toHaveTextContent('Older One');
+    });
+  });
 });
 
 describe('ObservationThread', () => {

@@ -25,6 +25,7 @@ from bunk_logs.api.dashboards.group_payloads import build_unit_dashboard_payload
 from bunk_logs.api.dashboards.group_roster import build_group_roster
 from bunk_logs.api.dashboards.group_template_cards import build_group_template_cards
 from bunk_logs.api.unit_head.bunk_dashboard import build_bunk_dashboard_payload
+from bunk_logs.api.unit_head.bunk_dashboard import program_display_name
 
 # Dispatch table. Group types not represented here surface a 400 with
 # a friendly "not yet supported" message so the frontend can render
@@ -117,6 +118,10 @@ class GroupDashboardView(APIView):
             # affordances when those are pulled into the unified page.
             "can_edit": False,
         }
+        if payload.get("header") is not None and ctx.program:
+            payload["header"]["program_name"] = program_display_name(
+                ctx.program, ctx.organization,
+            )
         return Response(payload)
 
 

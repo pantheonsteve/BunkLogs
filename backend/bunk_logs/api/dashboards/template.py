@@ -379,6 +379,49 @@ def _aggregate_field(
     return None
 
 
+# ── shared payload builders ───────────────────────────────────────────────────
+
+
+def serialize_template_block(template: ReflectionTemplate) -> dict[str, Any]:
+    """The ``template`` block shared by the template and assignment dashboards."""
+    return {
+        "id": template.id,
+        "name": template.name,
+        "slug": template.slug,
+        "role": template.role,
+        "schema": template.schema,
+    }
+
+
+def aggregate_template_fields(
+    template: ReflectionTemplate,
+    cur_refs: list[Reflection],
+    prev_refs: list[Reflection],
+) -> list[dict[str, Any]]:
+    """Build the schema-driven ``fields`` array the dashboard widgets consume.
+
+    Shared by ``TemplateDashboardView`` and the assignment dashboard so both
+    emit the same ``{ key, type, dashboard_role, data }`` shape.
+    """
+    fields_out: list[dict[str, Any]] = []
+    for field in template.schema.get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        ftype = field.get("type", "")
+        if ftype in META_FIELD_TYPES:
+            continue
+        agg = _aggregate_field(field, cur_refs, prev_refs)
+        fields_out.append(
+            {
+                "key": field.get("key", ""),
+                "type": ftype,
+                "dashboard_role": field.get("dashboard_role"),
+                "data": agg,
+            },
+        )
+    return fields_out
+
+
 # ── CSV export ────────────────────────────────────────────────────────────────
 
 
@@ -501,31 +544,10 @@ class TemplateDashboardView(APIView):
         person_ids = {r.subject_id for r in cur_refs}
         eligible = _eligible_person_count(template, org.id)
 
-        fields_out = []
-        for field in template.schema.get("fields") or []:
-            if not isinstance(field, dict):
-                continue
-            ftype = field.get("type", "")
-            if ftype in META_FIELD_TYPES:
-                continue
-            agg = _aggregate_field(field, cur_refs, prev_refs)
-            fields_out.append(
-                {
-                    "key": field.get("key", ""),
-                    "type": ftype,
-                    "dashboard_role": field.get("dashboard_role"),
-                    "data": agg,
-                },
-            )
+        fields_out = aggregate_template_fields(template, cur_refs, prev_refs)
 
         payload: dict[str, Any] = {
-            "template": {
-                "id": template.id,
-                "name": template.name,
-                "slug": template.slug,
-                "role": template.role,
-                "schema": template.schema,
-            },
+            "template": serialize_template_block(template),
             "period": {
                 "current_start": cur_start.isoformat(),
                 "current_end": cur_end.isoformat(),

@@ -26,6 +26,7 @@ from .counselor import dashboard as counselor_dashboard
 from .counselor import maintenance_tickets as counselor_maintenance_tickets
 from .counselor import requests as counselor_requests
 from .counselor import self_reflection as counselor_self_reflection
+from .dashboards import assignment as assignment_dashboard
 from .dashboards import authors as authors_dashboard
 from .dashboards import concerns as concerns_dashboard
 from .dashboards import coverage as coverage_dashboard
@@ -240,6 +241,19 @@ urlpatterns = [
         "dashboards/template/<int:template_id>/export/",
         template_dashboard.TemplateDashboardExportView.as_view(),
         name="template-dashboard-export",
+    ),
+
+    # Assignment-centric Reflections Dashboard (overhaul): template-grouped
+    # selector + per-template view (aggregating across its audience groups).
+    path(
+        "dashboards/assignment-templates/",
+        assignment_dashboard.AssignmentSelectorView.as_view(),
+        name="dashboard-assignment-templates",
+    ),
+    path(
+        "dashboards/assignment-template/<int:template_id>/",
+        assignment_dashboard.AssignmentTemplateDashboardView.as_view(),
+        name="dashboard-assignment-template",
     ),
 
     # Cross-roster coverage heatmap (commit 3 of 3.20)

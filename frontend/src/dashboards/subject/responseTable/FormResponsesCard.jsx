@@ -108,7 +108,7 @@ export default function FormResponsesCard({
   const templateId = tpl.id;
   let responsesUrl = null;
   if (templateId) {
-    responsesUrl = `/leadership-team/templates/${templateId}/responses`;
+    responsesUrl = `/admin/templates/${templateId}/responses`;
     if (firstDate) {
       responsesUrl += `?date=${firstDate}&tab=individual`;
     }

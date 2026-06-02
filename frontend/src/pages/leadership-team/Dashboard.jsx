@@ -168,33 +168,6 @@ function BunksUnitsCard({ summary }) {
   );
 }
 
-function TemplatesCard({ summary }) {
-  if (!summary) return null;
-  return (
-    <section
-      aria-label="Templates and assignments"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-      data-testid="lt-templates-card"
-    >
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-          Templates &amp; assignments
-        </h2>
-        <Link
-          to="/leadership-team/templates"
-          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          data-testid="lt-templates-link"
-        >
-          Open library →
-        </Link>
-      </div>
-      <p className="text-sm text-gray-700 dark:text-gray-300">
-        {summary.owned_template_count} template{summary.owned_template_count === 1 ? '' : 's'} you authored
-      </p>
-    </section>
-  );
-}
-
 export default function LeadershipTeamDashboard() {
   const { orgSlug } = useAuth();
   const [dashboard, setDashboard] = useState(null);
@@ -279,7 +252,6 @@ export default function LeadershipTeamDashboard() {
       </section>
 
       <BunksUnitsCard summary={dashboard.bunks_and_units} />
-      <TemplatesCard summary={dashboard.templates_and_assignments} />
     </div>
   );
 }

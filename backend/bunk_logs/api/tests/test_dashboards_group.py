@@ -195,6 +195,7 @@ class TestBunkAccess:
         assert body["role_context"]["can_edit"] is False
         # Bunk payload retains the existing header.bunk shape.
         assert body["header"]["bunk"]["id"] == bunk.id
+        assert body["header"]["program_name"] == program.name
 
     def test_payload_includes_member_roster_with_roles(
         self, api, org, program, bunk, url,

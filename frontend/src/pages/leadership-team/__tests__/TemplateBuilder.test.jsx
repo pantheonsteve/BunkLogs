@@ -33,10 +33,10 @@ beforeEach(() => {
 
 function renderNew() {
   return render(
-    <MemoryRouter initialEntries={['/leadership-team/templates/new']}>
+    <MemoryRouter initialEntries={['/admin/templates/new']}>
       <Routes>
-        <Route path="/leadership-team/templates/new" element={<TemplateBuilderPage />} />
-        <Route path="/leadership-team/templates/:id" element={<div data-testid="builder-redirect" />} />
+        <Route path="/admin/templates/new" element={<TemplateBuilderPage />} />
+        <Route path="/admin/templates/:id" element={<div data-testid="builder-redirect" />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -55,9 +55,9 @@ function renderEdit(templateFixture) {
     return Promise.resolve({ data: {} });
   });
   return render(
-    <MemoryRouter initialEntries={[`/leadership-team/templates/${templateFixture.id}`]}>
+    <MemoryRouter initialEntries={[`/admin/templates/${templateFixture.id}`]}>
       <Routes>
-        <Route path="/leadership-team/templates/:id" element={<TemplateBuilderPage />} />
+        <Route path="/admin/templates/:id" element={<TemplateBuilderPage />} />
       </Routes>
     </MemoryRouter>,
   );

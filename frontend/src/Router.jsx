@@ -35,7 +35,7 @@ import MyReflectionsPage from './pages/MyReflectionsPage';
 import ReflectionDetailPage from './pages/ReflectionDetailPage';
 import ReflectionFormPage from './pages/ReflectionFormPage';
 import ReflectionSummaryPage from './pages/ReflectionSummaryPage';
-import TeamDashboardPage from './pages/TeamDashboardPage';
+import ReflectionsDashboardPage from './pages/ReflectionsDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
 import AdminHub from './pages/admin/AdminHub';
@@ -43,10 +43,6 @@ import AdminDashboardV2 from './pages/admin/Dashboard';
 import AdminPeople from './pages/admin/People';
 import AdminAssignments from './pages/admin/Assignments';
 import AdminSettingsPage from './pages/admin/Settings';
-import AdminTemplatesPage from './pages/admin/Templates';
-import TemplateListPage from './pages/admin/templates/TemplateListPage';
-import TemplateEditorPage from './pages/admin/templates/TemplateEditorPage';
-import TemplateNewPage from './pages/admin/templates/TemplateNewPage';
 import GroupListPage from './pages/admin/groups/GroupListPage';
 import GroupDetailPage from './pages/admin/groups/GroupDetailPage';
 import FieldKeyListPage from './pages/admin/field-keys/FieldKeyListPage';
@@ -165,6 +161,20 @@ function LegacyBunkDashboardRedirect() {
   const qs = searchParams.toString();
   const target = `/dashboards/group/${bunkId}${qs ? `?${qs}` : ''}`;
   return <Navigate to={target} replace />;
+}
+
+/** Retired /leadership-team/templates* → /admin/templates* (bookmarks). */
+function LegacyLtTemplatesRedirect() {
+  const location = useLocation();
+  const target = location.pathname.replace(/^\/leadership-team\/templates/, '/admin/templates');
+  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
+}
+
+/** Retired legacy admin editor URL → LT builder at /admin/templates/:id. */
+function LegacyAdminTemplateEditRedirect() {
+  const { id } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/admin/templates/${id}${location.search}${location.hash}`} replace />;
 }
 
 // Component to handle redirected paths from 404 page
@@ -565,19 +575,7 @@ function Router() {
             path="/leadership-team/self-reflection/:reflectionId/edit"
             element={<LeadershipTeamSelfReflectionPage />}
           />
-          <Route path="/leadership-team/templates" element={<LeadershipTeamTemplateLibrary />} />
-          <Route
-            path="/leadership-team/templates/new"
-            element={<LeadershipTeamTemplateBuilderPage />}
-          />
-          <Route
-            path="/leadership-team/templates/:id"
-            element={<LeadershipTeamTemplateBuilderPage />}
-          />
-          <Route
-            path="/leadership-team/templates/:id/responses"
-            element={<LeadershipTeamResponses />}
-          />
+          <Route path="/leadership-team/templates/*" element={<LegacyLtTemplatesRedirect />} />
 
           {/* Subject Trend Grid — moved inside AppLayout for consistent chrome */}
           <Route
@@ -632,7 +630,7 @@ function Router() {
             under /dashboards/* (see below). */}
         <Route
           path="/team/dashboard"
-          element={<Navigate to="/dashboards/team" replace />}
+          element={<Navigate to="/dashboards/reflections" replace />}
         />
         <Route
           path="/wellness/dashboard"
@@ -690,9 +688,13 @@ function Router() {
         />
         <Route
           path="/dashboards/team"
+          element={<Navigate to="/dashboards/reflections" replace />}
+        />
+        <Route
+          path="/dashboards/reflections"
           element={
             <ProtectedRoute>
-              <TeamDashboardPage />
+              <ReflectionsDashboardPage />
             </ProtectedRoute>
           }
         />
@@ -773,32 +775,40 @@ function Router() {
               </AdminRoute>
             }
           />
-          {/* 7_13 PR3 — Admin Templates oversight wrapper. Story 57 surfaces
-              pending Reviewed/Needs revision actions across every template
-              in the org. The legacy admin template list (sort + filter)
-              stays reachable at /admin/templates/library so existing
-              bookmarks keep working. */}
+          {/* Template library + builder (LT UI, admin-only via AdminRoute). */}
           <Route
             path="templates"
             element={
               <AdminRoute>
-                <AdminTemplatesPage />
+                <LeadershipTeamTemplateLibrary />
               </AdminRoute>
             }
           />
           <Route
             path="templates/library"
-            element={
-              <AdminRoute>
-                <TemplateListPage />
-              </AdminRoute>
-            }
+            element={<Navigate to="/admin/templates" replace />}
           />
           <Route
             path="templates/new"
             element={
               <AdminRoute>
-                <TemplateNewPage />
+                <LeadershipTeamTemplateBuilderPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="templates/:id/responses"
+            element={
+              <AdminRoute>
+                <LeadershipTeamResponses />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="templates/:id"
+            element={
+              <AdminRoute>
+                <LeadershipTeamTemplateBuilderPage />
               </AdminRoute>
             }
           />
@@ -832,20 +842,9 @@ function Router() {
           />
         </Route>
 
-        {/* 3.28: Template editor is a deliberate exception. It is a
-            focused full-bleed editor with its own sticky in-page header
-            (inline name editing, language switcher, save). Pulling it
-            under AdminLayout would either double-stack stickies or
-            shrink the working pane used by the split-pane editor.
-            Future contributors: do NOT move this under the layout
-            without re-evaluating that tradeoff. */}
         <Route
           path="/admin/templates/:id/edit"
-          element={
-            <AdminRoute>
-              <TemplateEditorPage />
-            </AdminRoute>
-          }
+          element={<LegacyAdminTemplateEditRedirect />}
         />
 
         {/* Default redirect */}

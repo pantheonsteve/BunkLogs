@@ -170,6 +170,26 @@ class TestResolveTemplateFor:
         )
         assert result is None
 
+    def test_resolves_ended_assignment_on_historical_date(
+        self, org, program, org_template, lt_membership,
+    ):
+        """Ended assignments still resolve when ``as_of`` falls in their window."""
+        historical = date(2025, 7, 17)
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=org_template,
+            target_type=TemplateAssignment.TargetType.ROLE,
+            target_payload={"role": "counselor"},
+            start_date=date(2025, 6, 28),
+            end_date=date(2025, 7, 26),
+            status=TemplateAssignment.Status.ENDED,
+            created_by=lt_membership,
+        )
+        result = resolve_template_for(
+            organization=org, program=program, as_of=historical,
+            role="counselor", subject_mode="self", cadence="daily",
+        )
+        assert result == org_template
+
     def test_excludes_other_org(
         self, org, other_org, program, org_template, lt_membership,
     ):

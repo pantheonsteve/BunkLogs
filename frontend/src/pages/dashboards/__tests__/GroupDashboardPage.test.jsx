@@ -20,6 +20,7 @@ function bunkPayload(role = 'camper_care') {
     role_context: { role, group_type: 'bunk', can_edit: false },
     header: {
       bunk: { id: 11, name: 'Cabin Birch', slug: 'cabin-birch', unit_name: 'Senior Village' },
+      program_name: 'Summer 2025 — Session 1',
       date: '2026-07-04',
       today: '2026-07-04',
       counselor_names: ['Pat L.', 'Sam R.'],
@@ -103,6 +104,8 @@ describe('GroupDashboardPage', () => {
       expect(screen.getByTestId('group-dashboard-bunk')).toBeInTheDocument();
     });
     expect(screen.getByText('Cabin Birch')).toBeInTheDocument();
+    expect(screen.getByText(/Summer 2025 — Session 1/)).toBeInTheDocument();
+    expect(screen.queryByTestId('section-score-grid')).not.toBeInTheDocument();
     expect(getMock).toHaveBeenCalledWith(
       '/api/v1/dashboards/group/11/',
       expect.any(Object),

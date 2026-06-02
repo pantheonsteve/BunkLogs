@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import api from '../api';
-import { partitionFields, resolveWidgetName } from './widgetMap';
-import * as Widgets from './widgets/index';
-
-function pct(n) {
-  if (n == null || Number.isNaN(n)) return '—';
-  return `${Math.round(n * 1000) / 10}%`;
-}
+import DashboardBody from './DashboardBody';
 
 function todayIso() {
   const d = new Date();
@@ -15,73 +9,17 @@ function todayIso() {
 }
 
 /**
- * Resolve a field's human-readable label from the schema.
- * Tries en prompt, then field key.
- */
-function fieldLabel(fieldKey, schemaFields, language = 'en') {
-  const schemaField = (schemaFields ?? []).find((f) => f.key === fieldKey);
-  if (!schemaField) return fieldKey;
-  const prompts = schemaField.prompts;
-  if (prompts) {
-    return prompts[language] || prompts.en || fieldKey;
-  }
-  return schemaField.name || fieldKey;
-}
-
-/** Render a single widget by name. */
-function Widget({ widgetName, field, schemaField, schemaFields, language }) {
-  const Component = Widgets[widgetName];
-  if (!Component) return null;
-  const label = fieldLabel(field.key, schemaFields, language);
-
-  // Pass scale info from schema if available (needed by rating widgets)
-  const enriched = {
-    ...field,
-    scale: schemaField?.scale ?? field?.scale,
-    categories: schemaField?.categories ?? field?.categories,
-  };
-  return <Component field={enriched} label={label} />;
-}
-
-/**
- * SummaryBar — top header stats: completion, responses, persons.
- */
-function SummaryBar({ summary, period }) {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-4 py-3">
-        <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Completion</p>
-        <p className="text-xl font-semibold text-gray-900 dark:text-white">
-          {pct(summary?.completion_rate)}
-        </p>
-      </div>
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-4 py-3">
-        <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Responses</p>
-        <p className="text-xl font-semibold text-gray-900 dark:text-white">{summary?.response_count ?? '—'}</p>
-      </div>
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-4 py-3">
-        <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Respondents</p>
-        <p className="text-xl font-semibold text-gray-900 dark:text-white">{summary?.person_count ?? '—'}</p>
-      </div>
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-4 py-3">
-        <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Period</p>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-          {period?.current_start} → {period?.current_end}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * TemplateDashboard — renders aggregated data for a single template.
+ * TemplateDashboard — fetches and renders aggregated data for a single template.
+ *
+ * Thin data wrapper around the shared presentational <DashboardBody>; handles
+ * the period controls, fetch, and CSV export for the template-scoped endpoint.
  *
  * Props:
  *   templateId  {number}  - the template to display
  *   language    {string}  - language code for labels (default 'en')
  *   title       {string}  - optional header title override
  *   subtitle    {string}  - optional subtitle
- *   accentColor {string}  - Tailwind color prefix for the export button, e.g. 'indigo' (default)
+ *   accentColor {string}  - Tailwind color prefix for the refresh button (default 'indigo')
  */
 export default function TemplateDashboard({
   templateId,
@@ -95,7 +33,6 @@ export default function TemplateDashboard({
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showGeneric, setShowGeneric] = useState(false);
 
   const load = useCallback(async () => {
     if (!templateId) return;
@@ -123,9 +60,6 @@ export default function TemplateDashboard({
   const exportUrl = templateId
     ? `/api/v1/dashboards/template/${templateId}/export/?period_end=${periodEnd}&period_days=${periodDays}`
     : null;
-
-  const schemaFields = payload?.template?.schema?.fields ?? [];
-  const { tagged, generic } = partitionFields(payload?.fields ?? []);
 
   return (
     <div>
@@ -196,72 +130,7 @@ export default function TemplateDashboard({
         <p className="text-rose-600 dark:text-rose-400 text-sm">{error}</p>
       )}
 
-      {!loading && payload && (
-        <>
-          <SummaryBar summary={payload.summary} period={payload.period} />
-
-          {/* Role-tagged widgets */}
-          {tagged.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-              {tagged.map((field) => {
-                const widgetName = resolveWidgetName(field);
-                if (!widgetName) return null;
-                const schemaField = schemaFields.find((f) => f.key === field.key);
-                return (
-                  <Widget
-                    key={field.key}
-                    widgetName={widgetName}
-                    field={field}
-                    schemaField={schemaField}
-                    schemaFields={schemaFields}
-                    language={language}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          {/* Generic widgets in disclosure */}
-          {generic.length > 0 && (
-            <div className="mt-4">
-              <button
-                type="button"
-                className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-3"
-                onClick={() => setShowGeneric((v) => !v)}
-                aria-expanded={showGeneric}
-              >
-                {showGeneric ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                {showGeneric ? 'Hide' : 'Show'} additional fields ({generic.length})
-              </button>
-              {showGeneric && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {generic.map((field) => {
-                    const widgetName = resolveWidgetName(field);
-                    if (!widgetName) return null;
-                    const schemaField = schemaFields.find((f) => f.key === field.key);
-                    return (
-                      <Widget
-                        key={field.key}
-                        widgetName={widgetName}
-                        field={field}
-                        schemaField={schemaField}
-                        schemaFields={schemaFields}
-                        language={language}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {tagged.length === 0 && generic.length === 0 && (
-            <p className="text-sm text-gray-400 dark:text-gray-500">
-              No field data to display for this period.
-            </p>
-          )}
-        </>
-      )}
+      {!loading && payload && <DashboardBody payload={payload} language={language} />}
     </div>
   );
 }

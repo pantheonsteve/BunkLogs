@@ -63,6 +63,21 @@ OPEN_STATUSES = (OrderStateMachine.NEW, OrderStateMachine.IN_PROGRESS)
 RESOLVED_STATUSES = (OrderStateMachine.FULFILLED, OrderStateMachine.UNABLE_TO_FULFILL)
 
 
+def program_display_name(program, organization=None) -> str | None:
+    """Session-friendly program label (drops the org name prefix when present)."""
+    if program is None:
+        return None
+    org_name = ""
+    if organization is not None:
+        org_name = organization.name
+    elif program.organization_id:
+        org_name = program.organization.name
+    prefix = f"{org_name} - " if org_name else ""
+    if prefix and program.name.startswith(prefix):
+        return program.name[len(prefix):]
+    return program.name
+
+
 class UnitHeadBunkDashboardView(APIView):
     """Per-bunk read payload for the Unit Head Bunk Dashboard."""
 
@@ -136,7 +151,9 @@ def build_bunk_dashboard_payload(
 
     # Today's camper reflections (visibility-filtered) for help
     # surface + score grid.
-    camper_template = camper_reflection_template(organization, program)
+    camper_template = camper_reflection_template(
+        organization, program, as_of=target_date, bunk=bunk,
+    )
     reflections_by_subject: dict[int, Reflection] = {}
     if camper_template is not None and campers:
         visible_qs = reflections_visible_for_user(
@@ -199,6 +216,7 @@ def build_bunk_dashboard_payload(
                 "slug": bunk.slug,
                 "unit_name": (bunk.parent.name if bunk.parent_id else None),
             },
+            "program_name": program_display_name(program, organization),
             "date": target_date.isoformat(),
             "today": today.isoformat(),
             "counselor_names": _counselor_names(bunk),
