@@ -46,7 +46,7 @@ const sample = {
 beforeEach(() => { getMock.mockReset(); });
 
 describe('LeadershipTeamDashboard', () => {
-  it('renders teams, self-reflection card, bunks/units, and templates sections', async () => {
+  it('renders teams, self-reflection card, and bunks/units sections', async () => {
     getMock.mockResolvedValue({ data: sample });
     render(<MemoryRouter><LeadershipTeamDashboard /></MemoryRouter>);
     await waitFor(() => expect(screen.getByTestId('lt-teams-list')).toBeInTheDocument());
@@ -54,8 +54,7 @@ describe('LeadershipTeamDashboard', () => {
     expect(screen.getByTestId('lt-badge-low_completion')).toBeInTheDocument();
     expect(screen.getByTestId('lt-self-card')).toBeInTheDocument();
     expect(screen.getByTestId('lt-bunks-units-card')).toBeInTheDocument();
-    expect(screen.getByTestId('lt-templates-card')).toBeInTheDocument();
-    expect(screen.getByText(/2 templates you authored/)).toBeInTheDocument();
+    expect(screen.queryByTestId('lt-templates-card')).not.toBeInTheDocument();
   });
 
   it('surfaces an access error when the API returns 403', async () => {

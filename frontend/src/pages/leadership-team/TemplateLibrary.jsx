@@ -89,7 +89,7 @@ export default function LeadershipTeamTemplateLibrary() {
         await archiveTemplate(orgSlug, id);
       } else if (action === 'clone') {
         const cloned = await cloneTemplate(orgSlug, id);
-        if (cloned?.id) navigate(`/leadership-team/templates/${cloned.id}`);
+        if (cloned?.id) navigate(`/admin/templates/${cloned.id}`);
         return;
       } else if (action === 'delete') {
         const tpl = templates.find((t) => t.id === id);
@@ -114,17 +114,17 @@ export default function LeadershipTeamTemplateLibrary() {
       <div className="flex items-center justify-between">
         <div>
           <Link
-            to="/leadership-team"
+            to="/admin"
             className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
           >
-            ← Back to LT dashboard
+            ← Back to Admin
           </Link>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-2">
             Templates
           </h1>
         </div>
         <Link
-          to="/leadership-team/templates/new"
+          to="/admin/templates/new"
           className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5"
           data-testid="lt-templates-new"
         >
@@ -201,7 +201,7 @@ export default function LeadershipTeamTemplateLibrary() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link
-                        to={`/leadership-team/templates/${tpl.id}`}
+                        to={`/admin/templates/${tpl.id}`}
                         className="font-medium text-gray-900 dark:text-white hover:underline"
                       >
                         {tpl.name}
@@ -238,7 +238,7 @@ export default function LeadershipTeamTemplateLibrary() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <Link
-                      to={`/leadership-team/templates/${tpl.id}`}
+                      to={`/admin/templates/${tpl.id}`}
                       className="text-xs rounded-md border border-indigo-300 dark:border-indigo-700 px-2 py-1 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
                       data-testid={`lt-tpl-edit-${tpl.id}`}
                     >
@@ -300,7 +300,7 @@ export default function LeadershipTeamTemplateLibrary() {
                           Assign
                         </button>
                         <Link
-                          to={`/leadership-team/templates/${tpl.id}/responses`}
+                          to={`/admin/templates/${tpl.id}/responses`}
                           className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                           data-testid={`lt-tpl-responses-${tpl.id}`}
                         >

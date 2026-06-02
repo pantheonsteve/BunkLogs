@@ -11,6 +11,7 @@ from .admin_organization import MembershipSubjectNoteAuthorField
 from .admin_organization import OrganizationAdminForm
 from .admin_organization import apply_membership_author_override
 from .admin_organization import membership_author_override_initial
+from .models import AssignmentDashboardGrant
 from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
 from .models import FieldKey
@@ -21,6 +22,7 @@ from .models import Program
 from .models import Reflection
 from .models import ReflectionTemplate
 from .models import RosterImportLog
+from .models import TemplateAssignment
 
 
 class ProgramAdminForm(forms.ModelForm):
@@ -324,6 +326,88 @@ class ReflectionTemplateAdmin(admin.ModelAdmin):
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "parent_template":
             kwargs.setdefault("queryset", ReflectionTemplate.all_objects.all())
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(TemplateAssignment)
+class TemplateAssignmentAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return TemplateAssignment.all_objects.select_related(
+            "organization", "program", "template", "assignment_group", "created_by__person",
+        )
+
+    formfield_overrides = {
+        models.JSONField: {
+            "widget": AdminTextareaWidget(
+                attrs={
+                    "rows": 6,
+                    "cols": 80,
+                    "style": "font-family: monospace; font-size: 12px;",
+                },
+            ),
+        },
+    }
+    list_display = [
+        "id",
+        "template",
+        "organization",
+        "program",
+        "target_type",
+        "status",
+        "is_required",
+        "start_date",
+        "end_date",
+        "created_at",
+    ]
+    list_filter = ["status", "target_type", "is_required", "organization"]
+    search_fields = ["title", "template__name", "template__slug"]
+    autocomplete_fields = ["organization", "program", "template", "assignment_group", "replaces"]
+    readonly_fields = ["created_at", "updated_at"]
+    date_hierarchy = "start_date"
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "program":
+            kwargs.setdefault("queryset", Program.all_objects.select_related("organization"))
+        elif db_field.name == "template":
+            kwargs.setdefault("queryset", ReflectionTemplate.all_objects.all())
+        elif db_field.name == "assignment_group":
+            kwargs.setdefault("queryset", AssignmentGroup.all_objects.select_related("program"))
+        elif db_field.name == "replaces":
+            kwargs.setdefault("queryset", TemplateAssignment.all_objects.all())
+        elif db_field.name == "created_by":
+            kwargs.setdefault(
+                "queryset",
+                Membership.all_objects.select_related("person", "program"),
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(AssignmentDashboardGrant)
+class AssignmentDashboardGrantAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return AssignmentDashboardGrant.objects.select_related(
+            "organization", "assignment__template", "membership__person", "granted_by__person",
+        )
+
+    list_display = ["id", "assignment", "membership", "organization", "granted_by", "created_at"]
+    list_filter = ["organization"]
+    search_fields = [
+        "assignment__title",
+        "assignment__template__name",
+        "membership__person__first_name",
+        "membership__person__last_name",
+    ]
+    autocomplete_fields = ["organization", "assignment", "membership", "granted_by"]
+    readonly_fields = ["created_at"]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "assignment":
+            kwargs.setdefault("queryset", TemplateAssignment.all_objects.select_related("template"))
+        elif db_field.name in ("membership", "granted_by"):
+            kwargs.setdefault(
+                "queryset",
+                Membership.all_objects.select_related("person", "program"),
+            )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 

@@ -532,7 +532,7 @@ export default function LeadershipTeamResponses() {
             <div className="sm:flex sm:justify-between sm:items-center mb-6">
               <div>
                 <Link
-                  to="/leadership-team/templates"
+                  to="/admin/templates"
                   className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   ← Template library

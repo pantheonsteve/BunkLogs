@@ -41,11 +41,11 @@ const DASHBOARD_CARDS = [
     audience: 'Supervisors, admins, wellness',
   },
   {
-    id: 'team',
-    title: 'Team dashboard',
+    id: 'reflections',
+    title: 'Reflections',
     blurb:
-      'Roll-up of reflections grouped by leadership / staff role across the program.',
-    to: '/dashboards/team',
+      'Browse assigned reflection forms and open responses by audience, program, or group.',
+    to: '/dashboards/reflections',
     icon: Users,
     audience: 'Leadership, admins',
   },

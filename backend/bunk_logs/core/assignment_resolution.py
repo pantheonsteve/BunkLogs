@@ -125,18 +125,20 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
 def _active_assignments_base_qs(
     *, organization: Organization, program: Program, as_of: date,
 ):
-    """Active+in-window TemplateAssignment rows for (org, program) on ``as_of``.
+    """TemplateAssignments in effect on ``as_of`` for (org, program).
 
-    "Active" means ``status='active'`` OR a ``'scheduled'`` row whose
-    ``start_date`` has been reached — both are treated as live so the
-    LT can pre-stage an assignment that flips on automatically.
+    Includes ``active``, ``scheduled``, and ``ended`` rows whose date
+    window contains ``as_of`` so historical group dashboards can resolve
+    the template that applied on past dates. Cancelled assignments are
+    excluded.
     """
     return TemplateAssignment.all_objects.filter(
         organization=organization,
         program=program,
-        status__in=_ACTIVE_STATUSES,
         start_date__lte=as_of,
-    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=as_of))
+    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=as_of)).exclude(
+        status=TemplateAssignment.Status.CANCELLED,
+    )
 
 
 def _viewer_membership_ids(

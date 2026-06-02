@@ -114,6 +114,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
+    expect(hrefs()).not.toContain('/leadership-team/templates');
   });
 
   it('admin sees the curated Admin IA, not the default My work nav', () => {
@@ -122,7 +123,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin');
     expect(screen.getByRole('link', { name: 'Reflections Dashboard' })).toHaveAttribute(
       'href',
-      '/dashboards/team',
+      '/dashboards/reflections',
     );
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
@@ -132,7 +133,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
     const links = hrefs();
     expect(links).toContain('/admin');
-    expect(links).toContain('/dashboards/team');
+    expect(links).toContain('/dashboards/reflections');
     expect(links).toContain('/admin/templates');
     expect(links).toContain('/dashboards/coverage');
     expect(links).toContain('/observations');
@@ -195,14 +196,12 @@ describe('Sidebar — maintenance-only nav', () => {
 });
 
 describe('Sidebar — de-duplication of Wellness / Unit head dashboard (3.32)', () => {
-  it('renders /dashboards/team and /dashboards/wellness exactly once for admins', () => {
+  it('renders /dashboards/reflections and /dashboards/wellness exactly once for admins', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
-    // SidebarLinkGroup mounts collapsed by default but keeps the
-    // children in the DOM, so we can still query the hrefs.
     const links = hrefs();
-    const teamMatches = links.filter((h) => h === '/dashboards/team');
+    const reflectionsMatches = links.filter((h) => h === '/dashboards/reflections');
     const wellnessMatches = links.filter((h) => h === '/dashboards/wellness');
-    expect(teamMatches).toHaveLength(1);
+    expect(reflectionsMatches).toHaveLength(1);
     expect(wellnessMatches).toHaveLength(1);
   });
 
@@ -244,7 +243,7 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
     const links = hrefs();
     const homeIdx = links.indexOf('/admin');
-    const reflectionsIdx = links.indexOf('/dashboards/team');
+    const reflectionsIdx = links.indexOf('/dashboards/reflections');
     const authorsIdx = links.indexOf('/dashboards/authors');
     const templatesIdx = links.indexOf('/admin/templates');
     const peopleIdx = links.indexOf('/admin/people');

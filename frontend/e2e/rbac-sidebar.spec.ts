@@ -33,7 +33,7 @@ const HREFS = {
   dashboardsHome: '/dashboards',
   dashboardsCoverage: '/dashboards/coverage',
   dashboardsAuthors: '/dashboards/authors',
-  dashboardsTeam: '/dashboards/team',
+  dashboardsReflections: '/dashboards/reflections',
   dashboardsWellness: '/dashboards/wellness',
   // Admin
   adminHome: '/admin',
@@ -115,7 +115,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
 
     expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
-    expect(await hasLink(page, HREFS.dashboardsTeam)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(true);
 
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
@@ -137,12 +137,12 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.legacyStaffReflections)).toBe(true);
   });
 
-  test('admin: /dashboards/team and /dashboards/wellness appear exactly once (no duplicates)', async ({
+  test('admin: /dashboards/reflections and /dashboards/wellness appear exactly once (no duplicates)', async ({
     page,
   }) => {
     await loginAs(page, 'admin');
     await readSidebarText(page);
-    expect(await countLinks(page, HREFS.dashboardsTeam)).toBe(1);
+    expect(await countLinks(page, HREFS.dashboardsReflections)).toBe(1);
     expect(await countLinks(page, HREFS.dashboardsWellness)).toBe(1);
   });
 

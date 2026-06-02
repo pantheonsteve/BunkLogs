@@ -133,7 +133,7 @@ function renderAt(route) {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <Routes>
-        <Route path="/leadership-team/templates/:id/responses" element={<LeadershipTeamResponses />} />
+        <Route path="/admin/templates/:id/responses" element={<LeadershipTeamResponses />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -145,7 +145,7 @@ describe('LeadershipTeamResponses', () => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
       return Promise.resolve({ data: templatePayload });
     });
-    renderAt('/leadership-team/templates/7/responses');
+    renderAt('/admin/templates/7/responses');
 
     // Wait for the first row to land.
     const row1 = await screen.findByTestId('lt-responses-row-401');
@@ -191,7 +191,7 @@ describe('LeadershipTeamResponses', () => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
       return Promise.resolve({ data: templatePayload });
     });
-    renderAt('/leadership-team/templates/7/responses');
+    renderAt('/admin/templates/7/responses');
     await screen.findByTestId('lt-responses-row-401');
     expect(screen.getByTestId('lt-responses-row-402')).toBeInTheDocument();
 
@@ -208,7 +208,7 @@ describe('LeadershipTeamResponses', () => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
       return Promise.resolve({ data: templatePayload });
     });
-    renderAt('/leadership-team/templates/7/responses');
+    renderAt('/admin/templates/7/responses');
     await screen.findByTestId('lt-responses-row-401');
 
     fireEvent.change(screen.getByTestId('lt-responses-search'), { target: { value: 'naomi' } });
@@ -225,7 +225,7 @@ describe('LeadershipTeamResponses', () => {
       if (params?.tab === 'aggregate') return Promise.resolve({ data: aggregatePayload });
       return Promise.resolve({ data: individualPayload });
     });
-    renderAt('/leadership-team/templates/7/responses');
+    renderAt('/admin/templates/7/responses');
     await screen.findByTestId('lt-responses-row-401');
     fireEvent.click(screen.getByTestId('lt-responses-tab-aggregate'));
     await waitFor(() => expect(screen.getByTestId('lt-responses-dim-behavior')).toBeInTheDocument());
