@@ -74,7 +74,7 @@ def _score_distribution(reflections, template) -> dict:
             for val in cells.values():
                 if val is None:
                     continue
-                key = str(int(round(val)))
+                key = str(round(val))
                 if key in dist:
                     dist[key] += 1
                     total += 1

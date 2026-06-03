@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.api.unit_head.common import _is_truthy_yes_no
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
