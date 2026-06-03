@@ -113,11 +113,12 @@ describe('CamperPicker', () => {
       .mockResolvedValueOnce({ data: elmOnly });      // after bunk select
 
     render(<MemoryRouter><CamperPicker onSelect={vi.fn()} /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByTestId('sp-bunk-select')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.queryByTestId('sp-picker-loading')).not.toBeInTheDocument();
+      expect(screen.getByTestId('sp-bunk-select').querySelector('option[value="1"]')).toBeInTheDocument();
+    });
 
     const bunkSelect = screen.getByTestId('sp-bunk-select');
-    // Bunk options rendered
-    expect(bunkSelect.querySelector('option[value="1"]')).toBeInTheDocument();
 
     fireEvent.change(bunkSelect, { target: { value: '1' } });
 
