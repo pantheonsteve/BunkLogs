@@ -12,7 +12,9 @@ from datetime import date
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
+from rest_framework.test import APIRequestFactory
 
+from bunk_logs.api.dashboards.group_template_cards import build_group_template_cards
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentDashboardGrant
 from bunk_logs.core.models import AssignmentGroup
@@ -86,6 +88,20 @@ def counselor_template(org):
 
 
 @pytest.fixture
+def bunk_log_template(org):
+    return ReflectionTemplate.all_objects.create(
+        organization=org, name="Bunk Pulse", slug="bunk-pulse",
+        cadence="daily", role="counselor",
+        schema={"fields": [{"key": "note", "type": "textarea", "prompts": {"en": "Notes?"}}]},
+        languages=["en"], subject_mode="single_subject",
+        assignment_scope="per_subject_in_group",
+        assignment_group_types=["bunk"], author_role_filter=["counselor"],
+        subject_role_filter=["camper"],
+        status=ReflectionTemplate.Status.PUBLISHED, is_active=True, version=1,
+    )
+
+
+@pytest.fixture
 def kitchen_assignment(org, program, kitchen_template):
     return TemplateAssignment.all_objects.create(
         organization=org, program=program, template=kitchen_template,
@@ -148,7 +164,36 @@ def test_admin_reflections_scope_lists_self_templates(
 
 @pytest.mark.django_db
 def test_logs_scope_lists_group_assignments_only(
-    org, program, kitchen_assignment, counselor_template,
+    org, program, kitchen_assignment, bunk_log_template, counselor_template,
+):
+    admin_user, _, _ = _person(org, "Admin", "admin", program)
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk A", slug="bunk-a", group_type="bunk",
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=bunk_log_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk, start_date=PAST,
+        status=TemplateAssignment.Status.ACTIVE,
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=counselor_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk, start_date=PAST,
+        status=TemplateAssignment.Status.ACTIVE,
+    )
+    c = _client(admin_user, org)
+    resp = _selector(c, org, status="active", scope="logs")
+    assert resp.status_code == 200, resp.data
+    ids = _template_ids(resp)
+    assert bunk_log_template.id in ids
+    assert counselor_template.id not in ids
+    assert kitchen_assignment.template_id not in ids
+
+
+@pytest.mark.django_db
+def test_logs_scope_excludes_self_template_on_bunk_reflections_includes_it(
+    org, program, counselor_template,
 ):
     admin_user, _, _ = _person(org, "Admin", "admin", program)
     bunk = AssignmentGroup.all_objects.create(
@@ -161,16 +206,15 @@ def test_logs_scope_lists_group_assignments_only(
         status=TemplateAssignment.Status.ACTIVE,
     )
     c = _client(admin_user, org)
-    resp = _selector(c, org, status="active", scope="logs")
-    assert resp.status_code == 200, resp.data
-    ids = _template_ids(resp)
-    assert counselor_template.id in ids
-    assert kitchen_assignment.template_id not in ids
+    logs = _selector(c, org, status="active", scope="logs")
+    refl = _selector(c, org, status="active", scope="reflections")
+    assert counselor_template.id not in _template_ids(logs)
+    assert counselor_template.id in _template_ids(refl)
 
 
 @pytest.mark.django_db
 def test_selector_groups_assignments_under_one_template(
-    org, program, counselor_template,
+    org, program, bunk_log_template,
 ):
     """Two bunk assignments of one template collapse to a single selector row
     with two groups underneath."""
@@ -183,7 +227,7 @@ def test_selector_groups_assignments_under_one_template(
     )
     for grp in (bunk_a, bunk_b):
         TemplateAssignment.all_objects.create(
-            organization=org, program=program, template=counselor_template,
+            organization=org, program=program, template=bunk_log_template,
             target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
             assignment_group=grp, start_date=PAST,
             status=TemplateAssignment.Status.ACTIVE,
@@ -191,7 +235,7 @@ def test_selector_groups_assignments_under_one_template(
     c = _client(admin_user, org)
     resp = _selector(c, org, status="active", scope="logs")
     assert resp.status_code == 200, resp.data
-    row = next(t for t in resp.json()["templates"] if t["template_id"] == counselor_template.id)
+    row = next(t for t in resp.json()["templates"] if t["template_id"] == bunk_log_template.id)
     assert row["group_count"] == 2
     labels = {g["label"] for g in row["groups"]}
     assert labels == {"Bunk A", "Bunk B"}
@@ -249,6 +293,32 @@ def test_grant_widens_selector(org, program, counselor_assignment):
     resp = _selector(c, org, status="active", scope="reflections")
     assert resp.status_code == 200
     assert counselor_assignment.template_id in _template_ids(resp)
+
+
+@pytest.mark.django_db
+def test_group_template_cards_exclude_self_reflection_templates(
+    org, program, bunk_log_template, counselor_template,
+):
+    admin_user, _, _ = _person(org, "Admin", "admin", program)
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk A", slug="bunk-a", group_type="bunk",
+    )
+    for tpl in (bunk_log_template, counselor_template):
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=tpl,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            assignment_group=bunk, start_date=PAST,
+            status=TemplateAssignment.Status.ACTIVE,
+        )
+    req = APIRequestFactory().get("/")
+    req.user = admin_user
+    with organization_context(org):
+        cards = build_group_template_cards(
+            request=req, group=bunk, target_date=DAY, organization=org,
+        )
+    ids = {c["template"]["id"] for c in cards}
+    assert bunk_log_template.id in ids
+    assert counselor_template.id not in ids
 
 
 @pytest.mark.django_db

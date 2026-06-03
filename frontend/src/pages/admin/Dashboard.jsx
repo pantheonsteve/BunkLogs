@@ -137,7 +137,7 @@ function AttentionRequired({ cards }) {
         {cards.map((card) => (
           <Link
             key={card.key}
-            to={card.deep_link || '/admin'}
+            to={card.deep_link || '/admin/dashboard'}
             data-testid={`admin-attention-${card.key}`}
             className={`block rounded-xl border px-4 py-3 hover:shadow-md ${ATTENTION_TINT[card.key] || 'border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700'}`}
           >
@@ -182,7 +182,7 @@ function RecentActivity({ events }) {
             >
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <Link
-                  to={event.deep_link || '/admin'}
+                  to={event.deep_link || '/admin/dashboard'}
                   className="font-medium text-gray-900 dark:text-white hover:underline"
                 >
                   {event.summary}
@@ -241,8 +241,8 @@ function Navigation() {
         <Link to="/admin/field-keys" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 hover:shadow-md">
           <p className="text-sm font-medium text-gray-900 dark:text-white">Field keys</p>
         </Link>
-        <Link to="/dashboards" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 hover:shadow-md">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">Dashboards</p>
+        <Link to="/admin/home" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 hover:shadow-md">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">Admin Home</p>
         </Link>
       </div>
     </section>

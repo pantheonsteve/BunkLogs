@@ -748,7 +748,7 @@ export default function LeadershipTeamResponses() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" data-testid="lt-kpis">
                   <KpiCard
                     icon={Users}
-                    label="Total Logs"
+                    label="Total Log Entries"
                     value={flagFilteredRows.length}
                   />
                   {sections.flagFields.map((f) => {
@@ -779,7 +779,7 @@ export default function LeadershipTeamResponses() {
                 {/* Table */}
                 <div className="mb-3">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Logs for {formatLongDate(dateStr)} ({flagFilteredRows.length} records)
+                    Log entries for {formatLongDate(dateStr)} ({flagFilteredRows.length} records)
                   </h2>
                 </div>
               </>

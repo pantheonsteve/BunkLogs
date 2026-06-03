@@ -229,14 +229,45 @@ function SpecialistNote({ note, dashboardPath }) {
   );
 }
 
-function NotesSection({ bunkConcerns, specialistReports, dashboardPath, notesLink }) {
+function ObservationRow({ item }) {
+  const subjectLabel = (item.subjects || []).map((s) => s.name).filter(Boolean).join(', ');
+  return (
+    <li
+      data-testid={`bunk-observation-${item.id}`}
+      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50"
+    >
+      <Link to={`/observations/${item.id}`} className="block">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          {item.author_name && (
+            <span className="font-semibold text-gray-900 dark:text-white">{item.author_name}</span>
+          )}
+          {item.context && (
+            <span className="text-xs text-gray-400">{item.context}</span>
+          )}
+          {subjectLabel && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto truncate max-w-[50%]">
+              re: {subjectLabel}
+            </span>
+          )}
+        </div>
+        <p className="text-gray-700 dark:text-gray-200">{item.body_preview}</p>
+      </Link>
+    </li>
+  );
+}
+
+function NotesSection({ bunkConcerns, specialistReports, observations = [], dashboardPath, notesLink }) {
   const today = specialistReports?.today || [];
   const recent = specialistReports?.recent || [];
   const sensitiveCounts = specialistReports?.sensitive_counts_by_camper || {};
   const sensitiveTotal = Object.values(sensitiveCounts).reduce((s, n) => s + n, 0);
   const specialistNotes = [...today, ...recent];
+  const dayObservations = observations || [];
   const isEmpty =
-    bunkConcerns.length === 0 && specialistNotes.length === 0 && sensitiveTotal === 0;
+    bunkConcerns.length === 0
+    && specialistNotes.length === 0
+    && sensitiveTotal === 0
+    && dayObservations.length === 0;
 
   return (
     <SectionCard
@@ -254,7 +285,7 @@ function NotesSection({ bunkConcerns, specialistReports, dashboardPath, notesLin
       {isEmpty ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">No notes today.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
               Bunk concerns
@@ -286,6 +317,20 @@ function NotesSection({ bunkConcerns, specialistReports, dashboardPath, notesLin
                       </p>
                     )}
                   </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
+              Observations
+            </p>
+            {dayObservations.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">None on this date.</p>
+            ) : (
+              <ul className="space-y-2.5" data-testid="bunk-observations-list">
+                {dayObservations.map((o) => (
+                  <ObservationRow key={o.id} item={o} />
                 ))}
               </ul>
             )}
@@ -327,6 +372,7 @@ export function BunkDashboardOrdersAndNotes({
       <NotesSection
         bunkConcerns={data?.bunk_concerns || []}
         specialistReports={data?.specialist_reports}
+        observations={data?.observations || []}
         dashboardPath={camperDashboardPath}
         notesLink={notesLink}
       />
@@ -495,6 +541,7 @@ export default function BunkDashboard({
         <NotesSection
           bunkConcerns={bunkConcerns}
           specialistReports={data?.specialist_reports}
+          observations={data?.observations || []}
           dashboardPath={camperDashboardPath}
           notesLink={notesLink}
         />

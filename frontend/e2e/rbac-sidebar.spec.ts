@@ -3,7 +3,7 @@
  *
  * Asserts that the navigation links rendered by frontend/src/partials/Sidebar.jsx
  * match the capability each user signs in as. 3.32 introduced section
- * groupings (My work / Supervise / Dashboards / Admin / Crane Lake
+ * groupings (My work / Supervise / Admin / Crane Lake
  * legacy / Other) and switched the gates to `hasCapability` +
  * `isSuperAdmin`. The seed command (`make seed-rbac`) maps
  * Membership.role to User.role so the legacy gate still works while
@@ -37,7 +37,8 @@ const HREFS = {
   dashboardsReflections: '/dashboards/reflections',
   dashboardsWellness: '/dashboards/wellness',
   // Admin
-  adminHome: '/admin',
+  adminHome: '/admin/home',
+  adminDashboard: '/admin/dashboard',
   adminMemberships: '/admin/memberships',
   adminTemplates: '/admin/templates',
   adminGroups: '/admin/groups',
@@ -112,14 +113,18 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 
-  test('leadership (program_lead): Supervise + Dashboards but no Admin', async ({ page }) => {
+  test('leadership (program_lead): Supervise dashboard links but no Admin or Dashboards menu', async ({
+    page,
+  }) => {
     await loginAs(page, 'leadership');
     await readSidebarText(page);
 
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
-    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsLogs)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
-    expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsAuthors)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
+    expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(false);
 
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
@@ -130,8 +135,9 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await readSidebarText(page);
 
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
-    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
     expect(await hasLink(page, HREFS.adminHome)).toBe(true);
+    expect(await hasLink(page, HREFS.adminDashboard)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(true);
     expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
     expect(await hasLink(page, HREFS.adminGroups)).toBe(true);
@@ -140,17 +146,17 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.legacyStaffReflections)).toBe(true);
   });
 
-  test('admin: /dashboards/logs, /dashboards/reflections, and /dashboards/wellness appear exactly once (no duplicates)', async ({
+  test('admin: /dashboards/logs and /dashboards/reflections appear exactly once (no duplicates)', async ({
     page,
   }) => {
     await loginAs(page, 'admin');
     await readSidebarText(page);
     expect(await countLinks(page, HREFS.dashboardsLogs)).toBe(1);
     expect(await countLinks(page, HREFS.dashboardsReflections)).toBe(1);
-    expect(await countLinks(page, HREFS.dashboardsWellness)).toBe(1);
+    expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(false);
   });
 
-  test('admin: Concerns inbox lives only in Supervise, not duplicated under Dashboards', async ({
+  test('admin: Concerns inbox lives only in Supervise, not duplicated elsewhere', async ({
     page,
   }) => {
     await loginAs(page, 'admin');

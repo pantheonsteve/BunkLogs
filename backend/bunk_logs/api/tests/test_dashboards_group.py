@@ -8,6 +8,8 @@ cross-org isolation, and the legacy ``/dashboards/bunks/<id>/`` alias.
 from __future__ import annotations
 
 from datetime import date
+from datetime import datetime
+from datetime import time
 from datetime import timedelta
 
 import pytest
@@ -26,7 +28,10 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.time_utils import get_org_timezone
 from bunk_logs.core.time_utils import get_today
+from bunk_logs.notes.models import Observation
+from bunk_logs.notes.models import ObservationSubject
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -236,6 +241,69 @@ class TestBunkAccess:
         assert by_id[counselor_person.id]["membership_role"] == "counselor"
         assert by_id[counselor_person.id]["name"] == "Mira Sandberg"
         assert by_id[camper_person.id]["membership_role"] == "camper"
+
+    def test_bunk_dashboard_observations_bucketed_by_observed_at_date(
+        self, api, org, program, bunk, url,
+    ):
+        admin_person, admin_user = _make_person(
+            org, first="Aaron", last="Admin", email="obs-admin@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="admin", is_active=True,
+        )
+        author_person, _ = _make_person(
+            org, first="Sam", last="Spec", email="spec@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=author_person, role="specialist", is_active=True,
+        )
+        camper_person = Person.all_objects.create(
+            organization=org, first_name="Pat", last_name="Camper",
+        )
+        Membership.all_objects.create(
+            program=program, person=camper_person, role="camper", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=camper_person, role_in_group="subject", is_active=True,
+        )
+
+        today = get_today(org)
+        yesterday = today - timedelta(days=1)
+        tz = get_org_timezone(org)
+        today_noon = datetime.combine(today, time(12, 0), tzinfo=tz)
+        yesterday_noon = datetime.combine(yesterday, time(12, 0), tzinfo=tz)
+
+        obs_today = Observation.all_objects.create(
+            organization=org,
+            program=program,
+            author=author_person,
+            author_role_at_write="specialist",
+            body="Swim today",
+            observed_at=today_noon,
+        )
+        ObservationSubject.objects.create(observation=obs_today, subject=camper_person)
+        obs_yesterday = Observation.all_objects.create(
+            organization=org,
+            program=program,
+            author=author_person,
+            author_role_at_write="specialist",
+            body="Swim yesterday",
+            observed_at=yesterday_noon,
+        )
+        ObservationSubject.objects.create(observation=obs_yesterday, subject=camper_person)
+
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            today_resp = api.get(f"{url}?date={today.isoformat()}", **_hdr(org.slug))
+            yest_resp = api.get(f"{url}?date={yesterday.isoformat()}", **_hdr(org.slug))
+        assert today_resp.status_code == 200, today_resp.content
+        assert yest_resp.status_code == 200, yest_resp.content
+        today_ids = {o["id"] for o in today_resp.json().get("observations", [])}
+        yest_ids = {o["id"] for o in yest_resp.json().get("observations", [])}
+        assert obs_today.id in today_ids
+        assert obs_yesterday.id not in today_ids
+        assert obs_yesterday.id in yest_ids
+        assert obs_today.id not in yest_ids
 
     def test_counselor_without_authorship_denied(
         self, api, org, program, bunk, url,

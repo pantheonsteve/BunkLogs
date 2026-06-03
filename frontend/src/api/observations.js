@@ -36,15 +36,20 @@ export async function createObservation({
   context = '',
   sensitivity = 'normal',
   subjectVisible = false,
+  observedAt = null,
 }) {
-  const r = await api.post('/api/v1/observations/', {
+  const payload = {
     subject_ids: subjectIds,
     recipient_ids: recipientIds,
     body,
     context,
     sensitivity,
     subject_visible: subjectVisible,
-  });
+  };
+  if (observedAt) {
+    payload.observed_at = observedAt;
+  }
+  const r = await api.post('/api/v1/observations/', payload);
   return r.data;
 }
 

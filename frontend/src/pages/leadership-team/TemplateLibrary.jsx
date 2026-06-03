@@ -114,7 +114,7 @@ export default function LeadershipTeamTemplateLibrary() {
       <div className="flex items-center justify-between">
         <div>
           <Link
-            to="/admin"
+            to="/admin/home"
             className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
           >
             ← Back to Admin

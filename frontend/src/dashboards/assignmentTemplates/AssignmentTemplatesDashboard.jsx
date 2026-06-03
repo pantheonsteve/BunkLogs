@@ -7,7 +7,7 @@ import Sidebar from '../../partials/Sidebar';
 
 const STATUS_TABS = [
   { id: 'active', label: 'Active' },
-  { id: 'completed', label: 'Completed' },
+  { id: 'ended', label: 'Ended' },
 ];
 
 function todayIso() {
@@ -46,7 +46,7 @@ function FormTile({ template, isoDate, testIdPrefix }) {
 }
 
 /**
- * Shared form-picker hub for Logs and Reflections dashboards.
+ * Shared form-picker hub for Log Entries and Reflections dashboards.
  * ``scope`` selects group-assigned templates (logs) vs self-reflection templates.
  */
 export default function AssignmentTemplatesDashboard({
