@@ -113,7 +113,10 @@ def test_supervisor_sees_supervised_bunk_with_completion(api_client, org, progra
     uh = _person(org, "Pat", "UnitHead", user=uh_user)
 
     Membership.all_objects.create(
-        organization=org, person=uh, role="unit_head", is_active=True,
+        program=program, person=uh, role="unit_head", is_active=True,
+    )
+    Membership.all_objects.create(
+        program=program, person=counselor, role="counselor", is_active=True,
     )
     AssignmentGroupMembership.all_objects.create(
         group=unit, person=uh, role_in_group="author", is_active=True,
