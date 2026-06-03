@@ -5,6 +5,16 @@
  * derivation, flag detection, colour tiering).
  */
 
+/** True when an answer counts as "yes" for yes/no and help-request flags. */
+export function isTruthyFlag(value) {
+  if (value === true) return true;
+  if (value === false || value == null) return false;
+  if (typeof value === 'string') {
+    return ['yes', 'true', '1'].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
 /** Pick the localised string for a field prompt / label / option. */
 export function pickLabel(loc, language, fallback = '') {
   if (!loc) return fallback;
@@ -56,6 +66,10 @@ export function deriveSchemaSections(schema, language = 'en') {
     if (f.type === 'single_rating') {
       const scaleMax = Array.isArray(f.scale) ? Number(f.scale[1]) || 5 : 5;
       ratingCols.push({ key: f.key, label, scaleMax });
+      continue;
+    }
+    if (f.type === 'yes_no') {
+      flagFields.push({ key: f.key, label, yesValue: 'yes', options: [] });
       continue;
     }
     if (f.type === 'single_choice' || f.type === 'multi_choice') {

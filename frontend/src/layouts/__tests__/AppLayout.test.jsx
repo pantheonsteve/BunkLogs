@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 vi.mock('../../partials/Sidebar', () => ({
   default: () => <aside data-testid="mock-sidebar" />,
@@ -19,8 +19,12 @@ function renderAt(url) {
           <Route path="/tasks" element={<p data-testid="child-content">tasks child</p>} />
           <Route path="/reflect" element={<p data-testid="child-content">reflect child</p>} />
           <Route
+            path="/groups/performance"
+            element={<p data-testid="child-content">performance child</p>}
+          />
+          <Route
             path="/supervisor/coverage"
-            element={<p data-testid="child-content">coverage child</p>}
+            element={<Navigate to="/groups/performance" replace />}
           />
         </Route>
       </Routes>
@@ -43,11 +47,11 @@ describe('AppLayout (3.32 follow-up: chrome for app routes)', () => {
     expect(screen.getByTestId('child-content')).toHaveTextContent('reflect child');
   });
 
-  it('keeps chrome in place on /supervisor/coverage', () => {
-    renderAt('/supervisor/coverage');
+  it('keeps chrome in place on /groups/performance', () => {
+    renderAt('/groups/performance');
     expect(screen.getByTestId('mock-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('mock-header')).toBeInTheDocument();
-    expect(screen.getByTestId('child-content')).toHaveTextContent('coverage child');
+    expect(screen.getByTestId('child-content')).toHaveTextContent('performance child');
   });
 
   it('exposes the scroll container so children can rely on it', () => {

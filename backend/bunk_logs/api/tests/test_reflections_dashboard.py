@@ -134,16 +134,38 @@ def _template_ids(resp):
 
 
 @pytest.mark.django_db
-def test_admin_selector_lists_all_templates(
+def test_admin_reflections_scope_lists_self_templates(
     org, program, kitchen_assignment, counselor_assignment,
 ):
     admin_user, _, _ = _person(org, "Admin", "admin", program)
     c = _client(admin_user, org)
-    resp = _selector(c, org, status="active")
+    resp = _selector(c, org, status="active", scope="reflections")
     assert resp.status_code == 200, resp.data
     ids = _template_ids(resp)
     assert kitchen_assignment.template_id in ids
     assert counselor_assignment.template_id in ids
+
+
+@pytest.mark.django_db
+def test_logs_scope_lists_group_assignments_only(
+    org, program, kitchen_assignment, counselor_template,
+):
+    admin_user, _, _ = _person(org, "Admin", "admin", program)
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk A", slug="bunk-a", group_type="bunk",
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=counselor_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk, start_date=PAST,
+        status=TemplateAssignment.Status.ACTIVE,
+    )
+    c = _client(admin_user, org)
+    resp = _selector(c, org, status="active", scope="logs")
+    assert resp.status_code == 200, resp.data
+    ids = _template_ids(resp)
+    assert counselor_template.id in ids
+    assert kitchen_assignment.template_id not in ids
 
 
 @pytest.mark.django_db
@@ -167,7 +189,7 @@ def test_selector_groups_assignments_under_one_template(
             status=TemplateAssignment.Status.ACTIVE,
         )
     c = _client(admin_user, org)
-    resp = _selector(c, org, status="active")
+    resp = _selector(c, org, status="active", scope="logs")
     assert resp.status_code == 200, resp.data
     row = next(t for t in resp.json()["templates"] if t["template_id"] == counselor_template.id)
     assert row["group_count"] == 2
@@ -190,7 +212,7 @@ def test_lt_selector_scoped_to_supervised_role(
         start_date=PAST,
     )
     c = _client(lt_user, org)
-    resp = _selector(c, org, status="active")
+    resp = _selector(c, org, status="active", scope="reflections")
     assert resp.status_code == 200, resp.data
     ids = _template_ids(resp)
     assert kitchen_assignment.template_id in ids
@@ -198,12 +220,23 @@ def test_lt_selector_scoped_to_supervised_role(
 
 
 @pytest.mark.django_db
-def test_non_supervisor_selector_empty(org, program, kitchen_assignment):
+def test_non_supervisor_logs_scope_empty(org, program, kitchen_assignment):
     plain_user, _, _ = _person(org, "Plain", "counselor", program)
     c = _client(plain_user, org)
-    resp = _selector(c, org, status="active")
+    resp = _selector(c, org, status="active", scope="logs")
     assert resp.status_code == 200
     assert resp.json()["templates"] == []
+
+
+@pytest.mark.django_db
+def test_counselor_sees_own_reflections_scope(
+    org, program, counselor_assignment,
+):
+    plain_user, _, _ = _person(org, "Plain", "counselor", program)
+    c = _client(plain_user, org)
+    resp = _selector(c, org, status="active", scope="reflections")
+    assert resp.status_code == 200
+    assert counselor_assignment.template_id in _template_ids(resp)
 
 
 @pytest.mark.django_db
@@ -213,7 +246,7 @@ def test_grant_widens_selector(org, program, counselor_assignment):
         organization=org, assignment=counselor_assignment, membership=plain_mb,
     )
     c = _client(plain_user, org)
-    resp = _selector(c, org, status="active")
+    resp = _selector(c, org, status="active", scope="reflections")
     assert resp.status_code == 200
     assert counselor_assignment.template_id in _template_ids(resp)
 
@@ -222,7 +255,7 @@ def test_grant_widens_selector(org, program, counselor_assignment):
 def test_audience_type_for_role_template(org, program, kitchen_assignment):
     admin_user, _, _ = _person(org, "Admin", "admin", program)
     c = _client(admin_user, org)
-    resp = _selector(c, org, status="active")
+    resp = _selector(c, org, status="active", scope="reflections")
     row = next(t for t in resp.json()["templates"] if t["template_id"] == kitchen_assignment.template_id)
     assert "team" in row["audience_types"]
     assert any(g["label"] == "Kitchen Staff" for g in row["groups"])

@@ -1,21 +1,14 @@
-"""Assignment-centric Reflections Dashboard (Reflections Dashboard overhaul).
+"""Assignment-centric Logs and Reflections dashboards.
 
 Two endpoints, both scoped by ``assignments_visible_for_user``:
 
-* ``GET /dashboards/assignment-templates/`` — the selector. Groups the
-  TemplateAssignments the viewer may see by their parent template, so the
-  dropdown lists one entry per form (e.g. "Counselor Daily") rather than one
-  per bunk. Each entry carries the list of audience groups underneath it for a
-  secondary drill-down. Filterable by lifecycle status and audience type.
+* ``GET /dashboards/assignment-templates/?scope=logs|reflections`` — the
+  selector. ``scope=logs`` lists group-assigned templates only;
+  ``scope=reflections`` lists self-reflection templates. Groups visible
+  assignments by parent template. Filterable by lifecycle status and audience.
 * ``GET /dashboards/assignment-template/<template_id>/?date=&group=<id>`` —
-  the dashboard for one template on a date. By default it aggregates responses
-  across ALL visible groups (assignments) of that template; passing
-  ``group=<assignment_id>`` narrows to a single group. Returns the widget
-  fields, summary, and a per-member completion roster.
-
-Visibility of the responses inside is delegated to
-``reflections_visible_for_user`` so this surface never widens what a viewer
-could already see elsewhere.
+  the dashboard for one template on a date. Scope is inferred from the
+  template's ``subject_mode`` when omitted.
 """
 
 from __future__ import annotations
@@ -39,6 +32,7 @@ from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.time_utils import get_today
 
@@ -46,6 +40,23 @@ from .template import aggregate_template_fields
 from .template import serialize_template_block
 
 _ROLE_LABELS = dict(Membership.ROLES)
+
+SCOPE_LOGS = "logs"
+SCOPE_REFLECTIONS = "reflections"
+_VALID_SCOPES = frozenset({SCOPE_LOGS, SCOPE_REFLECTIONS})
+
+
+def _parse_scope(request) -> str | None:
+    raw = (request.query_params.get("scope") or "").strip().lower()
+    if raw in _VALID_SCOPES:
+        return raw
+    return None
+
+
+def _scope_for_template(template) -> str:
+    if template and getattr(template, "subject_mode", None) == "self":
+        return SCOPE_REFLECTIONS
+    return SCOPE_LOGS
 
 
 def _parse_dashboard_date(request, org) -> date:
@@ -243,11 +254,20 @@ class AssignmentSelectorView(APIView):
 
         wanted_status = (request.query_params.get("status") or "").strip().lower()
         wanted_audience = (request.query_params.get("audience") or "").strip().lower()
+        scope = _parse_scope(request)
         as_of = _parse_dashboard_date(request, org)
 
-        visible = assignments_visible_for_user(request.user, org).select_related(
+        visible = assignments_visible_for_user(
+            request.user, org, scope=scope,
+        ).select_related(
             "template", "assignment_group", "program",
         )
+        if scope == SCOPE_LOGS:
+            visible = visible.filter(
+                target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            )
+        elif scope == SCOPE_REFLECTIONS:
+            visible = visible.filter(template__subject_mode="self")
 
         grouped: dict[int, dict[str, Any]] = {}
         for assignment in visible:
@@ -318,7 +338,15 @@ class AssignmentTemplateDashboardView(APIView):
             )
 
         visible_all = list(
-            assignments_visible_for_user(request.user, org)
+            assignments_visible_for_user(
+                request.user,
+                org,
+                scope=_parse_scope(request) or _scope_for_template(
+                    ReflectionTemplate.objects.filter(
+                        id=template_id, organization=org,
+                    ).first(),
+                ),
+            )
             .filter(template_id=template_id)
             .select_related("template", "program", "assignment_group"),
         )

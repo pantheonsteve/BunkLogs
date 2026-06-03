@@ -41,13 +41,22 @@ const DASHBOARD_CARDS = [
     audience: 'Supervisors, admins, wellness',
   },
   {
+    id: 'logs',
+    title: 'Logs',
+    blurb:
+      'Browse forms assigned to groups and open responses by audience, program, or group.',
+    to: '/dashboards/logs',
+    icon: Users,
+    audience: 'Supervisors, admins',
+  },
+  {
     id: 'reflections',
     title: 'Reflections',
     blurb:
-      'Browse assigned reflection forms and open responses by audience, program, or group.',
+      'Browse self-reflection forms and open responses by audience, program, or group.',
     to: '/dashboards/reflections',
     icon: Users,
-    audience: 'Leadership, admins',
+    audience: 'Supervisors, admins, staff',
   },
   {
     id: 'wellness',

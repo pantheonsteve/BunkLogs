@@ -35,16 +35,17 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * Admin IA (admin + super_admin) — Phase 1 of the role-based nav refactor:
  *
  *   HOME (top)           /admin
- *   Reflections Dashboard /dashboards/reflections
  *
  *   MY WORK
- *     Coverage dashboard /dashboards/coverage
+ *     Performance Dashboard /groups/performance
+ *     Logs                /dashboards/logs
+ *     Reflections         /dashboards/reflections
  *     Observations      /observations
  *     Maintenance Queue /maintenance
  *     Camper Care orders /camper-care/orders
  *
  *   SUPERVISE
- *     Coverage          /supervisor/coverage
+ *     Coverage dashboard  /dashboards/coverage
  *     Concerns inbox    /dashboards/concerns
  *     Author attribution /dashboards/authors
  *
@@ -59,7 +60,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *
  *   DASHBOARDS
  *     Overview          /dashboards
- *     Coverage          /dashboards/coverage
+ *     Performance       /groups/performance
  *     Wellness dashboard /dashboards/wellness
  *
  *   CRANE LAKE LEGACY (transitional)
@@ -158,6 +159,8 @@ function Sidebar({
   const canSeeLeadershipTeam = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
+  const canSeeLogs = canSupervise || canAdmin;
+  const canSeeReflectionsDashboard = canSeeLogs || canFileReflection;
   // Maintenance staff get a stripped-down nav: just the queue + notes. The
   // canonical role lives on Membership (legacy User.role has no maintenance
   // value), surfaced via `membership_roles` on the profile payload.
@@ -220,19 +223,24 @@ function Sidebar({
           <div>
             <ul>
               <NavItem to="/admin" label="Home" icon={IconHome} end />
-              <NavItem
-                to="/dashboards/reflections"
-                label="Reflections Dashboard"
-                icon={IconBars}
-              />
             </ul>
           </div>
 
           <Section heading="My work">
             <NavItem
-              to="/dashboards/coverage"
-              label="Coverage dashboard"
+              to="/groups/performance"
+              label="Performance Dashboard"
               icon={IconGrid}
+            />
+            <NavItem
+              to="/dashboards/logs"
+              label="Logs"
+              icon={IconBars}
+            />
+            <NavItem
+              to="/dashboards/reflections"
+              label="Reflections"
+              icon={IconClipboard}
             />
             <NavItem
               to="/observations"
@@ -254,8 +262,8 @@ function Sidebar({
 
           <Section heading="Supervise">
             <NavItem
-              to="/supervisor/coverage"
-              label="Coverage"
+              to="/dashboards/coverage"
+              label="Coverage dashboard"
               icon={IconGrid}
             />
             <NavItem
@@ -296,7 +304,7 @@ function Sidebar({
             setSidebarExpanded={setSidebarExpanded}
           >
             <SubItem to="/dashboards" label="Overview" end />
-            <SubItem to="/dashboards/coverage" label="Coverage" />
+            <SubItem to="/groups/performance" label="Performance" />
             <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
           </CollapsibleSection>
 
@@ -364,13 +372,34 @@ function Sidebar({
               label="Maintenance Queue"
               icon={IconWrench}
             />
+            {canSupervise && !canSeeDashboards && canSeeLogs && (
+              <>
+                <NavItem
+                  to="/groups/performance"
+                  label="Performance Dashboard"
+                  icon={IconGrid}
+                />
+                <NavItem
+                  to="/dashboards/logs"
+                  label="Logs"
+                  icon={IconBars}
+                />
+              </>
+            )}
+            {canSeeReflectionsDashboard && !canAdmin && (
+              <NavItem
+                to="/dashboards/reflections"
+                label="Reflections"
+                icon={IconClipboard}
+              />
+            )}
           </Section>
 
           {canSupervise && (
             <Section heading="Supervise">
               <NavItem
-                to="/supervisor/coverage"
-                label="Coverage"
+                to="/dashboards/coverage"
+                label="Coverage dashboard"
                 icon={IconGrid}
               />
               <NavItem
@@ -405,9 +434,10 @@ function Sidebar({
               setSidebarExpanded={setSidebarExpanded}
             >
               <SubItem to="/dashboards" label="Overview" end />
-              <SubItem to="/dashboards/coverage" label="Coverage" />
-              <SubItem to="/dashboards/authors" label="Author attribution" />
+              <SubItem to="/groups/performance" label="Performance" />
+              <SubItem to="/dashboards/logs" label="Logs" />
               <SubItem to="/dashboards/reflections" label="Reflections" />
+              <SubItem to="/dashboards/authors" label="Author attribution" />
               <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
             </CollapsibleSection>
           )}

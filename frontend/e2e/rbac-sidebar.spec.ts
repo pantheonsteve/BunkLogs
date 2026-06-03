@@ -25,7 +25,7 @@ const HREFS = {
   counselorHome: '/counselor-dashboard',
   orders: '/orders',
   // Supervise
-  supervisorCoverage: '/supervisor/coverage',
+  groupsPerformance: '/groups/performance',
   concernsInbox: '/dashboards/concerns',
   // Dashboards (canonical paths — 3.27 renamed the legacy
   // /team/dashboard / /wellness/dashboard aliases away from the
@@ -33,6 +33,7 @@ const HREFS = {
   dashboardsHome: '/dashboards',
   dashboardsCoverage: '/dashboards/coverage',
   dashboardsAuthors: '/dashboards/authors',
+  dashboardsLogs: '/dashboards/logs',
   dashboardsReflections: '/dashboards/reflections',
   dashboardsWellness: '/dashboards/wellness',
   // Admin
@@ -66,11 +67,13 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.reflect)).toBe(true);
     expect(await hasLink(page, HREFS.myReflections)).toBe(true);
     expect(await hasLink(page, HREFS.orders)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
 
     // No Supervise / Dashboards / Admin / Legacy
-    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(false);
+    expect(await hasLink(page, HREFS.groupsPerformance)).toBe(false);
     expect(await hasLink(page, HREFS.concernsInbox)).toBe(false);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
+    expect(await hasLink(page, HREFS.dashboardsLogs)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
     expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(false);
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
@@ -82,7 +85,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
 
     expect(await hasLink(page, HREFS.home)).toBe(true);
     expect(await hasLink(page, HREFS.orders)).toBe(true);
-    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
 
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
@@ -98,7 +101,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await loginAs(page, 'camper_care');
     await readSidebarText(page);
 
-    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
     expect(await hasLink(page, HREFS.reflect)).toBe(true);
     expect(await hasLink(page, HREFS.myReflections)).toBe(true);
@@ -113,7 +116,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await loginAs(page, 'leadership');
     await readSidebarText(page);
 
-    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(true);
@@ -126,7 +129,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await loginAs(page, 'admin');
     await readSidebarText(page);
 
-    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(true);
+    expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(true);
     expect(await hasLink(page, HREFS.adminHome)).toBe(true);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(true);
@@ -137,11 +140,12 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.legacyStaffReflections)).toBe(true);
   });
 
-  test('admin: /dashboards/reflections and /dashboards/wellness appear exactly once (no duplicates)', async ({
+  test('admin: /dashboards/logs, /dashboards/reflections, and /dashboards/wellness appear exactly once (no duplicates)', async ({
     page,
   }) => {
     await loginAs(page, 'admin');
     await readSidebarText(page);
+    expect(await countLinks(page, HREFS.dashboardsLogs)).toBe(1);
     expect(await countLinks(page, HREFS.dashboardsReflections)).toBe(1);
     expect(await countLinks(page, HREFS.dashboardsWellness)).toBe(1);
   });
@@ -175,7 +179,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.tasks)).toBe(true);
     expect(await hasLink(page, HREFS.orders)).toBe(true);
 
-    expect(await hasLink(page, HREFS.supervisorCoverage)).toBe(false);
+    expect(await hasLink(page, HREFS.groupsPerformance)).toBe(false);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);

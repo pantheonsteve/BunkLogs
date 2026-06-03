@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 from django.db.models import Q
 
 from bunk_logs.core.models import AssignmentDashboardGrant
+from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.models import TemplateAssignment
@@ -83,9 +85,65 @@ def _supervised_role_pairs(person: Person, organization_id: int) -> set[tuple[in
     return pairs
 
 
+def _own_assignment_parts(person: Person, organization_id: int) -> list[Q]:
+    """Assignments whose audience includes ``person`` (for self-reflection dashboards).
+
+    Lets counselors see their own self-reflection templates without widening
+    supervisor-scoped Logs access.
+    """
+    parts: list[Q] = []
+    memberships = Membership.all_objects.filter(
+        person=person,
+        is_active=True,
+        program__organization_id=organization_id,
+    )
+    for mb in memberships:
+        parts.append(
+            Q(
+                target_type=TemplateAssignment.TargetType.ROLE,
+                program_id=mb.program_id,
+                target_payload__role=mb.role,
+            ),
+        )
+        parts.append(
+            Q(
+                target_type=TemplateAssignment.TargetType.INDIVIDUALS,
+                program_id=mb.program_id,
+                target_payload__membership_ids__contains=mb.id,
+            ),
+        )
+        tags = mb.tags if isinstance(mb.tags, list) else []
+        for tag in tags:
+            if tag:
+                parts.append(
+                    Q(
+                        target_type=TemplateAssignment.TargetType.TAG_GROUP,
+                        program_id=mb.program_id,
+                        target_payload__tag=tag,
+                    ),
+                )
+
+    author_group_ids = AssignmentGroupMembership.all_objects.filter(
+        person=person,
+        role_in_group="author",
+        is_active=True,
+        group__organization_id=organization_id,
+    ).values_list("group_id", flat=True)
+    if author_group_ids:
+        parts.append(
+            Q(
+                target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+                assignment_group_id__in=list(author_group_ids),
+            ),
+        )
+    return parts
+
+
 def assignments_visible_for_user(
     user,
     organization: Organization,
+    *,
+    scope: str | None = None,
 ) -> QuerySet[TemplateAssignment]:
     """TemplateAssignment queryset the ``user`` may see on the dashboard.
 
@@ -93,6 +151,9 @@ def assignments_visible_for_user(
       * assignments targeting a role in a program the viewer supervises,
       * assignments targeting an AssignmentGroup the viewer supervises,
       * assignments explicitly granted to one of the viewer's memberships.
+
+    When ``scope`` is ``"reflections"``, also include assignments whose audience
+    includes the viewer (so counselors can open their own self-reflection forms).
     """
     base = TemplateAssignment.all_objects.filter(organization=organization)
     if user is None or not getattr(user, "is_authenticated", False):
@@ -133,6 +194,9 @@ def assignments_visible_for_user(
     )
     if grant_ids:
         parts.append(Q(id__in=grant_ids))
+
+    if scope == "reflections":
+        parts.extend(_own_assignment_parts(person, org_id))
 
     if not parts:
         return base.none()
