@@ -121,7 +121,7 @@ describe('Sidebar — section gating (3.32)', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
 
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin');
-    expect(screen.getByRole('link', { name: 'Logs' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Bunk Logs' })).toHaveAttribute(
       'href',
       '/dashboards/logs',
     );

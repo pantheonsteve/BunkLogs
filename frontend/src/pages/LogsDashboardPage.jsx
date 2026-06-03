@@ -4,11 +4,11 @@ import AssignmentTemplatesDashboard from '../dashboards/assignmentTemplates/Assi
 export default function LogsDashboardPage() {
   return (
     <AssignmentTemplatesDashboard
-      title="Logs"
+      title="Bunk Logs"
       description="Browse forms assigned to groups, then open responses by audience, program, or group."
       scope="logs"
       testIdPrefix="logs"
-      emptyLabel="logs"
+      emptyLabel="bunk logs"
     />
   );
 }
