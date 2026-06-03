@@ -12,7 +12,9 @@ from datetime import date
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
+from rest_framework.test import APIRequestFactory
 
+from bunk_logs.api.dashboards.group_template_cards import build_group_template_cards
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentDashboardGrant
 from bunk_logs.core.models import AssignmentGroup
@@ -24,7 +26,6 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
-from bunk_logs.api.dashboards.group_template_cards import build_group_template_cards
 from bunk_logs.core.models import TemplateAssignment
 
 User = get_user_model()
@@ -298,8 +299,6 @@ def test_grant_widens_selector(org, program, counselor_assignment):
 def test_group_template_cards_exclude_self_reflection_templates(
     org, program, bunk_log_template, counselor_template,
 ):
-    from rest_framework.test import APIRequestFactory
-
     admin_user, _, _ = _person(org, "Admin", "admin", program)
     bunk = AssignmentGroup.all_objects.create(
         organization=org, program=program, name="Bunk A", slug="bunk-a", group_type="bunk",

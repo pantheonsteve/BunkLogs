@@ -28,6 +28,7 @@ from datetime import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from django.db.models import Q
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import PermissionDenied
@@ -43,11 +44,12 @@ from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import MaintenanceTicket
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
-from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
+from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.time_utils import get_org_timezone
 from bunk_logs.notes.models import Observation
 
@@ -60,8 +62,6 @@ from .common import supervised_bunk_ids
 from .common import viewer_or_403
 
 if TYPE_CHECKING:
-    from datetime import date
-    from datetime import datetime
     from zoneinfo import ZoneInfo
 
 OPEN_STATUSES = (OrderStateMachine.NEW, OrderStateMachine.IN_PROGRESS)
@@ -433,7 +433,6 @@ def _date_window(target_date: date):
     overflow; the Python bucketer (:func:`_bucket_request`) re-checks
     in the org's tz to assign rows to ``today`` vs ``carried_over``.
     """
-    from django.db.models import Q
     return Q(created_at__date__lte=target_date + timedelta(days=1))
 
 
@@ -526,9 +525,8 @@ def _counselor_membership_ids_for_bunk(bunk: AssignmentGroup) -> list[int]:
     )
     if not person_ids:
         return []
-    from bunk_logs.core.models import Membership as _Membership
     return list(
-        _Membership.objects.filter(
+        Membership.objects.filter(
             person_id__in=person_ids,
             program=bunk.program_id,
             role__in=("counselor", "junior_counselor"),
