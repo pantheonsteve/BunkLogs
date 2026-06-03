@@ -8,6 +8,7 @@ Observation entity and satellites.
 from __future__ import annotations
 
 from django.db import models
+from django.utils import timezone
 
 from bunk_logs.core.managers import OrgScopedManager
 from bunk_logs.core.models import Organization
@@ -90,6 +91,10 @@ class Observation(models.Model):
     # migrate_observations command. Blank for API-created observations. The
     # partial unique constraint below makes the migration idempotent.
     legacy_source = models.CharField(max_length=64, blank=True, default="")
+    observed_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the observation occurred; defaults to submission time but may be back-dated.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived_by = models.ManyToManyField(
@@ -103,7 +108,7 @@ class Observation(models.Model):
     all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["-observed_at"]
         constraints = [
             models.UniqueConstraint(
                 fields=["legacy_source"],
@@ -113,6 +118,10 @@ class Observation(models.Model):
         ]
         indexes = [
             models.Index(fields=["author", "created_at"], name="obs_author_created_idx"),
+            models.Index(
+                fields=["organization", "program", "observed_at"],
+                name="obs_org_prog_observed_idx",
+            ),
             models.Index(
                 fields=["source_content_type", "source_object_id"],
                 name="obs_source_idx",

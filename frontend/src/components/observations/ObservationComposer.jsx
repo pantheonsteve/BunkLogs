@@ -17,12 +17,24 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 200;
 
+function defaultObservedAtLocal() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function localDatetimeToIso(local) {
+  if (!local) return null;
+  return new Date(local).toISOString();
+}
+
 export default function ObservationComposer({ onClose, onSent, initialSubjects = [] }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [subjects, setSubjects] = useState(initialSubjects);
   const [body, setBody] = useState('');
+  const [observedAtLocal, setObservedAtLocal] = useState(defaultObservedAtLocal);
   const [context, setContext] = useState('');
   const [sensitivity, setSensitivity] = useState('normal');
   const [subjectVisible, setSubjectVisible] = useState(false);
@@ -103,6 +115,7 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
         context: context.trim(),
         sensitivity,
         subjectVisible,
+        observedAt: localDatetimeToIso(observedAtLocal),
       });
       onSent?.(data);
       onClose?.();
@@ -211,6 +224,19 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
               placeholder="Write your observation…"
               className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
               data-testid="observation-composer-body"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              When did this happen?
+            </label>
+            <input
+              type="datetime-local"
+              value={observedAtLocal}
+              onChange={(e) => setObservedAtLocal(e.target.value)}
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              data-testid="observation-composer-observed-at"
             />
           </div>
 

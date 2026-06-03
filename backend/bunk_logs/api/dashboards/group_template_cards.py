@@ -79,6 +79,8 @@ def build_group_template_cards(
         tpl = assignment.template
         if tpl is None or tpl.id in seen_template_ids:
             continue
+        if getattr(tpl, "subject_mode", None) == "self":
+            continue
         seen_template_ids.add(tpl.id)
 
         schema_fields = (tpl.schema or {}).get("fields") or []

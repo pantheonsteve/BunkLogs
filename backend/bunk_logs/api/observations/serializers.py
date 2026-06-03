@@ -37,6 +37,7 @@ class ObservationListSerializer(serializers.ModelSerializer):
             "author",
             "context",
             "sensitivity",
+            "observed_at",
             "created_at",
             "last_activity_at",
             "unread",
@@ -104,6 +105,7 @@ class ObservationThreadSerializer(serializers.ModelSerializer):
             "amendment_of",
             "source_content_type",
             "source_object_id",
+            "observed_at",
             "created_at",
             "subjects",
             "recipients",
@@ -149,6 +151,7 @@ class ObservationCreateSerializer(serializers.Serializer):
     source_object_id = serializers.CharField(
         max_length=50, required=False, allow_blank=True, default="",
     )
+    observed_at = serializers.DateTimeField(required=False, allow_null=True)
 
 
 class ObservationReplyCreateSerializer(serializers.Serializer):

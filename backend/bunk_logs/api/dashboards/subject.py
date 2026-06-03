@@ -197,7 +197,7 @@ def _observations_for_viewer(
         .prefetch_related("subject_links__subject")
     )
     observations = list(
-        filter_observations_readable(base, viewer_person, org, user).order_by("-created_at")[:limit],
+        filter_observations_readable(base, viewer_person, org, user).order_by("-observed_at")[:limit],
     )
     return [
         {
@@ -211,6 +211,7 @@ def _observations_for_viewer(
                 {"id": o.author_id, "name": o.author.full_name}
                 if o.author_id and o.author else None
             ),
+            "observed_at": o.observed_at.isoformat() if o.observed_at else None,
             "created_at": o.created_at.isoformat() if o.created_at else None,
         }
         for o in observations

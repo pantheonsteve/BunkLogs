@@ -347,6 +347,8 @@ timing.
 
 Route `/dashboards/concerns`.
 
+**User guide:** [Concerns Inbox](features/concern-inbox.md) (`docs/features/`).
+
 ---
 
 ## Color-scale conventions

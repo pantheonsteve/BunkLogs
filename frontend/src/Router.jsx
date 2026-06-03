@@ -10,6 +10,7 @@ import {
 import { useAuth } from './auth/AuthContext';
 import { useEffect } from 'react';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
+import { hasCapability } from './utils/auth/capability';
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -40,6 +41,7 @@ import LogsDashboardPage from './pages/LogsDashboardPage';
 import WellnessDashboardPage from './pages/WellnessDashboardPage';
 import MembershipManagementPage from './pages/MembershipManagementPage';
 import AdminHub from './pages/admin/AdminHub';
+import AdminHome from './pages/admin/AdminHome';
 import AdminDashboardV2 from './pages/admin/Dashboard';
 import AdminPeople from './pages/admin/People';
 import AdminAssignments from './pages/admin/Assignments';
@@ -176,6 +178,19 @@ function LegacyAdminTemplateEditRedirect() {
   const { id } = useParams();
   const location = useLocation();
   return <Navigate to={`/admin/templates/${id}${location.search}${location.hash}`} replace />;
+}
+
+/** Admins land on Admin Home; supervisors/program leads keep the dashboards hub. */
+function DashboardsIndex() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  const isAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
+  if (isAdmin) {
+    return <Navigate to="/admin/home" replace />;
+  }
+  return <DashboardsHub />;
 }
 
 // Component to handle redirected paths from 404 page
@@ -646,7 +661,7 @@ function Router() {
           path="/dashboards"
           element={
             <ProtectedRoute>
-              <DashboardsHub />
+              <DashboardsIndex />
             </ProtectedRoute>
           }
         />
@@ -732,17 +747,16 @@ function Router() {
             </ProtectedRoute>
           }
         >
+          <Route index element={<Navigate to="/admin/home" replace />} />
           <Route
-            index
+            path="home"
             element={
               <AdminRoute>
-                <AdminDashboardV2 />
+                <AdminHome />
               </AdminRoute>
             }
           />
-          {/* The legacy hub stays reachable at /admin/hub so anyone with a
-              bookmark still lands on a working surface. The default
-              /admin route now shows the Story 54 home dashboard. */}
+          {/* Legacy card hub — bookmarks from before Admin Home shipped. */}
           <Route
             path="hub"
             element={

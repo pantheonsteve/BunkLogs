@@ -104,7 +104,7 @@ export default function GlobalSearch() {
                       {items.map((row) => (
                         <li key={`${group}-${row.id}`}>
                           <Link
-                            to={row.deep_link || '/admin'}
+                            to={row.deep_link || '/admin/home'}
                             onClick={() => setOpen(false)}
                             className="block rounded-md px-2 py-1.5 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
                           >

@@ -133,7 +133,7 @@ describe('GroupDashboardPage', () => {
     ['unit_head', '/unit-head'],
     ['counselor', '/counselor'],
     ['leadership_team', '/leadership-team'],
-    ['admin', '/admin'],
+    ['admin', '/admin/home'],
   ])('routes the back link to %s home when role_context.role is %s', async (role, expectedHref) => {
     getMock.mockResolvedValueOnce({ data: bunkPayload(role) });
     renderAt('/dashboards/group/11');

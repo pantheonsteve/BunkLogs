@@ -1,6 +1,6 @@
 import AssignmentTemplatesDashboard from '../dashboards/assignmentTemplates/AssignmentTemplatesDashboard';
 
-/** Group-assigned template picker (Logs dashboard). */
+/** Group-assigned template picker (Bunk Logs dashboard). */
 export default function LogsDashboardPage() {
   return (
     <AssignmentTemplatesDashboard

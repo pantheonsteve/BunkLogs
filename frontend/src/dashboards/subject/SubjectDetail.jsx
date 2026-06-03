@@ -370,8 +370,12 @@ function ObservationsPanel({ observations = [], subject, personId, onCreated }) 
 
   const sorted = useMemo(
     () => [...observations].sort((a, b) => {
-      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const ta = (a.observed_at || a.created_at)
+        ? new Date(a.observed_at || a.created_at).getTime()
+        : 0;
+      const tb = (b.observed_at || b.created_at)
+        ? new Date(b.observed_at || b.created_at).getTime()
+        : 0;
       return tb - ta;
     }),
     [observations],

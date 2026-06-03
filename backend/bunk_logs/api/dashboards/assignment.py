@@ -1,4 +1,4 @@
-"""Assignment-centric Logs and Reflections dashboards.
+"""Assignment-centric Log Entries and Reflections dashboards.
 
 Two endpoints, both scoped by ``assignments_visible_for_user``:
 
@@ -83,7 +83,7 @@ def _status_matches(assignment: TemplateAssignment, as_of: date, wanted: str) ->
     """Whether an assignment falls in the requested lifecycle bucket.
 
     * ``active``: in effect on ``as_of`` (its start/end window contains the day).
-    * ``completed``: lifecycle status is ``ended`` (date picker filters responses).
+    * ``completed`` / ``ended``: lifecycle status is ``ended`` (date picker filters responses).
     * default (no filter): anything except ``cancelled``.
 
     ``active`` is date-relative so historical dates resolve the assignments
@@ -94,7 +94,7 @@ def _status_matches(assignment: TemplateAssignment, as_of: date, wanted: str) ->
         return False
     if wanted == "active":
         return _assignment_effective_on(assignment, as_of)
-    if wanted == "completed":
+    if wanted in ("completed", "ended"):
         return assignment.status == TemplateAssignment.Status.ENDED
     return True
 
@@ -265,7 +265,7 @@ class AssignmentSelectorView(APIView):
         if scope == SCOPE_LOGS:
             visible = visible.filter(
                 target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
-            )
+            ).exclude(template__subject_mode="self")
         elif scope == SCOPE_REFLECTIONS:
             visible = visible.filter(template__subject_mode="self")
 

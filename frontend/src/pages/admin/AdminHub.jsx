@@ -37,7 +37,7 @@ const ADMIN_CARDS = [
     title: 'Dashboards',
     blurb:
       'Coverage, author attribution, concerns inbox, team, wellness, and subject trends.',
-    to: '/dashboards',
+    to: '/admin/home',
     icon: BarChart3,
   },
   {

@@ -34,11 +34,11 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *
  * Admin IA (admin + super_admin) — Phase 1 of the role-based nav refactor:
  *
- *   HOME (top)           /admin
+ *   HOME (top)           /admin/home
  *
  *   MY WORK
  *     Performance Dashboard /groups/performance
- *     Logs                /dashboards/logs
+ *     Log Entries         /dashboards/logs
  *     Reflections         /dashboards/reflections
  *     Observations      /observations
  *     Maintenance Queue /maintenance
@@ -50,6 +50,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Author attribution /dashboards/authors
  *
  *   ADMIN (collapsible, below Supervise)
+ *     Admin dashboard     /admin/dashboard
  *     Templates           /admin/templates
  *     People              /admin/people
  *     Assignments         /admin/assignments
@@ -57,11 +58,6 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Assignment groups   /admin/groups
  *     Field keys          /admin/field-keys
  *     Settings            /admin/settings
- *
- *   DASHBOARDS
- *     Overview          /dashboards
- *     Performance       /groups/performance
- *     Wellness dashboard /dashboards/wellness
  *
  *   CRANE LAKE LEGACY (transitional)
  *     Bunk logs         /admin-bunk-logs
@@ -76,8 +72,9 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * absent from the Admin IA (it's the Leadership Team's own home).
  *
  * Default nav (non-admin): My work (Home/tasks/role-home/reflections/
- * observations/maintenance), Supervise (supervisor+), Leadership Team +
- * Dashboards (program_lead+). Gates use hasCapability(user, [...]) ||
+ * observations/maintenance), Supervise (supervisor+; program_lead+ also
+ * gets performance / log entries / reflections / authors there). Leadership
+ * Team (program_lead+). Gates use hasCapability(user, [...]) ||
  * isSuperAdmin(user); direct `user.role` references remain only for
  * per-role workspace deep links and reflection-form access.
  *
@@ -222,7 +219,7 @@ function Sidebar({
           <>
           <div>
             <ul>
-              <NavItem to="/admin" label="Home" icon={IconHome} end />
+              <NavItem to="/admin/home" label="Home" icon={IconHome} end />
             </ul>
           </div>
 
@@ -286,6 +283,7 @@ function Sidebar({
             icon={IconGear}
             setSidebarExpanded={setSidebarExpanded}
           >
+            <SubItem to="/admin/dashboard" label="Admin Dashboard" />
             <SubItem to="/admin/templates" label="Templates" />
             <SubItem to="/admin/people" label="People" />
             <SubItem to="/admin/assignments" label="Assignments" />
@@ -293,19 +291,6 @@ function Sidebar({
             <SubItem to="/admin/groups" label="Assignment groups" />
             <SubItem to="/admin/field-keys" label="Field keys" />
             <SubItem to="/admin/settings" label="Settings" />
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            heading="Dashboards"
-            activeWhen={
-              pathname === '/dashboards' || pathname.startsWith('/dashboards/')
-            }
-            icon={IconBars}
-            setSidebarExpanded={setSidebarExpanded}
-          >
-            <SubItem to="/dashboards" label="Overview" end />
-            <SubItem to="/groups/performance" label="Performance" />
-            <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
           </CollapsibleSection>
 
           <Section
@@ -397,6 +382,13 @@ function Sidebar({
 
           {canSupervise && (
             <Section heading="Supervise">
+              {canSeeDashboards && (
+                <NavItem
+                  to="/groups/performance"
+                  label="Performance Dashboard"
+                  icon={IconGrid}
+                />
+              )}
               <NavItem
                 to="/dashboards/coverage"
                 label="Coverage dashboard"
@@ -407,6 +399,25 @@ function Sidebar({
                 label="Concerns about my unit"
                 icon={IconAlert}
               />
+              {canSeeDashboards && (
+                <>
+                  <NavItem
+                    to="/dashboards/authors"
+                    label="Author attribution"
+                    icon={IconCounselor}
+                  />
+                  <NavItem
+                    to="/dashboards/logs"
+                    label="Bunk Logs"
+                    icon={IconBars}
+                  />
+                  <NavItem
+                    to="/dashboards/reflections"
+                    label="Reflections"
+                    icon={IconClipboard}
+                  />
+                </>
+              )}
             </Section>
           )}
 
@@ -421,24 +432,6 @@ function Sidebar({
             >
               <SubItem to="/leadership-team" label="Overview" end />
               <SubItem to="/leadership-team/self-reflection" label="My reflection" />
-            </CollapsibleSection>
-          )}
-
-          {canSeeDashboards && (
-            <CollapsibleSection
-              heading="Dashboards"
-              activeWhen={
-                pathname === '/dashboards' || pathname.startsWith('/dashboards/')
-              }
-              icon={IconBars}
-              setSidebarExpanded={setSidebarExpanded}
-            >
-              <SubItem to="/dashboards" label="Overview" end />
-              <SubItem to="/groups/performance" label="Performance" />
-              <SubItem to="/dashboards/logs" label="Logs" />
-              <SubItem to="/dashboards/reflections" label="Reflections" />
-              <SubItem to="/dashboards/authors" label="Author attribution" />
-              <SubItem to="/dashboards/wellness" label="Wellness dashboard" />
             </CollapsibleSection>
           )}
 

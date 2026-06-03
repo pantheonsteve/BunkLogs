@@ -127,7 +127,7 @@ class ObservationsInboxView(APIView):
             .distinct()
             .select_related("author")
             .prefetch_related("subject_links__subject", "replies", "read_receipts")
-            .order_by("-created_at")
+            .order_by("-observed_at")
         )
         paginator = ObservationsPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -152,7 +152,7 @@ class ObservationsSentView(APIView):
             .distinct()
             .select_related("author")
             .prefetch_related("subject_links__subject", "replies", "read_receipts")
-            .order_by("-created_at")
+            .order_by("-observed_at")
         )
         paginator = ObservationsPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -228,6 +228,13 @@ class ObservationCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        observed_at = data.get("observed_at") or timezone.now()
+        if observed_at > timezone.now():
+            return Response(
+                {"observed_at": "Cannot be in the future."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         obs = Observation.objects.create(
             organization=ctx.organization,
             program=ctx.program,
@@ -240,6 +247,7 @@ class ObservationCreateView(APIView):
             language=ctx.person.preferred_language or "en",
             source_content_type=data.get("source_content_type", ""),
             source_object_id=data.get("source_object_id", ""),
+            observed_at=observed_at,
         )
         for sid in subject_ids:
             ObservationSubject.objects.create(observation=obs, subject_id=sid)
@@ -319,6 +327,7 @@ class ObservationAmendView(APIView):
             subject_visible=original.subject_visible,
             language=ctx.person.preferred_language or "en",
             amendment_of=original,
+            observed_at=original.observed_at,
         )
         for link in original.subject_links.all():
             ObservationSubject.objects.create(observation=amendment, subject_id=link.subject_id)
