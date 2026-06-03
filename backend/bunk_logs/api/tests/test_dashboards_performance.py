@@ -154,7 +154,7 @@ def test_supervisor_sees_supervised_bunk_with_completion(api_client, org, progra
     group = data["groups"][0]
     assert group["name"] == "Bunk Maple"
     assert group["parent_name"] == "Unit Aleph"
-    assert group["author_names"] == ["Sam Counselor"]
+    assert group["author_names"] == ["Sam C."]
     assert group["completion"]["submitted"] == 1
     assert group["completion"]["expected"] == 2
     assert group["completion"]["percent"] == 50
