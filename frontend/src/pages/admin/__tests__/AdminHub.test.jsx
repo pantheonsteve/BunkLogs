@@ -46,7 +46,7 @@ describe('AdminHub', () => {
     expect(screen.getByTestId('admin-hub-card-memberships')).toHaveAttribute('href', '/admin/memberships');
     expect(screen.getByTestId('admin-hub-card-templates')).toHaveAttribute('href', '/admin/templates');
     expect(screen.getByTestId('admin-hub-card-groups')).toHaveAttribute('href', '/admin/groups');
-    expect(screen.getByTestId('admin-hub-card-dashboards')).toHaveAttribute('href', '/dashboards');
+    expect(screen.getByTestId('admin-hub-card-dashboards')).toHaveAttribute('href', '/admin/home');
     expect(screen.getByTestId('admin-hub-card-field-keys')).toHaveAttribute('href', '/admin/field-keys');
   });
 });

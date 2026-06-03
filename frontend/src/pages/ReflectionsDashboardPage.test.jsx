@@ -113,14 +113,14 @@ describe('ReflectionsDashboardPage', () => {
     ));
   });
 
-  it('switches to the completed tab', async () => {
+  it('switches to the ended tab', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Completed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ended' }));
     await waitFor(() => expect(getMock).toHaveBeenCalledWith(
       '/api/v1/dashboards/assignment-templates/',
       expect.objectContaining({
-        params: expect.objectContaining({ status: 'completed', scope: 'reflections' }),
+        params: expect.objectContaining({ status: 'ended', scope: 'reflections' }),
       }),
     ));
   });

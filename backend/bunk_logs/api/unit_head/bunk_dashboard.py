@@ -22,6 +22,9 @@ spec order (criterion 1) and collapse them when empty (criterion 2):
 
 from __future__ import annotations
 
+from datetime import date
+from datetime import datetime
+from datetime import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -44,7 +47,9 @@ from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.state_machine import OrderStateMachine
+from bunk_logs.core.permissions.observation_read import filter_observations_readable
 from bunk_logs.core.time_utils import get_org_timezone
+from bunk_logs.notes.models import Observation
 
 from .common import build_score_grid
 from .common import bunk_concerns_referencing
@@ -203,9 +208,17 @@ def build_bunk_dashboard_payload(
         program=program,
     )
 
-    # Specialist reports (Story 15).
+    # Specialist reports (Story 15) — legacy placeholder; observations below.
     spec_payload = _specialist_reports_for_bunk(
         request=request, camper_ids=camper_ids, target_date=target_date,
+    )
+
+    observations_payload = _observations_for_bunk(
+        request=request,
+        organization=organization,
+        program=program,
+        target_date=target_date,
+        camper_ids=camper_ids,
     )
 
     return {
@@ -228,7 +241,70 @@ def build_bunk_dashboard_payload(
         "score_grid": score_grid_payload,
         "orders": orders_payload,
         "specialist_reports": spec_payload,
+        "observations": observations_payload,
     }
+
+
+OBSERVATION_PREVIEW_MAX_LEN = 120
+
+
+def _observations_for_bunk(
+    *,
+    request,
+    organization,
+    program,
+    target_date: date,
+    camper_ids: list[int],
+) -> list[dict]:
+    """Observations about bunk campers timestamped on ``target_date`` (org TZ)."""
+    if not camper_ids:
+        return []
+
+    viewer = Person.objects.filter(user=request.user).first()
+    tz = get_org_timezone(organization)
+    day_start = datetime.combine(target_date, time.min, tzinfo=tz)
+    day_end = day_start + timedelta(days=1)
+
+    base = (
+        Observation.all_objects.filter(
+            organization=organization,
+            program=program,
+            subject_links__subject_id__in=camper_ids,
+            observed_at__gte=day_start,
+            observed_at__lt=day_end,
+        )
+        .select_related("author")
+        .prefetch_related("subject_links__subject")
+        .distinct()
+    )
+    observations = list(
+        filter_observations_readable(base, viewer, organization, request.user).order_by(
+            "-observed_at",
+        ),
+    )
+    rows: list[dict] = []
+    for obs in observations:
+        body = obs.body or ""
+        preview = (
+            body
+            if len(body) <= OBSERVATION_PREVIEW_MAX_LEN
+            else body[: OBSERVATION_PREVIEW_MAX_LEN - 1] + "…"
+        )
+        subjects = [
+            {"id": link.subject_id, "name": link.subject.full_name}
+            for link in obs.subject_links.all()
+            if link.subject_id
+        ]
+        rows.append({
+            "id": obs.id,
+            "body_preview": preview,
+            "author_name": obs.author.full_name if obs.author_id and obs.author else None,
+            "subjects": subjects,
+            "sensitivity": obs.sensitivity,
+            "context": obs.context or "",
+            "observed_at": obs.observed_at.isoformat() if obs.observed_at else None,
+        })
+    return rows
 
 
 # ---------------------------------------------------------------------------

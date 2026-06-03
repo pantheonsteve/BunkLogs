@@ -175,9 +175,9 @@ describe('LeadershipTeamResponses', () => {
     expect(within(row1).getByText(/Reporting Author/)).toBeInTheDocument();
     expect(within(row1).getByText(/asha@example.com/)).toBeInTheDocument();
 
-    // KPI cards: Total Logs + one per yes/no flag field. Camper-care
+    // KPI cards: Total Log Entries + one per yes/no flag field. Camper-care
     // counter shows 1 (row 401), Unit-Head shows 0.
-    expect(screen.getByTestId('lt-kpi-total-logs')).toHaveTextContent('2');
+    expect(screen.getByTestId('lt-kpi-total-log-entries')).toHaveTextContent('2');
     expect(screen.getByTestId('lt-kpi-camper-care-help-requested')).toHaveTextContent('1');
     expect(screen.getByTestId('lt-kpi-unit-head-help-requested')).toHaveTextContent('0');
 

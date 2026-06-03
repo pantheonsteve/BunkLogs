@@ -21,7 +21,7 @@ import UserProfile from '../partials/dashboard/UserProfile';
  */
 
 const ROLE_DESTINATIONS = {
-  'Admin':          '/admin',
+  'Admin':          '/admin/home',
   'Counselor':      '/counselor',
   'Unit Head':      '/unit-head',
   'Camper Care':    '/camper-care',
@@ -43,7 +43,7 @@ function Dashboard() {
 
     const destination = user?.role
       ? ROLE_DESTINATIONS[user.role]
-      : (isSuperAdmin(user) ? '/admin' : null);
+      : (isSuperAdmin(user) ? '/admin/home' : null);
     if (destination) {
       navigate(destination, { replace: true });
     }

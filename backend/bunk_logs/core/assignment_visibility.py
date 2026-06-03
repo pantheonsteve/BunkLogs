@@ -89,7 +89,7 @@ def _own_assignment_parts(person: Person, organization_id: int) -> list[Q]:
     """Assignments whose audience includes ``person`` (for self-reflection dashboards).
 
     Lets counselors see their own self-reflection templates without widening
-    supervisor-scoped Logs access.
+    supervisor-scoped Log Entries access.
     """
     parts: list[Q] = []
     memberships = Membership.all_objects.filter(

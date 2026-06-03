@@ -32,7 +32,7 @@ const BACK_TO_BY_ROLE = Object.freeze({
   camper_care: '/camper-care',
   unit_head: '/unit-head',
   leadership_team: '/leadership-team',
-  admin: '/admin',
+  admin: '/admin/home',
   classroom_author: '/dashboards',
 });
 

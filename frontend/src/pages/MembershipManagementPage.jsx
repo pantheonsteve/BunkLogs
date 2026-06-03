@@ -275,7 +275,7 @@ export default function MembershipManagementPage() {
     <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
       {/* 3.27: back-link to /admin, matching templates and groups pages. */}
       <Link
-        to="/admin"
+        to="/admin/home"
         data-testid="memberships-admin-back-link"
         className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
       >

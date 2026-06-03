@@ -7,7 +7,10 @@ subject search, and cross-org isolation.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -113,6 +116,42 @@ class TestCreate:
             format="json",
         )
         assert resp.status_code == 400
+
+    def test_create_with_backdated_observed_at(
+        self, org, program, counselor_user, counselor_membership, counselor_in_bunk, camper,
+    ):
+        past = (timezone.now() - timedelta(days=1)).isoformat()
+        client = _auth_client(counselor_user, org)
+        resp = client.post(
+            "/api/v1/observations/",
+            {
+                "subject_ids": [camper.id],
+                "body": "Yesterday at swim.",
+                "sensitivity": "normal",
+                "observed_at": past,
+            },
+            format="json",
+        )
+        assert resp.status_code == 201, resp.json()
+        assert resp.json()["observed_at"] is not None
+
+    def test_rejects_future_observed_at(
+        self, org, program, counselor_user, counselor_membership, counselor_in_bunk, camper,
+    ):
+        future = (timezone.now() + timedelta(hours=2)).isoformat()
+        client = _auth_client(counselor_user, org)
+        resp = client.post(
+            "/api/v1/observations/",
+            {
+                "subject_ids": [camper.id],
+                "body": "x",
+                "sensitivity": "normal",
+                "observed_at": future,
+            },
+            format="json",
+        )
+        assert resp.status_code == 400
+        assert "observed_at" in resp.json()
 
 
 # ---------------------------------------------------------------------------
