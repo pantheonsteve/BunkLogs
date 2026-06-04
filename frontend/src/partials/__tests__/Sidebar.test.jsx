@@ -65,7 +65,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).toContain('/counselor');
     expect(links).toContain('/reflect');
     expect(links).toContain('/my-reflections');
-    expect(links).toContain('/orders');
+    expect(links).not.toContain('/orders');
     expect(links).not.toContain('/admin');
     expect(links).not.toContain('/admin-bunk-logs');
   });
@@ -139,7 +139,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Crane Lake legacy').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
 
     const links = hrefs();
     expect(links).toContain('/admin/home');
@@ -154,7 +154,9 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
     expect(links).toContain('/dashboards/authors');
-    expect(links).toContain('/orders');
+    expect(links).not.toContain('/orders');
+    expect(links).not.toContain('/admin-bunk-logs');
+    expect(links).not.toContain('/admin-dashboard');
 
     // Personal reflection flows + My tasks fold into the Admin dashboard,
     // not the nav. Leadership Team is the LT's own home, not the Admin IA.
@@ -171,7 +173,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Crane Lake legacy').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
   });
 });
 
@@ -254,7 +256,7 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     );
   });
 
-  it('renders Admin submenu after Supervise and before Crane Lake legacy', () => {
+  it('renders Admin submenu after Supervise with no legacy links', () => {
     renderWith({ role: 'Admin' }, { path: '/admin/home' });
     const links = hrefs();
     const homeIdx = links.indexOf('/admin/home');
@@ -265,8 +267,6 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     const adminDashboardIdx = links.indexOf('/admin/dashboard');
     const templatesIdx = links.indexOf('/admin/templates');
     const peopleIdx = links.indexOf('/admin/people');
-    const legacyIdx = links.indexOf('/admin-bunk-logs');
-    const ordersIdx = links.indexOf('/orders');
     expect(homeIdx).toBeGreaterThanOrEqual(0);
     expect(performanceIdx).toBeGreaterThan(homeIdx);
     expect(logsIdx).toBeGreaterThan(performanceIdx);
@@ -274,29 +274,8 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     expect(authorsIdx).toBeLessThan(adminDashboardIdx);
     expect(templatesIdx).toBeGreaterThan(adminDashboardIdx);
     expect(peopleIdx).toBeGreaterThan(templatesIdx);
-    expect(legacyIdx).toBeGreaterThan(peopleIdx);
-    expect(ordersIdx).toBeGreaterThan(legacyIdx);
-  });
-});
-
-describe('Sidebar — Crane Lake legacy section (3.32)', () => {
-  it('keeps /admin-bunk-logs and /admin-dashboard reachable for admins', () => {
-    renderWith({ role: 'Admin' });
-    const links = hrefs();
-    expect(links).toContain('/admin-bunk-logs');
-    expect(links).toContain('/admin-dashboard');
-  });
-
-  it('does not render the legacy section for non-admins (counselor)', () => {
-    renderWith({ role: 'Counselor' });
-    const links = hrefs();
     expect(links).not.toContain('/admin-bunk-logs');
     expect(links).not.toContain('/admin-dashboard');
-    expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
-  });
-
-  it('does not render the legacy section for supervisors', () => {
-    renderWith({ role: 'Unit Head' });
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
   });
 });

@@ -3,8 +3,7 @@
  *
  * Asserts that the navigation links rendered by frontend/src/partials/Sidebar.jsx
  * match the capability each user signs in as. 3.32 introduced section
- * groupings (My work / Supervise / Admin / Crane Lake
- * legacy / Other) and switched the gates to `hasCapability` +
+ * groupings (My work / Supervise / Admin) and switched the gates to `hasCapability` +
  * `isSuperAdmin`. The seed command (`make seed-rbac`) maps
  * Membership.role to User.role so the legacy gate still works while
  * the capability helper is the actual source of truth.
@@ -43,7 +42,7 @@ const HREFS = {
   adminTemplates: '/admin/templates',
   adminGroups: '/admin/groups',
   adminFieldKeys: '/admin/field-keys',
-  // Crane Lake legacy
+  // Crane Lake legacy (retired from nav; routes kept for bookmarks)
   legacyBunkLogs: '/admin-bunk-logs',
   legacyStaffReflections: '/admin-dashboard',
 };
@@ -67,7 +66,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.counselorHome)).toBe(true);
     expect(await hasLink(page, HREFS.reflect)).toBe(true);
     expect(await hasLink(page, HREFS.myReflections)).toBe(true);
-    expect(await hasLink(page, HREFS.orders)).toBe(true);
+    expect(await hasLink(page, HREFS.orders)).toBe(false);
     expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
 
     // No Supervise / Dashboards / Admin / Legacy
@@ -85,7 +84,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await readSidebarText(page);
 
     expect(await hasLink(page, HREFS.home)).toBe(true);
-    expect(await hasLink(page, HREFS.orders)).toBe(true);
+    expect(await hasLink(page, HREFS.orders)).toBe(false);
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
 
@@ -130,7 +129,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 
-  test('admin: every section including Crane Lake legacy', async ({ page }) => {
+  test('admin: curated IA without Crane Lake legacy links', async ({ page }) => {
     await loginAs(page, 'admin');
     await readSidebarText(page);
 
@@ -142,8 +141,8 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
     expect(await hasLink(page, HREFS.adminGroups)).toBe(true);
     expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(true);
-    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(true);
-    expect(await hasLink(page, HREFS.legacyStaffReflections)).toBe(true);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
+    expect(await hasLink(page, HREFS.legacyStaffReflections)).toBe(false);
   });
 
   test('admin: /dashboards/logs and /dashboards/reflections appear exactly once (no duplicates)', async ({
@@ -172,10 +171,10 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
 
     expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
     expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(true);
-    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(true);
+    expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 
-  test('no_membership: only the everyone-visible items (Home, Orders) render', async ({
+  test('no_membership: only the everyone-visible items (Home) render', async ({
     page,
   }) => {
     await loginAs(page, 'no_membership');
@@ -183,7 +182,7 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
 
     expect(await hasLink(page, HREFS.home)).toBe(true);
     expect(await hasLink(page, HREFS.tasks)).toBe(true);
-    expect(await hasLink(page, HREFS.orders)).toBe(true);
+    expect(await hasLink(page, HREFS.orders)).toBe(false);
 
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(false);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);

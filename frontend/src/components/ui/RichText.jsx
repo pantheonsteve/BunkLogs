@@ -20,6 +20,22 @@ export function hasHtmlMarkup(value) {
   return typeof value === 'string' && HTML_TAG_RE.test(value);
 }
 
+/** Strip Quill/HTML markup for compact list previews (e.g. concerns inbox). */
+export function htmlToPlainText(value) {
+  if (value == null || value === '') return '';
+  const str = String(value);
+  if (!hasHtmlMarkup(str)) return str;
+  const normalized = str
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])\s*>/gi, '\n');
+  if (typeof document !== 'undefined') {
+    const el = document.createElement('div');
+    el.innerHTML = normalized;
+    return (el.innerText || el.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+  return normalized.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export default function RichText({ html, className = '', as: Tag = 'div', fallback = null }) {
   if (html == null || html === '') return fallback;
   const str = String(html);

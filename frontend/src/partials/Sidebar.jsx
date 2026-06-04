@@ -59,13 +59,6 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Field keys          /admin/field-keys
  *     Settings            /admin/settings
  *
- *   CRANE LAKE LEGACY (transitional)
- *     Bunk logs         /admin-bunk-logs
- *     Staff reflections /admin-dashboard
- *
- *   OTHER
- *     Orders            /orders
- *
  * Admins land on /admin (see pages/Dashboard.jsx). My tasks / File a
  * reflection / My reflections are folded into the Admin dashboard
  * rather than the global nav. The Leadership Team group is intentionally
@@ -77,10 +70,6 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * Team (program_lead+). Gates use hasCapability(user, [...]) ||
  * isSuperAdmin(user); direct `user.role` references remain only for
  * per-role workspace deep links and reflection-form access.
- *
- * Crane Lake legacy section disappears in wave 5 once
- * /admin-bunk-logs and /admin-dashboard are retired (see
- * migration_prompts/5_*).
  */
 function Sidebar({
   sidebarOpen,
@@ -292,27 +281,6 @@ function Sidebar({
             <SubItem to="/admin/field-keys" label="Field keys" />
             <SubItem to="/admin/settings" label="Settings" />
           </CollapsibleSection>
-
-          <Section
-            heading="Crane Lake legacy"
-            headingTitle="Migrating to new schema in wave 5"
-            data-testid="sidebar-legacy"
-          >
-            <NavItem
-              to="/admin-bunk-logs"
-              label="Bunk logs"
-              icon={IconArchive}
-            />
-            <NavItem
-              to="/admin-dashboard"
-              label="Staff reflections"
-              icon={IconArchive}
-            />
-          </Section>
-
-          <Section heading="Other">
-            <NavItem to="/orders" label="Orders" icon={IconReceipt} end />
-          </Section>
           </>
           ) : (
           <>
@@ -434,10 +402,6 @@ function Sidebar({
               <SubItem to="/leadership-team/self-reflection" label="My reflection" />
             </CollapsibleSection>
           )}
-
-          <Section heading="Other">
-            <NavItem to="/orders" label="Orders" icon={IconReceipt} end />
-          </Section>
           </>
           )}
         </div>
@@ -688,13 +652,6 @@ function IconGear() {
     </svg>
   );
 }
-function IconArchive() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
-    </svg>
-  );
-}
 function IconWrench() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
@@ -702,12 +659,4 @@ function IconWrench() {
     </svg>
   );
 }
-function IconReceipt() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
-    </svg>
-  );
-}
-
 export default Sidebar;
