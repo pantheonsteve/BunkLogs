@@ -226,12 +226,12 @@ function Sidebar({
           <Section heading="My work">
             <NavItem
               to="/groups/performance"
-              label="Performance Dashboard"
+              label="Group Performance"
               icon={IconGrid}
             />
             <NavItem
               to="/dashboards/logs"
-              label="Log Entries"
+              label="Bunk Logs"
               icon={IconBars}
             />
             <NavItem
@@ -361,12 +361,12 @@ function Sidebar({
               <>
                 <NavItem
                   to="/groups/performance"
-                  label="Performance Dashboard"
+                  label="Group Performance"
                   icon={IconGrid}
                 />
                 <NavItem
                   to="/dashboards/logs"
-                  label="Log Entries"
+                  label="Bunk Logs"
                   icon={IconBars}
                 />
               </>
@@ -408,7 +408,7 @@ function Sidebar({
                   />
                   <NavItem
                     to="/dashboards/logs"
-                    label="Log Entries"
+                    label="Bunk Logs"
                     icon={IconBars}
                   />
                   <NavItem

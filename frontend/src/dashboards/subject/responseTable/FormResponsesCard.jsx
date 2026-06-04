@@ -101,6 +101,7 @@ export default function FormResponsesCard({
   testidPrefix = 'subject',
   showSubject = false,
   subjectLinkBase = null,
+  subjectProfileLink = null,
 }) {
   const tpl = block.template ?? {};
   const reflections = block.reflections ?? [];
@@ -299,8 +300,12 @@ export default function FormResponsesCard({
                           <SubjectCell
                             row={row}
                             linkTo={
-                              subjectLinkBase && r.subject?.id
-                                ? `${subjectLinkBase}/${r.subject.id}`
+                              r.subject?.id
+                                ? (subjectProfileLink
+                                  ? subjectProfileLink(r.subject.id)
+                                  : subjectLinkBase
+                                    ? `${subjectLinkBase}/${r.subject.id}`
+                                    : null)
                                 : null
                             }
                           />

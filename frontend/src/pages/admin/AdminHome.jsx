@@ -15,7 +15,7 @@ import {
 const NAV_TILES = [
   {
     id: 'performance',
-    title: 'Performance Dashboard',
+    title: 'Group Performance',
     blurb:
       'Scores and trends across assignment groups and programs — see how groups are performing over time.',
     to: '/groups/performance',
@@ -25,7 +25,7 @@ const NAV_TILES = [
   },
   {
     id: 'logs',
-    title: 'Log Entries',
+    title: 'Bunk Logs',
     blurb:
       'Browse forms assigned to groups and open responses by audience, program, or group.',
     to: '/dashboards/logs',

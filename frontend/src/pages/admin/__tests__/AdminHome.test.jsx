@@ -5,8 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import AdminHome from '../AdminHome';
 
 const EXPECTED_TILES = [
-  { id: 'performance', href: '/groups/performance', title: 'Performance Dashboard' },
-  { id: 'logs', href: '/dashboards/logs', title: 'Log Entries' },
+  { id: 'performance', href: '/groups/performance', title: 'Group Performance' },
+  { id: 'logs', href: '/dashboards/logs', title: 'Bunk Logs' },
   { id: 'reflections', href: '/dashboards/reflections', title: 'Reflections' },
   { id: 'observations', href: '/observations', title: 'Observations' },
   { id: 'maintenance', href: '/maintenance', title: 'Maintenance Queue' },

@@ -32,11 +32,17 @@ const BACK_TO_BY_ROLE = Object.freeze({
   camper_care: '/camper-care',
   unit_head: '/unit-head',
   leadership_team: '/leadership-team',
-  admin: '/admin/home',
   classroom_author: '/dashboards',
 });
 
-function backToFor(role) {
+const ADMIN_BACK_TO = '/groups/performance';
+
+function backToFor(role, date) {
+  if (role === 'admin') {
+    return date
+      ? `${ADMIN_BACK_TO}?date=${encodeURIComponent(date)}`
+      : ADMIN_BACK_TO;
+  }
   return BACK_TO_BY_ROLE[role] ?? FALLBACK_BACK_TO;
 }
 
@@ -153,7 +159,7 @@ export default function GroupDashboardPage() {
   const role = data?.role_context?.role;
   const groupType = data?.role_context?.group_type;
   const Dash = COMPONENT_BY_GROUP_TYPE[groupType];
-  const backTo = backToFor(role);
+  const backTo = backToFor(role, dateParam || data?.header?.date);
 
   if (!Dash) {
     return (
@@ -164,17 +170,26 @@ export default function GroupDashboardPage() {
     );
   }
 
+  const profileLinkContext = {
+    groupId,
+    date: dateParam || data?.header?.date || undefined,
+  };
+
   const sharedProps = {
     data,
     selectedDate: dateParam || data?.header?.date,
     onDateChange: handleDateChange,
     backTo,
     programName: data?.header?.program_name,
+    profileLinkContext,
   };
 
   const templatesSection = (
     <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[80rem] mx-auto">
-      <GroupTemplateResponses templates={data?.templates} />
+      <GroupTemplateResponses
+        templates={data?.templates}
+        profileLinkContext={profileLinkContext}
+      />
     </div>
   );
 
@@ -183,7 +198,6 @@ export default function GroupDashboardPage() {
       <>
         <Dash
           {...sharedProps}
-          camperDashboardPath="/dashboards/subject"
           showScoreGrid={false}
           showOrders={false}
           showNotes={false}
@@ -192,7 +206,7 @@ export default function GroupDashboardPage() {
         <div className="px-4 sm:px-6 lg:px-8 pb-8 w-full max-w-[80rem] mx-auto space-y-5">
           <BunkDashboardOrdersAndNotes
             data={data}
-            camperDashboardPath="/dashboards/subject"
+            profileLinkContext={profileLinkContext}
           />
         </div>
       </>

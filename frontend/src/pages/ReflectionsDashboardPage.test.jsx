@@ -63,7 +63,9 @@ describe('ReflectionsDashboardPage', () => {
     await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
     expect(screen.getByTestId('reflections-form-tile-10')).toHaveAttribute(
       'href',
-      expect.stringMatching(/^\/admin\/templates\/10\/responses\?date=\d{4}-\d{2}-\d{2}$/),
+      expect.stringMatching(
+        /^\/admin\/templates\/10\/responses\?date=\d{4}-\d{2}-\d{2}&dashboard=reflections$/,
+      ),
     );
     expect(screen.getByTestId('reflections-form-tile-20')).toBeInTheDocument();
     expect(screen.queryByLabelText('Select form')).not.toBeInTheDocument();

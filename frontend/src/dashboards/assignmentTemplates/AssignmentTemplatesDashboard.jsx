@@ -20,10 +20,12 @@ function titleCase(s) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function FormTile({ template, isoDate, testIdPrefix }) {
+function FormTile({ template, isoDate, testIdPrefix, dashboardScope }) {
+  const responsesQs = new URLSearchParams({ date: isoDate });
+  if (dashboardScope) responsesQs.set('dashboard', dashboardScope);
   return (
     <Link
-      to={`/admin/templates/${template.template_id}/responses?date=${isoDate}`}
+      to={`/admin/templates/${template.template_id}/responses?${responsesQs.toString()}`}
       data-testid={`${testIdPrefix}-form-tile-${template.template_id}`}
       className="flex flex-col gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-shadow"
     >
@@ -288,6 +290,7 @@ export default function AssignmentTemplatesDashboard({
                   template={t}
                   isoDate={isoDate}
                   testIdPrefix={testIdPrefix}
+                  dashboardScope={scope}
                 />
               ))}
             </div>

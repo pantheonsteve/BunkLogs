@@ -142,6 +142,7 @@ export default function ScoreGrid({
   columns = [],
   rows = [],
   camperLinkPrefix = '/unit-head/campers',
+  camperLinkFor = null,
   onSelectCamper,
   offCampIds = null,
 }) {
@@ -208,7 +209,9 @@ export default function ScoreGrid({
           <tbody>
             {rows.map((row) => {
               const camper = row.camper || {};
-              const linkTo = `${camperLinkPrefix}/${camper.id}`;
+              const linkTo = camperLinkFor
+                ? camperLinkFor(camper.id)
+                : `${camperLinkPrefix}/${camper.id}`;
               return (
                 <tr
                   key={camper.id}

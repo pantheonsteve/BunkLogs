@@ -8,8 +8,13 @@ vi.mock('../../../api', () => ({
   default: { get: (...args) => getMock(...args) },
 }));
 
+const authState = vi.hoisted(() => ({
+  orgSlug: 'test-org',
+  user: { role: 'Leadership Team' },
+}));
+
 vi.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ orgSlug: 'test-org' }),
+  useAuth: () => authState,
 }));
 
 // Sidebar / Header / SingleDatePicker pull in auth + api side effects we
@@ -127,7 +132,10 @@ const aggregatePayload = {
   ],
 };
 
-beforeEach(() => { getMock.mockReset(); });
+beforeEach(() => {
+  getMock.mockReset();
+  authState.user = { role: 'Leadership Team' };
+});
 
 function renderAt(route) {
   return render(
@@ -217,6 +225,30 @@ describe('LeadershipTeamResponses', () => {
       expect(screen.queryByTestId('lt-responses-row-401')).not.toBeInTheDocument(),
     );
     expect(screen.getByTestId('lt-responses-row-402')).toBeInTheDocument();
+  });
+
+  it('routes admin back link to reflections dashboard preserving date', async () => {
+    authState.user = { role: 'Admin' };
+    getMock.mockImplementation((url) => {
+      if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
+      return Promise.resolve({ data: templatePayload });
+    });
+    renderAt('/admin/templates/7/responses?date=2026-06-03');
+    const back = await screen.findByTestId('lt-responses-back');
+    expect(back).toHaveAttribute('href', '/dashboards/reflections?date=2026-06-03');
+    expect(back).toHaveTextContent('← Reflections');
+  });
+
+  it('routes admin to bunk logs dashboard when opened from logs hub', async () => {
+    authState.user = { role: 'Admin' };
+    getMock.mockImplementation((url) => {
+      if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
+      return Promise.resolve({ data: templatePayload });
+    });
+    renderAt('/admin/templates/7/responses?date=2026-06-03&dashboard=logs');
+    const back = await screen.findByTestId('lt-responses-back');
+    expect(back).toHaveAttribute('href', '/dashboards/logs?date=2026-06-03');
+    expect(back).toHaveTextContent('← Bunk Logs');
   });
 
   it('switches to the aggregate tab and shows per-dimension averages', async () => {

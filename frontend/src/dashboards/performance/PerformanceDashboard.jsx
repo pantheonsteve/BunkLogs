@@ -85,7 +85,7 @@ export default function PerformanceDashboard() {
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-            Performance Dashboard
+            Group Performance
           </h1>
           {programName && (
             <p

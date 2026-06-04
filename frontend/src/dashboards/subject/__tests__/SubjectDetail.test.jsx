@@ -147,6 +147,33 @@ function renderDetail(extra = {}, props = {}) {
 }
 
 describe('SubjectDetail', () => {
+  it('shows a back link to the group dashboard when group query param is set', () => {
+    renderDetail({}, { backGroupId: '36', backDate: '2026-05-23' });
+    const back = screen.getByTestId('profile-back-to-group');
+    expect(back).toHaveAttribute('href', '/dashboards/group/36?date=2026-05-23');
+    expect(back).toHaveTextContent('← Back to RBAC Bulk Bunk 5');
+  });
+
+  it('shows a back link when the subject belongs to a single bunk', () => {
+    renderDetail();
+    const back = screen.getByTestId('profile-back-to-group');
+    expect(back).toHaveAttribute('href', '/dashboards/group/36');
+    expect(back).toHaveTextContent('← Back to RBAC Bulk Bunk 5');
+  });
+
+  it('hides the back link when the subject has multiple bunks and no group param', () => {
+    renderDetail({
+      subject_profile: {
+        ...payload.subject_profile,
+        assignment_groups: [
+          { id: 36, name: 'Bunk A', group_type: 'bunk' },
+          { id: 37, name: 'Bunk B', group_type: 'bunk' },
+        ],
+      },
+    });
+    expect(screen.queryByTestId('profile-back-to-group')).not.toBeInTheDocument();
+  });
+
   it('renders the profile header with role, program, and bunk chips', () => {
     renderDetail();
     const header = screen.getByTestId('subject-profile-header');
