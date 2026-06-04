@@ -13,11 +13,43 @@ vi.mock('../../../api', () => ({
 
 function makePayload(overrides = {}) {
   return {
+    viewer: {
+      id: 10,
+      name: 'Mira S.',
+      full_name: 'Mira Sandberg',
+      role: 'counselor',
+    },
+    selected_date: '2026-07-04',
     today: '2026-07-04',
+    is_today: true,
     rollover_hour: 4,
     timezone: 'America/New_York',
     program: { id: 1, slug: 'clc-summer-2026', name: 'CLC Summer 2026' },
     all_set: false,
+    bunks: [
+      {
+        id: 100,
+        name: 'Bunk Birch',
+        unit_name: 'Unit A',
+        camper_count: 5,
+        off_camp_count: 1,
+        co_counselor_names: ['Jordan P.'],
+        dashboard_path: '/dashboards/group/100?date=2026-07-04',
+        assignments: [
+          {
+            template_id: 7,
+            template_name: 'Bunk Log',
+            cadence: 'daily',
+            state: 'in_progress',
+            covered: 2,
+            total: 4,
+            remaining: 2,
+            due_label: '2 responses needed today',
+            action_path: '/counselor/camper-reflections',
+          },
+        ],
+      },
+    ],
     sections: {
       camper_reflections: {
         state: 'in_progress',
@@ -46,9 +78,9 @@ function makePayload(overrides = {}) {
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/counselor') {
   return render(
-    <MemoryRouter initialEntries={['/counselor']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <CounselorMobileDashboard />
     </MemoryRouter>,
   );
@@ -59,29 +91,51 @@ describe('CounselorMobileDashboard', () => {
     getMock.mockReset();
   });
 
-  it('renders the three sections from the dashboard payload', async () => {
+  it('renders viewer header, bunk tile, self-reflection, and quick actions', async () => {
     getMock.mockResolvedValue({ data: makePayload() });
     renderPage();
 
-    await waitFor(() => expect(screen.getByText('2026-07-04')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Mira Sandberg')).toBeInTheDocument());
 
-    expect(screen.getByTestId('counselor-section-campers')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-bunk-tile-100')).toBeInTheDocument();
+    expect(screen.getByText('Bunk Birch')).toBeInTheDocument();
+    expect(screen.getByText(/2 responses needed today/i)).toBeInTheDocument();
     expect(screen.getByTestId('counselor-section-self')).toBeInTheDocument();
-    expect(screen.getByTestId('counselor-section-requests')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-action-tasks')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-action-my-reflections')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-action-camper-care')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-action-maintenance')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-action-requests')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-action-observation')).toBeInTheDocument();
+  });
 
-    expect(screen.getByTestId('counselor-section-campers-state')).toHaveTextContent('In progress');
-    expect(screen.getByTestId('counselor-section-campers')).toHaveTextContent(
-      /3\s*campers? still need/i,
-    );
-    expect(screen.getByTestId('counselor-section-campers')).toHaveTextContent(
-      /1 camper off-camp today/i,
-    );
+  it('passes the date query param to the dashboard API', async () => {
+    getMock.mockResolvedValue({
+      data: makePayload({ selected_date: '2026-07-01', is_today: false }),
+    });
+    renderPage('/counselor?date=2026-07-01');
+
+    await waitFor(() => expect(getMock).toHaveBeenCalled());
+    const [, config] = getMock.mock.calls[0];
+    expect(config.params.date).toBe('2026-07-01');
   });
 
   it('shows the all-set banner when both required sections are complete', async () => {
     getMock.mockResolvedValue({
       data: makePayload({
         all_set: true,
+        bunks: [
+          {
+            id: 100,
+            name: 'Bunk Birch',
+            unit_name: null,
+            camper_count: 0,
+            off_camp_count: 0,
+            co_counselor_names: [],
+            dashboard_path: '/dashboards/group/100?date=2026-07-04',
+            assignments: [],
+          },
+        ],
         sections: {
           camper_reflections: { state: 'complete', covered: 5, total: 5, off_camp: 0, bunk_count: 1 },
           self_reflection: {
@@ -132,44 +186,29 @@ describe('CounselorMobileDashboard', () => {
     expect(screen.getByTestId('counselor-dashboard-error')).toHaveTextContent('boom');
   });
 
-  it('shows a friendly message for 403 without organization context', async () => {
-    getMock.mockRejectedValue({ response: { status: 403, data: { detail: 'Organization context required.' } } });
-    renderPage();
-    await waitFor(() => expect(screen.getByTestId('counselor-dashboard-error')).toBeInTheDocument());
-    expect(screen.getByTestId('counselor-dashboard-error')).toHaveTextContent('Organization context required.');
-  });
-
-  it('points the campers CTA at /counselor/camper-reflections', async () => {
+  it('points the bunk assignment CTA at camper reflections', async () => {
     getMock.mockResolvedValue({ data: makePayload() });
     renderPage();
-    await waitFor(() => expect(screen.getByTestId('counselor-section-campers-action')).toBeInTheDocument());
-    expect(screen.getByTestId('counselor-section-campers-action')).toHaveAttribute(
+    await waitFor(() => expect(screen.getByTestId('bunk-assignment-action-7')).toBeInTheDocument());
+    expect(screen.getByTestId('bunk-assignment-action-7')).toHaveAttribute(
       'href',
       '/counselor/camper-reflections',
     );
   });
 
-  it('renders a complete-no-action self section when template is null', async () => {
+  it('shows open-request badge on the requests quick action', async () => {
+    getMock.mockResolvedValue({ data: makePayload() });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('counselor-action-requests')).toBeInTheDocument());
+    expect(screen.getByTestId('counselor-action-requests')).toHaveTextContent('2');
+  });
+
+  it('renders empty bunk state when counselor has no bunks', async () => {
     getMock.mockResolvedValue({
-      data: makePayload({
-        sections: {
-          camper_reflections: { state: 'complete', covered: 0, total: 0, off_camp: 0, bunk_count: 0 },
-          self_reflection: {
-            state: 'complete',
-            submitted: false,
-            reflection_id: null,
-            submitted_at: null,
-            is_day_off: false,
-            editable: false,
-            template: null,
-          },
-          requests: { state: 'none', open_count: 0, by_type: { camper_care: 0, maintenance: 0 } },
-        },
-      }),
+      data: makePayload({ bunks: [] }),
     });
     renderPage();
-    await waitFor(() => expect(screen.getByTestId('counselor-section-self')).toBeInTheDocument());
-    expect(screen.getByText(/No self-reflection template is configured/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('counselor-section-self-action')).toBeNull();
+    await waitFor(() => expect(screen.getByTestId('counselor-bunks-section')).toBeInTheDocument());
+    expect(screen.getByText(/not assigned as an author on any bunk/i)).toBeInTheDocument();
   });
 });

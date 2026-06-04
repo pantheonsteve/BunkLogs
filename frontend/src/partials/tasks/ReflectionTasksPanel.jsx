@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Circle, ClipboardList } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
+
+const CARD_BASE =
+  'rounded-2xl border bg-white dark:bg-gray-900 shadow-sm overflow-hidden';
+const CARD_PENDING =
+  'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-md transition-all';
+const CARD_DONE =
+  'border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/25';
 
 // ---------------------------------------------------------------------------
 // Icons (inline SVG to avoid extra deps)
@@ -107,12 +115,12 @@ function SubjectPill({ subject, onTap }) {
 
   function pillStyle() {
     if (subject.covered_by_me) {
-      return 'border-blue-400 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100';
+      return 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-950 dark:text-indigo-100 shadow-sm';
     }
     if (subject.covered) {
-      return 'border-green-400 bg-green-50 dark:bg-green-950/40 text-green-900 dark:text-green-100';
+      return 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-950 dark:text-emerald-100 shadow-sm';
     }
-    return 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100';
+    return 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:border-indigo-300 dark:hover:border-indigo-500';
   }
 
   function statusIcon() {
@@ -149,7 +157,7 @@ function SubjectPill({ subject, onTap }) {
         type="button"
         aria-label={ariaLabel()}
         onClick={handleClick}
-        className={`min-h-[44px] min-w-[44px] w-full flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-sm font-medium transition-colors ${pillStyle()}`}
+        className={`min-h-[48px] min-w-[48px] w-full flex items-center justify-center gap-1.5 px-2.5 py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors ${pillStyle()}`}
       >
         {statusIcon()}
         <span className="truncate">{subject.preferred_name}</span>
@@ -169,17 +177,20 @@ function SubjectPill({ subject, onTap }) {
 // Section: self
 // ---------------------------------------------------------------------------
 
+function TaskStatusIcon({ done, star = false }) {
+  if (done) {
+    return star ? <IconCheck star /> : <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />;
+  }
+  return <Circle className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" aria-hidden="true" />;
+}
+
 function SelfSection({ task, onNavigate }) {
   const ss = task.self_status;
   const done = ss?.submitted;
 
   return (
-    <div
-      className={`rounded-xl border p-4 cursor-pointer transition-colors ${
-        done
-          ? 'border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800'
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600'
-      }`}
+    <article
+      className={`${CARD_BASE} ${done ? CARD_DONE : CARD_PENDING} ${!done ? 'cursor-pointer' : ''}`}
       role="button"
       tabIndex={0}
       aria-label={`${task.template.name} — ${done ? 'completed' : 'not yet submitted'}`}
@@ -191,19 +202,29 @@ function SelfSection({ task, onNavigate }) {
         }
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm text-gray-900 dark:text-white">{task.template.name}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Your reflection</p>
+      <div
+        className={`h-1 ${done ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500'}`}
+        aria-hidden="true"
+      />
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base text-gray-900 dark:text-white">{task.template.name}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">Your reflection</p>
+          </div>
+          <TaskStatusIcon done={done} />
         </div>
-        <span className="shrink-0 mt-0.5">{done ? <IconCheck /> : <span className="text-gray-400"><IconCircle /></span>}</span>
+        {done && ss.submitted_at ? (
+          <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300 mt-3">
+            Submitted {new Date(ss.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        ) : (
+          <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-3 font-medium">
+            Tap to open form →
+          </p>
+        )}
       </div>
-      {done && ss.submitted_at && (
-        <p className="text-xs text-green-700 dark:text-green-400 mt-2">
-          Submitted {new Date(ss.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </p>
-      )}
-    </div>
+    </article>
   );
 }
 
@@ -215,20 +236,27 @@ function SubjectSection({ task, onPillTap }) {
   const { covered, total } = task.completion;
   const remaining = total - covered;
 
+  const complete = remaining === 0;
+
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="font-medium text-sm text-gray-900 dark:text-white">{task.template.name}</p>
+    <article className={`${CARD_BASE} ${complete ? CARD_DONE : 'border-gray-200 dark:border-gray-700'}`}>
+      <div
+        className={`h-1 ${complete ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500'}`}
+        aria-hidden="true"
+      />
+      <div className="p-5">
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-base text-gray-900 dark:text-white">{task.template.name}</p>
           {task.assignment_group && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{task.assignment_group.name}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">{task.assignment_group.name}</p>
           )}
         </div>
         <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            remaining === 0
-              ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-              : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+          className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full tabular-nums ${
+            complete
+              ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200'
+              : 'bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200'
           }`}
         >
           {covered}/{total}
@@ -236,14 +264,15 @@ function SubjectSection({ task, onPillTap }) {
       </div>
 
       <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}
+        className="grid gap-2.5"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))' }}
       >
         {task.subjects.map((subject) => (
           <SubjectPill key={subject.person_id} subject={subject} onTap={() => onPillTap(task, subject)} />
         ))}
       </div>
-    </div>
+      </div>
+    </article>
   );
 }
 
@@ -255,12 +284,8 @@ function GroupSection({ task, onNavigate }) {
   const done = task.completion.covered === task.completion.total;
 
   return (
-    <div
-      className={`rounded-xl border p-4 cursor-pointer transition-colors ${
-        done
-          ? 'border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800'
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600'
-      }`}
+    <article
+      className={`${CARD_BASE} ${done ? CARD_DONE : CARD_PENDING} ${!done ? 'cursor-pointer' : ''}`}
       role="button"
       tabIndex={0}
       aria-label={`${task.template.name} for ${task.assignment_group?.name} — ${done ? 'completed' : 'pending'}`}
@@ -272,16 +297,27 @@ function GroupSection({ task, onNavigate }) {
         }
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm text-gray-900 dark:text-white">{task.template.name}</p>
-          {task.assignment_group && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{task.assignment_group.name}</p>
-          )}
+      <div
+        className={`h-1 ${done ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500'}`}
+        aria-hidden="true"
+      />
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base text-gray-900 dark:text-white">{task.template.name}</p>
+            {task.assignment_group && (
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">{task.assignment_group.name}</p>
+            )}
+          </div>
+          <TaskStatusIcon done={done} />
         </div>
-        <span className="shrink-0 mt-0.5">{done ? <IconCheck /> : <span className="text-gray-400"><IconCircle /></span>}</span>
+        {!done ? (
+          <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-3 font-medium">
+            Tap to complete group reflection →
+          </p>
+        ) : null}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -289,34 +325,75 @@ function GroupSection({ task, onNavigate }) {
 // Summary bar
 // ---------------------------------------------------------------------------
 
+function AllDoneCelebration() {
+  return (
+    <div
+      className="flex items-start gap-4 rounded-2xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 px-5 py-5 shadow-sm"
+      data-testid="tasks-all-done-celebration"
+      role="status"
+    >
+      <CheckCircle2 className="w-8 h-8 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+      <div>
+        <p className="text-lg font-semibold text-emerald-950 dark:text-emerald-50">
+          You&apos;re all caught up — thank you!
+        </p>
+        <p className="text-sm text-emerald-900 dark:text-emerald-200 mt-1">
+          Every reflection for today is submitted. Your camp team appreciates you showing up.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function SummaryBar({ tasks }) {
   const total = tasks.length;
   const completed = tasks.filter((t) => t.completion.covered >= t.completion.total).length;
   const waiting = total - completed;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const allDone = total > 0 && waiting === 0;
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-6">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">
-          {waiting > 0 ? `${waiting} task${waiting !== 1 ? 's' : ''} waiting` : 'All done!'}
-        </p>
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          {completed}/{total} completed
-        </span>
+    <section className="mb-6 space-y-4" aria-label="Today's progress">
+      {allDone ? <AllDoneCelebration /> : null}
+      <div className={`${CARD_BASE} border-gray-200 dark:border-gray-700 p-5`}>
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Today&apos;s progress
+            </p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-white mt-0.5 tabular-nums">
+              {completed}
+              <span className="text-gray-500 dark:text-gray-400 font-medium text-base">
+                {' '}
+                / {total} assignments
+              </span>
+            </p>
+          </div>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {waiting > 0 ? (
+              <span className="text-amber-800 dark:text-amber-200">
+                {waiting} remaining
+              </span>
+            ) : (
+              <span className="text-emerald-800 dark:text-emerald-200">Complete</span>
+            )}
+          </p>
+        </div>
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+          <div
+            className={`h-3 rounded-full transition-all duration-500 ${
+              allDone ? 'bg-emerald-500' : 'bg-indigo-600 dark:bg-indigo-500'
+            }`}
+            style={{ width: `${pct}%` }}
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${pct}% complete`}
+          />
+        </div>
       </div>
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-        <div
-          className="bg-blue-500 h-2 rounded-full transition-all"
-          style={{ width: `${pct}%` }}
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${pct}% complete`}
-        />
-      </div>
-    </div>
+    </section>
   );
 }
 
@@ -343,28 +420,28 @@ function ObservationsRequiringResponseSection() {
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-6">
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+    <section className="mt-8">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
         Observations requiring response
       </h2>
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+      <div className={`${CARD_BASE} border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800`}>
         {items.map(item => (
           <Link
             key={item.id}
             to={`/observations/${item.id}`}
-            className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+            className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
           >
-            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
-            <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-violet-600 dark:bg-violet-400 shrink-0" />
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1">
               {item.preview ?? item.body?.slice(0, 80) ?? 'Observation'}
             </span>
-            <span className="text-xs text-gray-400 shrink-0">
+            <span className="text-xs font-medium text-gray-600 dark:text-gray-400 shrink-0">
               From {item.author?.name ?? item.author?.full_name}
             </span>
           </Link>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -449,24 +526,49 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
   const inner = (
     <>
       {!embedded && (
-        <header className="mb-6 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Today</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{headingLabel}</p>
+        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-4 min-w-0">
+            <div className="hidden sm:flex shrink-0 w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 items-center justify-center">
+              <ClipboardList className="w-6 h-6 text-indigo-700 dark:text-indigo-300" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                My work
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mt-0.5">
+                My Tasks
+              </h1>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mt-1">{headingLabel}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 max-w-2xl">
+                Tap a camper or assignment below to file today&apos;s reflections. Completed work
+                stays visible so you can review or edit.
+              </p>
+            </div>
           </div>
-          {showCoverageLink && (
+          <div className="flex flex-wrap gap-2 shrink-0 sm:pt-1">
             <Link
-              to="/groups/performance"
-              data-testid="tasks-coverage-link"
-              className="shrink-0 inline-flex items-center gap-1 mt-1 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              to="/my-reflections"
+              data-testid="tasks-my-reflections-link"
+              className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              Performance →
+              My reflections
             </Link>
-          )}
+            {showCoverageLink && (
+              <Link
+                to="/groups/performance"
+                data-testid="tasks-coverage-link"
+                className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Performance →
+              </Link>
+            )}
+          </div>
         </header>
       )}
 
-      {loading && <p className="text-gray-500 dark:text-gray-400 text-sm">Loading tasks…</p>}
+      {loading && (
+        <p className="text-gray-700 dark:text-gray-300 text-sm font-medium">Loading tasks…</p>
+      )}
 
       {error && (
         <div
@@ -482,10 +584,19 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
           <SummaryBar tasks={tasks} />
 
           {tasks.length === 0 && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-12">No tasks for today.</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300 text-center py-16 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900">
+              No tasks for today.
+            </p>
           )}
 
-          <div className={`space-y-4 ${embedded ? 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0' : ''}`} data-testid="tasks-list">
+          <div
+            className={
+              embedded
+                ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5'
+                : 'grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5'
+            }
+            data-testid="tasks-list"
+          >
             {tasks.map((task) => {
               if (task.subject_mode === 'self') {
                 return <SelfSection key={task.id} task={task} onNavigate={handleSelfNavigate} />;
@@ -507,13 +618,9 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
     return <div className="w-full">{inner}</div>;
   }
 
-  // 3.33: AppLayout owns the outer scroll container and chrome.
-  // We keep the centered single-column treatment for the page
-  // variant because the task home was designed as a focused
-  // single-column experience.
   return (
-    <div className="px-4 py-6 pb-24">
-      <div className="max-w-lg mx-auto">{inner}</div>
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[80rem] mx-auto">
+      {inner}
     </div>
   );
 }

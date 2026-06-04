@@ -252,6 +252,25 @@ class TestCandidatesAndSearch:
         ids = [s["id"] for s in resp.json()["subjects"]]
         assert camper.id in ids
 
+    def test_subjects_search_full_name(
+        self, org, program, counselor_user, counselor_membership, counselor_in_bunk, camper,
+    ):
+        client = _auth_client(counselor_user, org)
+        resp = client.get("/api/v1/observations/subjects/?q=Cam%20Per")
+        assert resp.status_code == 200
+        ids = [s["id"] for s in resp.json()["subjects"]]
+        assert camper.id in ids
+
+    def test_subjects_search_without_bunk_author_agm(
+        self, org, program, counselor_user, counselor_membership, camper,
+    ):
+        """Observations subjects are org-wide — no counselor AGM author required."""
+        client = _auth_client(counselor_user, org)
+        resp = client.get("/api/v1/observations/subjects/?q=Cam")
+        assert resp.status_code == 200
+        ids = [s["id"] for s in resp.json()["subjects"]]
+        assert camper.id in ids
+
     def test_cross_org_thread_not_found(
         self, org, other_org, other_program, program, counselor_person, counselor_membership, camper,
     ):

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import PerformanceDashboard from '../PerformanceDashboard';
 
 vi.mock('../../../api', () => ({
@@ -44,8 +44,10 @@ describe('PerformanceDashboard', () => {
   it('renders filters, group cards, and program name when a program is selected', async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter>
-        <PerformanceDashboard />
+      <MemoryRouter initialEntries={['/groups/performance?date=2026-07-10&group_type=bunk']}>
+        <Routes>
+          <Route path="/groups/performance" element={<PerformanceDashboard />} />
+        </Routes>
       </MemoryRouter>,
     );
 
@@ -68,8 +70,11 @@ describe('PerformanceDashboard', () => {
     expect(api.get).toHaveBeenCalledWith(
       '/api/v1/dashboards/groups/performance/',
       expect.objectContaining({
-        params: expect.objectContaining({ group_type: 'bunk' }),
+        params: expect.objectContaining({ group_type: 'bunk', date: '2026-07-10' }),
       }),
     );
+
+    const dateInput = screen.getByTestId('performance-date-picker');
+    expect(dateInput).toHaveValue('2026-07-10');
   });
 });

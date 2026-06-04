@@ -21,7 +21,9 @@ const HREFS = {
   tasks: '/tasks',
   reflect: '/reflect',
   myReflections: '/my-reflections',
-  counselorHome: '/counselor-dashboard',
+  counselorHome: '/counselor',
+  unitHeadHome: '/unit-head',
+  camperCareHome: '/camper-care',
   orders: '/orders',
   // Supervise
   groupsPerformance: '/groups/performance',
@@ -60,14 +62,15 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await loginAs(page, 'counselor');
     await readSidebarText(page);
 
-    // My work entries
-    expect(await hasLink(page, HREFS.home)).toBe(true);
-    expect(await hasLink(page, HREFS.tasks)).toBe(true);
+    // My work entries — Home goes straight to the counselor workspace
     expect(await hasLink(page, HREFS.counselorHome)).toBe(true);
-    expect(await hasLink(page, HREFS.reflect)).toBe(true);
+    expect(await countLinks(page, HREFS.counselorHome)).toBe(1);
+    expect(await hasLink(page, HREFS.home)).toBe(false);
+    expect(await hasLink(page, HREFS.tasks)).toBe(true);
+    expect(await hasLink(page, HREFS.reflect)).toBe(false);
     expect(await hasLink(page, HREFS.myReflections)).toBe(true);
     expect(await hasLink(page, HREFS.orders)).toBe(false);
-    expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(false);
 
     // No Supervise / Dashboards / Admin / Legacy
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(false);
@@ -83,7 +86,9 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     await loginAs(page, 'unit_head');
     await readSidebarText(page);
 
-    expect(await hasLink(page, HREFS.home)).toBe(true);
+    expect(await hasLink(page, HREFS.unitHeadHome)).toBe(true);
+    expect(await countLinks(page, HREFS.unitHeadHome)).toBe(1);
+    expect(await hasLink(page, HREFS.home)).toBe(false);
     expect(await hasLink(page, HREFS.orders)).toBe(false);
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
@@ -91,7 +96,6 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
-    // No role-specific Counselor home for unit heads.
     expect(await hasLink(page, HREFS.counselorHome)).toBe(false);
   });
 

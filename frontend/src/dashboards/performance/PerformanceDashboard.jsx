@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import GroupPerformanceCard from './GroupPerformanceCard';
 
@@ -31,13 +32,34 @@ function formatDisplayDate(iso) {
 }
 
 export default function PerformanceDashboard() {
-  const [groupType, setGroupType] = useState('bunk');
-  const [program, setProgram] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateParam = searchParams.get('date') || '';
+  const groupTypeParam = searchParams.get('group_type') ?? 'bunk';
+  const programParam = searchParams.get('program') || '';
+
+  const selectedDate = dateParam || todayIso();
+  const groupType = groupTypeParam;
+  const program = programParam;
+
   const [programOptions, setProgramOptions] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(todayIso);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const syncParams = useCallback((next) => {
+    const params = new URLSearchParams(searchParams);
+    if (next.date) params.set('date', next.date);
+    else if (next.date === '') params.delete('date');
+    if (next.group_type !== undefined) {
+      if (next.group_type) params.set('group_type', next.group_type);
+      else params.delete('group_type');
+    }
+    if (next.program !== undefined) {
+      if (next.program) params.set('program', next.program);
+      else params.delete('program');
+    }
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,7 +127,7 @@ export default function PerformanceDashboard() {
             <span>Program</span>
             <select
               value={program}
-              onChange={(e) => setProgram(e.target.value)}
+              onChange={(e) => syncParams({ program: e.target.value })}
               className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
             >
               <option value="">All programs</option>
@@ -118,7 +140,7 @@ export default function PerformanceDashboard() {
             <span>Group type</span>
             <select
               value={groupType}
-              onChange={(e) => setGroupType(e.target.value)}
+              onChange={(e) => syncParams({ group_type: e.target.value })}
               className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
             >
               {GROUP_TYPES.map((g) => (
@@ -131,7 +153,8 @@ export default function PerformanceDashboard() {
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => syncParams({ date: e.target.value })}
+              data-testid="performance-date-picker"
               className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
             />
           </label>

@@ -34,7 +34,7 @@ from rest_framework.views import APIView
 from bunk_logs.api.observations.common import viewer_or_403
 from bunk_logs.core import audit as audit_trail
 from bunk_logs.core.models import Person
-from bunk_logs.core.permissions.observation_authoring import authorable_subject_queryset
+from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.observation_authoring import recipients_clearing_sensitivity
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
 from bunk_logs.core.permissions.super_admin import is_super_admin
@@ -55,6 +55,31 @@ User = get_user_model()
 
 DEFAULT_SEARCH_LIMIT = 25
 MAX_SEARCH_LIMIT = 100
+
+
+def _filter_persons_by_name_query(qs, q: str):
+    """Match name tokens against first, last, and preferred name fields."""
+    q = q.strip()
+    if not q:
+        return qs
+    tokens = [t for t in q.split() if t]
+    if not tokens:
+        return qs
+    if len(tokens) == 1:
+        token = tokens[0]
+        return qs.filter(
+            Q(first_name__icontains=token)
+            | Q(last_name__icontains=token)
+            | Q(preferred_name__icontains=token),
+        )
+    combined = Q()
+    for token in tokens:
+        combined &= (
+            Q(first_name__icontains=token)
+            | Q(last_name__icontains=token)
+            | Q(preferred_name__icontains=token)
+        )
+    return qs.filter(combined)
 
 
 class ObservationsPagination(PageNumberPagination):
@@ -203,7 +228,9 @@ class ObservationCreateView(APIView):
 
         # Validate subjects against the viewer's authoring scope.
         authorable_ids = set(
-            authorable_subject_queryset(ctx.person, ctx.organization).values_list("id", flat=True),
+            observation_authorable_subject_queryset(
+                ctx.person, ctx.organization,
+            ).values_list("id", flat=True),
         )
         subject_ids = list(dict.fromkeys(data["subject_ids"]))
         bad_subjects = [sid for sid in subject_ids if sid not in authorable_ids]
@@ -412,9 +439,6 @@ class ObservationSubjectsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        org = getattr(request, "organization", None)
-        if org is None:
-            return Response({"detail": "Organization context required."}, status=403)
         q = (request.query_params.get("q") or "").strip()
         try:
             limit = int(request.query_params.get("limit", DEFAULT_SEARCH_LIMIT))
@@ -422,18 +446,16 @@ class ObservationSubjectsView(APIView):
             limit = DEFAULT_SEARCH_LIMIT
         limit = max(1, min(limit, MAX_SEARCH_LIMIT))
 
-        viewer_person = Person.all_objects.filter(user=request.user).first()
         if is_super_admin(request.user):
+            org = getattr(request, "organization", None)
+            if org is None:
+                return Response({"detail": "Organization context required."}, status=403)
             base = Person.all_objects.filter(organization=org)
-        elif viewer_person is None:
-            base = Person.all_objects.none()
         else:
-            base = authorable_subject_queryset(viewer_person, org)
-        if q:
-            base = base.filter(
-                Q(first_name__icontains=q)
-                | Q(last_name__icontains=q)
-                | Q(preferred_name__icontains=q),
-            )
+            ctx = viewer_or_403(request)
+            base = observation_authorable_subject_queryset(
+                ctx.person, ctx.organization,
+            ).exclude(id=ctx.person.id)
+        base = _filter_persons_by_name_query(base, q)
         persons = list(base.order_by("last_name", "first_name")[:limit])
         return Response({"subjects": [{"id": p.id, "full_name": p.full_name} for p in persons]})

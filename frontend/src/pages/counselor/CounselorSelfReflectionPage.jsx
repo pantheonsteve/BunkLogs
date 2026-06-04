@@ -33,6 +33,7 @@ import AudienceDisclosure from '../../components/AudienceDisclosure';
 import ReflectionField from '../../components/templates/ReflectionField';
 import {
   buildDefaultAnswers,
+  prepareReflectionAnswersForSubmit,
   validateReflectionAnswers,
 } from '../../utils/reflection/reflectionFormValidation';
 import {
@@ -209,16 +210,21 @@ export default function CounselorSelfReflectionPage() {
 
     setSubmitting(true);
     try {
+      const payloadAnswers = dayOff
+        ? undefined
+        : prepareReflectionAnswersForSubmit(schema, answers, {
+            omitKeys: [DAY_OFF_FIELD_KEY],
+          });
       if (isEdit) {
         await patchSelfReflection(editReflectionId, {
           dayOff,
-          answers: dayOff ? undefined : answers,
+          answers: payloadAnswers,
           language,
         });
       } else {
         await createSelfReflection({
           dayOff,
-          answers: dayOff ? undefined : answers,
+          answers: payloadAnswers,
           language,
           clientSubmissionId: clientSubmissionIdRef.current,
         });

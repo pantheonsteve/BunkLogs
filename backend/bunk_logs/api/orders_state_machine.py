@@ -59,12 +59,7 @@ def _actor_membership_for(request, *, content) -> Membership | None:
     )
 
 
-def _can_transition(request, *, content, fulfilling_role: str) -> bool:
-    """Whether ``request.user`` is allowed to transition ``content``.
-
-    Allowed when the user is a Super Admin, an org Admin, or an active
-    Membership in the program with the fulfilling role for this content type.
-    """
+def _is_fulfilling_team_member(request, *, content, fulfilling_role: str) -> bool:
     if is_super_admin(request.user):
         return True
     person = _person_for_request(request)
@@ -76,6 +71,33 @@ def _can_transition(request, *, content, fulfilling_role: str) -> bool:
         is_active=True,
         role__in=("admin", fulfilling_role),
     ).exists()
+
+
+def _submitter_may_close_ticket(request, ticket: MaintenanceTicket) -> bool:
+    """Whether a non-maintenance submitter may close their own open ticket."""
+    if _is_fulfilling_team_member(request, content=ticket, fulfilling_role="maintenance"):
+        return False
+    actor = _actor_membership_for(request, content=ticket)
+    if actor is None or ticket.submitted_by_id != actor.id:
+        return False
+    return ticket.status in (
+        MaintenanceTicket.Status.NEW,
+        MaintenanceTicket.Status.IN_PROGRESS,
+    )
+
+
+def _can_transition(request, *, content, fulfilling_role: str) -> bool:
+    """Whether ``request.user`` is allowed to transition ``content``.
+
+    Allowed when the user is a Super Admin, an org Admin, or an active
+    Membership in the program with the fulfilling role for this content type.
+    Maintenance ticket submitters may also mark their own open tickets fulfilled.
+    """
+    if _is_fulfilling_team_member(request, content=content, fulfilling_role=fulfilling_role):
+        return True
+    if fulfilling_role == "maintenance" and isinstance(content, MaintenanceTicket):
+        return _submitter_may_close_ticket(request, content)
+    return False
 
 
 def _activity_payload(events: Iterable[OrderActivityEvent]) -> list[dict]:
@@ -267,6 +289,19 @@ def _do_transition(request, instance, *, fulfilling_role: str) -> Response:
             {"detail": "No active Membership in this Program."},
             status=http_status.HTTP_403_FORBIDDEN,
         )
+
+    if (
+        fulfilling_role == "maintenance"
+        and isinstance(instance, MaintenanceTicket)
+        and not _is_fulfilling_team_member(request, content=instance, fulfilling_role=fulfilling_role)
+    ):
+        if to_state != MaintenanceTicket.Status.FULFILLED or not _submitter_may_close_ticket(
+            request, instance,
+        ):
+            return Response(
+                {"detail": "You may only mark your own open tickets as fulfilled."},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
 
     try:
         instance.transition_to(to_state, actor=actor, note=note, reason=reason)

@@ -32,6 +32,8 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState(null);
   const [subjects, setSubjects] = useState(initialSubjects);
   const [body, setBody] = useState('');
   const [observedAtLocal, setObservedAtLocal] = useState(defaultObservedAtLocal);
@@ -50,13 +52,24 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
     if (!query.trim()) {
       setResults([]);
       setSearching(false);
+      setHasSearched(false);
+      setSearchError(null);
       return undefined;
     }
     setSearching(true);
+    setSearchError(null);
     debounceRef.current = setTimeout(() => {
       searchObservationSubjects(query.trim())
-        .then(setResults)
-        .catch(() => setResults([]))
+        .then((items) => {
+          setResults(items);
+          setHasSearched(true);
+        })
+        .catch((err) => {
+          setResults([]);
+          setHasSearched(true);
+          const detail = err.response?.data?.detail;
+          setSearchError(detail || 'Could not search campers. Try again.');
+        })
         .finally(() => setSearching(false));
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(debounceRef.current);
@@ -85,6 +98,8 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
     setSubjects((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev, s]));
     setQuery('');
     setResults([]);
+    setHasSearched(false);
+    setSearchError(null);
   }
 
   function removeSubject(id) {
@@ -187,13 +202,19 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
                 className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 data-testid="observation-composer-search"
               />
-              {(searching || results.length > 0) && (
+              {query.trim() && (searching || hasSearched) && (
                 <ul
                   className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-56 overflow-y-auto"
                   data-testid="observation-composer-results"
                 >
-                  {searching && results.length === 0 && (
+                  {searching && results.length === 0 && !searchError && (
                     <li className="px-3 py-2 text-xs text-gray-400">Searching…</li>
+                  )}
+                  {searchError && (
+                    <li className="px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{searchError}</li>
+                  )}
+                  {hasSearched && !searching && !searchError && results.length === 0 && (
+                    <li className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No matching campers.</li>
                   )}
                   {results.map((s) => (
                     <li key={s.id}>

@@ -23,6 +23,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReflectionField from '../../components/templates/ReflectionField';
 import {
   buildDefaultAnswers,
+  prepareReflectionAnswersForSubmit,
   validateReflectionAnswers,
 } from '../../utils/reflection/reflectionFormValidation';
 import {
@@ -222,9 +223,9 @@ export default function UnitHeadSelfReflectionPage() {
     try {
       const payloadAnswers = (() => {
         if (dayOff) return undefined;
-        // Coerce bunk_concerns_bunks values to integers since the backend
-        // validates against integer bunk IDs.
-        const next = { ...answers };
+        const next = prepareReflectionAnswersForSubmit(schema, answers, {
+          omitKeys: [DAY_OFF_FIELD_KEY],
+        });
         const raw = next[BUNK_CONCERNS_FIELD_KEY];
         if (Array.isArray(raw)) {
           next[BUNK_CONCERNS_FIELD_KEY] = raw
