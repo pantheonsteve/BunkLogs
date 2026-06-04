@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
+import { htmlToPlainText } from '../../components/ui/RichText';
 
 function shortDate(iso) {
   const d = new Date(iso + 'T00:00:00');
@@ -119,7 +120,7 @@ export default function ConcernsInbox({ payload, onChanged }) {
                   </p>
                   {it.kind === 'open_concern' ? (
                     <p className="mt-1 text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                      {it.value}
+                      {htmlToPlainText(it.value)}
                     </p>
                   ) : (
                     <p className="mt-1 text-sm font-mono text-rose-700 dark:text-rose-300">
