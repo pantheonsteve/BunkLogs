@@ -773,6 +773,55 @@ def test_dashboard_does_not_leak_other_org_data(org, program):
 
 
 @pytest.mark.django_db
+def test_dashboard_returns_viewer_and_bunk_tiles(
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    bunk,
+    counselor_as_author,
+    campers,
+    camper_template,
+):
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/counselor/dashboard/?nocache=1")
+    assert resp.status_code == 200
+    assert resp.data["viewer"]["full_name"] == counselor_person.full_name
+    assert len(resp.data["bunks"]) == 1
+    tile = resp.data["bunks"][0]
+    assert tile["id"] == bunk.id
+    assert tile["name"] == "Bunk Birch"
+    assert tile["camper_count"] == 3
+    assert len(tile["assignments"]) >= 1
+    assignment = tile["assignments"][0]
+    assert assignment["total"] == 3
+    assert assignment["remaining"] == 3
+    assert "needed today" in assignment["due_label"]
+
+
+@pytest.mark.django_db
+def test_dashboard_honors_date_query_param(
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    bunk,
+    counselor_as_author,
+    campers,
+    camper_template,
+):
+    today = get_today(org)
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/counselor/dashboard/?nocache=1&date={today.isoformat()}")
+    assert resp.data["selected_date"] == today.isoformat()
+    assert resp.data["is_today"] is True
+
+
+@pytest.mark.django_db
 def test_dashboard_returns_rollover_hour_and_timezone(
     org, program, counselor_user, counselor_person, counselor_membership,
 ):

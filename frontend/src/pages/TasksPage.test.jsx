@@ -156,7 +156,7 @@ describe('TasksPage', () => {
     });
     getMock.mockResolvedValue({ data: { tasks: [task] } });
     renderPage();
-    await waitFor(() => expect(screen.getByText(/submitted/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Submitted \d/i)).toBeInTheDocument());
   });
 
   // Roster section (single_subject)
@@ -217,18 +217,19 @@ describe('TasksPage', () => {
     const pendingTask = rosterTask([sarahSubject]);
     getMock.mockResolvedValue({ data: { tasks: [completedTask, pendingTask] } });
     renderPage();
-    await waitFor(() => expect(screen.getByText(/1 task waiting/i)).toBeInTheDocument());
-    expect(screen.getByText(/1\/2 completed/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/1 remaining/i)).toBeInTheDocument());
+    expect(screen.getByText(/\/ 2 assignments/i)).toBeInTheDocument();
   });
 
-  it('summary bar shows all done when everything complete', async () => {
+  it('shows celebration when all tasks are complete', async () => {
     const task = selfTask({
       completion: { covered: 1, total: 1, my_count: 1 },
       self_status: { submitted: true, reflection_id: 1, submitted_at: null },
     });
     getMock.mockResolvedValue({ data: { tasks: [task] } });
     renderPage();
-    await waitFor(() => expect(screen.getByText(/all done/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('tasks-all-done-celebration')).toBeInTheDocument());
+    expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
   });
 
   // multi_subject: renders same as single_subject in v1

@@ -66,6 +66,9 @@ describe('counselor API helpers', () => {
 
     await fetchCounselorDashboard({ noCache: true });
     expect(getMock.mock.calls[1][1]).toEqual({ params: { nocache: '1' } });
+
+    await fetchCounselorDashboard({ date: '2026-07-01' });
+    expect(getMock.mock.calls[2][1]).toEqual({ params: { date: '2026-07-01' } });
   });
 
   it('fetchCamperReflections forwards the date param', async () => {

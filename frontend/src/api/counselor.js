@@ -36,8 +36,10 @@ export function newClientSubmissionId() {
 }
 
 /** Counselor dashboard payload (Story 2 + 9). */
-export async function fetchCounselorDashboard({ noCache = false } = {}) {
-  const params = noCache ? { nocache: '1' } : {};
+export async function fetchCounselorDashboard({ noCache = false, date } = {}) {
+  const params = {};
+  if (noCache) params.nocache = '1';
+  if (date) params.date = date;
   const { data } = await api.get('/api/v1/counselor/dashboard/', { params });
   return data;
 }

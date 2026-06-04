@@ -60,11 +60,13 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
 
     const links = hrefs();
-    expect(links).toContain('/dashboard');
-    expect(links).toContain('/tasks');
     expect(links).toContain('/counselor');
-    expect(links).toContain('/reflect');
+    expect(links.filter((h) => h === '/counselor')).toHaveLength(1);
+    expect(links).not.toContain('/dashboard');
+    expect(links).toContain('/tasks');
+    expect(links).not.toContain('/reflect');
     expect(links).toContain('/my-reflections');
+    expect(links).not.toContain('/dashboards/reflections');
     expect(links).not.toContain('/orders');
     expect(links).not.toContain('/admin');
     expect(links).not.toContain('/admin-bunk-logs');
@@ -74,7 +76,8 @@ describe('Sidebar — section gating (3.32)', () => {
     renderWith({ role: 'Kitchen Staff' });
 
     const links = hrefs();
-    expect(links).toContain('/dashboard');
+    expect(links).toContain('/kitchen-staff');
+    expect(links).not.toContain('/dashboard');
     expect(links).toContain('/tasks');
     expect(links).not.toContain('/counselor');
     expect(links).not.toContain('/reflect');
@@ -90,9 +93,11 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
 
     const links = hrefs();
+    expect(links).toContain('/unit-head');
+    expect(links.filter((h) => h === '/unit-head')).toHaveLength(1);
+    expect(links).not.toContain('/dashboard');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
-    // Supervisors don't get the role-specific Counselor-home link.
     expect(links).not.toContain('/counselor');
   });
 
@@ -101,6 +106,9 @@ describe('Sidebar — section gating (3.32)', () => {
 
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     const links = hrefs();
+    expect(links).toContain('/camper-care');
+    expect(links.filter((h) => h === '/camper-care')).toHaveLength(1);
+    expect(links).not.toContain('/dashboard');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
     expect(links).toContain('/reflect');

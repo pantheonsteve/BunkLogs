@@ -279,6 +279,27 @@ describe('ObservationComposer', () => {
     });
   });
 
+  it('shows a message when subject search has no matches', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('recipient-candidates')) {
+        return Promise.resolve({ data: { persons: [] } });
+      }
+      if (url.includes('observations/subjects')) {
+        return Promise.resolve({ data: { subjects: [] } });
+      }
+      return Promise.resolve({ data: {} });
+    });
+    render(
+      <MemoryRouter>
+        <ObservationComposer onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+    await userEvent.type(screen.getByTestId('observation-composer-search'), 'Nobody');
+    await waitFor(() => {
+      expect(screen.getByText('No matching campers.')).toBeDefined();
+    });
+  });
+
   it('blocks submit with no subject', async () => {
     render(
       <MemoryRouter>

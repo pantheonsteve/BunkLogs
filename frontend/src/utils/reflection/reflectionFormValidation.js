@@ -204,11 +204,37 @@ export function buildDefaultAnswers(schema) {
       out[key] = {};
     } else if (ftype === 'number' || ftype === 'single_rating') {
       out[key] = '';
-    } else if (ftype === 'yes_no') {
-      out[key] = '';
     }
+    // yes_no: intentionally omitted — empty string fails backend validation.
+    // Optional fields may be absent; required yes/no fields must be set by the user.
   }
   return out;
+}
+
+/**
+ * Normalize answers before POST/PATCH so optional yes/no fields left at their
+ * default (missing) are not sent as empty strings. Also drops keys the UI
+ * manages separately (e.g. counselor self-reflection ``day_off`` toggle).
+ */
+export function prepareReflectionAnswersForSubmit(schema, answers, options = {}) {
+  const omitKeys = options.omitKeys ?? [];
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return answers;
+  }
+  const next = { ...answers };
+  for (const key of omitKeys) {
+    delete next[key];
+  }
+  const fields = schema?.fields;
+  if (!Array.isArray(fields)) return next;
+  for (const field of fields) {
+    if (field?.type !== 'yes_no' || !field?.key) continue;
+    const value = next[field.key];
+    if (value === '' || value === null || value === undefined) {
+      delete next[field.key];
+    }
+  }
+  return next;
 }
 
 export function ratingScaleValues(field) {

@@ -178,11 +178,9 @@ class TestMaintenanceQueueViewerScope:
         rows = r.json()["tickets"]
         assert any(row["available_transitions"] for row in rows)
 
-    def test_viewer_sees_full_queue(
+    def test_viewer_defaults_to_mine_filter(
         self, api, org, program, ticket, counselor_membership,
     ):
-        # A counselor (non-maintenance) sees every ticket in the program, even
-        # ones they did not file (the `ticket` fixture has no submitter).
         with organization_context(org):
             mine = MaintenanceTicket.objects.create(
                 organization=org,
@@ -195,21 +193,60 @@ class TestMaintenanceQueueViewerScope:
             )
         api.force_authenticate(user=counselor_membership.user)
         r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
-        assert r.status_code == 200, r.content
-        data = r.json()
-        assert data["scope"] == "viewer"
-        ids = [t["id"] for t in data["tickets"]]
+        assert r.status_code == 200
+        ids = [t["id"] for t in r.json()["tickets"]]
         assert str(mine.id) in ids
-        assert str(ticket.id) in ids
+        assert str(ticket.id) not in ids
 
-    def test_viewer_rows_are_read_only(
+    def test_viewer_can_see_all_open_with_filter(
         self, api, org, ticket, counselor_membership,
     ):
         api.force_authenticate(user=counselor_membership.user)
+        r = api.get("/api/v1/maintenance/queue/?filter=open", **_hdr(org.slug))
+        ids = [t["id"] for t in r.json()["tickets"]]
+        assert str(ticket.id) in ids
+
+    def test_viewer_can_close_own_ticket(
+        self, api, org, program, counselor_membership,
+    ):
+        with organization_context(org):
+            mine = MaintenanceTicket.objects.create(
+                organization=org,
+                program=program,
+                location="Bunk 5",
+                category=MaintenanceTicket.Category.PLUMBING,
+                description="My leak",
+                urgency=MaintenanceTicket.Urgency.NORMAL,
+                status=MaintenanceTicket.Status.NEW,
+                submitted_by=counselor_membership,
+            )
+        api.force_authenticate(user=counselor_membership.user)
         r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
-        rows = r.json()["tickets"]
-        assert rows
-        assert all(row["available_transitions"] == [] for row in rows)
+        row = next(t for t in r.json()["tickets"] if t["id"] == str(mine.id))
+        assert row["is_mine"] is True
+        assert "fulfilled" in row["available_transitions"]
+
+        tr = api.post(
+            f"/api/v1/maintenance/{mine.id}/transition/",
+            {"to_state": "fulfilled"},
+            format="json",
+            **_hdr(org.slug),
+        )
+        assert tr.status_code == 200, tr.content
+        mine.refresh_from_db()
+        assert mine.status == MaintenanceTicket.Status.FULFILLED
+
+    def test_viewer_cannot_close_others_ticket(
+        self, api, org, ticket, counselor_membership,
+    ):
+        api.force_authenticate(user=counselor_membership.user)
+        r = api.post(
+            f"/api/v1/maintenance/{ticket.id}/transition/",
+            {"to_state": "fulfilled"},
+            format="json",
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 403
 
     def test_unauthenticated_rejected(self, api, org):
         r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))

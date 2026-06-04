@@ -54,7 +54,7 @@ STATUS_CLOSED = (
     MaintenanceTicket.Status.UNABLE_TO_FULFILL,
 )
 
-VALID_FILTERS = frozenset({"open", "new", "in_progress", "closed", "all"})
+VALID_FILTERS = frozenset({"open", "new", "in_progress", "closed", "all", "mine"})
 VALID_VISIBILITY = frozenset({"team_only", "submitter_visible"})
 
 
@@ -68,7 +68,9 @@ class MaintenanceQueueView(APIView):
 
     Query params:
 
-    * ``filter`` — ``open`` (default), ``new``, ``in_progress``, ``closed``, ``all``
+    * ``filter`` — ``open`` (default for maintenance team), ``mine`` (default for
+      other members — open tickets they submitted), ``new``, ``in_progress``,
+      ``closed``, ``all``
     * ``search`` — free-text search (description + note bodies); closed only
     * ``date_from`` / ``date_to`` — YYYY-MM-DD; closed filter date clamp
     """
@@ -77,18 +79,24 @@ class MaintenanceQueueView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx, scope = resolve_queue_viewer(request)
-        filt = (request.query_params.get("filter") or "open").lower()
+        default_filter = "mine" if scope == "viewer" else "open"
+        filt = (request.query_params.get("filter") or default_filter).lower()
         if filt not in VALID_FILTERS:
             raise ValidationError({"filter": f"Must be one of: {', '.join(sorted(VALID_FILTERS))}."})
 
-        # Everyone sees the full program queue; ``viewer`` scope just renders it
-        # read-only (transition actions are stripped in ``_ticket_row``).
+        # Maintenance team sees the full program queue; other members default to
+        # their own open tickets but can switch to the camp-wide open view.
         base = MaintenanceTicket.objects.select_related(
             "submitted_by__person", "last_transition_by__person",
         ).filter(program=ctx.program)
 
         qs = base
-        if filt == "open":
+        if filt == "mine":
+            qs = qs.filter(
+                submitted_by=ctx.membership,
+                status__in=STATUS_OPEN,
+            )
+        elif filt == "open":
             qs = qs.filter(status__in=STATUS_OPEN)
         elif filt == "new":
             qs = qs.filter(status=MaintenanceTicket.Status.NEW)
@@ -107,7 +115,10 @@ class MaintenanceQueueView(APIView):
             tickets.sort(key=lambda t: t.updated_at, reverse=True)
 
         counts = _build_counts(base)
-        rows = [_ticket_row(t, scope=scope) for t in tickets]
+        rows = [
+            _ticket_row(t, scope=scope, viewer_membership_id=ctx.membership.id)
+            for t in tickets
+        ]
 
         return Response({"tickets": rows, "counts": counts, "scope": scope})
 
@@ -161,7 +172,19 @@ def _build_counts(base_qs) -> dict:
     }
 
 
-def _ticket_row(ticket: MaintenanceTicket, *, scope: str = "team") -> dict:
+def _submitter_close_transitions(status: str) -> list[str]:
+    """Transitions a ticket submitter may apply to close their own request."""
+    if status in STATUS_OPEN:
+        return [MaintenanceTicket.Status.FULFILLED]
+    return []
+
+
+def _ticket_row(
+    ticket: MaintenanceTicket,
+    *,
+    scope: str = "team",
+    viewer_membership_id=None,
+) -> dict:
     submitter = ticket.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
     age_seconds = int((timezone.now() - ticket.created_at).total_seconds()) if ticket.created_at else None
@@ -202,8 +225,20 @@ def _ticket_row(ticket: MaintenanceTicket, *, scope: str = "team") -> dict:
         "has_photos": has_photos,
         "acknowledger": acknowledger,
         "resolution": resolution,
-        # Non-team viewers get a read-only view — no transition actions.
-        "available_transitions": ticket.available_transitions() if scope == "team" else [],
+        "is_mine": bool(
+            viewer_membership_id
+            and ticket.submitted_by_id == viewer_membership_id,
+        ),
+        "available_transitions": (
+            ticket.available_transitions()
+            if scope == "team"
+            else (
+                _submitter_close_transitions(ticket.status)
+                if viewer_membership_id
+                and ticket.submitted_by_id == viewer_membership_id
+                else []
+            )
+        ),
         "is_within_correction_window": ticket.can_correct_last_transition(),
         "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
         "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None,
@@ -249,7 +284,11 @@ class MaintenanceTicketDetailView(APIView):
             activity = [e for e in activity if not _is_team_only_note(e)]
 
         return Response({
-            "ticket": _ticket_detail_payload(ticket, scope=scope),
+            "ticket": _ticket_detail_payload(
+                ticket,
+                scope=scope,
+                viewer_membership_id=ctx.membership.id,
+            ),
             "photos": [_photo_payload(p) for p in photos],
             "activity": [_activity_event_payload(e) for e in activity],
             "scope": scope,
@@ -263,7 +302,12 @@ def _is_team_only_note(event: OrderActivityEvent) -> bool:
     return visibility == "team_only"
 
 
-def _ticket_detail_payload(ticket: MaintenanceTicket, *, scope: str = "team") -> dict:
+def _ticket_detail_payload(
+    ticket: MaintenanceTicket,
+    *,
+    scope: str = "team",
+    viewer_membership_id=None,
+) -> dict:
     submitter = ticket.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
     return {
@@ -280,9 +324,23 @@ def _ticket_detail_payload(ticket: MaintenanceTicket, *, scope: str = "team") ->
             if submitter_person else None
         ),
         "submitted_by_membership_id": str(ticket.submitted_by_id) if ticket.submitted_by_id else None,
-        # Non-team viewers get a read-only payload — no transitions or undo.
-        "available_transitions": ticket.available_transitions() if scope == "team" else [],
-        "is_within_correction_window": ticket.can_correct_last_transition() if scope == "team" else False,
+        "is_mine": bool(
+            viewer_membership_id
+            and ticket.submitted_by_id == viewer_membership_id,
+        ),
+        "available_transitions": (
+            ticket.available_transitions()
+            if scope == "team"
+            else (
+                _submitter_close_transitions(ticket.status)
+                if viewer_membership_id
+                and ticket.submitted_by_id == viewer_membership_id
+                else []
+            )
+        ),
+        "is_within_correction_window": (
+            ticket.can_correct_last_transition() if scope == "team" else False
+        ),
         "last_transition_at": (
             ticket.last_transition_at.isoformat() if ticket.last_transition_at else None
         ),

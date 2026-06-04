@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateReflectionAnswers,
   buildDefaultAnswers,
+  prepareReflectionAnswersForSubmit,
   ratingScaleValues,
   localizedOptionLabel,
 } from './reflectionFormValidation';
@@ -151,6 +152,23 @@ describe('validateReflectionAnswers — extended field types', () => {
   });
 });
 
+describe('prepareReflectionAnswersForSubmit', () => {
+  it('drops empty yes_no values and omitted keys', () => {
+    const schema = {
+      fields: [
+        { key: 'day_off', type: 'yes_no', required: false, prompts: { en: 'Off?' } },
+        { key: 'note', type: 'textarea', required: false, prompts: { en: 'N' } },
+      ],
+    };
+    const out = prepareReflectionAnswersForSubmit(
+      schema,
+      { day_off: '', note: 'hello' },
+      { omitKeys: ['day_off'] },
+    );
+    expect(out).toEqual({ note: 'hello' });
+  });
+});
+
 describe('buildDefaultAnswers — extended field types', () => {
   it('seeds empty defaults for new types and skips meta fields', () => {
     const schema = {
@@ -166,7 +184,7 @@ describe('buildDefaultAnswers — extended field types', () => {
     const a = buildDefaultAnswers(schema);
     expect(a.n).toBe('');
     expect(a.d).toBe('');
-    expect(a.y).toBe('');
+    expect(a.y).toBeUndefined();
     expect(a.s).toBe('');
     expect(a.sec).toBeUndefined();
     expect(a.inst).toBeUndefined();

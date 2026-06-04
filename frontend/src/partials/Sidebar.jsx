@@ -16,6 +16,24 @@ import CampLogo from "../../src/images/clc-logo.jpeg";
 // off legacy role.
 const REFLECTION_FORM_ROLES = ['Counselor', 'Admin', 'Unit Head', 'Camper Care'];
 
+// Direct home targets for roles that have a dedicated workspace (mirrors
+// Dashboard.jsx ROLE_DESTINATIONS). Everyone else keeps /dashboard.
+const ROLE_HOME_PATH = {
+  Counselor: '/counselor',
+  'Unit Head': '/unit-head',
+  'Camper Care': '/camper-care',
+  Leadership: '/leadership-team',
+  'Leadership Team': '/leadership-team',
+  'Kitchen Staff': '/kitchen-staff',
+  Specialist: '/specialist',
+  Madrich: '/madrich',
+  Maintenance: '/maintenance',
+};
+
+function homePathFor(role) {
+  return ROLE_HOME_PATH[role] ?? '/dashboard';
+}
+
 // Capability shortcuts. SUPERVISOR_PLUS == "supervisor or stronger"
 // because hasCapability(user, 'supervisor') is already inclusive of
 // program_lead and admin (see capability.js docs). Listing them here
@@ -64,12 +82,13 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * rather than the global nav. The Leadership Team group is intentionally
  * absent from the Admin IA (it's the Leadership Team's own home).
  *
- * Default nav (non-admin): My work (Home/tasks/role-home/reflections/
+ * Default nav (non-admin): My work (Home/tasks/reflections/
  * observations/maintenance), Supervise (supervisor+; program_lead+ also
  * gets performance / log entries / reflections / authors there). Leadership
  * Team (program_lead+). Gates use hasCapability(user, [...]) ||
  * isSuperAdmin(user); direct `user.role` references remain only for
- * per-role workspace deep links and reflection-form access.
+ * reflection-form access. Role workspaces are the Home link target (no
+ * duplicate "Counselor home" entries).
  */
 function Sidebar({
   sidebarOpen,
@@ -145,8 +164,11 @@ function Sidebar({
   const canSeeLeadershipTeam = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
+  const isCounselor = user.role === 'Counselor';
+  const canSeeFileReflectionNav = canFileReflection && !isCounselor;
   const canSeeLogs = canSupervise || canAdmin;
-  const canSeeReflectionsDashboard = canSeeLogs || canFileReflection;
+  // Counselors see assigned/submitted work via My tasks + My reflections, not the org-wide dashboard.
+  const canSeeReflectionsDashboard = (canSeeLogs || canFileReflection) && !isCounselor;
   // Maintenance staff get a stripped-down nav: just the queue + notes. The
   // canonical role lives on Membership (legacy User.role has no maintenance
   // value), surfaced via `membership_roles` on the profile payload.
@@ -285,30 +307,9 @@ function Sidebar({
           ) : (
           <>
           <Section heading="My work">
-            <NavItem to="/dashboard" label="Home" icon={IconHome} end />
+            <NavItem to={homePathFor(user.role)} label="Home" icon={IconHome} end />
             <NavItem to="/tasks" label="My tasks" icon={IconTasks} />
-            {user.role === 'Counselor' && (
-              <NavItem
-                to="/counselor"
-                label="Counselor home"
-                icon={IconCounselor}
-              />
-            )}
-            {user.role === 'Unit Head' && (
-              <NavItem
-                to="/unit-head"
-                label="Unit Head home"
-                icon={IconCounselor}
-              />
-            )}
-            {user.role === 'Camper Care' && (
-              <NavItem
-                to="/camper-care"
-                label="Camper Care home"
-                icon={IconHeart}
-              />
-            )}
-            {canFileReflection && (
+            {canSeeFileReflectionNav && (
               <NavItem to="/reflect" label="File a reflection" icon={IconPencil} />
             )}
             {canFileReflection && (

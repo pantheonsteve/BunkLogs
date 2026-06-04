@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import {
   fetchMaintenanceQueue,
   transitionTicket,
@@ -85,6 +86,11 @@ function PersonIcon({ className = 'w-3 h-3' }) {
   );
 }
 
+function transitionLabel(ticket, next) {
+  if (ticket.is_mine && next === 'fulfilled') return 'Mark closed';
+  return TRANSITION_LABEL[next] || next;
+}
+
 function TicketRow({ ticket, selectable, selected, onSelectToggle, onTransition, onClick }) {
   const aged = ticket.age_seconds != null && ticket.age_seconds >= AGE_THRESHOLD_SECONDS;
   const transitions = ticket.available_transitions ?? [];
@@ -104,7 +110,7 @@ function TicketRow({ ticket, selectable, selected, onSelectToggle, onTransition,
           : 'inline-flex items-center justify-center px-2 min-h-[32px] text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:underline whitespace-nowrap'
       }
     >
-      {TRANSITION_LABEL[next] || next}
+      {transitionLabel(ticket, next)}
     </button>
   );
 
@@ -245,29 +251,17 @@ function TransitionModal({ ticket, toState, onClose, onSubmitted }) {
         <form onSubmit={handleSubmit} className="mt-3 space-y-3">
           <label className="block text-sm">
             <span className="text-gray-700 dark:text-gray-200">
-              Note {reasonRequired ? '' : '(optional)'}
+              {reasonRequired ? 'Reason (required)' : 'Note (optional)'}
             </span>
             <textarea
               value={reasonRequired ? reason : note}
-              onChange={(e) => reasonRequired ? setReason(e.target.value) : setNote(e.target.value)}
+              onChange={(e) => (reasonRequired ? setReason : setNote)(e.target.value)}
               rows={3}
               required={reasonRequired}
               data-testid="ticket-transition-note"
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
             />
           </label>
-          {!reasonRequired && toState !== 'in_progress' && (
-            <label className="block text-sm">
-              <span className="text-gray-700 dark:text-gray-200">Optional closing note</span>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={2}
-                data-testid="ticket-transition-closing-note"
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </label>
-          )}
           {error && (
             <p role="alert" className="text-sm text-red-700 dark:text-red-300" data-testid="ticket-transition-error">
               {error}
@@ -297,15 +291,27 @@ function TransitionModal({ ticket, toState, onClose, onSubmitted }) {
   );
 }
 
-function FilterBar({ filter, search, dateFrom, dateTo, onChange }) {
+const FILTER_LABELS = {
+  mine: 'My tickets',
+  open: 'All open',
+  new: 'New',
+  in_progress: 'In Progress',
+  closed: 'Closed',
+  all: 'All',
+};
+
+function FilterBar({ filter, search, dateFrom, dateTo, showMineFilter, onChange }) {
   const isClosed = filter === 'closed';
+  const filters = showMineFilter
+    ? ['mine', 'open', 'new', 'in_progress', 'closed', 'all']
+    : ['open', 'new', 'in_progress', 'closed', 'all'];
   return (
     <div
       className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 shadow-sm space-y-2"
       data-testid="maint-queue-filter"
     >
       <div className="flex flex-wrap items-center gap-2">
-        {['open', 'new', 'in_progress', 'closed', 'all'].map((f) => (
+        {filters.map((f) => (
           <button
             key={f}
             type="button"
@@ -317,7 +323,7 @@ function FilterBar({ filter, search, dateFrom, dateTo, onChange }) {
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            {f === 'in_progress' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}
+            {FILTER_LABELS[f] || f}
           </button>
         ))}
       </div>
@@ -353,10 +359,12 @@ function FilterBar({ filter, search, dateFrom, dateTo, onChange }) {
 
 export default function MaintenanceQueue() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isCounselorViewer = user?.role === 'Counselor';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('open');
+  const [filter, setFilter] = useState(isCounselorViewer ? 'mine' : 'open');
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -423,7 +431,9 @@ export default function MaintenanceQueue() {
 
   const tickets = data?.tickets ?? [];
   const counts = data?.counts ?? { new: 0, in_progress: 0, urgent_open: 0 };
-  const isReadOnly = data?.scope && data.scope !== 'team';
+  const isTeamScope = data?.scope === 'team';
+  const isReadOnly = data?.scope && !isTeamScope;
+  const canCloseOwnTickets = !isTeamScope && tickets.some((t) => t.is_mine && t.available_transitions?.length);
   const inProgressTickets = tickets.filter((t) => t.status === 'in_progress');
   const eligibleSelected = useMemo(
     () => inProgressTickets.filter((t) => selected.has(t.id)),
@@ -455,9 +465,14 @@ export default function MaintenanceQueue() {
         <p className="text-sm text-gray-600 dark:text-gray-400" data-testid="maint-queue-counts">
           {counts.new} new&nbsp;·&nbsp;{counts.in_progress} in progress&nbsp;·&nbsp;{counts.urgent_open} urgent
         </p>
-        {isReadOnly && (
+        {isReadOnly && !canCloseOwnTickets && (
           <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="maint-queue-readonly-note">
             Read-only view — only the maintenance team can update tickets.
+          </p>
+        )}
+        {isReadOnly && canCloseOwnTickets && (
+          <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="maint-queue-submitter-note">
+            You can mark your own tickets closed once they are resolved. Use &quot;All open&quot; to see camp-wide requests.
           </p>
         )}
       </header>
@@ -467,6 +482,7 @@ export default function MaintenanceQueue() {
         search={search}
         dateFrom={dateFrom}
         dateTo={dateTo}
+        showMineFilter={isReadOnly || isCounselorViewer}
         onChange={handleFilterChange}
       />
 
@@ -486,7 +502,7 @@ export default function MaintenanceQueue() {
             <TicketRow
               key={t.id}
               ticket={t}
-              selectable={!isReadOnly && t.status === 'in_progress'}
+              selectable={isTeamScope && t.status === 'in_progress'}
               selected={selected.has(t.id)}
               onSelectToggle={handleSelectToggle}
               onTransition={handleTransition}

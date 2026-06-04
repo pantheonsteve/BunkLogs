@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import MaintenanceQueue from '../Queue';
 
+const mockUseAuth = vi.fn(() => ({ user: { role: 'Maintenance' } }));
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
 const getMock = vi.fn();
 const postMock = vi.fn();
 
@@ -23,6 +28,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 beforeEach(() => {
   getMock.mockReset();
   postMock.mockReset();
+  mockUseAuth.mockReturnValue({ user: { role: 'Maintenance' } });
 });
 
 const sampleTickets = [
@@ -61,7 +67,11 @@ const sampleTickets = [
 ];
 
 const emptyPayload = { tickets: [], counts: { new: 0, in_progress: 0, urgent_open: 0 } };
-const samplePayload = { tickets: sampleTickets, counts: { new: 1, in_progress: 1, urgent_open: 1 } };
+const samplePayload = {
+  tickets: sampleTickets,
+  counts: { new: 1, in_progress: 1, urgent_open: 1 },
+  scope: 'team',
+};
 
 function renderQueue() {
   return render(
@@ -96,7 +106,7 @@ describe('MaintenanceQueue', () => {
   });
 
   it('status filters reload the queue', async () => {
-    getMock.mockResolvedValue({ data: emptyPayload });
+    getMock.mockResolvedValue({ data: { ...emptyPayload, scope: 'team' } });
     renderQueue();
     await waitFor(() => screen.getByTestId('filter-closed'));
     await userEvent.click(screen.getByTestId('filter-closed'));
@@ -120,9 +130,11 @@ describe('MaintenanceQueue', () => {
     expect(screen.getByTestId('maint-queue-error').textContent).toMatch(/Network error/);
   });
 
-  it('renders a read-only view of the full queue for viewer scope', async () => {
+  it('renders viewer scope without team bulk actions', async () => {
+    mockUseAuth.mockReturnValue({ user: { role: 'Counselor' } });
     const viewerTicket = {
       ...sampleTickets[0],
+      is_mine: false,
       available_transitions: [],
     };
     getMock.mockResolvedValueOnce({
@@ -134,8 +146,26 @@ describe('MaintenanceQueue', () => {
     });
     renderQueue();
     await waitFor(() => screen.getByTestId('maint-queue-readonly-note'));
-    // No transition actions and no select checkbox for read-only viewers.
     expect(screen.queryByTestId(`ticket-action-in_progress-${viewerTicket.id}`)).toBeNull();
     expect(screen.queryByTestId(`ticket-select-${viewerTicket.id}`)).toBeNull();
+  });
+
+  it('lets counselors mark their own tickets closed', async () => {
+    mockUseAuth.mockReturnValue({ user: { role: 'Counselor' } });
+    const mine = {
+      ...sampleTickets[0],
+      is_mine: true,
+      available_transitions: ['fulfilled'],
+    };
+    getMock.mockResolvedValueOnce({
+      data: {
+        tickets: [mine],
+        counts: { new: 1, in_progress: 0, urgent_open: 0 },
+        scope: 'viewer',
+      },
+    });
+    renderQueue();
+    await waitFor(() => screen.getByTestId(`ticket-action-fulfilled-${mine.id}`));
+    expect(screen.getByTestId(`ticket-action-fulfilled-${mine.id}`)).toHaveTextContent('Mark closed');
   });
 });

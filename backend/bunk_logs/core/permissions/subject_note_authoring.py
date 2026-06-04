@@ -178,6 +178,25 @@ def authorable_subject_queryset(viewer_person: Person, org):
                     group_id__in=group_ids,
                     role_in_group="subject",
                     is_active=True,
+                    group__organization_id=org.id,
+                ).values_list("person_id", flat=True),
+            )
+        bunk_ids = list(
+            AssignmentGroupMembership.all_objects.filter(
+                person=viewer_person,
+                role_in_group="author",
+                is_active=True,
+                group__is_active=True,
+                group__group_type="bunk",
+                group__organization_id=org.id,
+            ).values_list("group_id", flat=True),
+        )
+        if bunk_ids:
+            supervised_ids.update(
+                AssignmentGroupMembership.all_objects.filter(
+                    group_id__in=bunk_ids,
+                    role_in_group="subject",
+                    is_active=True,
                 ).values_list("person_id", flat=True),
             )
         supervised_ids.add(viewer_person.id)

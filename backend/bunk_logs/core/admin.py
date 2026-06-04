@@ -196,6 +196,43 @@ class ProgramAdmin(admin.ModelAdmin):
     autocomplete_fields = ["organization"]
 
 
+class AssignmentGroupAdminForm(forms.ModelForm):
+    class Meta:
+        model = AssignmentGroup
+        fields = (
+            "organization",
+            "program",
+            "name",
+            "slug",
+            "group_type",
+            "parent",
+            "metadata",
+            "is_active",
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        org = cleaned.get("organization")
+        program = cleaned.get("program")
+        parent = cleaned.get("parent")
+        if org and program and program.organization_id != org.pk:
+            self.add_error(
+                "program",
+                "Program must belong to the selected organization.",
+            )
+        if parent and program and parent.program_id != program.pk:
+            self.add_error(
+                "parent",
+                "Parent group must belong to the same program.",
+            )
+        if parent and org and parent.organization_id != org.pk:
+            self.add_error(
+                "parent",
+                "Parent group must belong to the selected organization.",
+            )
+        return cleaned
+
+
 class AssignmentGroupMembershipInline(admin.TabularInline):
     model = AssignmentGroupMembership
     extra = 0
@@ -205,6 +242,18 @@ class AssignmentGroupMembershipInline(admin.TabularInline):
     def get_queryset(self, request):
         return AssignmentGroupMembership.all_objects.select_related("person")
 
+    def get_formset(self, request, obj=None, **kwargs):
+        """Pass ``all_objects`` into the formset so inline PK validation works without tenant context."""
+        FormSet = super().get_formset(request, obj, **kwargs)
+        membership_qs = AssignmentGroupMembership.all_objects.select_related("person")
+
+        class AdminMembershipInlineFormSet(FormSet):
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("queryset", membership_qs)
+                super().__init__(*args, **kwargs)
+
+        return AdminMembershipInlineFormSet
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "person":
             kwargs.setdefault("queryset", Person.all_objects.order_by("last_name", "first_name"))
@@ -213,8 +262,28 @@ class AssignmentGroupMembershipInline(admin.TabularInline):
 
 @admin.register(AssignmentGroup)
 class AssignmentGroupAdmin(admin.ModelAdmin):
+    form = AssignmentGroupAdminForm
+
     def get_queryset(self, request):
         return AssignmentGroup.all_objects.select_related("organization", "program", "parent")
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Pin tenant context to the group being edited (inline membership validation)."""
+        from bunk_logs.core.context import clear_current_organization
+        from bunk_logs.core.context import set_current_organization
+
+        org = None
+        if object_id:
+            obj = self.get_object(request, object_id)
+            if obj is not None:
+                org = obj.organization
+        if org is not None:
+            set_current_organization(org)
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        finally:
+            if org is not None:
+                clear_current_organization()
 
     list_display = ["name", "group_type", "program", "organization", "parent", "is_active"]
     list_filter = ["group_type", "program__organization", "is_active"]

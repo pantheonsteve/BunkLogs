@@ -14,6 +14,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.notes.models import Observation
 from bunk_logs.notes.models import ObservationArchive
@@ -75,12 +76,33 @@ class TestCreate:
         assert [s["id"] for s in data["subjects"]] == [camper.id]
         assert any(r["person"]["id"] == uh_person.id for r in data["recipients"])
 
-    def test_rejects_unauthorized_subject(
+    def test_allows_org_person_without_bunk_agm(
         self, org, program, counselor_user, counselor_membership,
     ):
-        # Camper not in any group the counselor authors -> not authorable.
+        """Observation subjects are org-wide for staff who may write observations."""
         stranger = Person.all_objects.create(organization=org, first_name="No", last_name="Reach")
         client = _auth_client(counselor_user, org)
+        resp = client.post(
+            "/api/v1/observations/",
+            {"subject_ids": [stranger.id], "body": "x", "sensitivity": "normal"},
+            format="json",
+        )
+        assert resp.status_code == 201, resp.json()
+
+    def test_rejects_subject_when_author_scope_none(self, org, program):
+        from bunk_logs.users.models import User
+
+        kitchen_user = User.objects.create_user(
+            email="kitchen-obs@t.test", password="pw",
+        )
+        kitchen_person = Person.all_objects.create(
+            organization=org, first_name="Kit", last_name="Chen", user=kitchen_user,
+        )
+        Membership.all_objects.create(
+            program=program, person=kitchen_person, role="kitchen_staff", is_active=True,
+        )
+        stranger = Person.all_objects.create(organization=org, first_name="No", last_name="Reach")
+        client = _auth_client(kitchen_user, org)
         resp = client.post(
             "/api/v1/observations/",
             {"subject_ids": [stranger.id], "body": "x", "sensitivity": "normal"},
@@ -246,6 +268,25 @@ class TestCandidatesAndSearch:
     def test_subjects_search(
         self, org, program, counselor_user, counselor_membership, counselor_in_bunk, camper,
     ):
+        client = _auth_client(counselor_user, org)
+        resp = client.get("/api/v1/observations/subjects/?q=Cam")
+        assert resp.status_code == 200
+        ids = [s["id"] for s in resp.json()["subjects"]]
+        assert camper.id in ids
+
+    def test_subjects_search_full_name(
+        self, org, program, counselor_user, counselor_membership, counselor_in_bunk, camper,
+    ):
+        client = _auth_client(counselor_user, org)
+        resp = client.get("/api/v1/observations/subjects/?q=Cam%20Per")
+        assert resp.status_code == 200
+        ids = [s["id"] for s in resp.json()["subjects"]]
+        assert camper.id in ids
+
+    def test_subjects_search_without_bunk_author_agm(
+        self, org, program, counselor_user, counselor_membership, camper,
+    ):
+        """Observations subjects are org-wide — no counselor AGM author required."""
         client = _auth_client(counselor_user, org)
         resp = client.get("/api/v1/observations/subjects/?q=Cam")
         assert resp.status_code == 200
