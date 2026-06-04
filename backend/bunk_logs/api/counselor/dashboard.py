@@ -25,7 +25,7 @@ cross-counselor freshness contract in Story 2 criterion 5.
 
 from __future__ import annotations
 
-from datetime import date as date_type  # noqa: TC003 - used in helper type hints
+from datetime import date as date_type
 
 from django.core.cache import cache
 from rest_framework.permissions import IsAuthenticated

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person

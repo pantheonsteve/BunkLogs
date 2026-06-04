@@ -14,12 +14,10 @@ from __future__ import annotations
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.observation_read import view_by_capability_for_org
-from bunk_logs.core.permissions.subject_note_authoring import max_author_scope
-from bunk_logs.core.permissions.super_admin import is_super_admin
-
-# Subject-note primitives (unchanged) — used outside the observations API.
 from bunk_logs.core.permissions.subject_note_authoring import authorable_subject_queryset
 from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
+from bunk_logs.core.permissions.subject_note_authoring import max_author_scope
+from bunk_logs.core.permissions.super_admin import is_super_admin
 
 
 def observation_authorable_subject_queryset(viewer_person: Person, org):

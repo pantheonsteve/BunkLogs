@@ -6,8 +6,6 @@ from datetime import date
 
 import pytest
 
-from bunk_logs.core.models import AssignmentGroup
-from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
