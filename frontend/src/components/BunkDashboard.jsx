@@ -17,6 +17,7 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { profileLink } from '../utils/dashboardLinks';
 import ScoreGrid from './ScoreGrid';
 
 // Field types kept as grid columns. Triage single_choice/yes-no fields
@@ -64,7 +65,7 @@ const SUMMARY_TONES = {
   rose: { dot: 'bg-rose-500', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
 };
 
-function SummaryCard({ title, tone, people, bunkLabel, camperDashboardPath, testid }) {
+function SummaryCard({ title, tone, people, bunkLabel, toProfile, testid }) {
   const t = SUMMARY_TONES[tone] || SUMMARY_TONES.slate;
   return (
     <div
@@ -88,7 +89,7 @@ function SummaryCard({ title, tone, people, bunkLabel, camperDashboardPath, test
           {people.map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
               <Link
-                to={`${camperDashboardPath}/${p.id}`}
+                to={toProfile(p.id)}
                 className="font-medium text-gray-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
               >
                 {p.name}
@@ -200,13 +201,13 @@ function OrdersSection({ orders }) {
   );
 }
 
-function SpecialistNote({ note, dashboardPath }) {
+function SpecialistNote({ note, toProfile }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <li data-testid={`specialist-note-${note.id}`} className="text-sm">
       <p className="text-xs text-gray-500 dark:text-gray-400">
         <Link
-          to={`${dashboardPath}/${note.subject.id}`}
+          to={toProfile(note.subject.id)}
           className="font-semibold text-blue-700 dark:text-blue-300 hover:underline"
         >
           {camperDisplayName(note.subject)}
@@ -256,7 +257,7 @@ function ObservationRow({ item }) {
   );
 }
 
-function NotesSection({ bunkConcerns, specialistReports, observations = [], dashboardPath, notesLink }) {
+function NotesSection({ bunkConcerns, specialistReports, observations = [], toProfile, notesLink }) {
   const today = specialistReports?.today || [];
   const recent = specialistReports?.recent || [];
   const sensitiveCounts = specialistReports?.sensitive_counts_by_camper || {};
@@ -344,7 +345,7 @@ function NotesSection({ bunkConcerns, specialistReports, observations = [], dash
             ) : (
               <ul className="space-y-3">
                 {specialistNotes.map((n) => (
-                  <SpecialistNote key={n.id} note={n} dashboardPath={dashboardPath} />
+                  <SpecialistNote key={n.id} note={n} toProfile={toProfile} />
                 ))}
                 {sensitiveTotal > 0 && (
                   <li className="text-xs text-gray-500 dark:text-gray-400 italic">
@@ -364,8 +365,14 @@ function NotesSection({ bunkConcerns, specialistReports, observations = [], dash
 export function BunkDashboardOrdersAndNotes({
   data,
   camperDashboardPath = '/unit-head/campers',
+  profileLinkContext = null,
   notesLink = '/observations',
 }) {
+  const toProfile = (id) => (
+    profileLinkContext
+      ? profileLink(id, profileLinkContext)
+      : `${camperDashboardPath}/${id}`
+  );
   return (
     <>
       <OrdersSection orders={data?.orders} />
@@ -373,7 +380,7 @@ export function BunkDashboardOrdersAndNotes({
         bunkConcerns={data?.bunk_concerns || []}
         specialistReports={data?.specialist_reports}
         observations={data?.observations || []}
-        dashboardPath={camperDashboardPath}
+        toProfile={toProfile}
         notesLink={notesLink}
       />
     </>
@@ -385,6 +392,7 @@ export default function BunkDashboard({
   selectedDate,
   onDateChange,
   camperDashboardPath = '/unit-head/campers',
+  profileLinkContext = null,
   backTo = '/unit-head',
   notesLink = '/observations',
   programName,
@@ -392,6 +400,11 @@ export default function BunkDashboard({
   showOrders = true,
   showNotes = true,
 }) {
+  const toProfile = (id) => (
+    profileLinkContext
+      ? profileLink(id, profileLinkContext)
+      : `${camperDashboardPath}/${id}`
+  );
   const today = data?.header?.today;
   const date = data?.header?.date;
   const resolvedProgramName = programName ?? data?.header?.program_name;
@@ -496,7 +509,7 @@ export default function BunkDashboard({
           tone="slate"
           people={notOnCamp}
           bunkLabel={data?.header?.bunk?.name}
-          camperDashboardPath={camperDashboardPath}
+          toProfile={toProfile}
           testid="card-not-on-camp"
         />
         <SummaryCard
@@ -504,7 +517,7 @@ export default function BunkDashboard({
           tone="amber"
           people={uhHelp}
           bunkLabel={data?.header?.bunk?.name}
-          camperDashboardPath={camperDashboardPath}
+          toProfile={toProfile}
           testid="card-uh-help"
         />
         <SummaryCard
@@ -512,7 +525,7 @@ export default function BunkDashboard({
           tone="rose"
           people={camperCareHelp}
           bunkLabel={data?.header?.bunk?.name}
-          camperDashboardPath={camperDashboardPath}
+          toProfile={toProfile}
           testid="card-cc-help"
         />
       </div>
@@ -530,7 +543,7 @@ export default function BunkDashboard({
           <ScoreGrid
             columns={gridColumns}
             rows={scoreGrid.rows}
-            camperLinkPrefix={camperDashboardPath}
+            camperLinkFor={toProfile}
             offCampIds={offCampIds}
           />
         </SectionCard>
@@ -542,7 +555,7 @@ export default function BunkDashboard({
           bunkConcerns={bunkConcerns}
           specialistReports={data?.specialist_reports}
           observations={data?.observations || []}
-          dashboardPath={camperDashboardPath}
+          toProfile={toProfile}
           notesLink={notesLink}
         />
       )}

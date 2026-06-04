@@ -39,6 +39,7 @@ import {
   getTemplate,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
+import isSuperAdmin from '../../utils/auth/isSuperAdmin';
 import SingleDatePicker from '../../components/ui/SingleDatePicker';
 import {
   deriveSchemaSections,
@@ -95,6 +96,23 @@ function shiftISO(iso, deltaDays) {
   if (!d) return iso;
   d.setDate(d.getDate() + deltaDays);
   return isoFromDate(d);
+}
+
+const DASHBOARD_BACK_PATHS = Object.freeze({
+  logs: '/dashboards/logs',
+  reflections: '/dashboards/reflections',
+});
+
+/** Back link for template responses: dashboards hub (admin) or template library. */
+export function responsesBackLink({ dashboard, date, isAdmin }) {
+  const scope = dashboard === 'logs' || dashboard === 'reflections'
+    ? dashboard
+    : (isAdmin ? 'reflections' : null);
+  if (!scope) return { href: '/admin/templates', label: '← Template library' };
+  const base = DASHBOARD_BACK_PATHS[scope];
+  const href = date ? `${base}?date=${encodeURIComponent(date)}` : base;
+  const label = scope === 'logs' ? '← Bunk Logs' : '← Reflections';
+  return { href, label };
 }
 
 // ---------------------------------------------------------------------------
@@ -395,7 +413,8 @@ function buildApiParams(urlParams) {
 
 export default function LeadershipTeamResponses() {
   const { id } = useParams();
-  const { orgSlug } = useAuth();
+  const { orgSlug, user } = useAuth();
+  const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') || 'individual').toLowerCase();
   const language = params.get('language') || 'en';
@@ -526,16 +545,23 @@ export default function LeadershipTeamResponses() {
 
   const exportHref = exportResponsesUrl(id, buildApiParams(params));
 
+  const { href: backHref, label: backLabel } = responsesBackLink({
+    dashboard: params.get('dashboard'),
+    date: dateStr,
+    isAdmin,
+  });
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
             {/* Header */}
             <div className="sm:flex sm:justify-between sm:items-center mb-6">
               <div>
                 <Link
-                  to="/admin/templates"
+                  to={backHref}
                   className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                  data-testid="lt-responses-back"
                 >
-                  ← Template library
+                  {backLabel}
                 </Link>
                 <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold mt-1">
                   {template?.name ?? 'Responses'}

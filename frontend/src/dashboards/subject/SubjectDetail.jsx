@@ -16,6 +16,11 @@ import { useMemo, useState } from 'react';
 import RichText from '../../components/ui/RichText';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, MessageSquarePlus } from 'lucide-react';
+import {
+  groupDashboardLink,
+  profileBackLabel,
+  resolveProfileBackGroup,
+} from '../../utils/dashboardLinks';
 import ObservationComposer from '../../components/observations/ObservationComposer';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
 import {
@@ -49,6 +54,25 @@ function Chip({ children, tone = 'neutral' }) {
 // ---------------------------------------------------------------------------
 // Header
 // ---------------------------------------------------------------------------
+
+function ProfileBackLink({ groupIdParam, backDate, profile }) {
+  const group = resolveProfileBackGroup(
+    groupIdParam,
+    profile?.assignment_groups,
+  );
+  const to = group ? groupDashboardLink(group.id, { date: backDate }) : null;
+  const label = profileBackLabel(group);
+  if (!to || !label) return null;
+  return (
+    <Link
+      to={to}
+      className="text-sm font-semibold text-blue-700 dark:text-blue-300 hover:underline mb-4 inline-block"
+      data-testid="profile-back-to-group"
+    >
+      {label}
+    </Link>
+  );
+}
 
 function ProfileHeader({ subject, profile }) {
   const displayName = subject?.name ?? profile?.full_name ?? 'Unknown';
@@ -477,6 +501,8 @@ export default function SubjectDetail({
   personId,
   onNoteCreated,
   refreshing = false,
+  backGroupId = null,
+  backDate = '',
 }) {
   if (!payload) return null;
   const {
@@ -495,6 +521,11 @@ export default function SubjectDetail({
   );
   return (
     <div>
+      <ProfileBackLink
+        groupIdParam={backGroupId}
+        backDate={backDate}
+        profile={profile}
+      />
       <ProfileHeader subject={subject} profile={profile} />
       <HelpRequestBadges templates={templates} language={language} />
       <PeriodStepper

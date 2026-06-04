@@ -133,12 +133,19 @@ describe('GroupDashboardPage', () => {
     ['unit_head', '/unit-head'],
     ['counselor', '/counselor'],
     ['leadership_team', '/leadership-team'],
-    ['admin', '/admin/home'],
+    ['admin', '/groups/performance?date=2026-07-04'],
   ])('routes the back link to %s home when role_context.role is %s', async (role, expectedHref) => {
     getMock.mockResolvedValueOnce({ data: bunkPayload(role) });
     renderAt('/dashboards/group/11');
     const backLink = await screen.findByRole('link', { name: /back/i });
     expect(backLink).toHaveAttribute('href', expectedHref);
+  });
+
+  it('routes admin back link to performance dashboard preserving date', async () => {
+    getMock.mockResolvedValueOnce({ data: bunkPayload('admin') });
+    renderAt('/dashboards/group/11?date=2026-06-03');
+    const backLink = await screen.findByRole('link', { name: /back/i });
+    expect(backLink).toHaveAttribute('href', '/groups/performance?date=2026-06-03');
   });
 
   it('falls back to /dashboards when role_context is missing', async () => {

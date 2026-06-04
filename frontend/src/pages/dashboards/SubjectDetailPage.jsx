@@ -21,6 +21,8 @@ export default function SubjectDetailPage() {
   const single = searchParams.get('date');
   const start = searchParams.get('date_start') ?? (single || '');
   const end = searchParams.get('date_end') ?? (single || '');
+  const backGroupId = searchParams.get('group');
+  const backDate = single || start || '';
 
   const load = useCallback(async () => {
     if (!personId) return;
@@ -92,6 +94,8 @@ export default function SubjectDetailPage() {
               personId={personId}
               onNoteCreated={load}
               refreshing={loading}
+              backGroupId={backGroupId}
+              backDate={backDate}
             />
           )}
         </main>

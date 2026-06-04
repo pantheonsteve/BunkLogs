@@ -12,8 +12,13 @@
  */
 
 import FormResponsesCard from '../dashboards/subject/responseTable/FormResponsesCard';
+import { profileLink } from '../utils/dashboardLinks';
 
-export default function GroupTemplateResponses({ templates = [], language = 'en' }) {
+export default function GroupTemplateResponses({
+  templates = [],
+  language = 'en',
+  profileLinkContext = null,
+}) {
   if (!templates || templates.length === 0) return null;
   return (
     <section className="mt-8" data-testid="group-template-responses">
@@ -27,7 +32,11 @@ export default function GroupTemplateResponses({ templates = [], language = 'en'
           language={language}
           testidPrefix="group-template"
           showSubject
-          subjectLinkBase="/dashboards/subject"
+          subjectProfileLink={
+            profileLinkContext
+              ? (id) => profileLink(id, profileLinkContext)
+              : null
+          }
         />
       ))}
     </section>
