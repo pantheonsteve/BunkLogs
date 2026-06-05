@@ -19,23 +19,31 @@ function ProgressBar({ percent, complete }) {
   );
 }
 
-export default function GroupPerformanceCard({ group, date }) {
+export default function GroupPerformanceCard({ group, date, program, tab }) {
   const { completion } = group;
   const complete = completion.is_complete;
-  const href = `/dashboards/group/${group.id}?date=${date}`;
+  const params = new URLSearchParams({ date });
+  if (program) params.set('program', program);
+  if (tab === 'past') params.set('tab', 'past');
+  const href = `/dashboards/group/${group.id}?${params.toString()}`;
 
   return (
     <Link
       to={href}
       data-testid={`performance-group-${group.id}`}
       className={[
-        'group block rounded-2xl border shadow-sm transition-all duration-200',
+        'group block rounded-2xl border shadow-sm overflow-hidden transition-all duration-200',
         'hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
         complete
-          ? 'border-emerald-300 dark:border-emerald-700 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/30'
-          : 'border-gray-200 dark:border-gray-700 bg-gradient-to-br from-white to-slate-50 dark:from-gray-900 dark:to-gray-800/80',
+          ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30'
+          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40',
       ].join(' ')}
     >
+      <div
+        className={`h-1.5 bg-gradient-to-r ${
+          complete ? 'from-emerald-500 to-green-500' : 'from-indigo-500 to-violet-500'
+        }`}
+      />
       <div className="p-5 flex flex-col gap-4 h-full">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

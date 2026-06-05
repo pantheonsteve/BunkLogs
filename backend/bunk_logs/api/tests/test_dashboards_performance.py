@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -16,6 +17,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -172,3 +174,112 @@ def test_unauthorized_viewer_gets_empty_groups(api_client, org, program, unit_an
     resp = api_client.get(URL, **_hdr(org.slug))
     assert resp.status_code == 200
     assert resp.json()["groups"] == []
+
+
+def _setup_admin(api_client, org, program):
+    admin_user = _user("admin@perf.com")
+    admin = _person(org, "Ad", "Min", user=admin_user)
+    Membership.all_objects.create(
+        program=program, person=admin, role="admin", is_active=True,
+    )
+    api_client.force_authenticate(user=admin_user)
+    return admin_user
+
+
+def test_defaults_to_current_program_without_filter(
+    api_client, org, unit_and_bunks, scored_camper_template,
+):
+    """Omitting ?program= scopes groups to the program active today."""
+    unit, maple = unit_and_bunks
+    today = get_today(org)
+    program = maple.program
+    program.start_date = today - timedelta(days=5)
+    program.end_date = today + timedelta(days=10)
+    program.save(update_fields=["start_date", "end_date"])
+
+    program2 = Program.all_objects.create(
+        organization=org, name="Perf Org Session 2", slug="session-2",
+        program_type="summer_camp",
+        start_date=today - timedelta(days=30),
+        end_date=today + timedelta(days=10),
+    )
+    AssignmentGroup.all_objects.create(
+        organization=org, program=program2, name="Bunk Birch",
+        slug="bunk-birch", group_type="bunk",
+    )
+    _setup_admin(api_client, org, program)
+
+    resp = api_client.get(
+        URL, {"group_type": "bunk", "date": today.isoformat()}, **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_program"]["id"] == program.id
+    assert data["program"]["id"] == program.id
+    assert {g["name"] for g in data["groups"]} == {"Bunk Maple"}
+    assert data["today"] == today.isoformat()
+    prog = data["programs"][0]
+    assert "start_date" in prog
+    assert "end_date" in prog
+    assert "is_active" in prog
+
+
+def test_explicit_past_program_filter(
+    api_client, org, scored_camper_template,
+):
+    today = get_today(org)
+    past_program = Program.all_objects.create(
+        organization=org, name="Perf Org Past", slug="past-session",
+        program_type="summer_camp",
+        start_date=today - timedelta(days=60),
+        end_date=today - timedelta(days=31),
+    )
+    past_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=past_program, name="Bunk Past",
+        slug="bunk-past", group_type="bunk",
+    )
+    _assign_template(org, past_program, scored_camper_template, group=past_bunk)
+    _setup_admin(api_client, org, past_program)
+
+    resp = api_client.get(
+        URL,
+        {
+            "group_type": "bunk",
+            "program": past_program.id,
+            "date": past_program.end_date.isoformat(),
+        },
+        **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["program"]["id"] == past_program.id
+    assert data["current_program"] is None
+    assert {g["name"] for g in data["groups"]} == {"Bunk Past"}
+
+
+def test_no_current_program_returns_empty_groups(
+    api_client, org, scored_camper_template,
+):
+    today = get_today(org)
+    past_program = Program.all_objects.create(
+        organization=org, name="Perf Org Only Past", slug="only-past",
+        program_type="summer_camp",
+        start_date=today - timedelta(days=60),
+        end_date=today - timedelta(days=31),
+    )
+    past_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=past_program, name="Bunk Old",
+        slug="bunk-old", group_type="bunk",
+    )
+    _assign_template(org, past_program, scored_camper_template, group=past_bunk)
+    _setup_admin(api_client, org, past_program)
+
+    resp = api_client.get(
+        URL, {"group_type": "bunk", "date": today.isoformat()}, **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_program"] is None
+    assert data["program"] is None
+    assert data["groups"] == []
+    assert len(data["programs"]) == 1

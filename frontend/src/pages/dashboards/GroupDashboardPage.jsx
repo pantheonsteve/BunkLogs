@@ -37,11 +37,14 @@ const BACK_TO_BY_ROLE = Object.freeze({
 
 const ADMIN_BACK_TO = '/groups/performance';
 
-function backToFor(role, date) {
+function backToFor(role, { date, program, tab } = {}) {
   if (role === 'admin') {
-    return date
-      ? `${ADMIN_BACK_TO}?date=${encodeURIComponent(date)}`
-      : ADMIN_BACK_TO;
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (program) params.set('program', program);
+    if (tab === 'past') params.set('tab', 'past');
+    const query = params.toString();
+    return query ? `${ADMIN_BACK_TO}?${query}` : ADMIN_BACK_TO;
   }
   return BACK_TO_BY_ROLE[role] ?? FALLBACK_BACK_TO;
 }
@@ -159,7 +162,11 @@ export default function GroupDashboardPage() {
   const role = data?.role_context?.role;
   const groupType = data?.role_context?.group_type;
   const Dash = COMPONENT_BY_GROUP_TYPE[groupType];
-  const backTo = backToFor(role, dateParam || data?.header?.date);
+  const backTo = backToFor(role, {
+    date: dateParam || data?.header?.date,
+    program: searchParams.get('program') || '',
+    tab: searchParams.get('tab') || '',
+  });
 
   if (!Dash) {
     return (

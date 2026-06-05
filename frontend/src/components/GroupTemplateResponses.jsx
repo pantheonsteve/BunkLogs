@@ -56,6 +56,7 @@ export default function GroupTemplateResponses({
           block={block}
           language={language}
           testidPrefix="group-template"
+          ratingChartMode="distribution"
           showSubject
           subjectProfileLink={
             profileLinkContext

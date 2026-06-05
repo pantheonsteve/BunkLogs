@@ -148,6 +148,16 @@ describe('GroupDashboardPage', () => {
     expect(backLink).toHaveAttribute('href', '/groups/performance?date=2026-06-03');
   });
 
+  it('routes admin back link preserving program and past tab', async () => {
+    getMock.mockResolvedValueOnce({ data: bunkPayload('admin') });
+    renderAt('/dashboards/group/11?date=2026-06-03&program=2&tab=past');
+    const backLink = await screen.findByRole('link', { name: /back/i });
+    expect(backLink).toHaveAttribute(
+      'href',
+      '/groups/performance?date=2026-06-03&program=2&tab=past',
+    );
+  });
+
   it('falls back to /dashboards when role_context is missing', async () => {
     const payload = bunkPayload('camper_care');
     delete payload.role_context;

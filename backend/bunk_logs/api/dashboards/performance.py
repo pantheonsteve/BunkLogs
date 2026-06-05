@@ -39,6 +39,65 @@ def _parse_date(s: str | None, default: date) -> date:
         return default
 
 
+def _program_options_from_qs(groups_qs) -> list[dict]:
+    opts: list[dict] = []
+    seen: set[int] = set()
+    for pid, name, start, end, is_active in (
+        groups_qs.values_list(
+            "program_id",
+            "program__name",
+            "program__start_date",
+            "program__end_date",
+            "program__is_active",
+        )
+        .distinct()
+        .order_by("-program__start_date")
+    ):
+        if pid in seen:
+            continue
+        seen.add(pid)
+        opts.append({
+            "id": pid,
+            "name": name,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "is_active": is_active,
+        })
+    return opts
+
+
+def _current_program(program_options: list[dict], today: date) -> dict | None:
+    active = []
+    for prog in program_options:
+        if not prog.get("is_active"):
+            continue
+        start = date.fromisoformat(prog["start_date"])
+        end = date.fromisoformat(prog["end_date"])
+        if start <= today <= end:
+            active.append(prog)
+    if not active:
+        return None
+    return max(active, key=lambda p: p["start_date"])
+
+
+def _performance_response(
+    *,
+    target_date: date,
+    today: date,
+    program_options: list[dict],
+    selected_program: dict | None,
+    groups: list[dict],
+) -> dict:
+    return {
+        "date": target_date.isoformat(),
+        "today": today.isoformat(),
+        "current_program": _current_program(program_options, today),
+        "program": selected_program,
+        "programs": program_options,
+        "groups": groups,
+    }
+
+
 def _author_names_by_group(group_ids: list[int]) -> dict[int, list[str]]:
     rows = (
         AssignmentGroupMembership.objects.filter(
@@ -112,20 +171,16 @@ class GroupPerformanceDashboardView(APIView):
                 author_group_ids_with_descendants(viewer) if viewer else set()
             )
             if not visible_ids:
-                return Response({
-                    "date": target_date.isoformat(),
-                    "program": None,
-                    "programs": [],
-                    "groups": [],
-                })
+                return Response(_performance_response(
+                    target_date=target_date,
+                    today=today,
+                    program_options=[],
+                    selected_program=None,
+                    groups=[],
+                ))
             groups_qs = groups_qs.filter(id__in=visible_ids)
 
-        program_options = [
-            {"id": pid, "name": name}
-            for pid, name in groups_qs.values_list("program_id", "program__name")
-            .distinct()
-            .order_by("program__name")
-        ]
+        program_options = _program_options_from_qs(groups_qs)
 
         program_filter = (request.query_params.get("program") or "").strip()
         selected_program = None
@@ -136,15 +191,28 @@ class GroupPerformanceDashboardView(APIView):
                 if opt["id"] == pid:
                     selected_program = opt
                     break
+        else:
+            current = _current_program(program_options, today)
+            if current is None:
+                return Response(_performance_response(
+                    target_date=target_date,
+                    today=today,
+                    program_options=program_options,
+                    selected_program=None,
+                    groups=[],
+                ))
+            groups_qs = groups_qs.filter(program_id=current["id"])
+            selected_program = current
 
         groups = list(groups_qs.order_by("group_type", "name"))
         if not groups:
-            return Response({
-                "date": target_date.isoformat(),
-                "program": selected_program,
-                "programs": program_options,
-                "groups": [],
-            })
+            return Response(_performance_response(
+                target_date=target_date,
+                today=today,
+                program_options=program_options,
+                selected_program=selected_program,
+                groups=[],
+            ))
 
         group_ids = [g.id for g in groups]
         authors = _author_names_by_group(group_ids)
@@ -195,9 +263,10 @@ class GroupPerformanceDashboardView(APIView):
                 "scores": scores,
             })
 
-        return Response({
-            "date": target_date.isoformat(),
-            "program": selected_program,
-            "programs": program_options,
-            "groups": result_groups,
-        })
+        return Response(_performance_response(
+            target_date=target_date,
+            today=today,
+            program_options=program_options,
+            selected_program=selected_program,
+            groups=result_groups,
+        ))

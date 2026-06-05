@@ -36,6 +36,37 @@ describe('GroupTemplateResponses', () => {
     vi.clearAllMocks();
   });
 
+  it('renders score distribution pies instead of sparklines for rating series', () => {
+    const withRatings = [{
+      ...templates[0],
+      schema_fields: [
+        {
+          key: 'overall',
+          type: 'single_rating',
+          scale: [1, 5],
+          prompts: { en: 'Overall' },
+        },
+      ],
+      rating_series: [{
+        label: 'overall',
+        scale_max: 5,
+        points: [
+          { date: '2026-06-03', value: 4, reflection_id: 228, scale_max: 5 },
+          { date: '2026-06-03', value: 5, reflection_id: 229, scale_max: 5 },
+        ],
+      }],
+    }];
+
+    render(
+      <MemoryRouter>
+        <GroupTemplateResponses templates={withRatings} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText(/Score distribution: 4: 1, 5: 1/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Rating trend/i)).not.toBeInTheDocument();
+  });
+
   it('shows Note + on form-response rows and opens the observation composer', async () => {
     render(
       <MemoryRouter>

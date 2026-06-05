@@ -2,7 +2,8 @@
  * Shared per-template form-responses widget.
  *
  * Renders a collapsible card for one reflection template: KPI tiles,
- * rating-trend sparklines, and a schema-aware response table. Used by
+ * rating charts (sparklines on subject profiles, score distributions on
+ * single-day group views), and a schema-aware response table. Used by
  * the per-subject dashboard (`SubjectDetail`) and the unified group
  * dashboard (`GroupTemplateResponses`).
  *
@@ -18,6 +19,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, FileText, Users } from 'lucide-react';
 import PrivacyChip from '../../../components/reflection/PrivacyChip';
+import ScorePieChart from '../../performance/ScorePieChart';
 import { ratingColor } from '../../colors';
 import {
   deriveSchemaSections,
@@ -49,6 +51,34 @@ export function KpiTile({ icon: Icon, label, value, tone = 'neutral' }) {
           <p className="text-xl font-semibold text-gray-900 dark:text-white">{value}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function pointsToDistribution(points) {
+  const dist = {};
+  for (const p of points) {
+    if (p.value == null) continue;
+    const key = String(Math.round(p.value));
+    dist[key] = (dist[key] || 0) + 1;
+  }
+  return dist;
+}
+
+export function RatingDistribution({ points, scaleMax = 5, ariaLabel }) {
+  const distribution = pointsToDistribution(points);
+  const total = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+  if (total === 0) {
+    return <p className="text-xs text-gray-400 italic">No rating data in this window.</p>;
+  }
+  const legend = Object.entries(distribution)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([value, count]) => `${value}: ${count}`)
+    .join(' · ');
+  return (
+    <div className="flex flex-col items-center gap-2" aria-label={ariaLabel}>
+      <ScorePieChart distribution={distribution} scaleMax={scaleMax} size={96} />
+      <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center">{legend}</p>
     </div>
   );
 }
@@ -104,6 +134,7 @@ export default function FormResponsesCard({
   subjectProfileLink = null,
   personId = null,
   onAddObservation = null,
+  ratingChartMode = 'sparkline',
 }) {
   const tpl = block.template ?? {};
   const reflections = block.reflections ?? [];
@@ -209,18 +240,22 @@ export default function FormResponsesCard({
             })}
           </div>
 
-          {/* Trends */}
+          {/* Rating charts: trends on subject profiles, distributions on group day views */}
           {series.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid={`${testidPrefix}-trends-${tpl.id}`}>
               {series.map((s) => {
                 const displayLabel = seriesDisplayLabel(s.label, ratingCols);
+                const Chart = ratingChartMode === 'distribution' ? RatingDistribution : RatingSparkline;
+                const chartAriaLabel = ratingChartMode === 'distribution'
+                  ? `Rating distribution for ${displayLabel}`
+                  : `Rating trend for ${displayLabel}`;
                 return (
                   <div key={s.label} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                     <p className="text-xs text-center font-medium text-gray-700 dark:text-gray-200 mb-1">{displayLabel}</p>
-                    <RatingSparkline
+                    <Chart
                       points={s.points}
                       scaleMax={s.scale_max}
-                      ariaLabel={`Rating trend for ${displayLabel}`}
+                      ariaLabel={chartAriaLabel}
                     />
                   </div>
                 );
