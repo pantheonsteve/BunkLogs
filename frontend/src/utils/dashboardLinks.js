@@ -38,3 +38,44 @@ export function profileBackLabel(group) {
   if (group.group_type === 'bunk') return '← Back to bunk dashboard';
   return '← Back to group dashboard';
 }
+
+/** Allow only same-origin app paths for observation ``from`` return links. */
+export function safeInternalPath(path) {
+  if (!path || typeof path !== 'string') return null;
+  if (!path.startsWith('/') || path.startsWith('//')) return null;
+  return path;
+}
+
+/** Link to an observation thread, optionally preserving a return URL. */
+export function observationThreadLink(observationId, returnTo, { contextLabel } = {}) {
+  const base = `/observations/${observationId}`;
+  const back = safeInternalPath(returnTo);
+  if (!back) return base;
+  const params = new URLSearchParams();
+  params.set('from', back);
+  if (contextLabel) params.set('from_label', contextLabel);
+  return `${base}?${params.toString()}`;
+}
+
+/** Label for the contextual back link on an observation thread (not the inbox). */
+export function observationContextBackLabel(returnTo, fromLabel) {
+  if (fromLabel) return `Back to ${fromLabel}`;
+  const path = safeInternalPath(returnTo);
+  if (path?.startsWith('/profile/')) return 'Back to profile';
+  if (path?.startsWith('/dashboards/group/')) return 'Back to group dashboard';
+  return 'Back';
+}
+
+/** @deprecated Use observationContextBackLabel for contextual nav. */
+export function observationBackLabel(returnTo) {
+  return observationContextBackLabel(returnTo);
+}
+
+/** Profile URL for a subject chip on an observation thread. */
+export function subjectProfileHref(subjectId, { observedDate, returnTo, canViewProfile } = {}) {
+  const from = safeInternalPath(returnTo);
+  const mayView = canViewProfile || (from?.startsWith(`/profile/${subjectId}`) ?? false);
+  if (!mayView) return null;
+  if (from?.startsWith(`/profile/${subjectId}`)) return from;
+  return profileLink(subjectId, observedDate ? { date: observedDate } : {});
+}

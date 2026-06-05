@@ -5,11 +5,11 @@ content type, ranked by Postgres ``SearchVector`` similarity.
 
 Scope:
 
-* People       -- ``full_name``, ``email``, ``external_ids`` (JSON text-cast)
-* Reflections  -- ``answers`` (JSONField, text-cast)
-* Orders       -- ``item``, ``item_note``, ``description``
-* Tickets      -- ``title``, ``location``, ``description``
-* Templates    -- ``name``, ``schema`` (JSON text-cast)
+* People       -- viewable campers (permission-scoped); links to profile
+* Reflections  -- ``answers`` (org admin only)
+* Orders       -- org admin only
+* Tickets      -- org admin only
+* Templates    -- org admin only
 
 Org isolation is enforced via the existing ``OrgScopedManager`` (or
 ``Membership.program__organization`` for memberships) — never the
@@ -30,6 +30,7 @@ from django.contrib.postgres.search import SearchRank
 from django.contrib.postgres.search import SearchVector
 from django.db.models import F
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -39,8 +40,8 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
-
-from .common import viewer_or_403
+from bunk_logs.core.permissions.subject_dashboard import viewable_camper_queryset
+from bunk_logs.core.person_search import filter_persons_by_name_query
 
 PER_GROUP_LIMIT = 25
 MIN_QUERY_LEN = 2
@@ -49,28 +50,37 @@ MIN_QUERY_LEN = 2
 class AdminGlobalSearchView(APIView):
     """Cross-content search for the admin global search header."""
 
-    permission_classes = [IsOrgAdminOrSuperuser]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        org = getattr(request, "organization", None)
+        if org is None:
+            return Response(
+                {"detail": "Organization context required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         q = (request.query_params.get("q") or "").strip()
         if len(q) < MIN_QUERY_LEN:
             return Response(
                 {"detail": f"q must be at least {MIN_QUERY_LEN} characters."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        viewer = Person.all_objects.filter(user=request.user).first()
         query = SearchQuery(q)
         groups: dict[str, list[dict]] = {
-            "people": _search_people(ctx, query, q),
-            "reflections": _search_reflections(ctx, query),
-            "orders": _search_orders(ctx, query),
-            "tickets": _search_tickets(ctx, query),
-            "templates": _search_templates(ctx, query),
+            "people": _search_people(org, viewer, request.user, query, q),
         }
+        if IsOrgAdminOrSuperuser().has_permission(request, self):
+            groups["reflections"] = _search_reflections(org, query)
+            groups["orders"] = _search_orders(org, query)
+            groups["tickets"] = _search_tickets(org, query)
+            groups["templates"] = _search_templates(org, query)
         return Response({"query": q, "groups": groups})
 
 
-def _search_people(ctx, query, raw: str) -> list[dict]:
+def _search_people(org, viewer, user, query, raw: str) -> list[dict]:
+    """Campers the viewer may open on profile, ranked by name similarity."""
+    base = viewable_camper_queryset(viewer, org, user)
     vector = (
         SearchVector("first_name")
         + SearchVector("last_name")
@@ -78,19 +88,15 @@ def _search_people(ctx, query, raw: str) -> list[dict]:
         + SearchVector("email")
     )
     qs = (
-        Person.all_objects.filter(organization=ctx.organization)
-        .annotate(rank=SearchRank(vector, query))
+        base.annotate(rank=SearchRank(vector, query))
         .filter(rank__gt=0)
         .order_by(F("rank").desc())[:PER_GROUP_LIMIT]
     )
     rows = list(qs)
-    # JSON external_ids isn't easily castable inside SearchVector; do
-    # a complementary ``icontains`` pass and union the results so the
-    # admin can still find Persons by external CampMinder / TBE id.
     if len(rows) < PER_GROUP_LIMIT:
         seen = {p.id for p in rows}
         extra = (
-            Person.all_objects.filter(organization=ctx.organization)
+            filter_persons_by_name_query(base, raw)
             .filter(external_ids__icontains=raw)
             .exclude(id__in=seen)[: (PER_GROUP_LIMIT - len(rows))]
         )
@@ -100,16 +106,16 @@ def _search_people(ctx, query, raw: str) -> list[dict]:
             "id": p.id,
             "label": p.full_name,
             "secondary": p.email or "",
-            "deep_link": f"/admin/people?id={p.id}",
+            "deep_link": f"/profile/{p.id}",
         }
         for p in rows
     ]
 
 
-def _search_reflections(ctx, query) -> list[dict]:
+def _search_reflections(org, query) -> list[dict]:
     vector = SearchVector("answers")
     qs = (
-        Reflection.all_objects.filter(organization=ctx.organization)
+        Reflection.all_objects.filter(organization=org)
         .annotate(rank=SearchRank(vector, query))
         .filter(rank__gt=0)
         .select_related("subject", "template")
@@ -129,14 +135,14 @@ def _search_reflections(ctx, query) -> list[dict]:
     ]
 
 
-def _search_orders(ctx, query) -> list[dict]:
+def _search_orders(org, query) -> list[dict]:
     vector = (
         SearchVector("item")
         + SearchVector("item_note")
         + SearchVector("description")
     )
     qs = (
-        Order.all_objects.filter(organization=ctx.organization)
+        Order.all_objects.filter(organization=org)
         .annotate(rank=SearchRank(vector, query))
         .filter(rank__gt=0)
         .order_by(F("rank").desc())[:PER_GROUP_LIMIT]
@@ -152,14 +158,14 @@ def _search_orders(ctx, query) -> list[dict]:
     ]
 
 
-def _search_tickets(ctx, query) -> list[dict]:
+def _search_tickets(org, query) -> list[dict]:
     vector = (
         SearchVector("title")
         + SearchVector("location")
         + SearchVector("description")
     )
     qs = (
-        MaintenanceTicket.all_objects.filter(organization=ctx.organization)
+        MaintenanceTicket.all_objects.filter(organization=org)
         .annotate(rank=SearchRank(vector, query))
         .filter(rank__gt=0)
         .order_by(F("rank").desc())[:PER_GROUP_LIMIT]
@@ -175,10 +181,10 @@ def _search_tickets(ctx, query) -> list[dict]:
     ]
 
 
-def _search_templates(ctx, query) -> list[dict]:
+def _search_templates(org, query) -> list[dict]:
     vector = SearchVector("name") + SearchVector("description")
     qs = (
-        ReflectionTemplate.all_objects.filter(organization=ctx.organization)
+        ReflectionTemplate.all_objects.filter(organization=org)
         .annotate(rank=SearchRank(vector, query))
         .filter(rank__gt=0)
         .order_by(F("rank").desc())[:PER_GROUP_LIMIT]

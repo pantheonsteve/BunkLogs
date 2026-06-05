@@ -67,12 +67,12 @@ def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q 
     """Q filter scoping reflections to the unit slugs a supervisor is assigned to.
 
     Applies to memberships in ``UNIT_SCOPED_SUPERVISOR_ROLES`` (faculty,
-    leadership_team, camper_care). Empty / missing ``assigned_unit_slugs`` is
-    interpreted as "no unit restriction" -- the supervisor sees every
-    reflection in the program. Otherwise we resolve each slug to the set of
-    Persons whose Membership in that program declares ``metadata.unit_slug``
-    matching one of those slugs, and scope visibility to reflections about
-    those subjects.
+    leadership_team, camper_care). For faculty / leadership_team, empty /
+    missing ``assigned_unit_slugs`` means no unit restriction (whole program).
+    ``camper_care`` never gets that unrestricted branch — caseload bunks come
+    from :func:`_camper_care_caseload_q` instead. When ``assigned_unit_slugs``
+    is set on a camper_care membership, reflections about subjects whose
+    ``metadata.unit_slug`` matches are included here as well.
     """
     qs = Membership.all_objects.filter(
         person=person,
@@ -92,6 +92,10 @@ def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q 
         if raw is None:
             raw = m.metadata.get("unit_slugs")
         entry = program_specs.setdefault(pid, {"unrestricted": False, "units": set()})
+        if m.role == "camper_care":
+            if raw:
+                entry["units"].update(str(x) for x in raw)
+            continue
         if not raw:
             entry["unrestricted"] = True
         else:
@@ -112,6 +116,56 @@ def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q 
         ]
         if person_ids:
             parts.append(Q(program_id=pid, subject_id__in=person_ids))
+
+    if not parts:
+        return None
+    return reduce(or_, parts)
+
+
+def _camper_care_caseload_q(
+    person: Person, organization_id: int | None,
+) -> Q | None:
+    """Q filter scoping camper_care to supervised units/bunks.
+
+    Resolves the same caseload as the Camper Care dashboard: direct bunk
+    supervisions, assignment-group supervisions expanded to descendant bunks,
+    and author memberships on groups within the program.
+    """
+    from django.utils import timezone
+
+    from bunk_logs.core.managers import _caseload_bunk_ids_for_membership
+    from bunk_logs.core.models import Supervision
+
+    today = timezone.now().date()
+    qs = Membership.all_objects.filter(
+        person=person,
+        role="camper_care",
+        is_active=True,
+    )
+    if organization_id is not None:
+        qs = qs.filter(program__organization_id=organization_id)
+
+    parts: list[Q] = []
+    for membership in qs:
+        bunk_ids = _caseload_bunk_ids_for_membership(
+            Supervision.objects, membership, today=today,
+        )
+        if not bunk_ids:
+            continue
+        parts.append(
+            Q(program_id=membership.program_id, assignment_group_id__in=bunk_ids),
+        )
+        camper_ids = list(
+            AssignmentGroupMembership.all_objects.filter(
+                group_id__in=bunk_ids,
+                role_in_group="subject",
+                is_active=True,
+            ).values_list("person_id", flat=True),
+        )
+        if camper_ids:
+            parts.append(
+                Q(program_id=membership.program_id, subject_id__in=camper_ids),
+            )
 
     if not parts:
         return None
@@ -283,8 +337,10 @@ def reflections_visible_to(
        entries opt out).
     5. Unit-scoped supervisor membership (faculty / leadership_team /
        camper_care) -> reflections about subjects whose Membership.metadata
-       declares one of the assigned unit slugs; or the whole program when
-       ``assigned_unit_slugs`` is empty.
+       declares one of the assigned unit slugs; faculty / leadership_team
+       with empty ``assigned_unit_slugs`` see the whole program.
+    5b. Camper Care caseload -> reflections on supervised bunks (via
+       ``Supervision`` / author memberships) or about campers in those bunks.
     6. Wellness membership (health_center / special_diets) -> reflections
        whose template carries one of the wellness roles AND
        ``team_visibility == "team"`` (private wellness entries are gated to
@@ -334,6 +390,10 @@ def reflections_visible_to(
     sq = _unit_scoped_supervisor_q(person, org_id)
     if sq is not None:
         parts.append(sq)
+
+    ccq = _camper_care_caseload_q(person, org_id)
+    if ccq is not None:
+        parts.append(ccq)
 
     # Supervision-based supervisor pipe (Step 7_3 / 7_7). Covers UH → Counselor,
     # LT → team-role, Camper Care → BUNK targets, etc. Independent of the

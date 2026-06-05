@@ -23,12 +23,24 @@ function defaultObservedAtLocal() {
   return d.toISOString().slice(0, 16);
 }
 
+/** Map a profile row date (YYYY-MM-DD) to a datetime-local default (midday). */
+export function dateOnlyToLocalDatetime(dateOnly) {
+  if (!dateOnly) return defaultObservedAtLocal();
+  const day = String(dateOnly).slice(0, 10);
+  return `${day}T12:00`;
+}
+
 function localDatetimeToIso(local) {
   if (!local) return null;
   return new Date(local).toISOString();
 }
 
-export default function ObservationComposer({ onClose, onSent, initialSubjects = [] }) {
+export default function ObservationComposer({
+  onClose,
+  onSent,
+  initialSubjects = [],
+  initialObservedAtLocal = null,
+}) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -36,7 +48,9 @@ export default function ObservationComposer({ onClose, onSent, initialSubjects =
   const [searchError, setSearchError] = useState(null);
   const [subjects, setSubjects] = useState(initialSubjects);
   const [body, setBody] = useState('');
-  const [observedAtLocal, setObservedAtLocal] = useState(defaultObservedAtLocal);
+  const [observedAtLocal, setObservedAtLocal] = useState(
+    () => initialObservedAtLocal || defaultObservedAtLocal(),
+  );
   const [context, setContext] = useState('');
   const [sensitivity, setSensitivity] = useState('normal');
   const [subjectVisible, setSubjectVisible] = useState(false);

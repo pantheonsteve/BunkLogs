@@ -101,7 +101,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).not.toContain('/counselor');
   });
 
-  it('supervisor (camper_care) sees Supervise and reflection forms', () => {
+  it('supervisor (camper_care) sees Supervise without personal reflection nav', () => {
     renderWith({ role: 'Camper Care' });
 
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
@@ -111,8 +111,10 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).not.toContain('/dashboard');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
-    expect(links).toContain('/reflect');
-    expect(links).toContain('/my-reflections');
+    expect(links).not.toContain('/dashboards/logs');
+    expect(links).not.toContain('/tasks');
+    expect(links).not.toContain('/reflect');
+    expect(links).not.toContain('/my-reflections');
   });
 
   it('program_lead (leadership) sees Supervise dashboard links but not Admin or Dashboards menu', () => {

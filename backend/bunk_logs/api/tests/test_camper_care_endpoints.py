@@ -35,6 +35,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.time_utils import get_today
 from bunk_logs.notes.models import Observation
 from bunk_logs.notes.models import ObservationSubject
 
@@ -238,6 +239,65 @@ class TestCamperCareDashboard:
         assert body["summary"]["flag_count"] == 0
         assert body["summary"]["order_count"] == 0
 
+    def test_dashboard_syncs_flags_from_camper_care_help_reflection(
+        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
+        bunk, unit, camper, camper_in_bunk, counselor_person_user,
+        counselor_membership,
+    ):
+        """Reflection help requests backfill ``core.Flag`` rows for the workspace."""
+        counselor_person, _ = counselor_person_user
+        today = get_today(org)
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Camper log",
+            slug="cc-sync-camper-log",
+            cadence="daily",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            schema={
+                "fields": [
+                    {
+                        "key": "request_camper_care_help",
+                        "type": "yes_no",
+                        "required": False,
+                        "dashboard_role": "help_request_camper_care",
+                    },
+                ],
+            },
+            languages=["en"],
+            is_active=True,
+            author_role_filter=["counselor"],
+        )
+        refl = Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            assignment_group=bunk,
+            subject=camper,
+            author=counselor_person,
+            period_start=today,
+            period_end=today,
+            answers={"request_camper_care_help": "yes"},
+            is_complete=True,
+        )
+        assert not Flag.all_objects.filter(
+            trigger_content_type="reflection",
+            trigger_content_id=str(refl.id),
+        ).exists()
+
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            dash = api.get("/api/v1/camper-care/dashboard/", **_hdr(org.slug))
+            flags = api.get("/api/v1/camper-care/flags/", **_hdr(org.slug))
+        assert dash.status_code == 200
+        assert dash.json()["summary"]["flag_count"] == 1
+        assert flags.status_code == 200
+        items = flags.json()["items"]
+        assert len(items) == 1
+        assert items[0]["subject_camper"]["id"] == camper.id
+
     def test_requires_camper_care_role(
         self, api, org, counselor_person_user, counselor_membership,
     ):
@@ -266,17 +326,47 @@ class TestCamperCareDashboard:
 
     def test_unresolved_flag_count_in_summary(
         self, api, org, program, cc_person_user, cc_membership, cc_caseload,
-        camper, camper_in_bunk,
+        bunk, camper, camper_in_bunk, counselor_person_user,
     ):
+        counselor_person, _ = counselor_person_user
+        today = get_today(org)
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Count test log",
+            slug="cc-count-test-log",
+            cadence="daily",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            schema={"fields": []},
+            languages=["en"],
+            is_active=True,
+        )
+        refl = Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            assignment_group=bunk,
+            subject=camper,
+            author=counselor_person,
+            period_start=today,
+            period_end=today,
+            answers={},
+            is_complete=True,
+        )
         Flag.all_objects.create(
             organization=org, program=program, subject_camper=camper,
             flagged_for_role="camper_care",
             status=Flag.Status.ACTIVE,
+            trigger_content_type="reflection",
+            trigger_content_id=str(refl.id),
         )
         Flag.all_objects.create(
             organization=org, program=program, subject_camper=camper,
             flagged_for_role="camper_care",
             status=Flag.Status.RESOLVED, resolved_at=timezone.now(),
+            trigger_content_type="reflection",
+            trigger_content_id=str(refl.id),
         )
         _, user = cc_person_user
         api.force_authenticate(user=user)
@@ -284,6 +374,61 @@ class TestCamperCareDashboard:
             r = api.get("/api/v1/camper-care/dashboard/", **_hdr(org.slug))
         assert r.status_code == 200
         assert r.json()["summary"]["flag_count"] == 1
+
+    def test_dashboard_flag_count_scoped_to_selected_date(
+        self, api, org, program, cc_person_user, cc_membership, cc_caseload,
+        bunk, camper, camper_in_bunk, counselor_person_user,
+    ):
+        """Flags from yesterday's help requests must not appear on today's dashboard."""
+        counselor_person, _ = counselor_person_user
+        today = get_today(org)
+        yesterday = today - timedelta(days=1)
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Date scope log",
+            slug="cc-date-scope-log",
+            cadence="daily",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            schema={"fields": []},
+            languages=["en"],
+            is_active=True,
+        )
+        refl = Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            assignment_group=bunk,
+            subject=camper,
+            author=counselor_person,
+            period_start=yesterday,
+            period_end=yesterday,
+            answers={},
+            is_complete=True,
+        )
+        Flag.all_objects.create(
+            organization=org, program=program, subject_camper=camper,
+            flagged_for_role="camper_care",
+            status=Flag.Status.ACTIVE,
+            trigger_content_type="reflection",
+            trigger_content_id=str(refl.id),
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r_today = api.get(
+                f"/api/v1/camper-care/dashboard/?date={today.isoformat()}",
+                **_hdr(org.slug),
+            )
+            r_yesterday = api.get(
+                f"/api/v1/camper-care/dashboard/?date={yesterday.isoformat()}",
+                **_hdr(org.slug),
+            )
+        assert r_today.status_code == 200
+        assert r_today.json()["summary"]["flag_count"] == 0
+        assert r_yesterday.status_code == 200
+        assert r_yesterday.json()["summary"]["flag_count"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +577,33 @@ class TestCamperCareOrdersTeamShared:
             r = api.get("/api/v1/camper-care/orders/", **_hdr(org.slug))
         assert r.status_code == 200, r.content
         assert len(r.json()["new"]) == 1
+
+    def test_order_payload_includes_submitter_bunk(
+        self, api, org, program, cc_person_user, cc_membership,
+        counselor_person_user, counselor_membership,
+        camper, camper_in_bunk, bunk,
+    ):
+        counselor_person, _ = counselor_person_user
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk,
+            person=counselor_person,
+            role_in_group="author",
+            is_active=True,
+        )
+        Order.all_objects.create(
+            organization=org,
+            program=program,
+            subject=camper,
+            submitted_by=counselor_membership,
+            item="Towel",
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/orders/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        row = r.json()["new"][0]
+        assert row["bunk"] == {"id": bunk.id, "name": bunk.name}
 
     def test_both_cc_members_see_same_orders(
         self, api, org, program, cc_person_user, cc_membership,
@@ -985,6 +1157,134 @@ class TestFlagDetail:
                 f"/api/v1/camper-care/flags/{uuid4()}/", **_hdr(org.slug),
             )
         assert r.status_code == 404
+
+    def test_detail_returns_reflection_trigger_without_error(
+        self, api, org, program, cc_person_user, cc_membership,
+        bunk, camper, camper_in_bunk, counselor_person_user,
+    ):
+        """Reflection triggers must not 500 (Reflection has no ``created_at``)."""
+        counselor_person, _ = counselor_person_user
+        today = get_today(org)
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Detail reflection log",
+            slug="cc-detail-reflection-log",
+            cadence="daily",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            schema={
+                "fields": [
+                    {
+                        "key": "request_camper_care_help",
+                        "type": "yes_no",
+                        "required": False,
+                        "dashboard_role": "help_request_camper_care",
+                    },
+                    {"key": "notes", "type": "text", "required": False},
+                ],
+            },
+            languages=["en"],
+            is_active=True,
+        )
+        refl = Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            assignment_group=bunk,
+            subject=camper,
+            author=counselor_person,
+            period_start=today,
+            period_end=today,
+            answers={
+                "request_camper_care_help": "yes",
+                "notes": "Camper asked to call home.",
+            },
+            is_complete=True,
+        )
+        flag = Flag.all_objects.create(
+            organization=org,
+            program=program,
+            subject_camper=camper,
+            flagged_for_role="camper_care",
+            trigger_content_type="reflection",
+            trigger_content_id=str(refl.id),
+            status=Flag.Status.ACTIVE,
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/flags/{flag.id}/", **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        assert "Camper asked to call home." in r.json()["trigger"]["body"]
+        assert r.json()["trigger"]["created_at"] is not None
+
+    def test_resolved_flag_not_recreated_on_flags_list_sync(
+        self, api, org, program, cc_person_user, cc_membership,
+        bunk, camper, camper_in_bunk, counselor_person_user,
+    ):
+        counselor_person, _ = counselor_person_user
+        today = get_today(org)
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Sync guard log",
+            slug="cc-sync-guard-log",
+            cadence="daily",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+            assignment_group_types=["bunk"],
+            schema={
+                "fields": [
+                    {
+                        "key": "request_camper_care_help",
+                        "type": "yes_no",
+                        "required": False,
+                        "dashboard_role": "help_request_camper_care",
+                    },
+                ],
+            },
+            languages=["en"],
+            is_active=True,
+        )
+        refl = Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            assignment_group=bunk,
+            subject=camper,
+            author=counselor_person,
+            period_start=today,
+            period_end=today,
+            answers={"request_camper_care_help": "yes"},
+            is_complete=True,
+        )
+        resolved = Flag.all_objects.create(
+            organization=org,
+            program=program,
+            subject_camper=camper,
+            flagged_for_role="camper_care",
+            status=Flag.Status.RESOLVED,
+            resolved_at=timezone.now(),
+            trigger_content_type="reflection",
+            trigger_content_id=str(refl.id),
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/flags/", **_hdr(org.slug))
+        assert r.status_code == 200
+        assert r.json()["items"] == []
+        assert (
+            Flag.all_objects.filter(
+                program=program,
+                subject_camper=camper,
+                status=Flag.Status.ACTIVE,
+            ).count()
+            == 0
+        )
+        assert Flag.all_objects.filter(pk=resolved.pk).exists()
 
 
 class TestCamperDashboardFlagHistory:

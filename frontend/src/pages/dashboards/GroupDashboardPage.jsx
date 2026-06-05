@@ -189,6 +189,12 @@ export default function GroupDashboardPage() {
       <GroupTemplateResponses
         templates={data?.templates}
         profileLinkContext={profileLinkContext}
+        groupLabel={
+          data?.header?.bunk?.name
+          || data?.header?.group?.name
+          || null
+        }
+        onNoteCreated={load}
       />
     </div>
   );

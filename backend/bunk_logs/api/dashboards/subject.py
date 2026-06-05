@@ -28,9 +28,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
-from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
-from bunk_logs.core.permissions.super_admin import is_super_admin
-from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
+from bunk_logs.core.permissions.subject_dashboard import can_view_subject_dashboard
 from bunk_logs.notes.models import Observation
 
 DEFAULT_WINDOW_DAYS = 30
@@ -116,67 +114,6 @@ def _is_yes_no_field(field: dict) -> bool:
         return False
     values = {str(o.get("value", "")).lower() for o in options if isinstance(o, dict)}
     return values == {"yes", "no"}
-
-
-def _viewer_capability(person: Person, org) -> str | None:
-    """Highest-privilege capability the person holds in this org (across all programs)."""
-    caps = set(
-        Membership.all_objects.filter(
-            person=person,
-            is_active=True,
-            program__organization=org,
-        ).values_list("capability", flat=True),
-    )
-    for cap in ("admin", "program_lead", "domain_specialist", "supervisor"):
-        if cap in caps:
-            return cap
-    if "participant" in caps:
-        return "participant"
-    return None
-
-
-def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
-    """True if viewer authors a group (or any ancestor group) that contains subject."""
-    group_ids = author_group_ids_with_descendants(viewer)
-    if not group_ids:
-        return False
-    return AssignmentGroupMembership.all_objects.filter(
-        person=subject,
-        group_id__in=group_ids,
-        role_in_group="subject",
-        is_active=True,
-    ).exists()
-
-
-def _can_view_subject_dashboard(
-    viewer_person: Person | None,
-    subject: Person,
-    org,
-    user,
-) -> bool:
-    """Explicit capability gate for the subject dashboard.
-
-    Allowed paths:
-    - Super admin (no Person required)
-    - admin / program_lead / domain_specialist membership in org
-    - supervisor capability with a supervises-subject relationship
-    - participant capability with a supervises-subject relationship (covers
-      counselors accessing their campers) or self-view
-    - program-scoped authoring roles (e.g. activity specialists) via
-      ``can_author_subject_note`` org role defaults
-    """
-    if is_super_admin(user):
-        return True
-    if viewer_person is None:
-        return False
-    cap = _viewer_capability(viewer_person, org)
-    if cap in ("admin", "program_lead", "domain_specialist"):
-        return True
-    if cap in ("supervisor", "participant"):
-        if viewer_person.id == subject.id or _viewer_supervises_subject(viewer_person, subject):
-            return True
-    # Program-scoped roles (e.g. activity specialists) and per-membership overrides.
-    return can_author_subject_note(viewer_person, subject, org, user)
 
 
 def _observations_for_viewer(
@@ -283,7 +220,7 @@ class SubjectDetailView(APIView):
             return Response({"detail": "Subject not found."}, status=404)
 
         viewer_person = Person.all_objects.filter(user=request.user).first()
-        if not _can_view_subject_dashboard(viewer_person, subject, org, request.user):
+        if not can_view_subject_dashboard(viewer_person, subject, org, request.user):
             return Response(
                 {"detail": "You do not have permission to view this subject's dashboard."},
                 status=403,

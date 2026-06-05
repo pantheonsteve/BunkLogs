@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import Header from '../../partials/Header';
@@ -65,6 +65,11 @@ export default function SubjectDetailPage() {
   const rangeStart = start || payload?.period?.start || '';
   const rangeEnd = end || payload?.period?.end || '';
 
+  const profileReturnTo = useMemo(() => {
+    const qs = searchParams.toString();
+    return qs ? `/profile/${personId}?${qs}` : `/profile/${personId}`;
+  }, [personId, searchParams]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -96,6 +101,7 @@ export default function SubjectDetailPage() {
               refreshing={loading}
               backGroupId={backGroupId}
               backDate={backDate}
+              profileReturnTo={profileReturnTo}
             />
           )}
         </main>

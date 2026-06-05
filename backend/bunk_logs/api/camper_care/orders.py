@@ -29,6 +29,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.orders_state_machine import OrderBulkTransitionView
 from bunk_logs.api.orders_state_machine import OrderTransitionView
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import OrderActivityEvent
 
@@ -64,7 +65,7 @@ class CamperCareOrdersListView(APIView):
             raise ValidationError({"filter": msg})
 
         qs = Order.objects.filter(program=ctx.program).select_related(
-            "subject", "submitted_by__person",
+            "subject", "submitted_by__person", "submitted_from_bunk",
         )
         if filt == "my_caseload":
             camper_ids = caseload_camper_ids(ctx.membership)
@@ -97,11 +98,29 @@ class CamperCareOrdersListView(APIView):
         resolved_until = _parse_optional_date(request.query_params.get("resolved_until"))
 
         rows = list(qs.order_by("-created_at"))
+        subject_ids = {o.subject_id for o in rows if o.subject_id}
+        submitter_person_ids = {
+            o.submitted_by.person_id
+            for o in rows
+            if o.submitted_by_id and o.submitted_by.person_id
+        }
+        bunk_by_subject = _bunk_by_subject_ids(
+            subject_ids=subject_ids,
+            program_id=ctx.program.id,
+        )
+        bunk_by_submitter = _bunk_by_author_person_ids(
+            person_ids=submitter_person_ids,
+            program_id=ctx.program.id,
+        )
         new_items: list[dict] = []
         in_progress: list[dict] = []
         resolved: list[dict] = []
         for o in rows:
-            payload = _order_payload(o)
+            payload = _order_payload(
+                o,
+                bunk_by_subject=bunk_by_subject,
+                bunk_by_submitter=bunk_by_submitter,
+            )
             if o.status == Order.Status.NEW:
                 new_items.append(payload)
             elif o.status == Order.Status.IN_PROGRESS:
@@ -157,7 +176,82 @@ def _parse_optional_date(raw: str | None):
     return parsed
 
 
-def _order_payload(order: Order) -> dict:
+def _bunk_by_subject_ids(*, subject_ids: set[int], program_id: int) -> dict[int, dict]:
+    """Active bunk membership per camper in ``program_id`` (first match wins)."""
+    return _bunk_lookup(
+        person_ids=subject_ids,
+        program_id=program_id,
+        role_in_group="subject",
+    )
+
+
+def _bunk_by_author_person_ids(*, person_ids: set[int], program_id: int) -> dict[int, dict]:
+    """Active author bunk per counselor Person in ``program_id``."""
+    return _bunk_lookup(
+        person_ids=person_ids,
+        program_id=program_id,
+        role_in_group="author",
+    )
+
+
+def _bunk_lookup(
+    *,
+    person_ids: set[int],
+    program_id: int,
+    role_in_group: str,
+) -> dict[int, dict]:
+    if not person_ids:
+        return {}
+    rows = AssignmentGroupMembership.objects.filter(
+        person_id__in=person_ids,
+        role_in_group=role_in_group,
+        is_active=True,
+        group__group_type="bunk",
+        group__is_active=True,
+        group__program_id=program_id,
+    ).values("person_id", "group_id", "group__name")
+    out: dict[int, dict] = {}
+    for row in rows:
+        person_id = row["person_id"]
+        if person_id in out:
+            continue
+        out[person_id] = {
+            "id": row["group_id"],
+            "name": row["group__name"] or "",
+        }
+    return out
+
+
+def _resolve_order_bunk(
+    order: Order,
+    *,
+    bunk_by_subject: dict[int, dict] | None,
+    bunk_by_submitter: dict[int, dict] | None,
+) -> dict | None:
+    if order.submitted_from_bunk_id and order.submitted_from_bunk:
+        return {
+            "id": order.submitted_from_bunk_id,
+            "name": order.submitted_from_bunk.name or "",
+        }
+    if (
+        bunk_by_submitter
+        and order.submitted_by_id
+        and order.submitted_by.person_id
+    ):
+        bunk = bunk_by_submitter.get(order.submitted_by.person_id)
+        if bunk:
+            return bunk
+    if bunk_by_subject and order.subject_id:
+        return bunk_by_subject.get(order.subject_id)
+    return None
+
+
+def _order_payload(
+    order: Order,
+    *,
+    bunk_by_subject: dict[int, dict] | None = None,
+    bunk_by_submitter: dict[int, dict] | None = None,
+) -> dict:
     submitter = order.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
     age_seconds = None
@@ -169,12 +263,18 @@ def _order_payload(order: Order) -> dict:
             content_type="order", content_id=order.id,
         ).order_by("-created_at").first()
     )
+    bunk = _resolve_order_bunk(
+        order,
+        bunk_by_subject=bunk_by_subject,
+        bunk_by_submitter=bunk_by_submitter,
+    )
     return {
         "id": str(order.id),
         "status": order.status,
         "available_transitions": order.available_transitions(),
         "is_within_correction_window": order.can_correct_last_transition(),
         "subject": _camper_brief(order.subject),
+        "bunk": bunk,
         "item": order.item,
         "item_note": order.item_note,
         "description": order.description,

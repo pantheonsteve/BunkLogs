@@ -17,6 +17,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import Supervision
 from bunk_logs.core.permissions.visibility import has_supervisor_role
 from bunk_logs.core.permissions.visibility import is_org_admin
 from bunk_logs.core.permissions.visibility import reflections_visible_to
@@ -512,12 +513,12 @@ class TestWellnessScope:
 class TestCamperCareScope:
     """Step 3.21 moves camper_care from domain_specialist -> supervisor.
 
-    Visibility now flows through ``Membership.metadata.assigned_unit_slugs``
-    (the leadership_team / faculty convention), NOT the wellness-template
-    shortcut. These cases pin that contract.
+    Visibility flows through ``assigned_unit_slugs`` metadata and/or the
+    ``Supervision`` caseload (bunks + expanded units). Camper Care no longer
+    gets program-wide visibility when both are empty.
     """
 
-    def test_unrestricted_camper_care_sees_all_program_reflections(
+    def test_camper_care_without_caseload_sees_nothing_extra(
         self, org_a, program_a,
     ):
         u = _make_user("cc@a.com")
@@ -526,15 +527,67 @@ class TestCamperCareScope:
             program=program_a, person=cc, role="camper_care", is_active=True,
             metadata={},
         )
-        # A reflection authored by someone the cc user has no AssignmentGroup
-        # or wellness path to. With an unrestricted unit-scope, cc still sees
-        # it because they're effectively a program-wide supervisor.
         author = _make_person(org_a, "Au", "Thor")
         subject = _make_person(org_a, "Sub", "Ject")
         tpl = _make_template(org_a, role="counselor")
         _make_reflection(org_a, program_a, tpl, subject=subject, author=author)
         with organization_context(org_a):
-            assert reflections_visible_to(u).count() == 1
+            assert reflections_visible_to(u).count() == 0
+
+    def test_camper_care_caseload_supervision_limits_to_assigned_bunks(
+        self, org_a, program_a,
+    ):
+        u = _make_user("cc@a.com")
+        cc = _make_person(org_a, "Cc", "User", u)
+        cc_membership = Membership.all_objects.create(
+            program=program_a, person=cc, role="camper_care", is_active=True,
+            metadata={},
+        )
+        unit = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Unit",
+            slug="cc-unit", group_type="unit",
+        )
+        on_caseload = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Bunk A",
+            slug="cc-bunk-a", group_type="bunk", parent=unit,
+        )
+        off_caseload = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Bunk B",
+            slug="cc-bunk-b", group_type="bunk", parent=unit,
+        )
+        Supervision.all_objects.create(
+            supervisor_membership=cc_membership,
+            target_type="bunk",
+            target_bunk=on_caseload,
+            start_date=date(2026, 1, 1),
+        )
+        camper_on = _make_person(org_a, "On", "Caseload")
+        camper_off = _make_person(org_a, "Off", "Caseload")
+        AssignmentGroupMembership.all_objects.create(
+            group=on_caseload, person=camper_on, role_in_group="subject", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=off_caseload, person=camper_off, role_in_group="subject", is_active=True,
+        )
+        counselor = _make_person(org_a, "Co", "Un")
+        tpl = _make_template(
+            org_a, slug="bunk-obs-cc",
+            role="counselor",
+            subject_mode="single_subject",
+            assignment_scope="per_subject_in_group",
+        )
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=camper_on, author=counselor, assignment_group=on_caseload,
+        )
+        _make_reflection(
+            org_a, program_a, tpl,
+            subject=camper_off, author=counselor, assignment_group=off_caseload,
+        )
+        with organization_context(org_a):
+            visible = reflections_visible_to(u)
+            assert visible.count() == 1
+            assert visible.first().assignment_group_id == on_caseload.id
 
     def test_unit_scoped_camper_care_only_sees_assigned_units(
         self, org_a, program_a,

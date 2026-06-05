@@ -16,6 +16,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import Supervision
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -264,6 +265,47 @@ def test_unmark_read_restores_item(api_client, org, program, setup):
 
 
 # ── Visibility ────────────────────────────────────────────────────────────────
+
+
+def test_camper_care_concerns_limited_to_caseload_bunks(
+    api_client, org, program, setup,
+):
+    bunk, camper, counselor_user, counselor = setup
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Other",
+        slug="cn-other", group_type="bunk",
+    )
+    other_camper = _person(org, "Ot", "Her")
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_camper, role_in_group="subject", is_active=True,
+    )
+    tpl = _bunk_obs(org)
+    today = date.today()
+    _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "on caseload"},
+    )
+    _make_reflection(
+        org, program, tpl, subject=other_camper, author=counselor, group=other_bunk,
+        day=today, answers={"overall": 4, "concerns": "off caseload"},
+    )
+    cc_user = _user("cc-cn@a.com")
+    cc_person = _person(org, "Cc", "Care", cc_user)
+    cc_membership = Membership.all_objects.create(
+        program=program, person=cc_person, role="camper_care", is_active=True,
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=cc_membership,
+        target_type="bunk",
+        target_bunk=bunk,
+        start_date=date(2026, 1, 1),
+    )
+    api_client.force_authenticate(user=cc_user)
+    r = api_client.get("/api/v1/dashboards/concerns/", **_hdr(org.slug))
+    body = r.json()
+    values = [i["value"] for i in body["items"] if i["kind"] == "open_concern"]
+    assert "on caseload" in values
+    assert "off caseload" not in values
 
 
 def test_invisible_concerns_not_listed(api_client, org, program, setup):

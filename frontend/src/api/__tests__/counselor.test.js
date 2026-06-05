@@ -213,6 +213,7 @@ describe('counselor API helpers', () => {
     postMock.mockResolvedValue({ data: { id: 'order-1' }, status: 201 });
     await createCamperCareRequest({
       subjectId: 42,
+      bunkId: 11,
       item: 'Toothbrush',
       itemNote: 'purple',
       description: 'after lights out',
@@ -221,6 +222,7 @@ describe('counselor API helpers', () => {
     expect(postMock.mock.calls[0][0]).toBe('/api/v1/counselor/camper-care-requests/');
     expect(postMock.mock.calls[0][1]).toEqual({
       subject_id: 42,
+      bunk_id: 11,
       item: 'Toothbrush',
       item_note: 'purple',
       description: 'after lights out',

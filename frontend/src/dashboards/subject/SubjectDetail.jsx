@@ -18,10 +18,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, MessageSquarePlus } from 'lucide-react';
 import {
   groupDashboardLink,
+  observationThreadLink,
   profileBackLabel,
   resolveProfileBackGroup,
 } from '../../utils/dashboardLinks';
-import ObservationComposer from '../../components/observations/ObservationComposer';
+import ObservationComposer, { dateOnlyToLocalDatetime } from '../../components/observations/ObservationComposer';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
 import {
   formatShortDate,
@@ -387,10 +388,8 @@ const SENSITIVITY_LABEL = {
   confidential: 'Confidential',
 };
 
-function ObservationsPanel({ observations = [], subject, personId, onCreated }) {
-  const navigate = useNavigate();
+function ObservationsPanel({ observations = [], onCompose, profileReturnTo = null }) {
   const [open, setOpen] = useState(true);
-  const [composing, setComposing] = useState(false);
 
   const sorted = useMemo(
     () => [...observations].sort((a, b) => {
@@ -421,10 +420,10 @@ function ObservationsPanel({ observations = [], subject, personId, onCreated }) 
           )}
         </div>
         <div className="flex gap-2 items-center">
-          {personId && (
+          {onCompose && (
             <button
               type="button"
-              onClick={() => setComposing(true)}
+              onClick={() => onCompose()}
               className="text-xs font-medium px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
               data-testid="observation-add-btn"
             >
@@ -452,7 +451,7 @@ function ObservationsPanel({ observations = [], subject, personId, onCreated }) 
               {sorted.map((o) => (
                 <li key={o.id}>
                   <Link
-                    to={`/observations/${o.id}`}
+                    to={observationThreadLink(o.id, profileReturnTo)}
                     className="block rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/40"
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -478,17 +477,6 @@ function ObservationsPanel({ observations = [], subject, personId, onCreated }) 
         </div>
       )}
 
-      {composing && (
-        <ObservationComposer
-          initialSubjects={subject ? [{ id: personId, full_name: subject.name }] : []}
-          onClose={() => setComposing(false)}
-          onSent={(data) => {
-            setComposing(false);
-            if (onCreated) onCreated();
-            if (data?.id) navigate(`/observations/${data.id}`);
-          }}
-        />
-      )}
     </section>
   );
 }
@@ -503,6 +491,7 @@ export default function SubjectDetail({
   refreshing = false,
   backGroupId = null,
   backDate = '',
+  profileReturnTo = null,
 }) {
   if (!payload) return null;
   const {
@@ -519,6 +508,15 @@ export default function SubjectDetail({
     () => buildReflectionGroupById(templates),
     [templates],
   );
+  const navigate = useNavigate();
+  const [composeObservation, setComposeObservation] = useState(null);
+
+  const openCompose = (date) => {
+    setComposeObservation({
+      observedAtLocal: date ? dateOnlyToLocalDatetime(date) : null,
+    });
+  };
+
   return (
     <div>
       <ProfileBackLink
@@ -547,17 +545,30 @@ export default function SubjectDetail({
             key={t.template?.id ?? t.template?.slug}
             block={t}
             language={language}
+            personId={personId}
+            onAddObservation={personId ? openCompose : null}
           />
         ))
       )}
 
-      {/*<RecentTexts texts={recentTexts} />*/} 
+      {/*<RecentTexts texts={recentTexts} />*/}
       <ObservationsPanel
         observations={observations ?? []}
-        subject={subject}
-        personId={personId}
-        onCreated={onNoteCreated}
+        onCompose={personId ? () => openCompose() : null}
+        profileReturnTo={profileReturnTo}
       />
+      {composeObservation && (
+        <ObservationComposer
+          initialSubjects={subject ? [{ id: Number(personId), full_name: subject.name }] : []}
+          initialObservedAtLocal={composeObservation.observedAtLocal}
+          onClose={() => setComposeObservation(null)}
+          onSent={(data) => {
+            setComposeObservation(null);
+            if (onNoteCreated) onNoteCreated();
+            if (data?.id) navigate(observationThreadLink(data.id, profileReturnTo));
+          }}
+        />
+      )}
       {/* TODO(7_23): legacy SubjectNote panel removed in 7_24 */}
     </div>
   );

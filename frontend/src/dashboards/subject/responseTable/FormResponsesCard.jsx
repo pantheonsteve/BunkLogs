@@ -102,6 +102,8 @@ export default function FormResponsesCard({
   showSubject = false,
   subjectLinkBase = null,
   subjectProfileLink = null,
+  personId = null,
+  onAddObservation = null,
 }) {
   const tpl = block.template ?? {};
   const reflections = block.reflections ?? [];
@@ -279,22 +281,40 @@ export default function FormResponsesCard({
                     };
                     return (
                       <tr key={r.id} data-testid={`${testidPrefix}-row-${r.id}`}>
-                        <td className="px-3 py-3 whitespace-nowrap text-center border border-gray-300 dark:border-gray-700">
-                          <div className="text-sm text-gray-800 dark:text-gray-100">
-                            {formatShortDate(r.date)}
+                        <td className="px-3 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 text-center">
+                              <div className="text-sm text-gray-800 dark:text-gray-100">
+                                {formatShortDate(r.date)}
+                              </div>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 inline-flex items-center gap-1">
+                                {r.language ?? 'en'}
+                                <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
+                              </div>
+                              {r.assignment_group?.id && (
+                                <Link
+                                  to={`/dashboards/group/${r.assignment_group.id}?date=${r.date}`}
+                                  className="block mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                                >
+                                  {r.assignment_group.name ?? 'View group'} →
+                                </Link>
+                              )}
+                            </div>
+                            {onAddObservation && (personId || (showSubject && r.subject?.id)) && (
+                              <button
+                                type="button"
+                                onClick={() => (
+                                  showSubject && r.subject?.id
+                                    ? onAddObservation(r.date, r.subject)
+                                    : onAddObservation(r.date)
+                                )}
+                                className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30"
+                                data-testid={`${testidPrefix}-add-observation-${r.id}`}
+                              >
+                                Note +
+                              </button>
+                            )}
                           </div>
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 inline-flex items-center gap-1">
-                            {r.language ?? 'en'}
-                            <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
-                          </div>
-                          {r.assignment_group?.id && (
-                            <Link
-                              to={`/dashboards/group/${r.assignment_group.id}?date=${r.date}`}
-                              className="block mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
-                            >
-                              {r.assignment_group.name ?? 'View group'} →
-                            </Link>
-                          )}
                         </td>
                         {showSubject && (
                           <SubjectCell

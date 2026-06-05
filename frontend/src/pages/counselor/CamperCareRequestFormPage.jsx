@@ -81,6 +81,7 @@ export default function CamperCareRequestFormPage() {
   const [suggestions, setSuggestions] = useState([]);
 
   const [subjectId, setSubjectId] = useState('');
+  const [bunkId, setBunkId] = useState('');
   const [item, setItem] = useState('');
   const [itemNote, setItemNote] = useState('');
   const [description, setDescription] = useState('');
@@ -138,6 +139,7 @@ export default function CamperCareRequestFormPage() {
     try {
       await createCamperCareRequest({
         subjectId: subjectId ? Number(subjectId) : null,
+        bunkId: bunkId ? Number(bunkId) : null,
         item: item.trim(),
         itemNote: itemNote.trim(),
         description: description.trim(),
@@ -227,7 +229,12 @@ export default function CamperCareRequestFormPage() {
                 id="cc-subject"
                 data-testid="camper-care-subject"
                 value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSubjectId(nextId);
+                  const row = campers.find((c) => String(c.id) === nextId);
+                  setBunkId(row?.bunkId ? String(row.bunkId) : '');
+                }}
                 className="block w-full min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
               >
                 <option value="">— bunk-wide / no specific camper —</option>

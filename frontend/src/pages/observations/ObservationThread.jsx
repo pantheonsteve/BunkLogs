@@ -3,8 +3,13 @@
  * reply composer (Step 7_23). Route: /observations/:observationId.
  */
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import RichText from '../../components/ui/RichText';
+import {
+  observationContextBackLabel,
+  safeInternalPath,
+  subjectProfileHref,
+} from '../../utils/dashboardLinks';
 import {
   archiveObservation,
   fetchObservationThread,
@@ -34,6 +39,14 @@ const SENSITIVITY_LABEL = {
 export default function ObservationThread() {
   const { observationId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = safeInternalPath(searchParams.get('from'));
+  const contextReturnTo = returnTo && returnTo !== '/observations' ? returnTo : null;
+  const contextBackLabel = observationContextBackLabel(
+    contextReturnTo,
+    searchParams.get('from_label'),
+  );
+  const archiveReturnTo = contextReturnTo || '/observations';
   const [obs, setObs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,7 +86,7 @@ export default function ObservationThread() {
     setArchiving(true);
     try {
       await archiveObservation(observationId);
-      navigate('/observations');
+      navigate(archiveReturnTo);
     } catch {
       setArchiving(false);
     }
@@ -86,33 +99,69 @@ export default function ObservationThread() {
     return <div className="flex h-screen items-center justify-center text-red-500">{error}</div>;
   }
 
+  const observedDate = obs.observed_at ? String(obs.observed_at).slice(0, 10) : '';
+
   return (
     <main className="grow">
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
-        <button
-          type="button"
-          onClick={() => navigate('/observations')}
-          className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        <nav
+          className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+          data-testid="observation-thread-nav"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Observations
-        </button>
+          <Link
+            to="/observations"
+            className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            data-testid="observation-back-inbox"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Observations
+          </Link>
+          {contextReturnTo && (
+            <Link
+              to={contextReturnTo}
+              className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+              data-testid="observation-back-context"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              {contextBackLabel}
+            </Link>
+          )}
+        </nav>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  {(obs.subjects ?? []).map((s) => (
-                    <span
-                      key={s.id}
-                      className="inline-flex rounded-full bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:text-indigo-100"
-                    >
-                      {s.full_name}
-                    </span>
-                  ))}
+                  {(obs.subjects ?? []).map((s) => {
+                    const chipClass =
+                      'inline-flex rounded-full bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:text-indigo-100';
+                    const profileTo = subjectProfileHref(s.id, {
+                      observedDate,
+                      returnTo,
+                      canViewProfile: s.can_view_profile,
+                    });
+                    if (profileTo) {
+                      return (
+                        <Link
+                          key={s.id}
+                          to={profileTo}
+                          className={`${chipClass} hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:underline`}
+                        >
+                          {s.full_name}
+                        </Link>
+                      );
+                    }
+                    return (
+                      <span key={s.id} className={chipClass}>
+                        {s.full_name}
+                      </span>
+                    );
+                  })}
                   <span className="inline-flex rounded-full bg-amber-50 dark:bg-amber-900/20 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
                     {SENSITIVITY_LABEL[obs.sensitivity] ?? obs.sensitivity}
                   </span>
@@ -123,6 +172,9 @@ export default function ObservationThread() {
                     <span className="text-xs ml-1 text-gray-400">({obs.author_role_at_write})</span>
                   </span>
                   <span className="text-xs text-gray-400">{timeAgo(obs.created_at)}</span>
+                  {observedDate && (
+                    <span className="text-xs text-gray-400">· observed {observedDate}</span>
+                  )}
                   {obs.context && (
                     <span className="text-xs text-gray-400">· {obs.context}</span>
                   )}

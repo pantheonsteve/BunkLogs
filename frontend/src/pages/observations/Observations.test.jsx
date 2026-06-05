@@ -54,8 +54,9 @@ const THREAD = {
   author_role_at_write: 'unit_head',
   sensitivity: 'sensitive',
   context: 'swim',
+  observed_at: '2026-06-02T15:00:00Z',
   created_at: new Date(Date.now() - 3600000).toISOString(),
-  subjects: [{ id: 5, full_name: 'Cam Per' }],
+  subjects: [{ id: 5, full_name: 'Cam Per', can_view_profile: true }],
   recipients: [],
   replies: [],
   read_summary: { read_count: 0, audience_count: 0 },
@@ -215,6 +216,94 @@ describe('ObservationThread', () => {
       expect(postMock).toHaveBeenCalledWith('/api/v1/observations/1/replies/', { body: 'Got it!' });
       expect(screen.getByText('Got it!')).toBeDefined();
     });
+  });
+
+  it('links subject to profile with observed date when can_view_profile', async () => {
+    getMock.mockResolvedValue({ data: THREAD });
+    render(
+      <MemoryRouter initialEntries={['/observations/1']}>
+        <Routes>
+          <Route path="/observations/:observationId" element={<ObservationThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      const link = screen.getByRole('link', { name: 'Cam Per' });
+      expect(link.getAttribute('href')).toBe('/profile/5?date=2026-06-02');
+    });
+  });
+
+  it('links subject to profile returnTo when from query matches subject', async () => {
+    getMock.mockResolvedValue({ data: THREAD });
+    const from = encodeURIComponent('/profile/5?date_start=2026-05-01&date_end=2026-05-31');
+    render(
+      <MemoryRouter initialEntries={[`/observations/1?from=${from}`]}>
+        <Routes>
+          <Route path="/observations/:observationId" element={<ObservationThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      const link = screen.getByRole('link', { name: 'Cam Per' });
+      expect(link.getAttribute('href')).toBe('/profile/5?date_start=2026-05-01&date_end=2026-05-31');
+    });
+  });
+
+  it('shows inbox and contextual back links when from query is set', async () => {
+    getMock.mockResolvedValue({ data: THREAD });
+    render(
+      <MemoryRouter initialEntries={['/observations/1?from=%2Fprofile%2F221%3Fdate%3D2026-05-23']}>
+        <Routes>
+          <Route path="/observations/:observationId" element={<ObservationThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-back-inbox')).toHaveAttribute('href', '/observations');
+      const context = screen.getByTestId('observation-back-context');
+      expect(context).toHaveTextContent('Back to profile');
+      expect(context).toHaveAttribute('href', '/profile/221?date=2026-05-23');
+    });
+  });
+
+  it('shows a labeled group-dashboard back link when from_label is set', async () => {
+    getMock.mockResolvedValue({ data: THREAD });
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/observations/1?from=%2Fdashboards%2Fgroup%2F78%3Fdate%3D2026-06-03&from_label=Cabin+Birch',
+        ]}
+      >
+        <Routes>
+          <Route path="/observations/:observationId" element={<ObservationThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      const context = screen.getByTestId('observation-back-context');
+      expect(context).toHaveTextContent('Back to Cabin Birch');
+      expect(context).toHaveAttribute('href', '/dashboards/group/78?date=2026-06-03');
+    });
+  });
+
+  it('renders subject name without link when can_view_profile is false', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        ...THREAD,
+        subjects: [{ id: 5, full_name: 'Cam Per', can_view_profile: false }],
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={['/observations/1']}>
+        <Routes>
+          <Route path="/observations/:observationId" element={<ObservationThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Cam Per')).toBeDefined();
+    });
+    expect(screen.queryByRole('link', { name: 'Cam Per' })).toBeNull();
   });
 });
 

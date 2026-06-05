@@ -27,6 +27,7 @@ const samplePayload = {
       available_transitions: ['in_progress', 'unable_to_fulfill'],
       is_within_correction_window: false,
       subject: { id: 1, first_name: 'Lila', last_name: 'Park', preferred_name: '' },
+      bunk: { id: 11, name: 'Bunk Birch' },
       item: 'Sunscreen',
       item_note: 'SPF 50',
       description: 'For Tuesday hike.',
@@ -44,6 +45,7 @@ const samplePayload = {
       available_transitions: ['fulfilled', 'unable_to_fulfill'],
       is_within_correction_window: true,
       subject: { id: 2, first_name: 'Jordan', last_name: 'Tate', preferred_name: 'Jo' },
+      bunk: { id: 12, name: 'Bunk Pine' },
       item: 'Inhaler',
       item_note: '',
       description: '',
@@ -59,6 +61,7 @@ const samplePayload = {
       available_transitions: ['fulfilled', 'unable_to_fulfill'],
       is_within_correction_window: false,
       subject: { id: 3, first_name: 'Avi', last_name: 'Klein', preferred_name: '' },
+      bunk: { id: 11, name: 'Bunk Birch' },
       item: 'Sunscreen',
       item_note: '',
       description: '',
@@ -88,6 +91,22 @@ describe('CamperCareOrders', () => {
     expect(screen.getByTestId('order-row-aaaa1111-aaaa-1111-aaaa-111111111111')).toBeInTheDocument();
     expect(screen.getByTestId('order-row-bbbb2222-bbbb-2222-bbbb-222222222222')).toBeInTheDocument();
     expect(screen.getByTestId('order-row-cccc3333-cccc-3333-cccc-333333333333')).toBeInTheDocument();
+  });
+
+  it('shows bunk prominently with submitter name secondary', async () => {
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    render(
+      <MemoryRouter>
+        <CamperCareOrders />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('order-bunk-aaaa1111-aaaa-1111-aaaa-111111111111')).toBeInTheDocument();
+    });
+    const row = screen.getByTestId('order-row-aaaa1111-aaaa-1111-aaaa-111111111111');
+    expect(row).toHaveTextContent('Bunk Birch');
+    expect(row).toHaveTextContent('For Lila Park');
+    expect(row).toHaveTextContent('from Pat L.');
   });
 
   it('bulk-fulfills selected In Progress orders', async () => {

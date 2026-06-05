@@ -34,6 +34,7 @@ from rest_framework.views import APIView
 from bunk_logs.api.observations.common import viewer_or_403
 from bunk_logs.core import audit as audit_trail
 from bunk_logs.core.models import Person
+from bunk_logs.core.person_search import filter_persons_by_name_query
 from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.observation_authoring import recipients_clearing_sensitivity
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
@@ -55,31 +56,6 @@ User = get_user_model()
 
 DEFAULT_SEARCH_LIMIT = 25
 MAX_SEARCH_LIMIT = 100
-
-
-def _filter_persons_by_name_query(qs, q: str):
-    """Match name tokens against first, last, and preferred name fields."""
-    q = q.strip()
-    if not q:
-        return qs
-    tokens = [t for t in q.split() if t]
-    if not tokens:
-        return qs
-    if len(tokens) == 1:
-        token = tokens[0]
-        return qs.filter(
-            Q(first_name__icontains=token)
-            | Q(last_name__icontains=token)
-            | Q(preferred_name__icontains=token),
-        )
-    combined = Q()
-    for token in tokens:
-        combined &= (
-            Q(first_name__icontains=token)
-            | Q(last_name__icontains=token)
-            | Q(preferred_name__icontains=token)
-        )
-    return qs.filter(combined)
 
 
 class ObservationsPagination(PageNumberPagination):
@@ -213,7 +189,11 @@ class ObservationThreadView(APIView):
         if obs is None:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         update_read_receipt(obs, ctx.person)
-        return Response(ObservationThreadSerializer(obs, context={"request": request}).data)
+        return Response(
+            ObservationThreadSerializer(
+                obs, context={"request": request, "viewer_person": ctx.person},
+            ).data,
+        )
 
 
 class ObservationCreateView(APIView):
@@ -291,7 +271,9 @@ class ObservationCreateView(APIView):
             .get(pk=obs.pk)
         )
         return Response(
-            ObservationThreadSerializer(obs, context={"request": request}).data,
+            ObservationThreadSerializer(
+                obs, context={"request": request, "viewer_person": ctx.person},
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -374,7 +356,9 @@ class ObservationAmendView(APIView):
             .get(pk=amendment.pk)
         )
         return Response(
-            ObservationThreadSerializer(amendment, context={"request": request}).data,
+            ObservationThreadSerializer(
+                amendment, context={"request": request, "viewer_person": ctx.person},
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -456,6 +440,6 @@ class ObservationSubjectsView(APIView):
             base = observation_authorable_subject_queryset(
                 ctx.person, ctx.organization,
             ).exclude(id=ctx.person.id)
-        base = _filter_persons_by_name_query(base, q)
+        base = filter_persons_by_name_query(base, q)
         persons = list(base.order_by("last_name", "first_name")[:limit])
         return Response({"subjects": [{"id": p.id, "full_name": p.full_name} for p in persons]})
