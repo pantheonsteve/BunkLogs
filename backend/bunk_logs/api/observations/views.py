@@ -34,11 +34,11 @@ from rest_framework.views import APIView
 from bunk_logs.api.observations.common import viewer_or_403
 from bunk_logs.core import audit as audit_trail
 from bunk_logs.core.models import Person
-from bunk_logs.core.person_search import filter_persons_by_name_query
 from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.observation_authoring import recipients_clearing_sensitivity
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
 from bunk_logs.core.permissions.super_admin import is_super_admin
+from bunk_logs.core.person_search import filter_persons_by_name_query
 from bunk_logs.notes.models import Observation
 from bunk_logs.notes.models import ObservationArchive
 from bunk_logs.notes.models import ObservationReadReceipt

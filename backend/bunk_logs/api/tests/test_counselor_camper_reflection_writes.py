@@ -20,8 +20,8 @@ from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
-from bunk_logs.core.models import Flag
 from bunk_logs.core.models import CamperDayState
+from bunk_logs.core.models import Flag
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
