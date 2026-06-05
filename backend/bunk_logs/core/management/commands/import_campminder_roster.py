@@ -130,7 +130,6 @@ def _upsert_person(
     last_name = (row.get("last_name") or "").strip()
     preferred_name = (row.get("preferred_name") or "").strip()
     email = (row.get("email") or "").strip()
-    full_name = f"{first_name} {last_name}".strip()
 
     person_match = match_campminder_person(
         org,
