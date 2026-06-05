@@ -288,4 +288,42 @@ describe('SubjectDetail', () => {
     expect(onRangeChange).toHaveBeenCalledWith('2026-05-21', '2026-05-31');
   });
 
+  it('shows observations empty state when none in the selected period', () => {
+    renderDetail({ observations: [] });
+    expect(screen.getByTestId('observations-empty')).toHaveTextContent(
+      'No observations in this period.',
+    );
+  });
+
+  it('renders observations returned for the selected period', () => {
+    renderDetail({
+      observations: [
+        {
+          id: 42,
+          body: '<p>Swim note</p>',
+          sensitivity: 'normal',
+          context: 'swim_instruction',
+          observed_at: '2026-05-23T15:00:00Z',
+          author: { id: 9, name: 'BulkCounselor #9' },
+        },
+      ],
+    });
+    const panel = screen.getByTestId('observations-panel');
+    expect(within(panel).getByText('Swim note')).toBeInTheDocument();
+    expect(within(panel).getByText('BulkCounselor #9')).toBeInTheDocument();
+    const when = within(panel).getByTestId('observation-when-42');
+    expect(when).toHaveAttribute('dateTime', '2026-05-23T15:00:00Z');
+    expect(when.textContent).toBeTruthy();
+  });
+
+  it('pre-fills observation date from panel when viewing a single day', async () => {
+    renderDetail({}, { rangeStart: '2026-05-23', rangeEnd: '2026-05-23' });
+    fireEvent.click(screen.getByTestId('observation-add-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-composer-observed-at')).toHaveValue(
+        '2026-05-23T12:00',
+      );
+    });
+  });
+
 });

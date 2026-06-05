@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import datetime
+from datetime import time
 from datetime import timedelta
 
 import pytest
@@ -16,6 +18,10 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_org_timezone
+from bunk_logs.core.time_utils import get_today
+from bunk_logs.notes.models import Observation
+from bunk_logs.notes.models import ObservationSubject
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -494,3 +500,53 @@ def test_subject_visible_true_allows_camper_self_view(api_client, org, program, 
     )
     body = r.json()
     assert any(t["template"]["id"] == visible_tpl.id for t in body["templates"])
+
+
+def test_subject_dashboard_observations_bucketed_by_observed_at_date(
+    api_client, org, program, setup,
+):
+    _, camper, counselor_user, counselor = setup
+    today = get_today(org)
+    yesterday = today - timedelta(days=1)
+    tz = get_org_timezone(org)
+    today_noon = datetime.combine(today, time(12, 0), tzinfo=tz)
+    yesterday_noon = datetime.combine(yesterday, time(12, 0), tzinfo=tz)
+
+    obs_today = Observation.all_objects.create(
+        organization=org,
+        program=program,
+        author=counselor,
+        author_role_at_write="counselor",
+        body="Note today",
+        observed_at=today_noon,
+    )
+    ObservationSubject.objects.create(observation=obs_today, subject=camper)
+    obs_yesterday = Observation.all_objects.create(
+        organization=org,
+        program=program,
+        author=counselor,
+        author_role_at_write="counselor",
+        body="Note yesterday",
+        observed_at=yesterday_noon,
+    )
+    ObservationSubject.objects.create(observation=obs_yesterday, subject=camper)
+
+    api_client.force_authenticate(user=counselor_user)
+    today_resp = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/"
+        f"?date_start={today.isoformat()}&date_end={today.isoformat()}",
+        **_hdr(org.slug),
+    )
+    yest_resp = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/"
+        f"?date_start={yesterday.isoformat()}&date_end={yesterday.isoformat()}",
+        **_hdr(org.slug),
+    )
+    assert today_resp.status_code == 200, today_resp.content
+    assert yest_resp.status_code == 200, yest_resp.content
+    today_ids = {o["id"] for o in today_resp.json().get("observations", [])}
+    yest_ids = {o["id"] for o in yest_resp.json().get("observations", [])}
+    assert obs_today.id in today_ids
+    assert obs_yesterday.id not in today_ids
+    assert obs_yesterday.id in yest_ids
+    assert obs_today.id not in yest_ids
