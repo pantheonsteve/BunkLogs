@@ -15,7 +15,7 @@
 import { useMemo, useState } from 'react';
 import RichText from '../../components/ui/RichText';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, MessageSquarePlus } from 'lucide-react';
+import { MessageSquarePlus } from 'lucide-react';
 import {
   groupDashboardLink,
   observationThreadLink,
@@ -274,74 +274,6 @@ function PeriodStepper({ period, rangeStart, rangeEnd, onRangeChange, refreshing
 }
 
 // ---------------------------------------------------------------------------
-// Concerns
-// ---------------------------------------------------------------------------
-
-/** Map reflection id → assignment group (+ row date) from template blocks. */
-function buildReflectionGroupById(templates) {
-  const map = new Map();
-  for (const t of templates ?? []) {
-    for (const r of t.reflections ?? []) {
-      if (r.assignment_group?.id) {
-        map.set(r.id, r.assignment_group);
-      }
-    }
-  }
-  return map;
-}
-
-function ConcernsAlert({ concerns, reflectionGroupById }) {
-  if (!concerns || concerns.length === 0) return null;
-  return (
-    <section
-      className="mb-6 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4"
-      data-testid="subject-concerns"
-    >
-      <div className="flex items-start gap-2">
-        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-2">
-            Concerning patterns ({concerns.length})
-          </h3>
-          <ul className="text-sm text-amber-900 dark:text-amber-100 space-y-1">
-            {concerns.map((c, i) => {
-              const key = `${c.kind}-${c.field_label}-${i}`;
-              if (c.kind === 'low_rating') {
-                const ag = c.reflection_id ? reflectionGroupById?.get(c.reflection_id) : null;
-                return (
-                  <li key={key} className="flex flex-wrap items-center gap-2">
-                    <span>
-                      <strong>{c.field_label}</strong>: rating of {c.value} on {formatShortDate(c.date)}.
-                    </span>
-                    <PrivacyChip teamVisibility={c.team_visibility} />
-                    {ag?.id && (
-                      <Link
-                        to={`/dashboards/group/${ag.id}?date=${c.date}`}
-                        className="underline"
-                      >
-                        View {ag.name ?? 'group'}
-                      </Link>
-                    )}
-                  </li>
-                );
-              }
-              if (c.kind === 'downward_trend') {
-                return (
-                  <li key={key}>
-                    <strong>{c.field_label}</strong>: recent week ({c.recent_mean}) is lower than prior week ({c.prior_mean}) by more than 0.5.
-                  </li>
-                );
-              }
-              return <li key={key}>{c.kind}: {c.field_label}</li>;
-            })}
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Recent text responses
 // ---------------------------------------------------------------------------
 
@@ -387,6 +319,12 @@ const SENSITIVITY_LABEL = {
   domain: 'Domain',
   confidential: 'Confidential',
 };
+
+function formatObservationWhen(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+}
 
 function ObservationsPanel({ observations = [], onCompose, profileReturnTo = null }) {
   const [open, setOpen] = useState(true);
@@ -444,34 +382,46 @@ function ObservationsPanel({ observations = [], onCompose, profileReturnTo = nul
         <div className="p-4">
           {sorted.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400 italic" data-testid="observations-empty">
-              No observations yet.
+              No observations in this period.
             </p>
           ) : (
             <ul className="space-y-3">
-              {sorted.map((o) => (
-                <li key={o.id}>
-                  <Link
-                    to={observationThreadLink(o.id, profileReturnTo)}
-                    className="block rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/40"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
-                        {SENSITIVITY_LABEL[o.sensitivity] ?? o.sensitivity}
-                      </span>
-                      {o.context && (
-                        <span className="text-xs text-gray-400">{o.context}</span>
-                      )}
-                      {o.author && (
-                        <span className="text-xs text-gray-400 ml-auto">{o.author.name}</span>
-                      )}
-                    </div>
-                    <RichText
-                      html={o.body}
-                      className="text-sm text-gray-800 dark:text-gray-200 break-words [&_p]:mb-1 last:[&_p]:mb-0"
-                    />
-                  </Link>
-                </li>
-              ))}
+              {sorted.map((o) => {
+                const whenIso = o.observed_at || o.created_at;
+                const whenLabel = formatObservationWhen(whenIso);
+                return (
+                  <li key={o.id}>
+                    <Link
+                      to={observationThreadLink(o.id, profileReturnTo)}
+                      className="block rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                    >
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
+                          {SENSITIVITY_LABEL[o.sensitivity] ?? o.sensitivity}
+                        </span>
+                        {o.context && (
+                          <span className="text-xs text-gray-400">{o.context}</span>
+                        )}
+                        <div className="ml-auto flex items-center gap-2 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                          {whenLabel && (
+                            <time
+                              dateTime={whenIso}
+                              data-testid={`observation-when-${o.id}`}
+                            >
+                              {whenLabel}
+                            </time>
+                          )}
+                          {o.author && <span>{o.author.name}</span>}
+                        </div>
+                      </div>
+                      <RichText
+                        html={o.body}
+                        className="text-sm text-gray-800 dark:text-gray-200 break-words [&_p]:mb-1 last:[&_p]:mb-0"
+                      />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -500,14 +450,9 @@ export default function SubjectDetail({
     period,
     templates,
     recent_texts: recentTexts,
-    concerning_patterns: concerns,
     observations,
   } = payload;
   const language = profile?.preferred_language ?? 'en';
-  const reflectionGroupById = useMemo(
-    () => buildReflectionGroupById(templates),
-    [templates],
-  );
   const navigate = useNavigate();
   const [composeObservation, setComposeObservation] = useState(null);
 
@@ -515,6 +460,11 @@ export default function SubjectDetail({
     setComposeObservation({
       observedAtLocal: date ? dateOnlyToLocalDatetime(date) : null,
     });
+  };
+
+  const composeFromPanel = () => {
+    const singleDay = rangeStart && rangeStart === rangeEnd ? rangeEnd : null;
+    openCompose(singleDay);
   };
 
   return (
@@ -533,7 +483,6 @@ export default function SubjectDetail({
         onRangeChange={onRangeChange}
         refreshing={refreshing}
       />
-      <ConcernsAlert concerns={concerns} reflectionGroupById={reflectionGroupById} />
 
       {(!templates || templates.length === 0) ? (
         <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="subject-empty">
@@ -554,7 +503,7 @@ export default function SubjectDetail({
       {/*<RecentTexts texts={recentTexts} />*/}
       <ObservationsPanel
         observations={observations ?? []}
-        onCompose={personId ? () => openCompose() : null}
+        onCompose={personId ? composeFromPanel : null}
         profileReturnTo={profileReturnTo}
       />
       {composeObservation && (

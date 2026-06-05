@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
+from datetime import datetime
+from datetime import time
 from datetime import timedelta
 from typing import Any
 
@@ -29,6 +31,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
 from bunk_logs.core.permissions.subject_dashboard import can_view_subject_dashboard
+from bunk_logs.core.time_utils import get_org_timezone
 from bunk_logs.notes.models import Observation
 
 DEFAULT_WINDOW_DAYS = 30
@@ -121,15 +124,26 @@ def _observations_for_viewer(
     subject: Person,
     org,
     user,
+    *,
+    start: date,
+    end: date,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     """Return Observations about ``subject`` the viewer may read, newest first.
 
     Step 7_23 Profile feed: every observation the viewer may read about this
-    person, replacing the SubjectNote block as callers migrate.
+    person within ``start``..``end`` (org-TZ day buckets on ``observed_at``).
     """
+    tz = get_org_timezone(org)
+    range_start = datetime.combine(start, time.min, tzinfo=tz)
+    range_end = datetime.combine(end, time.min, tzinfo=tz) + timedelta(days=1)
     base = (
-        Observation.all_objects.filter(organization=org, subject_links__subject=subject)
+        Observation.all_objects.filter(
+            organization=org,
+            subject_links__subject=subject,
+            observed_at__gte=range_start,
+            observed_at__lt=range_end,
+        )
         .select_related("author")
         .prefetch_related("subject_links__subject")
     )
@@ -370,7 +384,10 @@ class SubjectDetailView(APIView):
 
         concerns = _detect_concerning_patterns(all_series, today)
 
-        observations = _observations_for_viewer(viewer_person, subject, org, request.user)
+        observations = _observations_for_viewer(
+            viewer_person, subject, org, request.user,
+            start=cur_start, end=cur_end,
+        )
 
         return Response({
             "subject": {
