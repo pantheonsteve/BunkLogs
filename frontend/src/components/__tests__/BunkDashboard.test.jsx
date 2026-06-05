@@ -124,7 +124,7 @@ describe('BunkDashboard', () => {
     expect(screen.getByTestId('order-2')).toHaveTextContent('Lice check');
   });
 
-  it('renders bunk concerns and sensitive-note counts in the Notes section', () => {
+  it('renders notes in a single stream with tags and sensitive-note footnote', () => {
     const data = {
       ...baseData,
       bunk_concerns: [{
@@ -132,13 +132,55 @@ describe('BunkDashboard', () => {
         author: 'Pat L.',
         author_role: 'counselor',
         note: 'Worried about cabin dynamics',
+        submitted_at: '2026-07-04T14:00:00Z',
+      }],
+      observations: [{
+        id: 7,
+        body_preview: 'Checked in after lunch.',
+        author_name: 'Sam R.',
+        subjects: [{ id: 3, name: 'Jamie Pat' }],
+        sensitivity: 'sensitive',
+        context: 'mealtime',
+        observed_at: '2026-07-04T16:00:00Z',
       }],
       specialist_reports: { today: [], recent: [], sensitive_counts_by_camper: { 1: 1, 2: 2 } },
     };
     renderDash(data);
     const section = screen.getByTestId('section-notes');
     expect(section).toHaveAttribute('data-state', 'populated');
+    expect(screen.getByTestId('notes-stream')).toBeInTheDocument();
+    expect(screen.queryByText('Bunk concerns')).not.toBeInTheDocument();
+    expect(screen.queryByText('Specialist reports')).not.toBeInTheDocument();
+    expect(screen.getByTestId('bunk-observation-7')).toHaveTextContent('Checked in after lunch.');
+    expect(screen.getByRole('link', { name: /Checked in after lunch/ })).toHaveAttribute(
+      'href',
+      '/observations/7',
+    );
+    expect(screen.getByTestId('bunk-observation-7')).toHaveTextContent('Sensitive');
+    expect(screen.getByTestId('bunk-observation-7')).toHaveTextContent('mealtime');
     expect(screen.getByTestId('bunk-concern-42')).toHaveTextContent('Worried about cabin dynamics');
+    expect(screen.getByTestId('bunk-concern-42')).toHaveTextContent('Bunk concern');
     expect(section).toHaveTextContent('3 sensitive notes');
+  });
+
+  it('links observations back to the group dashboard when profileLinkContext is set', () => {
+    const data = {
+      ...baseData,
+      observations: [{
+        id: 12,
+        body_preview: 'Evening check-in.',
+        author_name: 'Pat L.',
+        subjects: [{ id: 3, name: 'Jamie Pat' }],
+        sensitivity: 'normal',
+        observed_at: '2026-07-04T20:00:00Z',
+      }],
+    };
+    renderDash(data, {
+      profileLinkContext: { groupId: 78, date: '2026-07-04' },
+    });
+    const link = screen.getByRole('link', { name: /Evening check-in/ });
+    expect(link.getAttribute('href')).toBe(
+      '/observations/12?from=%2Fdashboards%2Fgroup%2F78%3Fdate%3D2026-07-04&from_label=Bunk+Alpha',
+    );
   });
 });

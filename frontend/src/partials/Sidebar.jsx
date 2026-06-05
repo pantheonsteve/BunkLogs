@@ -85,10 +85,12 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * Default nav (non-admin): My work (Home/tasks/reflections/
  * observations/maintenance), Supervise (supervisor+; program_lead+ also
  * gets performance / log entries / reflections / authors there). Leadership
- * Team (program_lead+). Gates use hasCapability(user, [...]) ||
- * isSuperAdmin(user); direct `user.role` references remain only for
- * reflection-form access. Role workspaces are the Home link target (no
- * duplicate "Counselor home" entries).
+ * Team (program_lead+). Camper Care omits My tasks / File a reflection /
+ * My reflections / Bunk Logs — those live on the Camper Care home dashboard.
+ * Gates use
+ * hasCapability(user, [...]) || isSuperAdmin(user); direct `user.role`
+ * references remain only for reflection-form access. Role workspaces are the
+ * Home link target (no duplicate "Counselor home" entries).
  */
 function Sidebar({
   sidebarOpen,
@@ -165,7 +167,8 @@ function Sidebar({
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
   const isCounselor = user.role === 'Counselor';
-  const canSeeFileReflectionNav = canFileReflection && !isCounselor;
+  const isCamperCare = user.role === 'Camper Care';
+  const canSeeFileReflectionNav = canFileReflection && !isCounselor && !isCamperCare;
   const canSeeLogs = canSupervise || canAdmin;
   // Counselors see assigned/submitted work via My tasks + My reflections, not the org-wide dashboard.
   const canSeeReflectionsDashboard = (canSeeLogs || canFileReflection) && !isCounselor;
@@ -308,11 +311,13 @@ function Sidebar({
           <>
           <Section heading="My work">
             <NavItem to={homePathFor(user.role)} label="Home" icon={IconHome} end />
-            <NavItem to="/tasks" label="My tasks" icon={IconTasks} />
+            {!isCamperCare && (
+              <NavItem to="/tasks" label="My tasks" icon={IconTasks} />
+            )}
             {canSeeFileReflectionNav && (
               <NavItem to="/reflect" label="File a reflection" icon={IconPencil} />
             )}
-            {canFileReflection && (
+            {canFileReflection && !isCamperCare && (
               <NavItem to="/my-reflections" label="My reflections" icon={IconClipboard} />
             )}
             <NavItem
@@ -326,19 +331,19 @@ function Sidebar({
               label="Maintenance Queue"
               icon={IconWrench}
             />
-            {canSupervise && !canSeeDashboards && canSeeLogs && (
-              <>
-                <NavItem
-                  to="/groups/performance"
-                  label="Group Performance"
-                  icon={IconGrid}
-                />
-                <NavItem
-                  to="/dashboards/logs"
-                  label="Bunk Logs"
-                  icon={IconBars}
-                />
-              </>
+            {canSupervise && !canSeeDashboards && (
+              <NavItem
+                to="/groups/performance"
+                label="Group Performance"
+                icon={IconGrid}
+              />
+            )}
+            {canSupervise && !canSeeDashboards && canSeeLogs && !isCamperCare && (
+              <NavItem
+                to="/dashboards/logs"
+                label="Bunk Logs"
+                icon={IconBars}
+              />
             )}
             {canSeeReflectionsDashboard && !canAdmin && (
               <NavItem

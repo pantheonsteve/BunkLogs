@@ -75,7 +75,7 @@ export default function GlobalSearch() {
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
-        placeholder="Search people, reflections, notes…"
+        placeholder="Search campers by name…"
         className="w-80 rounded-md border border-gray-300 bg-white p-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         aria-label="Admin global search"
       />

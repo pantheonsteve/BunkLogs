@@ -129,6 +129,7 @@ class CamperCareRequestCreateSerializer(serializers.Serializer):
     """
 
     subject_id = serializers.IntegerField(required=False, allow_null=True)
+    bunk_id = serializers.IntegerField(required=False, allow_null=True)
     item = serializers.CharField(max_length=120)
     item_note = serializers.CharField(
         required=False, allow_blank=True, default="",

@@ -23,6 +23,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.flags import sync_missing_camper_care_help_flags
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
 from bunk_logs.notes.models import Observation
@@ -59,6 +60,7 @@ class FlagListView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
+        sync_missing_camper_care_help_flags(program=ctx.program)
         status_q = (request.query_params.get("status") or "").strip().lower()
         if status_q and status_q not in ALL_STATUSES:
             return Response(
@@ -296,9 +298,9 @@ def _trigger_detail(flag: Flag) -> dict:
             from bunk_logs.core.models import Reflection
             refl = Reflection.all_objects.filter(id=flag.trigger_content_id).first()
             if refl is not None:
-                detail["created_at"] = (
-                    refl.created_at.isoformat() if refl.created_at else None
-                )
+                submitted = getattr(refl, "submitted_at", None)
+                detail["created_at"] = submitted.isoformat() if submitted else None
+                detail["author"] = _person_name(refl.author)
                 if isinstance(refl.answers, dict):
                     parts = [
                         v.strip()

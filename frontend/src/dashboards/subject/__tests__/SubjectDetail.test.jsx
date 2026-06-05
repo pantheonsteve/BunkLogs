@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SubjectDetail from '../SubjectDetail';
+
+vi.mock('../../../api/observations', () => ({
+  fetchRecipientCandidates: vi.fn(() => Promise.resolve([])),
+  searchObservationSubjects: vi.fn(() => Promise.resolve([])),
+  createObservation: vi.fn(),
+  SENSITIVITY_OPTIONS: [
+    { value: 'normal', label: 'Normal' },
+  ],
+}));
 
 const payload = {
   subject: {
@@ -247,6 +256,20 @@ describe('SubjectDetail', () => {
   it('renders the empty state when there are no templates', () => {
     renderDetail({ templates: [] });
     expect(screen.getByTestId('subject-empty')).toBeInTheDocument();
+  });
+
+  it('shows Note + on form-response rows when personId is set', () => {
+    renderDetail();
+    expect(screen.getByTestId('subject-add-observation-228')).toHaveTextContent('Note +');
+  });
+
+  it('opens observation composer prepopulated from a form-response row', async () => {
+    renderDetail();
+    fireEvent.click(screen.getByTestId('subject-add-observation-228'));
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-composer-observed-at')).toHaveValue('2026-05-23T12:00');
+    });
+    expect(screen.getByTestId('observation-subject-chips')).toHaveTextContent('BulkCamper5 #1');
   });
 
   it('calls onRangeChange when custom start/end dates are selected', () => {

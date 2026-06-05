@@ -10,14 +10,14 @@
  * Layout mirrors the production bunk page: header (name, date, counselors,
  * completion, view-only) → three attention summary cards (Not on Camp /
  * Unit Head Help / Camper Care Help) → Camper Daily Scores grid → Orders &
- * Tickets → Notes (bunk concerns + specialist reports). On the unified group
+ * Tickets → Notes (single chronological stream). On the unified group
  * dashboard page the score grid is omitted and orders/notes render after
  * template responses instead (see ``GroupDashboardPage``).
  */
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { profileLink } from '../utils/dashboardLinks';
+import { groupDashboardLink, observationThreadLink, profileLink } from '../utils/dashboardLinks';
 import ScoreGrid from './ScoreGrid';
 
 // Field types kept as grid columns. Triage single_choice/yes-no fields
@@ -201,23 +201,186 @@ function OrdersSection({ orders }) {
   );
 }
 
-function SpecialistNote({ note, toProfile }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <li data-testid={`specialist-note-${note.id}`} className="text-sm">
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        <Link
-          to={toProfile(note.subject.id)}
-          className="font-semibold text-blue-700 dark:text-blue-300 hover:underline"
+const SENSITIVITY_LABEL = {
+  normal: 'Normal',
+  sensitive: 'Sensitive',
+  domain: 'Domain',
+  confidential: 'Confidential',
+};
+
+const SOURCE_TAG = {
+  bunk_concern: {
+    label: 'Bunk concern',
+    cls: 'bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
+  },
+  specialist: {
+    label: 'Specialist report',
+    cls: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200',
+  },
+};
+
+function formatRoleLabel(role) {
+  if (!role) return null;
+  return String(role).replace(/_/g, ' ');
+}
+
+function streamSortTime(iso) {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function buildNotesStream({
+  bunkConcerns,
+  specialistReports,
+  observations,
+  observationReturnTo = null,
+  observationReturnLabel = null,
+}) {
+  const today = specialistReports?.today || [];
+  const recent = specialistReports?.recent || [];
+  const items = [];
+
+  for (const concern of bunkConcerns || []) {
+    const body = [concern.note, concern.open_concern].filter(Boolean).join('\n\n');
+    if (!body) continue;
+    items.push({
+      key: `concern-${concern.reflection_id}`,
+      kind: 'bunk_concern',
+      sortAt: concern.submitted_at,
+      author: concern.author,
+      authorRole: concern.author_role,
+      body,
+      testid: `bunk-concern-${concern.reflection_id}`,
+    });
+  }
+
+  for (const obs of observations || []) {
+    if (!obs.body_preview) continue;
+    items.push({
+      key: `obs-${obs.id}`,
+      kind: 'observation',
+      sortAt: obs.observed_at,
+      author: obs.author_name,
+      body: obs.body_preview,
+      sensitivity: obs.sensitivity,
+      context: obs.context,
+      subjects: obs.subjects,
+      href: observationReturnTo
+        ? observationThreadLink(obs.id, observationReturnTo, {
+          contextLabel: observationReturnLabel,
+        })
+        : `/observations/${obs.id}`,
+      testid: `bunk-observation-${obs.id}`,
+    });
+  }
+
+  for (const note of [...today, ...recent]) {
+    items.push({
+      key: `spec-${note.id}`,
+      kind: 'specialist',
+      sortAt: note.created_at,
+      author: note.author,
+      subject: note.subject,
+      body: note.body,
+      preview: note.preview,
+      isLong: note.is_long,
+      testid: `specialist-note-${note.id}`,
+    });
+  }
+
+  items.sort((a, b) => streamSortTime(b.sortAt) - streamSortTime(a.sortAt));
+  return items;
+}
+
+function NoteStreamMeta({ item }) {
+  const tags = [];
+  if (item.kind === 'observation') {
+    if (item.sensitivity) {
+      tags.push(
+        <span
+          key="sensitivity"
+          className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200"
         >
-          {camperDisplayName(note.subject)}
-        </Link>{' '}
-        · {note.author} · {new Date(note.created_at).toLocaleDateString()}
+          {SENSITIVITY_LABEL[item.sensitivity] ?? item.sensitivity}
+        </span>,
+      );
+    }
+    if (item.context) {
+      tags.push(
+        <span key="context" className="text-xs text-gray-500 dark:text-gray-400">
+          {item.context}
+        </span>,
+      );
+    }
+  } else {
+    const meta = SOURCE_TAG[item.kind];
+    if (meta) {
+      tags.push(
+        <span
+          key="source"
+          className={`text-xs rounded-full px-2 py-0.5 font-medium ${meta.cls}`}
+        >
+          {meta.label}
+        </span>,
+      );
+    }
+    if (item.authorRole) {
+      tags.push(
+        <span key="role" className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+          {formatRoleLabel(item.authorRole)}
+        </span>,
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 min-w-0">
+      {tags}
+      {item.author && (
+        <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+          {item.author}
+        </span>
+      )}
+      {item.sortAt && (
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto shrink-0">
+          {new Date(item.sortAt).toLocaleString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function NoteStreamItem({ item, toProfile }) {
+  const [expanded, setExpanded] = useState(false);
+  const subjectLabel = (item.subjects || []).map((s) => s.name).filter(Boolean).join(', ');
+  const bodyText = item.kind === 'specialist' && item.isLong && !expanded
+    ? item.preview
+    : item.body;
+
+  const content = (
+    <>
+      <NoteStreamMeta item={item} />
+      {item.kind === 'specialist' && item.subject?.id && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          re:{' '}
+          <Link
+            to={toProfile(item.subject.id)}
+            className="font-medium text-blue-700 dark:text-blue-300 hover:underline"
+          >
+            {camperDisplayName(item.subject)}
+          </Link>
+        </p>
+      )}
+      {subjectLabel && item.kind === 'observation' && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          re: {subjectLabel}
+        </p>
+      )}
+      <p className="mt-1.5 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+        {bodyText}
       </p>
-      <p className="mt-1 text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-        {expanded || !note.is_long ? note.body : note.preview}
-      </p>
-      {note.is_long && (
+      {item.kind === 'specialist' && item.isLong && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -226,49 +389,46 @@ function SpecialistNote({ note, toProfile }) {
           {expanded ? 'Show less' : 'Read more'}
         </button>
       )}
-    </li>
+    </>
   );
-}
 
-function ObservationRow({ item }) {
-  const subjectLabel = (item.subjects || []).map((s) => s.name).filter(Boolean).join(', ');
   return (
     <li
-      data-testid={`bunk-observation-${item.id}`}
-      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50"
+      data-testid={item.testid}
+      data-kind={item.kind}
+      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40"
     >
-      <Link to={`/observations/${item.id}`} className="block">
-        <div className="flex flex-wrap items-center gap-2 mb-1">
-          {item.author_name && (
-            <span className="font-semibold text-gray-900 dark:text-white">{item.author_name}</span>
-          )}
-          {item.context && (
-            <span className="text-xs text-gray-400">{item.context}</span>
-          )}
-          {subjectLabel && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto truncate max-w-[50%]">
-              re: {subjectLabel}
-            </span>
-          )}
-        </div>
-        <p className="text-gray-700 dark:text-gray-200">{item.body_preview}</p>
-      </Link>
+      {item.href ? (
+        <Link to={item.href} className="block">
+          {content}
+        </Link>
+      ) : content}
     </li>
   );
 }
 
-function NotesSection({ bunkConcerns, specialistReports, observations = [], toProfile, notesLink }) {
-  const today = specialistReports?.today || [];
-  const recent = specialistReports?.recent || [];
+function NotesSection({
+  bunkConcerns,
+  specialistReports,
+  observations = [],
+  toProfile,
+  notesLink,
+  observationReturnTo = null,
+  observationReturnLabel = null,
+}) {
   const sensitiveCounts = specialistReports?.sensitive_counts_by_camper || {};
   const sensitiveTotal = Object.values(sensitiveCounts).reduce((s, n) => s + n, 0);
-  const specialistNotes = [...today, ...recent];
-  const dayObservations = observations || [];
-  const isEmpty =
-    bunkConcerns.length === 0
-    && specialistNotes.length === 0
-    && sensitiveTotal === 0
-    && dayObservations.length === 0;
+  const stream = useMemo(
+    () => buildNotesStream({
+      bunkConcerns,
+      specialistReports,
+      observations,
+      observationReturnTo,
+      observationReturnLabel,
+    }),
+    [bunkConcerns, specialistReports, observations, observationReturnTo, observationReturnLabel],
+  );
+  const isEmpty = stream.length === 0 && sensitiveTotal === 0;
 
   return (
     <SectionCard
@@ -286,80 +446,34 @@ function NotesSection({ bunkConcerns, specialistReports, observations = [], toPr
       {isEmpty ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">No notes today.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-              Bunk concerns
+        <>
+          <ul className="space-y-2.5" data-testid="notes-stream">
+            {stream.map((item) => (
+              <NoteStreamItem key={item.key} item={item} toProfile={toProfile} />
+            ))}
+          </ul>
+          {sensitiveTotal > 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-3">
+              {sensitiveTotal} sensitive note{sensitiveTotal === 1 ? '' : 's'} not visible
+              (Camper Care).
             </p>
-            {bunkConcerns.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500">None today.</p>
-            ) : (
-              <ul className="space-y-2.5">
-                {bunkConcerns.map((item) => (
-                  <li
-                    key={item.reflection_id}
-                    data-testid={`bunk-concern-${item.reflection_id}`}
-                    className="rounded-lg border-l-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm"
-                  >
-                    <p className="font-semibold text-gray-900 dark:text-white">
-                      {item.author}
-                      {item.author_role && (
-                        <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">
-                          · {item.author_role}
-                        </span>
-                      )}
-                    </p>
-                    {item.note && (
-                      <p className="text-gray-700 dark:text-gray-200 mt-1">{item.note}</p>
-                    )}
-                    {item.open_concern && (
-                      <p className="text-gray-600 dark:text-gray-300 mt-1 italic">
-                        {item.open_concern}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-              Observations
-            </p>
-            {dayObservations.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500">None on this date.</p>
-            ) : (
-              <ul className="space-y-2.5" data-testid="bunk-observations-list">
-                {dayObservations.map((o) => (
-                  <ObservationRow key={o.id} item={o} />
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-              Specialist reports &amp; recent notes
-            </p>
-            {specialistNotes.length === 0 && sensitiveTotal === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500">None today.</p>
-            ) : (
-              <ul className="space-y-3">
-                {specialistNotes.map((n) => (
-                  <SpecialistNote key={n.id} note={n} toProfile={toProfile} />
-                ))}
-                {sensitiveTotal > 0 && (
-                  <li className="text-xs text-gray-500 dark:text-gray-400 italic">
-                    {sensitiveTotal} sensitive note{sensitiveTotal === 1 ? '' : 's'} not visible
-                    (Camper Care).
-                  </li>
-                )}
-              </ul>
-            )}
-          </div>
-        </div>
+          )}
+        </>
       )}
     </SectionCard>
   );
+}
+
+function resolveObservationReturn(data, profileLinkContext) {
+  if (!profileLinkContext?.groupId) {
+    return { observationReturnTo: null, observationReturnLabel: null };
+  }
+  return {
+    observationReturnTo: groupDashboardLink(profileLinkContext.groupId, {
+      date: profileLinkContext.date || data?.header?.date,
+    }),
+    observationReturnLabel: data?.header?.bunk?.name || 'Group dashboard',
+  };
 }
 
 export function BunkDashboardOrdersAndNotes({
@@ -373,6 +487,10 @@ export function BunkDashboardOrdersAndNotes({
       ? profileLink(id, profileLinkContext)
       : `${camperDashboardPath}/${id}`
   );
+  const { observationReturnTo, observationReturnLabel } = resolveObservationReturn(
+    data,
+    profileLinkContext,
+  );
   return (
     <>
       <OrdersSection orders={data?.orders} />
@@ -382,6 +500,8 @@ export function BunkDashboardOrdersAndNotes({
         observations={data?.observations || []}
         toProfile={toProfile}
         notesLink={notesLink}
+        observationReturnTo={observationReturnTo}
+        observationReturnLabel={observationReturnLabel}
       />
     </>
   );
@@ -404,6 +524,10 @@ export default function BunkDashboard({
     profileLinkContext
       ? profileLink(id, profileLinkContext)
       : `${camperDashboardPath}/${id}`
+  );
+  const { observationReturnTo, observationReturnLabel } = resolveObservationReturn(
+    data,
+    profileLinkContext,
   );
   const today = data?.header?.today;
   const date = data?.header?.date;
@@ -557,6 +681,8 @@ export default function BunkDashboard({
           observations={data?.observations || []}
           toProfile={toProfile}
           notesLink={notesLink}
+          observationReturnTo={observationReturnTo}
+          observationReturnLabel={observationReturnLabel}
         />
       )}
     </div>

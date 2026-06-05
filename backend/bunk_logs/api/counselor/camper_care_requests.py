@@ -23,6 +23,7 @@ from bunk_logs.core.models import OrderItemSuggestion
 from .common import co_counselor_person_ids
 from .common import find_existing_by_client_submission_id
 from .common import invalidate_dashboard_for_viewers
+from .common import resolve_submitted_from_bunk
 from .common import viewer_bunk_groups
 from .common import viewer_or_403
 from .responses import order_response
@@ -118,12 +119,19 @@ class CamperCareRequestCreateView(APIView):
                     {"subject_id": "Camper is not on any of your bunks."},
                 )
 
+        submitted_from_bunk = resolve_submitted_from_bunk(
+            viewer=viewer,
+            subject_id=subject_id,
+            bunk_id=payload.get("bunk_id"),
+        )
+
         with transaction.atomic():
             order = Order(
                 organization=org,
                 program=program,
                 subject_id=subject_id,
                 submitted_by=primary_membership,
+                submitted_from_bunk=submitted_from_bunk,
                 item=payload["item"],
                 item_note=payload.get("item_note", ""),
                 description=payload.get("description", ""),

@@ -86,11 +86,29 @@ function OrderRow({ order, selectable, selected, onSelectToggle, onTransition })
                 {order.item}
                 {order.item_note ? ` — ${order.item_note}` : ''}
               </h3>
-              <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">
-                For {camperLabel(order.subject)}
-                {order.submitter?.name ? ` · from ${order.submitter.name}` : ''}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {order.bunk?.name ? (
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                    data-testid={`order-bunk-${order.id}`}
+                  >
+                    {order.bunk.name}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                    Bunk unknown
+                  </span>
+                )}
+                {order.subject && (
+                  <span className="text-xs text-gray-600 dark:text-gray-300">
+                    For {camperLabel(order.subject)}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {order.submitter?.name ? (
+                  <span>from {order.submitter.name} · </span>
+                ) : null}
                 {formatAge(order.age_seconds)}
                 {aged && (
                   <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 text-[10px] font-medium">

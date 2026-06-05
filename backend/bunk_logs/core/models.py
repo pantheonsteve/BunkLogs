@@ -1420,6 +1420,18 @@ class Order(OrderableContent):
         related_name="cc_orders_submitted",
         help_text="Membership of the counselor / submitter.",
     )
+    submitted_from_bunk = models.ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cc_orders_submitted_from",
+        help_text=(
+            "Bunk the submitter was authoring when the request was filed. "
+            "Persisted at creation so Camper Care can route the ticket even "
+            "when the subject camper is unknown or off-roster."
+        ),
+    )
     item = models.CharField(
         max_length=120,
         blank=True,

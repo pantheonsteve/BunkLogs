@@ -68,6 +68,38 @@ def viewer_or_403(request) -> ViewerContext:
     return ViewerContext(person=person, organization=org, today=get_today(org))
 
 
+def resolve_submitted_from_bunk(
+    *,
+    viewer: Person,
+    subject_id: int | None = None,
+    bunk_id: int | None = None,
+) -> AssignmentGroup | None:
+    """Pick the bunk context for a counselor-filed Camper Care request.
+
+    When a camper is selected, prefer the bunk where that camper is on the
+    viewer's roster. Otherwise honor an explicit ``bunk_id`` from the client,
+    or fall back to the viewer's only bunk.
+    """
+    bunks = viewer_bunk_groups(viewer)
+    if not bunks:
+        return None
+    by_id = {b.id: b for b in bunks}
+    if bunk_id is not None and bunk_id in by_id:
+        return by_id[bunk_id]
+    if subject_id is not None:
+        for bunk in bunks:
+            if AssignmentGroupMembership.objects.filter(
+                group=bunk,
+                person_id=subject_id,
+                role_in_group="subject",
+                is_active=True,
+            ).exists():
+                return bunk
+    if len(bunks) == 1:
+        return bunks[0]
+    return None
+
+
 def viewer_bunk_groups(viewer: Person) -> list[AssignmentGroup]:
     """Active bunk AssignmentGroups the viewer is an author on.
 

@@ -13,6 +13,7 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
@@ -212,6 +213,99 @@ class TestInboxAndThread:
         resp = client.get(f"/api/v1/observations/{obs.id}/")
         assert resp.status_code == 200
         assert obs.read_receipts.filter(person=uh_person).exists()
+
+    def test_thread_subject_can_view_profile_supervised_camper(
+        self, org, program, counselor_user, counselor_membership, counselor_person,
+        counselor_in_bunk, camper,
+    ):
+        obs = _make_observation(org, program, counselor_person, subjects=[camper])
+        client = _auth_client(counselor_user, org)
+        resp = client.get(f"/api/v1/observations/{obs.id}/")
+        assert resp.status_code == 200
+        subjects = resp.json()["subjects"]
+        assert subjects[0]["id"] == camper.id
+        assert subjects[0]["can_view_profile"] is True
+
+    def test_thread_subject_can_view_profile_false_outside_supervision(
+        self, org, program, counselor_user, counselor_membership, counselor_in_bunk, bunk,
+    ):
+        other_bunk = AssignmentGroup.all_objects.create(
+            organization=org, program=bunk.program, name="Bunk Oak",
+            slug="bunk-oak", group_type="bunk",
+        )
+        distant = Person.all_objects.create(organization=org, first_name="Far", last_name="Away")
+        AssignmentGroupMembership.all_objects.create(
+            group=other_bunk, person=distant, role_in_group="subject", is_active=True,
+        )
+        author = Person.all_objects.filter(user=counselor_user).first()
+        obs = _make_observation(org, program, author, subjects=[distant])
+        client = _auth_client(counselor_user, org)
+        resp = client.get(f"/api/v1/observations/{obs.id}/")
+        assert resp.status_code == 200
+        assert resp.json()["subjects"][0]["can_view_profile"] is False
+
+    def test_thread_subject_can_view_profile_true_for_supervisor(
+        self, org, program, uh_user, uh_membership, uh_person, bunk, camper,
+    ):
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=uh_person, role_in_group="author", is_active=True,
+        )
+        obs = _make_observation(org, program, uh_person, subjects=[camper])
+        client = _auth_client(uh_user, org)
+        resp = client.get(f"/api/v1/observations/{obs.id}/")
+        assert resp.status_code == 200
+        assert resp.json()["subjects"][0]["can_view_profile"] is True
+
+    def test_thread_subject_can_view_profile_true_for_org_admin(
+        self, org, program, camper,
+    ):
+        from bunk_logs.users.models import User
+
+        admin_user = User.objects.create_user(
+            email="org-admin-obs@t.test", password="pw", role=User.ADMIN,
+        )
+        admin_person = Person.all_objects.create(
+            organization=org, first_name="Org", last_name="Admin", user=admin_user,
+        )
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="admin", is_active=True,
+        )
+        author = Person.all_objects.create(organization=org, first_name="Auth", last_name="Or")
+        obs = _make_observation(org, program, author, subjects=[camper])
+        client = _auth_client(admin_user, org)
+        resp = client.get(f"/api/v1/observations/{obs.id}/")
+        assert resp.status_code == 200
+        assert resp.json()["subjects"][0]["can_view_profile"] is True
+
+    def test_thread_subject_can_view_profile_true_for_legacy_user_role_admin(
+        self, org, program, counselor_in_bunk, camper,
+    ):
+        """User.role Admin with only counselor membership still sees profile links."""
+        from bunk_logs.users.models import User
+
+        admin_user = User.objects.create_user(
+            email="legacy-admin-obs@t.test", password="pw", role=User.ADMIN,
+        )
+        admin_person = Person.all_objects.create(
+            organization=org, first_name="Legacy", last_name="Admin", user=admin_user,
+        )
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="counselor", is_active=True,
+        )
+        other_bunk = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Bunk Pine",
+            slug="bunk-pine", group_type="bunk",
+        )
+        distant = Person.all_objects.create(organization=org, first_name="Far", last_name="Camper")
+        AssignmentGroupMembership.all_objects.create(
+            group=other_bunk, person=distant, role_in_group="subject", is_active=True,
+        )
+        author = Person.all_objects.filter(user=admin_user).first()
+        obs = _make_observation(org, program, author, subjects=[distant])
+        client = _auth_client(admin_user, org)
+        resp = client.get(f"/api/v1/observations/{obs.id}/")
+        assert resp.status_code == 200
+        assert resp.json()["subjects"][0]["can_view_profile"] is True
 
     def test_reply_appends(
         self, org, program, counselor_person, counselor_membership, uh_user, uh_membership, uh_person, camper,

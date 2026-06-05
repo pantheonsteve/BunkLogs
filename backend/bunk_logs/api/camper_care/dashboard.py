@@ -27,7 +27,9 @@ from bunk_logs.api.unit_head.common import compute_attention_badges
 from bunk_logs.api.unit_head.common import expected_by_passed
 from bunk_logs.api.unit_head.common import help_requested_camper_ids_from
 from bunk_logs.api.unit_head.common import off_camp_camper_ids
-from bunk_logs.core.models import Flag
+from bunk_logs.core.flags import active_flags_for_program_day
+from bunk_logs.core.flags import flagged_camper_ids_for_date
+from bunk_logs.core.flags import sync_missing_camper_care_help_flags
 from bunk_logs.core.models import Order
 
 from .common import bunk_camper_ids
@@ -57,6 +59,10 @@ class CamperCareDashboardView(APIView):
             msg = "Future dates are not selectable."
             raise ValidationError(msg)
 
+        sync_missing_camper_care_help_flags(
+            program=ctx.program, target_date=target_date,
+        )
+
         bypass = (request.query_params.get("nocache") or "").lower() in {"1", "true"}
         cache_key = _cache_key(
             viewer_id=ctx.person.id, organization_id=ctx.organization.id,
@@ -69,10 +75,8 @@ class CamperCareDashboardView(APIView):
 
         units_payload = _build_caseload_tree(ctx, target_date=target_date)
 
-        flag_count = Flag.objects.filter(
-            program=ctx.program,
-            flagged_for_role="camper_care",
-            status__in=(Flag.Status.ACTIVE, Flag.Status.FOLLOWED_UP),
+        flag_count = active_flags_for_program_day(
+            program=ctx.program, target_date=target_date,
         ).count()
 
         order_count = Order.objects.filter(
@@ -172,14 +176,13 @@ def _build_caseload_tree(ctx, *, target_date) -> list[dict]:
             all_camper_ids.update(ids)
 
     flagged_camper_ids = (
-        set(
-            Flag.objects.filter(
-                program=ctx.program,
-                subject_camper_id__in=all_camper_ids,
-                flagged_for_role="camper_care",
-                status__in=(Flag.Status.ACTIVE, Flag.Status.FOLLOWED_UP),
-            ).values_list("subject_camper_id", flat=True),
-        ) if all_camper_ids else set()
+        flagged_camper_ids_for_date(
+            program=ctx.program,
+            target_date=target_date,
+            camper_ids=all_camper_ids,
+        )
+        if all_camper_ids
+        else set()
     )
     ordered_camper_ids = (
         set(

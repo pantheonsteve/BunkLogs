@@ -21,6 +21,7 @@ from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import CamperDayState
+from bunk_logs.core.models import Flag
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -186,6 +187,46 @@ def test_create_camper_reflection_201_and_persists(
     row = Reflection.all_objects.get(id=resp.data["id"])
     assert row.author == counselor_person
     assert row.is_complete is True
+
+
+@pytest.mark.django_db
+def test_create_with_camper_care_help_raises_flag(
+    org, program, counselor_user, counselor_person, counselor_membership,
+    bunk, counselor_as_author, campers, camper_template,
+):
+    """Story 20 — counselor reflection help request creates a CC flag row."""
+    camper_template.schema = {
+        "fields": [
+            {"key": "note", "type": "textarea", "required": False, "prompts": {"en": "Notes"}},
+            {
+                "key": "request_camper_care_help",
+                "type": "yes_no",
+                "required": False,
+                "dashboard_role": "help_request_camper_care",
+                "prompts": {"en": "Request Camper Care help?"},
+            },
+        ],
+    }
+    camper_template.save(update_fields=["schema"])
+
+    sarah = campers[0]
+    c = _client(counselor_user, org)
+    payload = _post_payload(subject=sarah, bunk=bunk)
+    payload["answers"] = {"note": "Rough day", "request_camper_care_help": "yes"}
+    with organization_context(org):
+        resp = c.post("/api/v1/counselor/camper-reflections/", payload, format="json")
+    assert resp.status_code == 201, resp.data
+
+    flag = Flag.all_objects.filter(
+        program=program,
+        subject_camper=sarah,
+        trigger_content_type="reflection",
+        trigger_content_id=str(resp.data["id"]),
+        flagged_for_role="camper_care",
+        status=Flag.Status.ACTIVE,
+    ).first()
+    assert flag is not None
+    assert flag.raised_by_membership_id == counselor_membership.id
 
 
 @pytest.mark.django_db

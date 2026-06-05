@@ -23,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit as audit_module
+from bunk_logs.core.flags import raise_flag_from_camper_reflection
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -218,6 +219,9 @@ class CamperReflectionListView(APIView):
             client_submission_id=payload["client_submission_id"],
         )
         if existing is not None:
+            raise_flag_from_camper_reflection(
+                existing, raised_by_membership=primary_membership,
+            )
             return Response(reflection_response(existing), status=status.HTTP_200_OK)
 
         bunk = AssignmentGroup.all_objects.filter(
@@ -293,6 +297,9 @@ class CamperReflectionListView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             reflection.save()
+            raise_flag_from_camper_reflection(
+                reflection, raised_by_membership=primary_membership,
+            )
 
         audit_module.created(
             primary_membership,
@@ -365,14 +372,18 @@ class CamperReflectionDetailView(APIView):
         reflection.save()
         after = reflection_snapshot(reflection)
 
-        if before != after:
-            actor_membership = (
-                Membership.objects.filter(
-                    person=viewer, program=reflection.program, is_active=True,
-                )
-                .order_by("-created_at")
-                .first()
+        actor_membership = (
+            Membership.objects.filter(
+                person=viewer, program=reflection.program, is_active=True,
             )
+            .order_by("-created_at")
+            .first()
+        )
+        raise_flag_from_camper_reflection(
+            reflection, raised_by_membership=actor_membership,
+        )
+
+        if before != after:
             audit_module.edited(
                 actor_membership or request.user,
                 reflection,

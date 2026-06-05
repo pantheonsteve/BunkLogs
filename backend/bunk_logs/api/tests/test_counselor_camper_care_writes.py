@@ -115,6 +115,7 @@ def test_create_camper_care_request_201(
     order = Order.all_objects.get(id=resp.data["id"])
     assert order.subject == camper
     assert order.submitted_by == counselor_membership
+    assert order.submitted_from_bunk == bunk
     assert order.status == "new"
 
 

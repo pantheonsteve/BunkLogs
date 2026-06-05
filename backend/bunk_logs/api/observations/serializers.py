@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from bunk_logs.core.models import Person
+from bunk_logs.core.permissions.subject_dashboard import can_view_subject_dashboard
 from bunk_logs.notes.models import Observation
 from bunk_logs.notes.models import ObservationReply
 
@@ -113,11 +115,32 @@ class ObservationThreadSerializer(serializers.ModelSerializer):
             "read_summary",
         ]
 
+    def _viewer_person(self, request, org, user):
+        viewer = self.context.get("viewer_person")
+        if viewer is not None:
+            return viewer
+        if not (request and org and user and user.is_authenticated):
+            return None
+        return Person.objects.filter(user=user).first()
+
     def get_subjects(self, obs: Observation) -> list[dict]:
-        return [
-            {"id": link.subject_id, "full_name": link.subject.full_name}
-            for link in obs.subject_links.select_related("subject").all()
-        ]
+        request = self.context.get("request")
+        org = getattr(request, "organization", None) if request else None
+        user = getattr(request, "user", None) if request else None
+        viewer = self._viewer_person(request, org, user)
+        rows = []
+        for link in obs.subject_links.select_related("subject").all():
+            can_view = False
+            if org is not None and link.subject is not None:
+                can_view = can_view_subject_dashboard(
+                    viewer, link.subject, org, user,
+                )
+            rows.append({
+                "id": link.subject_id,
+                "full_name": link.subject.full_name,
+                "can_view_profile": can_view,
+            })
+        return rows
 
     def get_recipients(self, obs: Observation) -> list[dict]:
         return [

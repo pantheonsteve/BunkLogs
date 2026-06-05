@@ -266,6 +266,7 @@ export async function fetchCamperCareItemSuggestions() {
  */
 export async function createCamperCareRequest({
   subjectId,
+  bunkId,
   item,
   itemNote = '',
   description = '',
@@ -279,6 +280,9 @@ export async function createCamperCareRequest({
   };
   if (subjectId !== undefined && subjectId !== null) {
     payload.subject_id = subjectId;
+  }
+  if (bunkId !== undefined && bunkId !== null) {
+    payload.bunk_id = bunkId;
   }
   const res = await api.post(
     '/api/v1/counselor/camper-care-requests/', payload,

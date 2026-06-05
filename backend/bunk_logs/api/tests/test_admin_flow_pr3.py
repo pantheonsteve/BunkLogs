@@ -15,6 +15,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
@@ -116,19 +118,25 @@ class TestAdminGlobalSearch:
         self, api, org, program, admin_user,
     ):
         with organization_context(org):
-            Person.all_objects.create(
+            camper = Person.all_objects.create(
                 organization=org, first_name="Hermione",
                 last_name="Granger", email="hg@example.com",
+            )
+            bunk = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Bunk A",
+                slug="pr3-bunk-a", group_type="bunk",
+            )
+            AssignmentGroupMembership.all_objects.create(
+                group=bunk, person=camper, role_in_group="subject", is_active=True,
             )
         api.force_authenticate(user=admin_user)
         with organization_context(org):
             r = api.get(f"{self.URL}?q=hermione", **_hdr(org.slug))
         assert r.status_code == 200, r.content
         body = r.json()
-        assert any(
-            row["label"].startswith("Hermione")
-            for row in body["groups"]["people"]
-        )
+        people = body["groups"]["people"]
+        assert any(row["label"].startswith("Hermione") for row in people)
+        assert people[0]["deep_link"] == f"/profile/{camper.id}"
 
     def test_does_not_leak_cross_org(
         self, api, org, other_org, admin_user, other_program,
@@ -153,11 +161,49 @@ class TestAdminGlobalSearch:
                 for row in group
             )
 
-    def test_non_admin_blocked(self, api, org, non_admin_user):
+    def test_counselor_search_scoped_to_supervised_campers(
+        self, api, org, program, non_admin_user,
+    ):
+        counselor = Person.all_objects.get(user=non_admin_user)
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Mine",
+            slug="pr3-bunk-mine", group_type="bunk",
+        )
+        other_bunk = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Other",
+            slug="pr3-bunk-other", group_type="bunk",
+        )
+        mine = Person.all_objects.create(
+            organization=org, first_name="My", last_name="Camper",
+        )
+        distant = Person.all_objects.create(
+            organization=org, first_name="Far", last_name="Camper",
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor, role_in_group="author", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=mine, role_in_group="subject", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=other_bunk, person=distant, role_in_group="subject", is_active=True,
+        )
         api.force_authenticate(user=non_admin_user)
         with organization_context(org):
-            r = api.get(f"{self.URL}?q=anything", **_hdr(org.slug))
-        assert r.status_code == 403
+            r = api.get(f"{self.URL}?q=Camper", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        labels = [row["label"] for row in r.json()["groups"]["people"]]
+        assert "My Camper" in labels
+        assert "Far Camper" not in labels
+        assert r.json()["groups"].get("reflections", []) == []
+
+    def test_non_admin_can_search_people_only(self, api, org, program, non_admin_user):
+        api.force_authenticate(user=non_admin_user)
+        with organization_context(org):
+            r = api.get(f"{self.URL}?q=Co", **_hdr(org.slug))
+        assert r.status_code == 200
+        assert "people" in r.json()["groups"]
+        assert "reflections" not in r.json()["groups"]
 
 
 # ---------------------------------------------------------------------------
