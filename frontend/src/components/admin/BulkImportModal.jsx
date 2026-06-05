@@ -132,6 +132,23 @@ export default function BulkImportModal({ programs, onClose }) {
                 </li>
               ))}
             </ul>
+            {previewData.rows?.some((row) => ['merge', 'duplicate'].includes(row.classification)) && (
+              <div className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-amber-50 p-2 text-xs space-y-1">
+                <p className="font-medium text-amber-900">Merges and duplicates</p>
+                {previewData.rows
+                  .filter((row) => ['merge', 'duplicate'].includes(row.classification))
+                  .map((row) => (
+                    <p key={`${row.external_id}-${row.full_name}`} className="text-amber-950">
+                      <span className="font-semibold capitalize">{row.classification}</span>
+                      {': '}
+                      {row.full_name || 'Unknown'}
+                      {row.email ? ` (${row.email})` : ''}
+                      {row.existing_person_id ? ` → Person #${row.existing_person_id}` : ''}
+                      {row.issues?.length ? ` — ${row.issues.join('; ')}` : ''}
+                    </p>
+                  ))}
+              </div>
+            )}
             <button
               type="button"
               onClick={handleCommit}
@@ -147,6 +164,18 @@ export default function BulkImportModal({ programs, onClose }) {
         {commitResult && (
           <section data-testid="bulk-import-commit-panel" className="rounded-md border border-emerald-300 bg-emerald-50 p-3 space-y-2">
             <h3 className="text-sm font-medium">Import complete</h3>
+            {commitResult.log?.summary?.duplicates_flagged?.length > 0 && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950 space-y-1">
+                <p className="font-medium">
+                  {commitResult.log.summary.duplicates_flagged.length} duplicate(s) flagged
+                </p>
+                {commitResult.log.summary.duplicates_flagged.map((item) => (
+                  <p key={`${item.row}-${item.campminder_id}`}>
+                    Row {item.row}: {item.full_name} ({item.reason})
+                  </p>
+                ))}
+              </div>
+            )}
             <pre className="text-xs whitespace-pre-wrap">
               {JSON.stringify(commitResult.log?.summary || {}, null, 2)}
             </pre>
