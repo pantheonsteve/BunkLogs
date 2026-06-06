@@ -58,7 +58,7 @@ const SCOPE_LABELS = {
 // Human labels for group types shown as compact pills in the template header.
 const GROUP_TYPE_SHORT = {
   bunk: 'Bunk', unit: 'Unit', division: 'Division', cohort: 'Cohort',
-  classroom: 'Classroom', caseload: 'Caseload', specialty: 'Specialty', custom: 'Custom',
+  classroom: 'Classroom', caseload: 'Caseload', team: 'Team', specialty: 'Specialty', custom: 'Custom',
 };
 
 const CONFLICT_CHOICES = [
@@ -70,7 +70,7 @@ const CONFLICT_CHOICES = [
 // Display order for group_type sections; anything unrecognised falls under
 // "Other". Matches the order in core.models.AssignmentGroup.GROUP_TYPES.
 const GROUP_TYPE_ORDER = [
-  'bunk', 'unit', 'division', 'cohort', 'classroom', 'caseload', 'specialty', 'custom',
+  'bunk', 'unit', 'division', 'cohort', 'classroom', 'caseload', 'team', 'specialty', 'custom',
 ];
 
 const GROUP_TYPE_LABEL = {
@@ -80,6 +80,7 @@ const GROUP_TYPE_LABEL = {
   cohort: 'Cohorts',
   classroom: 'Classrooms',
   caseload: 'Caseloads',
+  team: 'Teams',
   specialty: 'Specialty / Activity groups',
   custom: 'Custom groups',
 };

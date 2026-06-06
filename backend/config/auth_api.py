@@ -7,6 +7,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from bunk_logs.api.views import _active_membership_roles
 from bunk_logs.bunks.models import CounselorBunkAssignment
 from bunk_logs.bunks.models import UnitStaffAssignment
 
@@ -34,7 +35,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data["access"] = str(refresh.access_token)
         data["refresh"] = str(refresh)
 
-        # Add basic user details
+        # Add basic user details (membership_roles gates maintenance-only nav/home).
         data["user"] = {
             "id": str(self.user.id),
             "email": self.user.email,
@@ -43,6 +44,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             "role": getattr(self.user, "role", "User"),
             "is_staff": self.user.is_staff,
             "is_superuser": self.user.is_superuser,
+            "membership_roles": _active_membership_roles(self.user),
         }
 
         return data

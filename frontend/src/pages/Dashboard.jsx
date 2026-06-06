@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import isSuperAdmin from '../utils/auth/isSuperAdmin';
+import { homePathForUser } from '../utils/auth/capability';
 
 import Sidebar from '../partials/Sidebar';
 import Header from '../partials/Header';
@@ -20,19 +20,6 @@ import UserProfile from '../partials/dashboard/UserProfile';
  * is also kept as the fallback for Admins / Super-Admins browsing the legacy UI.
  */
 
-const ROLE_DESTINATIONS = {
-  'Admin':          '/admin/home',
-  'Counselor':      '/counselor',
-  'Unit Head':      '/unit-head',
-  'Camper Care':    '/camper-care',
-  'Leadership':     '/leadership-team',
-  'Leadership Team': '/leadership-team',
-  'Kitchen Staff':  '/kitchen-staff',
-  'Specialist':     '/specialist',
-  'Madrich':        '/madrich',
-  'Maintenance':    '/maintenance',
-};
-
 function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { userProfile, isAuthenticated, user, loading: authLoading, isAuthenticating } = useAuth();
@@ -41,10 +28,8 @@ function Dashboard() {
   useEffect(() => {
     if (authLoading || isAuthenticating) return;
 
-    const destination = user?.role
-      ? ROLE_DESTINATIONS[user.role]
-      : (isSuperAdmin(user) ? '/admin/home' : null);
-    if (destination) {
+    const destination = homePathForUser(user);
+    if (destination !== '/dashboard') {
       navigate(destination, { replace: true });
     }
   }, [user, navigate, authLoading, isAuthenticating]);

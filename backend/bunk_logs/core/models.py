@@ -415,6 +415,7 @@ class AssignmentGroup(models.Model):
         ("unit", "Unit"),
         ("division", "Division"),
         ("cohort", "Cohort"),
+        ("team", "Team"),
         ("specialty", "Specialty/Activity Group"),
         ("custom", "Custom Group"),
     ]

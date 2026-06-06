@@ -15,11 +15,12 @@ const GROUP_TYPE_LABELS = {
   unit: 'Unit',
   division: 'Division',
   cohort: 'Cohort',
+  team: 'Team',
   specialty: 'Specialty / Activity',
   custom: 'Custom',
 };
 
-const GROUP_TYPE_ORDER = ['division', 'unit', 'bunk', 'classroom', 'caseload', 'cohort', 'specialty', 'custom'];
+const GROUP_TYPE_ORDER = ['division', 'unit', 'bunk', 'classroom', 'caseload', 'cohort', 'team', 'specialty', 'custom'];
 
 function groupByType(groups) {
   const map = {};
@@ -119,7 +120,7 @@ export default function GroupListPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Groups</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage bunks, classrooms, caseloads, and other assignment groups
+              Manage bunks, teams, classrooms, caseloads, and other assignment groups
             </p>
           </div>
           <Button onClick={() => setCreating(true)}>

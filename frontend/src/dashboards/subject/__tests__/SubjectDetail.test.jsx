@@ -7,6 +7,7 @@ vi.mock('../../../api/observations', () => ({
   fetchRecipientCandidates: vi.fn(() => Promise.resolve([])),
   searchObservationSubjects: vi.fn(() => Promise.resolve([])),
   createObservation: vi.fn(),
+  sensitivityAudience: (value) => value,
   SENSITIVITY_OPTIONS: [
     { value: 'normal', label: 'Normal' },
   ],

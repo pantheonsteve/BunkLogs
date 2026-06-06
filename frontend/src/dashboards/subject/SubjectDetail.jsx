@@ -22,6 +22,7 @@ import {
   profileBackLabel,
   resolveProfileBackGroup,
 } from '../../utils/dashboardLinks';
+import { sensitivityAudience } from '../../api/observations';
 import ObservationComposer, { dateOnlyToLocalDatetime } from '../../components/observations/ObservationComposer';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
 import {
@@ -313,13 +314,6 @@ function RecentTexts({ texts }) {
 // Root
 // ---------------------------------------------------------------------------
 
-const SENSITIVITY_LABEL = {
-  normal: 'Normal',
-  sensitive: 'Sensitive',
-  domain: 'Domain',
-  confidential: 'Confidential',
-};
-
 function formatObservationWhen(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -397,7 +391,7 @@ function ObservationsPanel({ observations = [], onCompose, profileReturnTo = nul
                     >
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
-                          {SENSITIVITY_LABEL[o.sensitivity] ?? o.sensitivity}
+                          {sensitivityAudience(o.sensitivity)}
                         </span>
                         {o.context && (
                           <span className="text-xs text-gray-400">{o.context}</span>

@@ -7,12 +7,24 @@
 
 import api from '../api';
 
+export const SENSITIVITY_AUDIENCE = Object.freeze({
+  normal: 'Everyone',
+  sensitive: 'Unit Heads and above',
+  domain: 'Leadership Team and above',
+  confidential: 'Pro Team only',
+});
+
 export const SENSITIVITY_OPTIONS = Object.freeze([
-  { value: 'normal', label: 'Normal — readable by the hierarchy' },
-  { value: 'sensitive', label: 'Sensitive — supervisors and above' },
-  { value: 'domain', label: 'Domain — specialists and above' },
-  { value: 'confidential', label: 'Confidential — admin only' },
+  { value: 'normal', label: `Normal — ${SENSITIVITY_AUDIENCE.normal}` },
+  { value: 'sensitive', label: `Sensitive — ${SENSITIVITY_AUDIENCE.sensitive}` },
+  { value: 'domain', label: `Domain — ${SENSITIVITY_AUDIENCE.domain}` },
+  { value: 'confidential', label: `Confidential — ${SENSITIVITY_AUDIENCE.confidential}` },
 ]);
+
+/** Audience label for a sensitivity tier (badges, inbox rows, etc.). */
+export function sensitivityAudience(value) {
+  return SENSITIVITY_AUDIENCE[value] ?? value;
+}
 
 /** Search subjects the viewer may write observations about. */
 export async function searchObservationSubjects(q) {

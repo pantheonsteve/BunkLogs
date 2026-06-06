@@ -46,7 +46,7 @@ const CONFLICT_CHOICES = [
 
 const GROUP_TYPE_LABELS = {
   bunk: 'Bunk', unit: 'Unit', division: 'Division', cohort: 'Cohort',
-  classroom: 'Classroom', caseload: 'Caseload', specialty: 'Specialty', custom: 'Custom',
+  classroom: 'Classroom', caseload: 'Caseload', team: 'Team', specialty: 'Specialty', custom: 'Custom',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

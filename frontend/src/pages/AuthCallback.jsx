@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { homePathForUser } from '../utils/auth/capability';
 
 function AuthCallback() {
   const navigate = useNavigate();
@@ -122,14 +123,15 @@ function AuthCallback() {
               });
             };
             
-            await waitForUserProfile();
+            const profile = await waitForUserProfile();
             
             setStatus('success');
             
             // Additional delay to ensure all auth state is propagated to React components
             setTimeout(() => {
-              console.log('🎯 Redirecting to dashboard with fully loaded profile...');
-              navigate('/dashboard', { replace: true });
+              const destination = homePathForUser(profile);
+              console.log('🎯 Redirecting after auth callback:', destination);
+              navigate(destination, { replace: true });
             }, 1000); // Reduced delay since we already waited for profile
             
           } catch (loginError) {

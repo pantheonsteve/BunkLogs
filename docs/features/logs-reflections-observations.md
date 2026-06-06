@@ -197,10 +197,10 @@ Open a row to read the full thread, reply, or archive it for yourself.
    the event was earlier. Future dates are not allowed.
 5. **Context tag** — optional short label (for example `swim_instruction`).
 6. **Sensitivity** — controls who can be notified and who can read via hierarchy:
-   - **Normal** — readable by the hierarchy
-   - **Sensitive** — supervisors and above
-   - **Domain** — domain specialists and above
-   - **Confidential** — admin only
+   - **Normal** — Everyone
+   - **Sensitive** — Unit Heads and above
+   - **Domain** — Leadership Team and above
+   - **Confidential** — Pro Team only
 7. **Notify** — optional checkboxes; only people who clear the selected
    sensitivity tier appear.
 8. **Make visible to the subject on their Profile** — optional; lets the

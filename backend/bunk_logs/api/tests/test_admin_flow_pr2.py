@@ -307,6 +307,62 @@ class TestAdminAssignments:
         assert r1.status_code == 201
         assert r2.status_code == 409
 
+    def test_staff_team_membership_create_and_list(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            team = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Kitchen Staff",
+                slug="kitchen-staff", group_type="team",
+            )
+            person = Person.all_objects.create(
+                organization=org, first_name="Kit", last_name="Chen",
+            )
+        api.force_authenticate(user=admin_user)
+        payload = {
+            "sub_tab": "staff_team",
+            "group_id": team.id,
+            "person_id": person.id,
+        }
+        with organization_context(org):
+            r = api.post(self.URL, payload, format="json", **_hdr(org.slug))
+            assert r.status_code == 201, r.content
+            assert r.json()["assignment_group_membership"]["sub_tab"] == "staff_team"
+            listed = api.get(
+                self.URL, {"sub_tab": "staff_team"}, **_hdr(org.slug),
+            )
+        assert listed.status_code == 200
+        rows = listed.json()["results"]
+        assert len(rows) == 1
+        assert rows[0]["sub_tab"] == "staff_team"
+        assert rows[0]["group_id"] == team.id
+
+    def test_staff_team_rejects_non_team_group(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            bunk = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Bunk 2",
+                slug="bunk-2", group_type="bunk",
+            )
+            person = Person.all_objects.create(
+                organization=org, first_name="No", last_name="Match",
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.post(
+                self.URL,
+                {
+                    "sub_tab": "staff_team",
+                    "group_id": bunk.id,
+                    "person_id": person.id,
+                },
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 400
+        assert "team group" in r.json()["detail"].lower()
+
 
 # ---------------------------------------------------------------------------
 # Programs + End Program

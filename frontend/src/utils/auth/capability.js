@@ -127,6 +127,40 @@ export function hasCapability(user, capOrList) {
  *   const cap = useCapability();
  *   if (cap === 'admin') ...
  */
+/** Maintenance membership with no admin role — stripped nav + /maintenance home. */
+export function isMaintenanceOnlyMember(user) {
+  if (!user) return false;
+  const roles = Array.isArray(user.membership_roles) ? user.membership_roles : [];
+  return (
+    roles.includes('maintenance')
+    && !roles.includes('admin')
+    && !hasCapability(user, 'admin')
+    && !isSuperAdmin(user)
+  );
+}
+
+const ROLE_HOME_PATHS = Object.freeze({
+  Admin: '/admin/home',
+  Counselor: '/counselor',
+  'Unit Head': '/unit-head',
+  'Camper Care': '/camper-care',
+  Leadership: '/leadership-team',
+  'Leadership Team': '/leadership-team',
+  'Kitchen Staff': '/kitchen-staff',
+  Specialist: '/specialist',
+  Madrich: '/madrich',
+  Maintenance: '/maintenance',
+});
+
+/** Post-login and logo home target for the signed-in user. */
+export function homePathForUser(user) {
+  if (!user) return '/dashboard';
+  if (isMaintenanceOnlyMember(user)) return '/maintenance';
+  if (isSuperAdmin(user)) return '/admin/home';
+  const rolePath = user.role && ROLE_HOME_PATHS[user.role];
+  return rolePath || '/dashboard';
+}
+
 export function useCapability() {
   const { user } = useAuth();
   return userCapability(user);

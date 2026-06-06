@@ -18,6 +18,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { groupDashboardLink, observationThreadLink, profileLink } from '../utils/dashboardLinks';
+import { sensitivityAudience } from '../api/observations';
 import ScoreGrid from './ScoreGrid';
 
 // Field types kept as grid columns. Triage single_choice/yes-no fields
@@ -201,13 +202,6 @@ function OrdersSection({ orders }) {
   );
 }
 
-const SENSITIVITY_LABEL = {
-  normal: 'Normal',
-  sensitive: 'Sensitive',
-  domain: 'Domain',
-  confidential: 'Confidential',
-};
-
 const SOURCE_TAG = {
   bunk_concern: {
     label: 'Bunk concern',
@@ -302,7 +296,7 @@ function NoteStreamMeta({ item }) {
           key="sensitivity"
           className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200"
         >
-          {SENSITIVITY_LABEL[item.sensitivity] ?? item.sensitivity}
+          {sensitivityAudience(item.sensitivity)}
         </span>,
       );
     }

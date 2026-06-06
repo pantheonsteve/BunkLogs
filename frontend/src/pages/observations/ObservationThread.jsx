@@ -14,6 +14,7 @@ import {
   archiveObservation,
   fetchObservationThread,
   replyToObservation,
+  sensitivityAudience,
 } from '../../api/observations';
 
 function timeAgo(iso) {
@@ -28,13 +29,6 @@ function timeAgo(iso) {
   if (days === 1) return 'yesterday';
   return `${days}d ago`;
 }
-
-const SENSITIVITY_LABEL = {
-  normal: 'Normal',
-  sensitive: 'Sensitive',
-  domain: 'Domain',
-  confidential: 'Confidential',
-};
 
 export default function ObservationThread() {
   const { observationId } = useParams();
@@ -163,7 +157,7 @@ export default function ObservationThread() {
                     );
                   })}
                   <span className="inline-flex rounded-full bg-amber-50 dark:bg-amber-900/20 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
-                    {SENSITIVITY_LABEL[obs.sensitivity] ?? obs.sensitivity}
+                    {sensitivityAudience(obs.sensitivity)}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 mt-2 flex-wrap">

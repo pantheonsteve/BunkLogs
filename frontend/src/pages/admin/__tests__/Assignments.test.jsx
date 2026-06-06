@@ -19,9 +19,10 @@ beforeEach(() => {
 });
 
 describe('AdminAssignments (7_13 PR2)', () => {
-  it('renders all five sub-tabs and switches between them', async () => {
+  it('renders all six sub-tabs and switches between them', async () => {
     render(<AdminAssignments />);
     expect(await screen.findByTestId('assignment-sub-tab-counselor_bunk')).toBeInTheDocument();
+    expect(screen.getByTestId('assignment-sub-tab-staff_team')).toBeInTheDocument();
     expect(screen.getByTestId('assignment-sub-tab-uh_counselor')).toBeInTheDocument();
     expect(screen.getByTestId('assignment-sub-tab-cc_caseload')).toBeInTheDocument();
     expect(screen.getByTestId('assignment-sub-tab-lt_team')).toBeInTheDocument();

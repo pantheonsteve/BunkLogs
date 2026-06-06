@@ -3,8 +3,8 @@
  *
  * Renders viewer context, a date picker (defaults to org "today"), bunk
  * tiles for groups the counselor authors (with form-assignment progress),
- * self-reflection status, quick actions (requests + observations), and
- * the all-set banner when camper + self work is complete.
+ * quick actions (requests + observations) at the top, bunk tiles,
+ * self-reflection status, and the all-set banner when work is complete.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -418,6 +418,43 @@ export default function CounselorMobileDashboard() {
         </label>
       </header>
 
+      <section data-testid="counselor-quick-actions">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+          Requests & observations
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <QuickActionButton
+            to="/counselor/requests/camper-care/new"
+            icon={HeartHandshake}
+            label="Camper care"
+            sublabel="Submit a request"
+            testid="counselor-action-camper-care"
+          />
+          <QuickActionButton
+            to="/counselor/requests/maintenance/new"
+            icon={Wrench}
+            label="Maintenance"
+            sublabel="Report an issue"
+            testid="counselor-action-maintenance"
+          />
+          <QuickActionButton
+            to="/counselor/requests"
+            icon={ClipboardList}
+            label="My requests"
+            sublabel={openCount ? `${openCount} open` : 'View progress'}
+            testid="counselor-action-requests"
+            badge={openCount > 0 ? openCount : null}
+          />
+          <QuickActionButton
+            to="/observations"
+            icon={MessageSquarePlus}
+            label="Observation"
+            sublabel="Note about a camper"
+            testid="counselor-action-observation"
+          />
+        </div>
+      </section>
+
       {allSet && isToday ? (
         <div
           className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/40 dark:border-green-800 px-4 py-3"
@@ -489,43 +526,6 @@ export default function CounselorMobileDashboard() {
             <p className="text-sm text-gray-600 dark:text-gray-300">History and streaks</p>
           </div>
         </Link>
-      </section>
-
-      <section data-testid="counselor-quick-actions">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-          Requests & observations
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <QuickActionButton
-            to="/counselor/requests/camper-care/new"
-            icon={HeartHandshake}
-            label="Camper care"
-            sublabel="Submit a request"
-            testid="counselor-action-camper-care"
-          />
-          <QuickActionButton
-            to="/counselor/requests/maintenance/new"
-            icon={Wrench}
-            label="Maintenance"
-            sublabel="Report an issue"
-            testid="counselor-action-maintenance"
-          />
-          <QuickActionButton
-            to="/counselor/requests"
-            icon={ClipboardList}
-            label="My requests"
-            sublabel={openCount ? `${openCount} open` : 'View progress'}
-            testid="counselor-action-requests"
-            badge={openCount > 0 ? openCount : null}
-          />
-          <QuickActionButton
-            to="/observations"
-            icon={MessageSquarePlus}
-            label="Observation"
-            sublabel="Note about a camper"
-            testid="counselor-action-observation"
-          />
-        </div>
       </section>
     </div>
   );

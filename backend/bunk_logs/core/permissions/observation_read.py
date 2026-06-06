@@ -24,12 +24,20 @@ from bunk_logs.core.permissions.super_admin import is_super_admin
 # Sensitivity tiers, ordered low -> high.
 SENSITIVITY_TIERS = ["normal", "sensitive", "domain", "confidential"]
 
+# User-facing audience copy for each tier (composer labels, API disclosures).
+SENSITIVITY_AUDIENCE_LABELS: dict[str, str] = {
+    "normal": "Everyone",
+    "sensitive": "Unit Heads and above",
+    "domain": "Leadership Team and above",
+    "confidential": "Pro Team only",
+}
+
 # Code default mirrors NOTE_VIS_BY_CAP with sensitivity tier names. Orgs may
 # override per capability via Organization.settings["observations"]["view_by_capability"].
 DEFAULT_VIEW_BY_CAPABILITY: dict[str, set[str]] = {
     "admin": {"normal", "sensitive", "domain", "confidential"},
     "program_lead": {"normal", "sensitive", "domain"},
-    "domain_specialist": {"normal", "sensitive", "domain"},
+    "domain_specialist": {"normal", "sensitive"},
     "supervisor": {"normal", "sensitive"},
     "participant": set(),
 }
@@ -98,6 +106,7 @@ def filter_observations_readable(qs, viewer_person, org, user):
 
 __all__ = [
     "DEFAULT_VIEW_BY_CAPABILITY",
+    "SENSITIVITY_AUDIENCE_LABELS",
     "SENSITIVITY_TIERS",
     "capability_clears",
     "filter_observations_readable",
