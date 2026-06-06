@@ -104,10 +104,18 @@ export function AuthProvider({ children }) {
       // If we have a user object directly from the API response (username/password login)
       if (tokens.user) {
         console.log('Setting user from API response:', tokens.user);
-        setUser(tokens.user);
-        // Also store in localStorage
-        localStorage.setItem('user_profile', JSON.stringify(tokens.user));
-        return tokens.user;
+        let profile = tokens.user;
+        if (!Array.isArray(profile.membership_roles) && profile.email) {
+          try {
+            const response = await api.get(`/api/v1/users/email/${profile.email}/`);
+            profile = response.data;
+          } catch (e) {
+            console.warn('Could not enrich login profile with membership_roles:', e);
+          }
+        }
+        setUser(profile);
+        localStorage.setItem('user_profile', JSON.stringify(profile));
+        return profile;
       }
       
       // If we have a full user profile passed directly (social login), use that

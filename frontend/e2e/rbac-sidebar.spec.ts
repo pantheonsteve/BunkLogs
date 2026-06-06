@@ -24,6 +24,11 @@ const HREFS = {
   counselorHome: '/counselor',
   unitHeadHome: '/unit-head',
   camperCareHome: '/camper-care',
+  leadershipTeamHome: '/leadership-team',
+  camperCareOrders: '/camper-care/orders',
+  observations: '/observations',
+  maintenance: '/maintenance',
+  help: '/help',
   orders: '/orders',
   // Supervise
   groupsPerformance: '/groups/performance',
@@ -116,20 +121,37 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 
-  test('leadership (program_lead): Supervise dashboard links but no Admin or Dashboards menu', async ({
+  test('leadership (program_lead): Admin-style nav with Templates-only Admin submenu', async ({
     page,
   }) => {
     await loginAs(page, 'leadership');
     await readSidebarText(page);
 
+    expect(await hasLink(page, HREFS.leadershipTeamHome)).toBe(true);
+    expect(await hasLink(page, HREFS.help)).toBe(true);
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsLogs)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsReflections)).toBe(true);
+    expect(await hasLink(page, HREFS.dashboardsCoverage)).toBe(true);
     expect(await hasLink(page, HREFS.dashboardsAuthors)).toBe(true);
+    expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
+    expect(await hasLink(page, HREFS.observations)).toBe(true);
+    expect(await hasLink(page, HREFS.maintenance)).toBe(true);
+    expect(await hasLink(page, HREFS.camperCareOrders)).toBe(true);
+    expect(await hasLink(page, HREFS.adminTemplates)).toBe(true);
+    expect(await countLinks(page, HREFS.dashboardsLogs)).toBe(1);
+    expect(await countLinks(page, HREFS.dashboardsReflections)).toBe(1);
+
+    expect(await hasLink(page, HREFS.adminHome)).toBe(false);
+    expect(await hasLink(page, HREFS.adminDashboard)).toBe(false);
+    expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
+    expect(await hasLink(page, HREFS.adminGroups)).toBe(false);
+    expect(await hasLink(page, HREFS.adminFieldKeys)).toBe(false);
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
     expect(await hasLink(page, HREFS.dashboardsWellness)).toBe(false);
-
-    expect(await hasLink(page, HREFS.adminMemberships)).toBe(false);
+    expect(await hasLink(page, HREFS.tasks)).toBe(false);
+    expect(await hasLink(page, HREFS.reflect)).toBe(false);
+    expect(await hasLink(page, HREFS.myReflections)).toBe(false);
     expect(await hasLink(page, HREFS.legacyBunkLogs)).toBe(false);
   });
 

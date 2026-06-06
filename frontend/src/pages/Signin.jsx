@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { homePathForUser } from "../utils/auth/capability";
 import ProviderList from '../socialaccount/ProviderList';
 import CampLogo from "../../src/images/clc-logo.jpeg";
 import SocialLoginButton from "../components/SocialLoginButton";
@@ -78,11 +79,8 @@ function Signin() {
         user: response.data.user // Include user data from response
       };
       
-      // Call the login function from AuthContext
-      login(tokens);
-      
-      // Redirect to dashboard
-      navigate("/dashboard");
+      const profile = await login(tokens);
+      navigate(homePathForUser(profile));
     } catch (error) {
       console.error("Login error:", error);
       

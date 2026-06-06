@@ -115,6 +115,38 @@ def test_recipient_reads_even_confidential(org, program):
     assert obs.id in _readable_ids(counselor, org)
 
 
+def test_program_lead_covers_subject_reads_domain_not_confidential(org, program):
+    lt = _person(org, "LT")
+    _member(program, lt, "leadership_team")  # capability=program_lead
+    author = _person(org, "Author")
+    _member(program, author, "counselor")
+    camper = _person(org, "Camper")
+    bunk = _bunk(org, program)
+    _author_in(bunk, lt)
+    _subject_in(bunk, camper)
+    domain = _obs(org, program, author, S.DOMAIN, [camper])
+    confidential = _obs(org, program, author, S.CONFIDENTIAL, [camper])
+    readable = _readable_ids(lt, org)
+    assert domain.id in readable
+    assert confidential.id not in readable
+
+
+def test_domain_specialist_covers_subject_reads_sensitive_not_domain(org, program):
+    cc = _person(org, "CC")
+    _member(program, cc, "camper_care")  # capability=domain_specialist
+    author = _person(org, "Author")
+    _member(program, author, "counselor")
+    camper = _person(org, "Camper")
+    bunk = _bunk(org, program)
+    _author_in(bunk, cc)
+    _subject_in(bunk, camper)
+    sensitive = _obs(org, program, author, S.SENSITIVE, [camper])
+    domain = _obs(org, program, author, S.DOMAIN, [camper])
+    readable = _readable_ids(cc, org)
+    assert sensitive.id in readable
+    assert domain.id not in readable
+
+
 def test_supervisor_covers_subject_reads_sensitive_not_confidential(org, program):
     uh = _person(org, "UH")
     _member(program, uh, "unit_head")  # capability=supervisor
@@ -186,6 +218,9 @@ def test_cross_org_isolation(org, other_org, program):
 # ---------------------------------------------------------------------------
 def test_capability_clears_defaults(org):
     assert capability_clears("supervisor", "sensitive", org) is True
+    assert capability_clears("supervisor", "domain", org) is False
+    assert capability_clears("domain_specialist", "domain", org) is False
+    assert capability_clears("program_lead", "domain", org) is True
     assert capability_clears("supervisor", "confidential", org) is False
     assert capability_clears("admin", "confidential", org) is True
     assert capability_clears("participant", "normal", org) is False

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import isSuperAdmin from "../utils/auth/isSuperAdmin";
-import { hasCapability } from "../utils/auth/capability";
+import { hasCapability, homePathForUser, isMaintenanceOnlyMember } from "../utils/auth/capability";
 import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
@@ -44,11 +44,13 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
 /**
  * Navigation IA.
  *
- * The nav is role-dependent. There are three render paths:
+ * The nav is role-dependent. There are four render paths:
  *
- *   1. maintenance-only members  — stripped nav (Maintenance + Observations)
+ *   1. maintenance-only members  — Maintenance Queue only
  *   2. admins / super-admins     — curated Admin IA (see below)
- *   3. everyone else             — the shared default nav
+ *   3. program_lead (LT)         — same Admin IA structure; Home →
+ *      /leadership-team; Admin submenu is Templates only
+ *   4. everyone else             — the shared default nav
  *
  * Admin IA (admin + super_admin) — Phase 1 of the role-based nav refactor:
  *
@@ -78,15 +80,14 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Field keys          /admin/field-keys
  *     Settings            /admin/settings
  *
- * Admins land on /admin (see pages/Dashboard.jsx). My tasks / File a
- * reflection / My reflections are folded into the Admin dashboard
- * rather than the global nav. The Leadership Team group is intentionally
- * absent from the Admin IA (it's the Leadership Team's own home).
+ * Admins land on /admin (see pages/Dashboard.jsx). Leadership Team lands
+ * on /leadership-team with the same My work / Supervise sections but
+ * only Templates under Admin. My tasks / File a reflection / My
+ * reflections are folded into those home dashboards, not the global nav.
  *
- * Default nav (non-admin): My work (Home/tasks/reflections/
- * observations/maintenance), Supervise (supervisor+; program_lead+ also
- * gets performance / log entries / reflections / authors there). Help
- * (program_lead+). Leadership Team (program_lead+). Camper Care omits My tasks / File a reflection /
+ * Default nav (non-admin, non-LT): My work (Home/tasks/reflections/
+ * observations/maintenance), Supervise (supervisor+). Help
+ * (program_lead+). Camper Care omits My tasks / File a reflection /
  * My reflections / Bunk Logs — those live on the Camper Care home dashboard.
  * Gates use
  * hasCapability(user, [...]) || isSuperAdmin(user); direct `user.role`
@@ -167,6 +168,9 @@ function Sidebar({
   const canSeeLeadershipTeam = hasCapability(user, PROGRAM_LEAD_PLUS) || isSuperAdmin(user);
   const canSeeHelp = canSeeLeadershipTeam;
   const canAdmin = hasCapability(user, 'admin') || isSuperAdmin(user);
+  const useLeadershipAdminNav = canSeeDashboards && !canAdmin;
+  const useAdminStyleNav = canAdmin || useLeadershipAdminNav;
+  const adminStyleHomePath = canAdmin ? '/admin/home' : '/leadership-team';
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
   const isCounselor = user.role === 'Counselor';
   const isCamperCare = user.role === 'Camper Care';
@@ -174,14 +178,11 @@ function Sidebar({
   const canSeeLogs = canSupervise || canAdmin;
   // Counselors see assigned/submitted work via My tasks + My reflections, not the org-wide dashboard.
   const canSeeReflectionsDashboard = (canSeeLogs || canFileReflection) && !isCounselor;
-  // Maintenance staff get a stripped-down nav: just the queue + notes. The
-  // canonical role lives on Membership (legacy User.role has no maintenance
-  // value), surfaced via `membership_roles` on the profile payload.
-  const membershipRoles = Array.isArray(user.membership_roles) ? user.membership_roles : [];
-  const isMaintenanceOnly =
-    membershipRoles.includes('maintenance') &&
-    !membershipRoles.includes('admin') &&
-    !canAdmin;
+  // Maintenance staff get a stripped-down nav: just the queue. The canonical
+  // role lives on Membership (legacy User.role has no maintenance value),
+  // surfaced via `membership_roles` on the profile payload.
+  const isMaintenanceOnly = isMaintenanceOnlyMember(user);
+  const homePath = homePathForUser(user);
   // Poll unread Observations count every 60 seconds (Step 7_23 nav badge).
   const [observationsUnread, setObservationsUnread] = useState(0);
   useEffect(() => {
@@ -214,6 +215,7 @@ function Sidebar({
           trigger={trigger}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
+          homePath={homePath}
         />
 
         <div className="space-y-6">
@@ -224,18 +226,12 @@ function Sidebar({
                 label="Maintenance Queue"
                 icon={IconWrench}
               />
-              <NavItem
-                to="/observations"
-                label="Observations"
-                icon={IconChat}
-                badge={observationsUnread > 0 ? observationsUnread : null}
-              />
             </Section>
-          ) : canAdmin ? (
+          ) : useAdminStyleNav ? (
           <>
           <div>
             <ul>
-              <NavItem to="/admin/home" label="Home" icon={IconHome} end />
+              <NavItem to={adminStyleHomePath} label="Home" icon={IconHome} end />
               {canSeeHelp && (
                 <NavItem to="/help" label="Help" icon={IconHelp} />
               )}
@@ -302,14 +298,21 @@ function Sidebar({
             icon={IconGear}
             setSidebarExpanded={setSidebarExpanded}
           >
-            <SubItem to="/admin/dashboard" label="Admin Dashboard" />
-            <SubItem to="/admin/templates" label="Templates" />
-            <SubItem to="/admin/people" label="People" />
-            <SubItem to="/admin/assignments" label="Assignments" />
-            <SubItem to="/admin/memberships" label="Memberships" />
-            <SubItem to="/admin/groups" label="Assignment groups" />
-            <SubItem to="/admin/field-keys" label="Field keys" />
-            <SubItem to="/admin/settings" label="Settings" />
+            {canAdmin && (
+              <>
+                <SubItem to="/admin/dashboard" label="Admin Dashboard" />
+                <SubItem to="/admin/templates" label="Templates" />
+                <SubItem to="/admin/people" label="People" />
+                <SubItem to="/admin/assignments" label="Assignments" />
+                <SubItem to="/admin/memberships" label="Memberships" />
+                <SubItem to="/admin/groups" label="Assignment groups" />
+                <SubItem to="/admin/field-keys" label="Field keys" />
+                <SubItem to="/admin/settings" label="Settings" />
+              </>
+            )}
+            {!canAdmin && (
+              <SubItem to="/admin/templates" label="Templates" />
+            )}
           </CollapsibleSection>
           </>
           ) : (
@@ -439,7 +442,7 @@ function Sidebar({
   );
 }
 
-function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen }) {
+function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' }) {
   return (
     <div className="flex justify-between mb-10 pr-3 sm:px-2">
       <button
@@ -454,7 +457,7 @@ function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen }) {
           <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
         </svg>
       </button>
-      <NavLink end to="/" className="block">
+      <NavLink end to={homePath} className="block">
         <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src={CampLogo} />
       </NavLink>
     </div>

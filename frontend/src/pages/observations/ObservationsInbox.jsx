@@ -5,7 +5,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ObservationComposer from '../../components/observations/ObservationComposer';
-import { fetchObservationInbox, fetchObservationSent } from '../../api/observations';
+import {
+  fetchObservationInbox,
+  fetchObservationSent,
+  sensitivityAudience,
+} from '../../api/observations';
 
 const TABS = [
   { key: 'inbox', label: 'Inbox' },
@@ -17,13 +21,6 @@ const SORT_OPTIONS = [
   { value: 'oldest', label: 'Oldest first' },
   { value: 'unread', label: 'Unread first' },
 ];
-
-const SENSITIVITY_LABEL = {
-  normal: 'Normal',
-  sensitive: 'Sensitive',
-  domain: 'Domain',
-  confidential: 'Confidential',
-};
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -256,7 +253,7 @@ export default function ObservationsInbox() {
                       : `From ${o.author?.full_name}`}
                   </span>
                   <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
-                    {SENSITIVITY_LABEL[o.sensitivity] ?? o.sensitivity}
+                    {sensitivityAudience(o.sensitivity)}
                   </span>
                 </div>
               </button>

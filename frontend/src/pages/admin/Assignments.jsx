@@ -13,7 +13,8 @@ import {
  *   - uh_counselor   (Supervision target_type=MEMBERSHIP)
  *   - cc_caseload    (Supervision target_type=BUNK)
  *   - lt_team        (Supervision target_type=ROLE_IN_PROGRAM)
- *   - counselor_bunk (AssignmentGroupMembership role=author)
+ *   - counselor_bunk (AssignmentGroupMembership role=author on a Bunk)
+ *   - staff_team     (AssignmentGroupMembership role=author on a Team)
  *   - camper_bunk    (AssignmentGroupMembership role=subject)
  *
  * Reflects the server-side backdated-clamp invariant: if the user
@@ -23,6 +24,7 @@ import {
 
 const SUB_TABS = [
   { key: 'counselor_bunk', label: 'Counselor → Bunk' },
+  { key: 'staff_team', label: 'Staff → Team' },
   { key: 'uh_counselor', label: 'Unit Head → Counselor' },
   { key: 'cc_caseload', label: 'Camper Care → Caseload' },
   { key: 'lt_team', label: 'Leadership → Team' },
@@ -181,9 +183,13 @@ function CreateForm({ subTab, onCreated }) {
           <TextField label="Target role" value={draft.target_role || ''} onChange={(v) => setDraft({ ...draft, target_role: v })} />
         </>
       )}
-      {(subTab === 'counselor_bunk' || subTab === 'camper_bunk') && (
+      {(subTab === 'counselor_bunk' || subTab === 'staff_team' || subTab === 'camper_bunk') && (
         <>
-          <NumberField label="Group (Bunk) ID" value={draft.group_id || ''} onChange={(v) => setDraft({ ...draft, group_id: v })} />
+          <NumberField
+            label={subTab === 'staff_team' ? 'Group (Team) ID' : 'Group (Bunk) ID'}
+            value={draft.group_id || ''}
+            onChange={(v) => setDraft({ ...draft, group_id: v })}
+          />
           <NumberField label="Person ID" value={draft.person_id || ''} onChange={(v) => setDraft({ ...draft, person_id: v })} />
         </>
       )}

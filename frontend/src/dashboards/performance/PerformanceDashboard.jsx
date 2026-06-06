@@ -11,6 +11,7 @@ const GROUP_TYPES = [
   { value: 'classroom', label: 'Classrooms' },
   { value: 'caseload', label: 'Caseloads' },
   { value: 'cohort', label: 'Cohorts' },
+  { value: 'team', label: 'Teams' },
   { value: 'specialty', label: 'Specialties' },
   { value: 'custom', label: 'Custom' },
 ];

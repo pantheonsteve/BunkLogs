@@ -10,7 +10,7 @@ import {
 import { useAuth } from './auth/AuthContext';
 import { useEffect } from 'react';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
-import { hasCapability } from './utils/auth/capability';
+import { hasCapability, homePathForUser } from './utils/auth/capability';
 import Signin from './pages/Signin';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -103,6 +103,12 @@ import CamperCareRequestFormPage from './pages/counselor/CamperCareRequestFormPa
 import MaintenanceTicketFormPage from './pages/counselor/MaintenanceTicketFormPage';
 import { useBunk } from './contexts/BunkContext';
 
+function HomeRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  return <Navigate to={homePathForUser(user)} replace />;
+}
+
 // Protected route component
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -150,6 +156,31 @@ function AdminRoute({ children }) {
 
   const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
   if (!isAdmin) {
+    return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
+  }
+
+  return children;
+}
+
+// Template library routes: admin or program_lead (Leadership Team).
+function LeadershipTemplatesRoute({ children }) {
+  const { isAuthenticated, loading, user } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    const next = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/signin?next=${encodeURIComponent(next)}`} replace />;
+  }
+
+  const canAccess =
+    isSuperAdmin(user)
+    || user?.role?.toLowerCase() === 'admin'
+    || hasCapability(user, 'program_lead');
+  if (!canAccess) {
     return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   }
 
@@ -818,13 +849,13 @@ function Router() {
               </AdminRoute>
             }
           />
-          {/* Template library + builder (LT UI, admin-only via AdminRoute). */}
+          {/* Template library + builder (LT UI; admin or program_lead). */}
           <Route
             path="templates"
             element={
-              <AdminRoute>
+              <LeadershipTemplatesRoute>
                 <LeadershipTeamTemplateLibrary />
-              </AdminRoute>
+              </LeadershipTemplatesRoute>
             }
           />
           <Route
@@ -834,25 +865,25 @@ function Router() {
           <Route
             path="templates/new"
             element={
-              <AdminRoute>
+              <LeadershipTemplatesRoute>
                 <LeadershipTeamTemplateBuilderPage />
-              </AdminRoute>
+              </LeadershipTemplatesRoute>
             }
           />
           <Route
             path="templates/:id/responses"
             element={
-              <AdminRoute>
+              <LeadershipTemplatesRoute>
                 <LeadershipTeamResponses />
-              </AdminRoute>
+              </LeadershipTemplatesRoute>
             }
           />
           <Route
             path="templates/:id"
             element={
-              <AdminRoute>
+              <LeadershipTemplatesRoute>
                 <LeadershipTeamTemplateBuilderPage />
-              </AdminRoute>
+              </LeadershipTemplatesRoute>
             }
           />
           <Route
@@ -891,8 +922,8 @@ function Router() {
         />
 
         {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" />} />
-        <Route path="*" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<HomeRedirect />} />
+        <Route path="*" element={<HomeRedirect />} />
       </Routes>
     </BrowserRouter>
   );

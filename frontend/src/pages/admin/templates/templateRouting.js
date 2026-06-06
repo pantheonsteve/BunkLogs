@@ -55,6 +55,7 @@ export const GROUP_TYPE_OPTIONS = [
   { value: 'unit', label: 'Unit' },
   { value: 'division', label: 'Division' },
   { value: 'cohort', label: 'Cohort' },
+  { value: 'team', label: 'Team' },
   { value: 'specialty', label: 'Specialty / Activity' },
   { value: 'custom', label: 'Custom' },
 ];

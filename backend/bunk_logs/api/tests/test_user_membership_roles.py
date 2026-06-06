@@ -54,6 +54,14 @@ def test_membership_roles_in_profile(org, program):
     assert "maintenance" in r.json()["membership_roles"]
 
 
+def test_membership_roles_in_token_login(org, program):
+    user = _make_member(org, program, "maint-token@mr.com", "maintenance")
+    api = APIClient()
+    r = api.post("/api/auth/token/", {"email": user.email, "password": "pw"}, format="json")
+    assert r.status_code == 200, r.content
+    assert "maintenance" in r.json()["user"]["membership_roles"]
+
+
 def test_no_memberships_returns_empty_list(org):
     user = User.objects.create_user(email="no-member@mr.com", password="pw")
     api = APIClient()

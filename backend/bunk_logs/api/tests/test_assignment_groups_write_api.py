@@ -121,6 +121,23 @@ class TestCreateGroup:
         assert r.status_code == 201
         assert AssignmentGroup.all_objects.filter(slug="bunk-bravo-write").exists()
 
+    def test_admin_can_create_team_group(self, client, org, program, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.post(
+            "/api/v1/assignment-groups/",
+            {
+                "name": "Kitchen Staff",
+                "group_type": "team",
+                "program": program.pk,
+                "slug": "kitchen-staff-team",
+            },
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 201, r.content
+        created = AssignmentGroup.all_objects.get(slug="kitchen-staff-team")
+        assert created.group_type == "team"
+
     def test_regular_user_denied(self, client, org, program, regular_user):
         user, _ = regular_user
         client.force_authenticate(user=user)

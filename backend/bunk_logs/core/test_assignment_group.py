@@ -281,6 +281,17 @@ class TestAssignmentGroup:
         assert group.group_type == "bunk"
         assert group.is_active is True
 
+    def test_create_team_group(self, org, program):
+        team = AssignmentGroup.all_objects.create(
+            organization=org,
+            program=program,
+            name="Kitchen Staff",
+            slug="kitchen-staff",
+            group_type="team",
+        )
+        assert team.group_type == "team"
+        assert "Team" in str(team)
+
     def test_unique_slug_per_program(self, org, program, group):
         with pytest.raises(IntegrityError):
             AssignmentGroup.all_objects.create(

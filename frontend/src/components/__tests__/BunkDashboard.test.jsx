@@ -156,7 +156,7 @@ describe('BunkDashboard', () => {
       'href',
       '/observations/7',
     );
-    expect(screen.getByTestId('bunk-observation-7')).toHaveTextContent('Sensitive');
+    expect(screen.getByTestId('bunk-observation-7')).toHaveTextContent('Unit Heads and above');
     expect(screen.getByTestId('bunk-observation-7')).toHaveTextContent('mealtime');
     expect(screen.getByTestId('bunk-concern-42')).toHaveTextContent('Worried about cabin dynamics');
     expect(screen.getByTestId('bunk-concern-42')).toHaveTextContent('Bunk concern');

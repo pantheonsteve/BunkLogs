@@ -62,7 +62,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
     const links = hrefs();
     expect(links).toContain('/counselor');
-    expect(links.filter((h) => h === '/counselor')).toHaveLength(1);
+    expect(links.filter((h) => h === '/counselor')).toHaveLength(2);
     expect(links).not.toContain('/dashboard');
     expect(links).toContain('/tasks');
     expect(links).not.toContain('/reflect');
@@ -95,7 +95,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
     const links = hrefs();
     expect(links).toContain('/unit-head');
-    expect(links.filter((h) => h === '/unit-head')).toHaveLength(1);
+    expect(links.filter((h) => h === '/unit-head')).toHaveLength(2);
     expect(links).not.toContain('/dashboard');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
@@ -108,7 +108,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     const links = hrefs();
     expect(links).toContain('/camper-care');
-    expect(links.filter((h) => h === '/camper-care')).toHaveLength(1);
+    expect(links.filter((h) => h === '/camper-care')).toHaveLength(2);
     expect(links).not.toContain('/dashboard');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
@@ -118,22 +118,46 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).not.toContain('/my-reflections');
   });
 
-  it('program_lead (leadership) sees Help and Supervise dashboard links but not Admin', () => {
-    renderWith({ role: 'Leadership' });
+  it('program_lead (leadership) sees Admin-style nav with Templates-only Admin submenu', () => {
+    renderWith({ role: 'Leadership' }, { path: '/leadership-team' });
 
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/leadership-team');
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
-    expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
+    expect(screen.getAllByText('My work').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Templates').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
+    expect(screen.queryByText('Leadership Team')).not.toBeInTheDocument();
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
-    expect(hrefs()).not.toContain('/leadership-team/templates');
+
     const links = hrefs();
+    expect(links).toContain('/leadership-team');
+    expect(links).toContain('/help');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/logs');
     expect(links).toContain('/dashboards/reflections');
+    expect(links).toContain('/observations');
+    expect(links).toContain('/maintenance');
+    expect(links).toContain('/camper-care/orders');
+    expect(links).toContain('/dashboards/coverage');
+    expect(links).toContain('/dashboards/concerns');
     expect(links).toContain('/dashboards/authors');
+    expect(links).toContain('/admin/templates');
+    expect(links).not.toContain('/admin/home');
+    expect(links).not.toContain('/admin/dashboard');
+    expect(links).not.toContain('/admin/people');
+    expect(links).not.toContain('/admin/memberships');
+    expect(links).not.toContain('/admin/groups');
+    expect(links).not.toContain('/admin/field-keys');
+    expect(links).not.toContain('/admin/settings');
+    expect(links).not.toContain('/tasks');
+    expect(links).not.toContain('/reflect');
+    expect(links).not.toContain('/my-reflections');
     expect(links).not.toContain('/dashboards');
     expect(links).not.toContain('/dashboards/wellness');
+    expect(links.filter((h) => h === '/dashboards/logs')).toHaveLength(1);
+    expect(links.filter((h) => h === '/dashboards/reflections')).toHaveLength(1);
   });
 
   it('admin sees the curated Admin IA, not the default My work nav', () => {
@@ -192,27 +216,22 @@ describe('Sidebar — section gating (3.32)', () => {
 });
 
 describe('Sidebar — maintenance-only nav', () => {
-  it('shows only Maintenance Queue + Observations for a maintenance member', () => {
+  it('shows only Maintenance Queue for a maintenance member', () => {
     renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
 
     const links = hrefs();
     expect(links).toContain('/maintenance');
-    expect(links).toContain('/observations');
+    expect(links.filter((h) => h === '/maintenance')).toHaveLength(2);
+    expect(links).not.toContain('/');
     // Everything else is hidden.
     expect(links).not.toContain('/dashboard');
     expect(links).not.toContain('/tasks');
     expect(links).not.toContain('/counselor');
     expect(links).not.toContain('/reflect');
     expect(links).not.toContain('/orders');
+    expect(links).not.toContain('/observations');
     expect(links).not.toContain('/subject-notes');
     expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
-  });
-
-  it('orders Maintenance Queue before Observations', () => {
-    renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
-    const appLinks = hrefs().filter((h) => h === '/maintenance' || h === '/observations');
-    expect(appLinks[0]).toBe('/maintenance');
-    expect(appLinks[1]).toBe('/observations');
   });
 
   it('keeps the full Admin nav when the user also holds an admin membership', () => {

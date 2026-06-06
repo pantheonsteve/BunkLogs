@@ -78,6 +78,7 @@ const ASSIGNMENT_GROUP_TYPES = [
   { value: 'cohort', label: 'Cohort' },
   { value: 'classroom', label: 'Classroom' },
   { value: 'caseload', label: 'Caseload' },
+  { value: 'team', label: 'Team' },
   { value: 'specialty', label: 'Specialty / Activity group' },
   { value: 'custom', label: 'Custom group' },
 ];

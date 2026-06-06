@@ -4,6 +4,7 @@ import {
   CAPABILITIES,
   userCapability,
   hasCapability,
+  homePathForUser,
   _LEGACY_USER_ROLE_TO_CAPABILITY,
 } from '../capability';
 
@@ -149,5 +150,18 @@ describe('hasCapability — list-of-capabilities checks', () => {
   it('handles a single-element list the same as a bare string', () => {
     const u = { role: 'Camper Care' };
     expect(hasCapability(u, ['supervisor'])).toBe(hasCapability(u, 'supervisor'));
+  });
+});
+
+describe('homePathForUser', () => {
+  it('sends maintenance-only members to the queue', () => {
+    expect(homePathForUser({
+      role: 'Counselor',
+      membership_roles: ['maintenance'],
+    })).toBe('/maintenance');
+  });
+
+  it('keeps counselor home for non-maintenance counselors', () => {
+    expect(homePathForUser({ role: 'Counselor', membership_roles: [] })).toBe('/counselor');
   });
 });

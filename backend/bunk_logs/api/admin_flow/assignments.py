@@ -11,6 +11,8 @@ relationship types via a ``sub_tab`` query / body parameter:
                          ``target_type=ROLE_IN_PROGRAM``
 * ``counselor_bunk``  -- :class:`AssignmentGroupMembership` (Counselor
                          membership added to a Bunk as ``role_in_group='author'``)
+* ``staff_team``      -- :class:`AssignmentGroupMembership` (staff member
+                         added to a Team group as ``role_in_group='author'``)
 * ``camper_bunk``     -- :class:`AssignmentGroupMembership` (Camper /
                          Student membership added as ``role_in_group='subject'``)
 
@@ -52,7 +54,7 @@ SUPERVISION_SUB_TABS = {
     "cc_caseload": Supervision.TargetType.BUNK,
     "lt_team": Supervision.TargetType.ROLE_IN_PROGRAM,
 }
-GROUP_SUB_TABS = {"counselor_bunk", "camper_bunk"}
+GROUP_SUB_TABS = {"counselor_bunk", "staff_team", "camper_bunk"}
 VALID_SUB_TABS = set(SUPERVISION_SUB_TABS) | GROUP_SUB_TABS
 
 
@@ -89,11 +91,19 @@ def _sub_tab_for_supervision(s: Supervision) -> str:
     return "unknown"
 
 
+def _sub_tab_for_group_membership(g: AssignmentGroupMembership) -> str:
+    if g.role_in_group == "subject":
+        return "camper_bunk"
+    if g.group_id and g.group.group_type == "team":
+        return "staff_team"
+    return "counselor_bunk"
+
+
 def _serialize_group_membership(g: AssignmentGroupMembership) -> dict:
     return {
         "id": g.id,
         "kind": "group_membership",
-        "sub_tab": "camper_bunk" if g.role_in_group == "subject" else "counselor_bunk",
+        "sub_tab": _sub_tab_for_group_membership(g),
         "group_id": g.group_id,
         "group_name": g.group.name if g.group_id else None,
         "person_id": g.person_id,
@@ -139,6 +149,8 @@ class AdminAssignmentsListCreateView(APIView):
             qs = AssignmentGroupMembership.objects.select_related("group", "person")
             if sub_tab == "counselor_bunk":
                 qs = qs.filter(role_in_group="author", group__group_type="bunk")
+            elif sub_tab == "staff_team":
+                qs = qs.filter(role_in_group="author", group__group_type="team")
             elif sub_tab == "camper_bunk":
                 qs = qs.filter(role_in_group="subject", group__group_type__in=("bunk", "classroom"))
             results.extend(
@@ -299,7 +311,14 @@ def _create_group_membership(ctx, request, sub_tab: str) -> Response:
             {"detail": "Valid person_id is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    role_in_group = "author" if sub_tab == "counselor_bunk" else "subject"
+    if sub_tab == "camper_bunk":
+        role_in_group = "subject"
+    else:
+        role_in_group = "author"
+
+    mismatch = _group_sub_tab_mismatch(group, sub_tab)
+    if mismatch:
+        return Response({"detail": mismatch}, status=status.HTTP_400_BAD_REQUEST)
 
     requested_start = _coerce_date(request.data.get("start_date"), ctx.today)
     effective_start = requested_start
@@ -450,6 +469,17 @@ class AdminAssignmentDetailView(APIView):
                 content_type="assignment_group_membership",
             )
         return Response(_serialize_group_membership(g))
+
+
+def _group_sub_tab_mismatch(group: AssignmentGroup, sub_tab: str) -> str | None:
+    """Return an error message when ``group`` does not match ``sub_tab``."""
+    if sub_tab == "counselor_bunk" and group.group_type != "bunk":
+        return "counselor_bunk assignments require a bunk group."
+    if sub_tab == "staff_team" and group.group_type != "team":
+        return "staff_team assignments require a team group."
+    if sub_tab == "camper_bunk" and group.group_type not in ("bunk", "classroom"):
+        return "camper_bunk assignments require a bunk or classroom group."
+    return None
 
 
 # ---------------------------------------------------------------------------
