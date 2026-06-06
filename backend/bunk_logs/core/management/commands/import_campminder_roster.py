@@ -9,7 +9,6 @@ AssignmentGroups are keyed by (program, group_type, slugified-name).
 """
 from __future__ import annotations
 
-import csv
 import logging
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,12 @@ from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils.text import slugify
 
+from bunk_logs.core.campminder_csv import format_csv_headers
+from bunk_logs.core.campminder_csv import normalize_campminder_row
+from bunk_logs.core.campminder_csv import read_campminder_csv_rows
+from bunk_logs.core.campminder_person_match import MatchStrategy
+from bunk_logs.core.campminder_person_match import match_campminder_person
+from bunk_logs.core.campminder_person_match import strategy_is_duplicate
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -86,30 +91,99 @@ def _ensure_membership(
     return membership
 
 
-def _upsert_person(org: Organization, row: dict, campminder_id: str) -> tuple[Person, bool, bool]:
-    """Return (person, created, updated)."""
+def _duplicate_message(
+    *,
+    row_number: int,
+    campminder_id: str,
+    full_name: str,
+    match_strategy: MatchStrategy,
+    candidate_ids: list[int],
+) -> str:
+    if match_strategy == MatchStrategy.DUPLICATE_AMBIGUOUS_NAME:
+        return (
+            f"Row {row_number} ({full_name}, campminder_id={campminder_id}): "
+            f"ambiguous name match — {len(candidate_ids)} existing persons "
+            f"without Campminder ID (ids={candidate_ids}) — skipped"
+        )
+    if match_strategy == MatchStrategy.DUPLICATE_EMAIL_CONFLICT:
+        return (
+            f"Row {row_number} ({full_name}, campminder_id={campminder_id}): "
+            f"email already linked to Person {candidate_ids[0]} with a different "
+            f"Campminder ID — skipped"
+        )
+    return (
+        f"Row {row_number} ({full_name}, campminder_id={campminder_id}): "
+        f"same name as Person {candidate_ids[0]} who already has a different "
+        f"Campminder ID — created as new person"
+    )
+
+
+def _upsert_person(
+    org: Organization,
+    row: dict,
+    campminder_id: str,
+    *,
+    row_number: int,
+) -> tuple[Person | None, bool, bool, bool, MatchStrategy, list[int]]:
+    """Return (person, created, updated, merged, strategy, candidate_ids)."""
     first_name = (row.get("first_name") or "").strip()
     last_name = (row.get("last_name") or "").strip()
+    preferred_name = (row.get("preferred_name") or "").strip()
     email = (row.get("email") or "").strip()
 
-    person = Person.all_objects.filter(
-        organization=org,
-        external_ids__campminder_id=campminder_id,
-    ).first()
+    person_match = match_campminder_person(
+        org,
+        campminder_id=campminder_id,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+    )
+    if strategy_is_duplicate(person_match.strategy):
+        if person_match.strategy == MatchStrategy.DUPLICATE_NAME_DIFFERENT_ID:
+            person = Person.all_objects.create(
+                organization=org,
+                first_name=first_name,
+                last_name=last_name,
+                preferred_name=preferred_name,
+                email=email,
+                external_ids={"campminder_id": campminder_id},
+            )
+            return (
+                person,
+                True,
+                False,
+                False,
+                person_match.strategy,
+                person_match.candidate_ids,
+            )
+        return None, False, False, False, person_match.strategy, person_match.candidate_ids
 
-    if person is None:
+    if person_match.strategy == MatchStrategy.NEW:
         person = Person.all_objects.create(
             organization=org,
             first_name=first_name,
             last_name=last_name,
+            preferred_name=preferred_name,
             email=email,
             external_ids={"campminder_id": campminder_id},
         )
-        return person, True, False
+        return person, True, False, False, person_match.strategy, []
+
+    person = person_match.person
+    assert person is not None
+    merged = person_match.strategy in {
+        MatchStrategy.MERGE_EMAIL,
+        MatchStrategy.MERGE_NAME,
+    }
 
     changed: list[str] = []
-    for field, value in [("first_name", first_name), ("last_name", last_name), ("email", email)]:
-        if getattr(person, field) != value:
+    for field, value in [
+        ("first_name", first_name),
+        ("last_name", last_name),
+        ("preferred_name", preferred_name),
+        ("email", email),
+    ]:
+        if value and getattr(person, field) != value:
             setattr(person, field, value)
             changed.append(field)
     merged_ids = {**person.external_ids, "campminder_id": campminder_id}
@@ -118,8 +192,8 @@ def _upsert_person(org: Organization, row: dict, campminder_id: str) -> tuple[Pe
         changed.append("external_ids")
     if changed:
         person.save(update_fields=changed)
-        return person, False, True
-    return person, False, False
+        return person, False, True, merged, person_match.strategy, []
+    return person, False, False, merged, person_match.strategy, []
 
 
 class Command(BaseCommand):
@@ -169,8 +243,7 @@ class Command(BaseCommand):
         dry_run: bool = options["dry_run"]
         reconcile: bool = options["reconcile"]
 
-        with csv_path.open(newline="", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
+        rows = read_campminder_csv_rows(csv_path)
 
         log: RosterImportLog | None = None
         if not dry_run:
@@ -182,32 +255,46 @@ class Command(BaseCommand):
                 csv_filename=csv_path.name,
             )
 
-        persons_created = persons_updated = persons_skipped = 0
+        persons_created = persons_updated = persons_skipped = persons_merged = 0
         memberships_created = memberships_reactivated = 0
         memberships_deactivated = 0
         warnings: list[str] = []
+        duplicates_flagged: list[dict[str, Any]] = []
 
         # Track (group_pk, role_in_group) → set of person_pks seen in this CSV
         seen_group_members: dict[tuple[int, str], set[int]] = {}
 
-        for i, row in enumerate(rows, start=2):
-            campminder_id = (row.get("campminder_id") or "").strip()
+        for i, raw_row in enumerate(rows, start=2):
+            row = normalize_campminder_row(raw_row)
+            campminder_id = row["campminder_id"]
             if not campminder_id:
                 warnings.append(f"Row {i}: missing campminder_id — skipped")
                 continue
 
-            role = (row.get("role") or "").strip()
+            role = row["role"]
             if role not in VALID_ROLES:
                 warnings.append(f"Row {i} (campminder_id={campminder_id}): unknown role {role!r} — skipped")
                 continue
 
-            bunk_name = (row.get("bunk_name") or "").strip()
-            unit_name = (row.get("unit_name") or "").strip()
-            division_name = (row.get("division_name") or "").strip()
-            caseload_name = (row.get("caseload_name") or "").strip()
-            caseload_owner_id = (row.get("caseload_owner_campminder_id") or "").strip()
-            lang_pref = (row.get("language_preference") or "").strip()
-            tags = _normalize_tags(row.get("tags") or "")
+            if not row["last_name"]:
+                msg = f"Row {i} (campminder_id={campminder_id}): missing last_name — skipped"
+                if i == 2:
+                    msg += f" (headers: {format_csv_headers(raw_row)})"
+                warnings.append(msg)
+                continue
+            if not row["first_name"]:
+                warnings.append(f"Row {i} (campminder_id={campminder_id}): missing first_name — skipped")
+                continue
+
+            bunk_name = row["bunk_name"]
+            unit_name = row["unit_name"]
+            division_name = row["division_name"]
+            caseload_name = row["caseload_name"]
+            caseload_owner_id = row["caseload_owner_campminder_id"]
+            lang_pref = row["language_preference"]
+            position_type = row.get("position_type") or ""
+            position = row.get("position") or ""
+            tags = _normalize_tags(row["tags"])
 
             if dry_run:
                 self.stdout.write(
@@ -218,9 +305,57 @@ class Command(BaseCommand):
                 continue
 
             with transaction.atomic():
-                person, created, updated = _upsert_person(org, row, campminder_id)
+                (
+                    person,
+                    created,
+                    updated,
+                    merged,
+                    match_strategy,
+                    candidate_ids,
+                ) = _upsert_person(
+                    org,
+                    row,
+                    campminder_id,
+                    row_number=i,
+                )
+                full_name = f"{row['first_name']} {row['last_name']}".strip()
+                if person is None:
+                    msg = _duplicate_message(
+                        row_number=i,
+                        campminder_id=campminder_id,
+                        full_name=full_name,
+                        match_strategy=match_strategy,
+                        candidate_ids=candidate_ids,
+                    )
+                    warnings.append(msg)
+                    duplicates_flagged.append({
+                        "row": i,
+                        "campminder_id": campminder_id,
+                        "full_name": full_name,
+                        "reason": match_strategy.value,
+                        "candidate_person_ids": candidate_ids,
+                    })
+                    continue
+                if match_strategy == MatchStrategy.DUPLICATE_NAME_DIFFERENT_ID:
+                    msg = _duplicate_message(
+                        row_number=i,
+                        campminder_id=campminder_id,
+                        full_name=full_name,
+                        match_strategy=match_strategy,
+                        candidate_ids=candidate_ids,
+                    )
+                    warnings.append(msg)
+                    duplicates_flagged.append({
+                        "row": i,
+                        "campminder_id": campminder_id,
+                        "full_name": full_name,
+                        "reason": match_strategy.value,
+                        "candidate_person_ids": candidate_ids,
+                    })
                 if created:
                     persons_created += 1
+                elif merged:
+                    persons_merged += 1
                 elif updated:
                     persons_updated += 1
                 else:
@@ -234,6 +369,10 @@ class Command(BaseCommand):
                 meta = {**membership.metadata}
                 if lang_pref:
                     meta["language_preference"] = lang_pref
+                if position_type:
+                    meta["campminder_position_type"] = position_type
+                if position:
+                    meta["campminder_position"] = position
                 membership.metadata = meta
                 membership.tags = tags
                 membership.save(update_fields=["tags", "metadata"])
@@ -308,10 +447,12 @@ class Command(BaseCommand):
         summary: dict[str, Any] = {
             "persons_created": persons_created,
             "persons_updated": persons_updated,
+            "persons_merged": persons_merged,
             "persons_unchanged": persons_skipped,
             "memberships_created": memberships_created,
             "memberships_reactivated": memberships_reactivated,
             "memberships_deactivated": memberships_deactivated,
+            "duplicates_flagged": duplicates_flagged,
             "warnings": warnings,
         }
 

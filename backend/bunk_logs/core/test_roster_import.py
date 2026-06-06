@@ -8,6 +8,8 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 
+from bunk_logs.core.campminder_csv import infer_role_from_position
+from bunk_logs.core.campminder_csv import normalize_campminder_row
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -100,6 +102,135 @@ CAMPMINDER_STAFF_ONLY_CSV = """
 campminder_id,first_name,last_name,role,email
 CM010,Dave,Park,unit_head,dave@example.com
 """
+
+CAMPMINDER_CAMPER_EXPORT_CSV = """
+Last Name,Preferred Name,PersonID
+Abraham,Allie,20476515
+Cohen,Sam,20476516
+"""
+
+CAMPMINDER_CAMPER_EXPORT_BOM_CSV = """
+\ufeffLast Name,Preferred Name,PersonID
+Abraham,Allie,20476515
+"""
+
+CAMPMINDER_CAMPER_EXPORT_ALT_HEADERS_CSV = """
+LastName,PreferredName,PersonID
+Abraham,Allie,20476515
+"""
+
+CAMPMINDER_STAFF_EXPORT_TSV = """
+PersonID\tLast Name\tFirst Name\tLogin/Email\tPosition Types\tPosition
+5927217\tAllen\tChristopher\tdrchrisa@gmail.com\tAdministrative Staff\tDriver
+5201139\tHermann\tCory\tCorysoop@aol.com\tLeadership Team\tAllergies and Special Food Coordinator
+6904465\tNadel\tJennifer\tjnadel13@gmail.com\tLeadership Team\tCamper Care Associate
+5927256\tHernandez\tNino Benjie\ttaongkahoy@gmail.com\tLeadership Team\tDirector: Arts & Crafts
+5200995\tFriedman\tShain\tshainfriedman11@gmail.com\tLeadership Team\tDirector: Athletics
+"""
+
+
+class TestCampminderCsvNormalization:
+    def test_bom_prefixed_header_key(self):
+        row = {"\ufeffLast Name": "Abraham", "Preferred Name": "Allie", "PersonID": "20476515"}
+        normalized = normalize_campminder_row(row)
+        assert normalized["last_name"] == "Abraham"
+        assert normalized["preferred_name"] == "Allie"
+        assert normalized["campminder_id"] == "20476515"
+
+    def test_login_email_header_maps_to_email(self):
+        row = {
+            "PersonID": "5927217",
+            "Last Name": "Allen",
+            "First Name": "Christopher",
+            "Login/Email": "drchrisa@gmail.com",
+            "Position Types": "Administrative Staff",
+            "Position": "Driver",
+        }
+        normalized = normalize_campminder_row(row)
+        assert normalized["email"] == "drchrisa@gmail.com"
+        assert normalized["role"] == "maintenance"
+        assert normalized["position_type"] == "Administrative Staff"
+        assert normalized["position"] == "Driver"
+
+    def test_position_role_mapping(self):
+        assert infer_role_from_position("Leadership Team", "Camper Care Associate") == "camper_care"
+        assert infer_role_from_position("Leadership Team", "Director: Athletics") == "specialist"
+        assert infer_role_from_position("Administrative Staff", "Driver") == "maintenance"
+        assert infer_role_from_position("Leadership Team", "Allergies and Special Food Coordinator") == "special_diets"
+
+
+@pytest.mark.django_db
+class TestCampminderCamperExport:
+    def test_imports_persons_with_preferred_name(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_CAMPER_EXPORT_CSV)
+
+        allie = Person.all_objects.get(external_ids__campminder_id="20476515")
+        assert allie.last_name == "Abraham"
+        assert allie.preferred_name == "Allie"
+        assert allie.first_name == "Allie"
+        assert allie.full_name == "Allie Abraham"
+
+        sam = Person.all_objects.get(external_ids__campminder_id="20476516")
+        assert sam.last_name == "Cohen"
+        assert sam.preferred_name == "Sam"
+
+        assert Membership.all_objects.filter(program=program, role="camper").count() == 2
+
+    def test_idempotent_rerun(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_CAMPER_EXPORT_CSV)
+        _run_campminder(tmp_path, CAMPMINDER_CAMPER_EXPORT_CSV)
+        assert Person.all_objects.filter(organization=program.organization).count() == 2
+
+    def test_bom_prefixed_first_header(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_CAMPER_EXPORT_BOM_CSV)
+        allie = Person.all_objects.get(external_ids__campminder_id="20476515")
+        assert allie.last_name == "Abraham"
+        assert allie.preferred_name == "Allie"
+
+    def test_compact_header_names(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_CAMPER_EXPORT_ALT_HEADERS_CSV)
+        allie = Person.all_objects.get(external_ids__campminder_id="20476515")
+        assert allie.last_name == "Abraham"
+        assert allie.preferred_name == "Allie"
+
+
+@pytest.mark.django_db
+class TestCampminderStaffExport:
+    def test_imports_staff_with_roles_and_email(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_STAFF_EXPORT_TSV)
+
+        chris = Person.all_objects.get(external_ids__campminder_id="5927217")
+        assert chris.email == "drchrisa@gmail.com"
+        assert Membership.all_objects.filter(program=program, person=chris, role="maintenance").exists()
+
+        jennifer = Person.all_objects.get(external_ids__campminder_id="6904465")
+        membership = Membership.all_objects.get(program=program, person=jennifer)
+        assert membership.role == "camper_care"
+        assert membership.metadata["campminder_position"] == "Camper Care Associate"
+
+        shain = Person.all_objects.get(external_ids__campminder_id="5200995")
+        assert Membership.all_objects.get(program=program, person=shain).role == "specialist"
+
+    def test_merge_existing_person_by_name(self, tmp_path, program, org):
+        existing = Person.all_objects.create(
+            organization=org,
+            first_name="Christopher",
+            last_name="Allen",
+            email="",
+        )
+        _run_campminder(tmp_path, CAMPMINDER_STAFF_EXPORT_TSV)
+
+        chris = Person.all_objects.get(external_ids__campminder_id="5927217")
+        assert chris.id == existing.id
+        assert chris.email == "drchrisa@gmail.com"
+        assert Person.all_objects.filter(organization=org).count() == 5
+
+    def test_flags_ambiguous_name_duplicates(self, tmp_path, program, org):
+        Person.all_objects.create(organization=org, first_name="Christopher", last_name="Allen")
+        Person.all_objects.create(organization=org, first_name="Christopher", last_name="Allen")
+        out = _run_campminder(tmp_path, CAMPMINDER_STAFF_EXPORT_TSV)
+        assert "ambiguous name match" in out.getvalue()
+        assert not Person.all_objects.filter(external_ids__campminder_id="5927217").exists()
 
 
 @pytest.mark.django_db

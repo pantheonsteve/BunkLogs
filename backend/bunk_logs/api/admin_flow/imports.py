@@ -19,8 +19,6 @@ because the underlying upsert logic in those commands keys on
 
 from __future__ import annotations
 
-import csv
-import io
 import tempfile
 from pathlib import Path
 
@@ -34,6 +32,11 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.campminder_csv import normalize_campminder_row
+from bunk_logs.core.campminder_csv import read_campminder_csv_bytes
+from bunk_logs.core.campminder_person_match import MatchStrategy
+from bunk_logs.core.campminder_person_match import match_campminder_person
+from bunk_logs.core.campminder_person_match import strategy_is_duplicate
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -46,9 +49,10 @@ SUPPORTED_SOURCES = ("campminder", "tbe")
 VALID_ROLES = frozenset(role for role, _ in Membership.ROLES)
 
 
-def _read_csv_rows(raw_bytes: bytes) -> list[dict]:
-    text = raw_bytes.decode("utf-8-sig", errors="replace")
-    return list(csv.DictReader(io.StringIO(text)))
+def _normalize_row(source: str, row: dict) -> dict:
+    if source == "campminder":
+        return normalize_campminder_row(row)
+    return row
 
 
 def _normalize_external_id(source: str, row: dict) -> str:
@@ -57,11 +61,13 @@ def _normalize_external_id(source: str, row: dict) -> str:
 
 
 def _classify_row(*, source: str, org, program, row: dict) -> dict:
-    """Classify a single CSV row as add / change / skip / conflict."""
+    """Classify a single CSV row as add / change / merge / duplicate / skip."""
+    row = _normalize_row(source, row)
     external_id = _normalize_external_id(source, row)
     role = (row.get("role") or "").strip()
     first_name = (row.get("first_name") or "").strip()
     last_name = (row.get("last_name") or "").strip()
+    preferred_name = (row.get("preferred_name") or "").strip()
     email = (row.get("email") or "").strip()
 
     issues: list[str] = []
@@ -69,49 +75,102 @@ def _classify_row(*, source: str, org, program, row: dict) -> dict:
         issues.append(f"missing {source}_id")
     if role and role not in VALID_ROLES:
         issues.append(f"unknown role {role!r}")
-    if not first_name or not last_name:
-        issues.append("missing first_name or last_name")
+    if not last_name:
+        issues.append("missing last_name")
+    if not first_name:
+        issues.append("missing first_name or preferred_name")
 
-    classification = "skip" if issues else "noop"
+    classification = "skip"
     existing_person = None
-    if external_id:
-        existing_person = Person.all_objects.filter(
-            organization=org,
-            external_ids__contains={f"{source}_id": external_id},
-        ).first()
-    if existing_person is None and email:
-        existing_person = Person.all_objects.filter(
-            organization=org, email__iexact=email,
-        ).first()
-        if existing_person is not None:
-            issues.append(
-                f"email already attached to Person {existing_person.id} "
-                f"with no {source}_id — will merge",
-            )
+    merge_reason = None
+    candidate_person_ids: list[int] = []
 
-    if not issues:
-        if existing_person is None:
+    if issues:
+        return {
+            "external_id": external_id,
+            "role": role,
+            "full_name": f"{first_name} {last_name}".strip(),
+            "email": email,
+            "classification": classification,
+            "issues": issues,
+            "existing_person_id": None,
+            "merge_reason": merge_reason,
+            "candidate_person_ids": candidate_person_ids,
+        }
+
+    if source == "campminder":
+        person_match = match_campminder_person(
+            org,
+            campminder_id=external_id,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+        )
+        existing_person = person_match.person
+        merge_reason = person_match.strategy.value
+        candidate_person_ids = person_match.candidate_ids
+
+        if strategy_is_duplicate(person_match.strategy):
+            classification = "duplicate"
+            if person_match.strategy == MatchStrategy.DUPLICATE_AMBIGUOUS_NAME:
+                issues.append(
+                    f"ambiguous name match — {len(candidate_person_ids)} existing "
+                    f"persons without Campminder ID",
+                )
+            elif person_match.strategy == MatchStrategy.DUPLICATE_EMAIL_CONFLICT:
+                issues.append(
+                    f"email already linked to Person {candidate_person_ids[0]} "
+                    f"with a different Campminder ID",
+                )
+            elif person_match.strategy == MatchStrategy.DUPLICATE_NAME_DIFFERENT_ID:
+                issues.append(
+                    f"same name as Person {candidate_person_ids[0]} with a "
+                    f"different Campminder ID — will create new person",
+                )
+                classification = "add"
+        elif person_match.strategy == MatchStrategy.NEW:
             classification = "add"
-        else:
+        elif person_match.strategy in {
+            MatchStrategy.MERGE_EMAIL,
+            MatchStrategy.MERGE_NAME,
+        }:
+            classification = "merge"
+            issues.append(
+                f"will merge Campminder ID onto existing Person "
+                f"{existing_person.id} via {person_match.strategy.value}",
+            )
+        elif existing_person is not None:
             changed = []
             if existing_person.first_name != first_name:
                 changed.append("first_name")
             if existing_person.last_name != last_name:
                 changed.append("last_name")
+            if preferred_name and existing_person.preferred_name != preferred_name:
+                changed.append("preferred_name")
             if email and existing_person.email != email:
                 changed.append("email")
+            if email and not existing_person.email:
+                changed.append("email")
             classification = "change" if changed else "noop"
-    elif existing_person is not None:
-        classification = "conflict"
+    else:
+        if email:
+            existing_person = Person.all_objects.filter(
+                organization=org, email__iexact=email,
+            ).first()
+        classification = "add" if existing_person is None else "noop"
 
     return {
         "external_id": external_id,
         "role": role,
         "full_name": f"{first_name} {last_name}".strip(),
         "email": email,
+        "position_type": (row.get("position_type") or "").strip(),
+        "position": (row.get("position") or "").strip(),
         "classification": classification,
         "issues": issues,
         "existing_person_id": existing_person.id if existing_person else None,
+        "merge_reason": merge_reason,
+        "candidate_person_ids": candidate_person_ids,
     }
 
 
@@ -146,7 +205,7 @@ class AdminBulkImportPreviewView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            rows = _read_csv_rows(csv_file.read())
+            rows = read_campminder_csv_bytes(csv_file.read())
         except Exception as exc:
             return Response(
                 {"detail": f"Could not parse CSV: {exc}"},
@@ -162,8 +221,10 @@ class AdminBulkImportPreviewView(APIView):
             "row_count": len(classified),
             "add": sum(1 for r in classified if r["classification"] == "add"),
             "change": sum(1 for r in classified if r["classification"] == "change"),
+            "merge": sum(1 for r in classified if r["classification"] == "merge"),
             "noop": sum(1 for r in classified if r["classification"] == "noop"),
             "skip": sum(1 for r in classified if r["classification"] == "skip"),
+            "duplicate": sum(1 for r in classified if r["classification"] == "duplicate"),
             "conflict": sum(1 for r in classified if r["classification"] == "conflict"),
         }
         return Response({
