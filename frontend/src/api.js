@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getCSRFToken } from './django';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
+import { resolveOrganizationSlug } from './utils/orgSlug';
 
 // Get and clean the API URL
 const getApiUrl = () => {
@@ -33,10 +34,6 @@ const getServerCSRFToken = async () => {
   }
 };
 
-// Attach the dev org slug header when running locally so the multi-tenant
-// middleware can resolve the org without a subdomain.
-const DEV_ORG_SLUG = import.meta.env.VITE_DEV_ORGANIZATION_SLUG;
-
 // Add request interceptor to attach token and CSRF token
 api.interceptors.request.use(
   async (config) => {
@@ -45,8 +42,11 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    if (DEV_ORG_SLUG) {
-      config.headers['X-Organization-Slug'] = DEV_ORG_SLUG;
+    // API host is admin.bunklogs.net (no tenant subdomain). Send the tenant
+    // slug from the SPA hostname (clc.bunklogs.net) or local dev env var.
+    const orgSlug = resolveOrganizationSlug();
+    if (orgSlug) {
+      config.headers['X-Organization-Slug'] = orgSlug;
     }
     
     // Add CSRF token for non-GET requests (except user creation)

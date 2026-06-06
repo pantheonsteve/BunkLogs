@@ -543,6 +543,10 @@ def google_callback(request):
                     extra_data=userinfo,
                 )
 
+        # Session cookie lets OrganizationMiddleware resolve tenant on later API
+        # calls (JWT alone is applied later in DRF, after middleware runs).
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+
         # Generate JWT token
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
