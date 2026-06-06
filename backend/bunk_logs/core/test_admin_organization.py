@@ -8,6 +8,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
+from bunk_logs.core.admin import MembershipAdminForm
+from bunk_logs.core.admin import ReflectionTemplateAdminForm
 from bunk_logs.core.admin_organization import AUTHOR_SCOPE_FIELD_PREFIX
 from bunk_logs.core.admin_organization import OrganizationAdminForm
 from bunk_logs.core.models import Membership
@@ -50,6 +52,33 @@ def test_organization_admin_form_loads_effective_scopes(org):
     form = OrganizationAdminForm(instance=org)
     assert form.fields[f"{AUTHOR_SCOPE_FIELD_PREFIX}specialist"].initial == "none"
     assert "timezone" in form.fields["settings_json"].initial
+
+
+@pytest.mark.django_db
+def test_organization_admin_form_includes_new_membership_roles(org):
+    from bunk_logs.core.admin_organization import get_organization_admin_form
+
+    form = get_organization_admin_form()(instance=org)
+    role_fields = {
+        key.removeprefix(AUTHOR_SCOPE_FIELD_PREFIX)
+        for key in form.fields
+        if key.startswith(AUTHOR_SCOPE_FIELD_PREFIX)
+    }
+    assert {"maintenance", "administrative_staff", "medical"}.issubset(role_fields)
+
+
+@pytest.mark.django_db
+def test_membership_admin_form_role_choices_include_new_roles():
+    form = MembershipAdminForm()
+    role_values = {value for value, _label in form.fields["role"].choices}
+    assert {"maintenance", "administrative_staff", "medical"}.issubset(role_values)
+
+
+@pytest.mark.django_db
+def test_reflection_template_admin_form_role_choices_include_new_roles():
+    form = ReflectionTemplateAdminForm()
+    role_values = {value for value, _label in form.fields["role"].choices if value}
+    assert {"maintenance", "administrative_staff", "medical"}.issubset(role_values)
 
 
 @pytest.mark.django_db

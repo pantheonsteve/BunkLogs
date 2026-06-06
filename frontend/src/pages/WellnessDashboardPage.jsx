@@ -5,7 +5,9 @@ import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
 import TemplateDashboard from '../dashboards/TemplateDashboard';
 
-const WELLNESS_ROLES = new Set(['camper_care', 'health_center', 'special_diets', 'wellness']);
+const WELLNESS_ROLES = new Set([
+  'camper_care', 'health_center', 'medical', 'special_diets', 'wellness',
+]);
 
 /**
  * WellnessDashboardPage — Wellness team dashboard.
@@ -55,7 +57,7 @@ export default function WellnessDashboardPage() {
           <div className="mb-6">
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Wellness team</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Camper Care, Health Center, and Special Diets reflection dashboard.
+              Camper Care, Health Center, Medical, and Special Diets reflection dashboard.
             </p>
           </div>
 
@@ -68,7 +70,7 @@ export default function WellnessDashboardPage() {
               <p className="font-medium">Access restricted</p>
               <p className="text-sm mt-1">
                 The wellness dashboard requires a multi-tenant <strong>camper_care</strong>,{' '}
-                <strong>health_center</strong>, <strong>special_diets</strong>, or{' '}
+                <strong>health_center</strong>, <strong>medical</strong>, <strong>special_diets</strong>, or{' '}
                 <strong>admin</strong> program membership, or an account with the legacy{' '}
                 <strong>Admin</strong> staff role.
               </p>

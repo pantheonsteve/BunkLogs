@@ -4,15 +4,29 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 vi.mock('../../../api/admin', () => ({
   previewAdminPeopleImport: vi.fn(),
   commitAdminPeopleImport: vi.fn(),
+  listAdminPeopleImportTemplates: vi.fn(),
+  downloadAdminPeopleImportTemplate: vi.fn(),
 }));
 
-import { previewAdminPeopleImport, commitAdminPeopleImport } from '../../../api/admin';
+import {
+  previewAdminPeopleImport,
+  commitAdminPeopleImport,
+  listAdminPeopleImportTemplates,
+  downloadAdminPeopleImportTemplate,
+} from '../../../api/admin';
 import BulkImportModal from '../BulkImportModal';
 
 const PROGRAMS = [{ id: 1, slug: 'p1', name: 'Program 1' }];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listAdminPeopleImportTemplates.mockResolvedValue({
+    templates: [
+      { variant: 'camper', label: 'Campers' },
+      { variant: 'staff', label: 'Staff' },
+    ],
+  });
+  downloadAdminPeopleImportTemplate.mockResolvedValue(undefined);
 });
 
 describe('BulkImportModal (7_13 PR3)', () => {
@@ -41,5 +55,12 @@ describe('BulkImportModal (7_13 PR3)', () => {
     fireEvent.click(screen.getByTestId('bulk-import-commit'));
     await waitFor(() => expect(commitAdminPeopleImport).toHaveBeenCalled());
     expect(await screen.findByTestId('bulk-import-commit-panel')).toBeInTheDocument();
+  });
+
+  it('shows template download buttons for campminder imports', async () => {
+    render(<BulkImportModal programs={PROGRAMS} onClose={() => {}} />);
+    expect(await screen.findByTestId('bulk-import-template-staff')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('bulk-import-template-staff'));
+    await waitFor(() => expect(downloadAdminPeopleImportTemplate).toHaveBeenCalledWith('campminder', 'staff'));
   });
 });

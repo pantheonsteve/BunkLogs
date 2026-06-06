@@ -6,10 +6,13 @@ from datetime import date
 from io import StringIO
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 
+from bunk_logs.core.campminder_csv import build_import_template_csv
 from bunk_logs.core.campminder_csv import infer_role_from_position
 from bunk_logs.core.campminder_csv import normalize_campminder_row
+from bunk_logs.core.campminder_csv import normalize_role_value
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -17,6 +20,8 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import RosterImportLog
+
+User = get_user_model()
 
 
 @pytest.fixture
@@ -156,7 +161,35 @@ class TestCampminderCsvNormalization:
         assert infer_role_from_position("Leadership Team", "Camper Care Associate") == "camper_care"
         assert infer_role_from_position("Leadership Team", "Director: Athletics") == "specialist"
         assert infer_role_from_position("Administrative Staff", "Driver") == "maintenance"
+        assert infer_role_from_position("Administrative Staff", "Registrar") == "administrative_staff"
+        assert infer_role_from_position("Medical Staff", "Registered Nurse") == "medical"
         assert infer_role_from_position("Leadership Team", "Allergies and Special Food Coordinator") == "special_diets"
+
+    def test_explicit_role_column_overrides_position_inference(self):
+        row = {
+            "PersonID": "5927217",
+            "Last Name": "Allen",
+            "First Name": "Christopher",
+            "Login/Email": "drchrisa@gmail.com",
+            "Role": "leadership_team",
+            "Position Types": "Administrative Staff",
+            "Position": "Driver",
+        }
+        normalized = normalize_campminder_row(row)
+        assert normalized["role"] == "leadership_team"
+
+    def test_role_column_accepts_display_labels(self):
+        assert normalize_role_value("Camper Care") == "camper_care"
+        assert normalize_role_value("Leadership Team") == "leadership_team"
+        assert normalize_role_value("Administrative Staff") == "administrative_staff"
+        assert normalize_role_value("Medical") == "medical"
+        assert normalize_role_value("maintenance") == "maintenance"
+
+    def test_staff_template_includes_role_column(self):
+        filename, csv_text = build_import_template_csv("staff")
+        assert filename.endswith(".csv")
+        assert "PersonID,Last Name,First Name,Login/Email,Role" in csv_text.splitlines()[0]
+        assert "camper_care" in csv_text
 
 
 @pytest.mark.django_db
@@ -231,6 +264,33 @@ class TestCampminderStaffExport:
         out = _run_campminder(tmp_path, CAMPMINDER_STAFF_EXPORT_TSV)
         assert "ambiguous name match" in out.getvalue()
         assert not Person.all_objects.filter(external_ids__campminder_id="5927217").exists()
+
+    def test_creates_users_for_staff_with_email(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_STAFF_EXPORT_TSV)
+
+        chris = Person.all_objects.get(external_ids__campminder_id="5927217")
+        assert chris.user_id is not None
+        assert chris.user.email == "drchrisa@gmail.com"
+        assert chris.user.has_usable_password() is False
+        assert User.objects.filter(email="drchrisa@gmail.com").count() == 1
+
+    def test_links_existing_user_by_email(self, tmp_path, program, org):
+        user = User.objects.create_user(
+            email="drchrisa@gmail.com",
+            password="unused",
+            first_name="Chris",
+            last_name="Allen",
+        )
+        _run_campminder(tmp_path, CAMPMINDER_STAFF_EXPORT_TSV)
+
+        chris = Person.all_objects.get(external_ids__campminder_id="5927217")
+        assert chris.user_id == user.id
+        assert User.objects.filter(email="drchrisa@gmail.com").count() == 1
+
+    def test_camper_import_skips_user_creation(self, tmp_path, program):
+        _run_campminder(tmp_path, CAMPMINDER_CAMPER_EXPORT_CSV)
+        allie = Person.all_objects.get(external_ids__campminder_id="20476515")
+        assert allie.user_id is None
 
 
 @pytest.mark.django_db

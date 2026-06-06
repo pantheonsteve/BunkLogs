@@ -21,7 +21,9 @@ ROLE_LABELS: dict[str, str] = {
     "special_diets": "Special Diets",
     "specialist": "Specialist",
     "maintenance": "Maintenance",
+    "administrative_staff": "Administrative Staff",
     "kitchen_staff": "Kitchen Staff",
+    "medical": "Medical",
     "madrich": "Madrich",
     "director": "Director",
     "platform_support": "Platform support",
@@ -84,10 +86,10 @@ _DEFAULT_AUDIENCES: dict[ContentType, frozenset[str]] = {
 
 _SENSITIVE_AUDIENCES: dict[ContentType, frozenset[str]] = {
     ContentType.CAMPER_CARE_NOTE: frozenset({
-        "camper_care", "health_center", "special_diets", "admin",
+        "camper_care", "health_center", "medical", "special_diets", "admin",
     }),
     ContentType.SPECIALIST_NOTE: frozenset({
-        "camper_care", "health_center", "special_diets", "admin",
+        "camper_care", "health_center", "medical", "special_diets", "admin",
     }),
     ContentType.LEADERSHIP_TEAM_SELF_REFLECTION: frozenset({"admin"}),
     ContentType.ADMIN_SELF_REFLECTION: frozenset({"admin"}),

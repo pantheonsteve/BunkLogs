@@ -290,6 +290,40 @@ class TestAdminTemplates:
 # ---------------------------------------------------------------------------
 
 
+class TestAdminBulkImportTemplate:
+    URL = "/api/v1/admin/people/import/template/"
+
+    def test_lists_template_metadata(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"source": "campminder"}, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        variants = {item["variant"] for item in body["templates"]}
+        assert {"camper", "staff", "roster"}.issubset(variants)
+        staff = next(item for item in body["templates"] if item["variant"] == "staff")
+        assert "Role" in staff["headers"]
+        assert "Role" in staff["required_headers"]
+
+    def test_downloads_staff_template_csv(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(
+                self.URL,
+                {"source": "campminder", "variant": "staff"},
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        assert "text/csv" in r["Content-Type"]
+        assert "Role" in r.content.decode("utf-8")
+
+    def test_non_admin_blocked(self, api, org, program, non_admin_user):
+        api.force_authenticate(user=non_admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"source": "campminder"}, **_hdr(org.slug))
+        assert r.status_code == 403
+
+
 class TestAdminBulkImportPreview:
     URL = "/api/v1/admin/people/import/preview/"
 

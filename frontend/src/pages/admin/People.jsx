@@ -24,7 +24,8 @@ import BulkImportModal from '../../components/admin/BulkImportModal';
 const ROLE_OPTIONS = [
   'admin', 'leadership_team', 'unit_head', 'counselor', 'junior_counselor',
   'specialist', 'general_counselor', 'kitchen_staff', 'maintenance',
-  'housekeeping', 'camper_care', 'health_center', 'special_diets',
+  'administrative_staff', 'housekeeping', 'camper_care', 'health_center',
+  'medical', 'special_diets',
   'madrich', 'faculty', 'camper',
 ];
 

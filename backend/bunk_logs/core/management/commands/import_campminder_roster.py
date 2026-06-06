@@ -24,6 +24,8 @@ from bunk_logs.core.campminder_csv import read_campminder_csv_rows
 from bunk_logs.core.campminder_person_match import MatchStrategy
 from bunk_logs.core.campminder_person_match import match_campminder_person
 from bunk_logs.core.campminder_person_match import strategy_is_duplicate
+from bunk_logs.core.campminder_user_link import UserLinkAction
+from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -256,10 +258,12 @@ class Command(BaseCommand):
             )
 
         persons_created = persons_updated = persons_skipped = persons_merged = 0
+        users_created = users_linked = users_already_linked = 0
         memberships_created = memberships_reactivated = 0
         memberships_deactivated = 0
         warnings: list[str] = []
         duplicates_flagged: list[dict[str, Any]] = []
+        user_link_conflicts: list[dict[str, Any]] = []
 
         # Track (group_pk, role_in_group) → set of person_pks seen in this CSV
         seen_group_members: dict[tuple[int, str], set[int]] = {}
@@ -377,6 +381,28 @@ class Command(BaseCommand):
                 membership.tags = tags
                 membership.save(update_fields=["tags", "metadata"])
 
+                user_link = ensure_user_for_imported_person(person, membership_role=role)
+                if user_link.action == UserLinkAction.CREATED:
+                    users_created += 1
+                elif user_link.action == UserLinkAction.LINKED:
+                    users_linked += 1
+                elif user_link.action == UserLinkAction.ALREADY_LINKED:
+                    users_already_linked += 1
+                elif user_link.action == UserLinkAction.CONFLICT:
+                    msg = (
+                        f"Row {i} ({full_name}, campminder_id={campminder_id}): "
+                        f"could not link user — {user_link.message}"
+                    )
+                    warnings.append(msg)
+                    user_link_conflicts.append({
+                        "row": i,
+                        "campminder_id": campminder_id,
+                        "full_name": full_name,
+                        "email": person.email,
+                        "user_id": user_link.user_id,
+                        "message": user_link.message,
+                    })
+
                 if bunk_name:
                     division_group: AssignmentGroup | None = None
                     unit_group: AssignmentGroup | None = None
@@ -453,6 +479,10 @@ class Command(BaseCommand):
             "memberships_reactivated": memberships_reactivated,
             "memberships_deactivated": memberships_deactivated,
             "duplicates_flagged": duplicates_flagged,
+            "users_created": users_created,
+            "users_linked": users_linked,
+            "users_already_linked": users_already_linked,
+            "user_link_conflicts": user_link_conflicts,
             "warnings": warnings,
         }
 

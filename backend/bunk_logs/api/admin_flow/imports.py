@@ -24,6 +24,7 @@ from pathlib import Path
 
 from django.core.management import call_command
 from django.db import transaction
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser
@@ -32,11 +33,16 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.campminder_csv import IMPORT_TEMPLATE_VARIANTS
+from bunk_logs.core.campminder_csv import build_import_template_csv
+from bunk_logs.core.campminder_csv import list_import_template_variants
 from bunk_logs.core.campminder_csv import normalize_campminder_row
 from bunk_logs.core.campminder_csv import read_campminder_csv_bytes
 from bunk_logs.core.campminder_person_match import MatchStrategy
 from bunk_logs.core.campminder_person_match import match_campminder_person
 from bunk_logs.core.campminder_person_match import strategy_is_duplicate
+from bunk_logs.core.campminder_user_link import UserLinkAction
+from bunk_logs.core.campminder_user_link import preview_user_link
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -86,17 +92,19 @@ def _classify_row(*, source: str, org, program, row: dict) -> dict:
     candidate_person_ids: list[int] = []
 
     if issues:
-        return {
-            "external_id": external_id,
-            "role": role,
-            "full_name": f"{first_name} {last_name}".strip(),
-            "email": email,
-            "classification": classification,
-            "issues": issues,
-            "existing_person_id": None,
-            "merge_reason": merge_reason,
-            "candidate_person_ids": candidate_person_ids,
-        }
+        return _row_preview_payload(
+            external_id=external_id,
+            role=role,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            row=row,
+            classification=classification,
+            issues=issues,
+            existing_person=None,
+            merge_reason=merge_reason,
+            candidate_person_ids=candidate_person_ids,
+        )
 
     if source == "campminder":
         person_match = match_campminder_person(
@@ -159,6 +167,47 @@ def _classify_row(*, source: str, org, program, row: dict) -> dict:
             ).first()
         classification = "add" if existing_person is None else "noop"
 
+    return _row_preview_payload(
+        external_id=external_id,
+        role=role,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        row=row,
+        classification=classification,
+        issues=issues,
+        existing_person=existing_person,
+        merge_reason=merge_reason,
+        candidate_person_ids=candidate_person_ids,
+    )
+
+
+def _row_preview_payload(
+    *,
+    external_id: str,
+    role: str,
+    first_name: str,
+    last_name: str,
+    email: str,
+    row: dict,
+    classification: str,
+    issues: list[str],
+    existing_person,
+    merge_reason,
+    candidate_person_ids: list[int],
+) -> dict:
+    user_link = preview_user_link(
+        email=email,
+        membership_role=role,
+        existing_person=existing_person,
+    )
+    if user_link.action == UserLinkAction.CREATED:
+        issues.append("will create login user")
+    elif user_link.action == UserLinkAction.LINKED:
+        issues.append(f"will link existing login user {user_link.user_id}")
+    elif user_link.action == UserLinkAction.CONFLICT:
+        issues.append(f"user link conflict — {user_link.message}")
+
     return {
         "external_id": external_id,
         "role": role,
@@ -171,6 +220,8 @@ def _classify_row(*, source: str, org, program, row: dict) -> dict:
         "existing_person_id": existing_person.id if existing_person else None,
         "merge_reason": merge_reason,
         "candidate_person_ids": candidate_person_ids,
+        "user_link_action": user_link.action.value,
+        "user_id": user_link.user_id,
     }
 
 
@@ -226,6 +277,12 @@ class AdminBulkImportPreviewView(APIView):
             "skip": sum(1 for r in classified if r["classification"] == "skip"),
             "duplicate": sum(1 for r in classified if r["classification"] == "duplicate"),
             "conflict": sum(1 for r in classified if r["classification"] == "conflict"),
+            "users_to_create": sum(
+                1 for r in classified if r.get("user_link_action") == UserLinkAction.CREATED.value
+            ),
+            "users_to_link": sum(
+                1 for r in classified if r.get("user_link_action") == UserLinkAction.LINKED.value
+            ),
         }
         return Response({
             "source": source,
@@ -233,6 +290,41 @@ class AdminBulkImportPreviewView(APIView):
             "summary": summary,
             "rows": classified,
         })
+
+
+class AdminBulkImportTemplateView(APIView):
+    """Downloadable CSV templates or JSON metadata for bulk people import."""
+
+    permission_classes = [IsOrgAdminOrSuperuser]
+
+    def get(self, request, *args, **kwargs):
+        viewer_or_403(request)
+        source = (request.query_params.get("source") or "campminder").strip().lower()
+        if source != "campminder":
+            return Response(
+                {"detail": "Templates are only available for source=campminder."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        variant = (request.query_params.get("variant") or "").strip().lower()
+        if not variant:
+            return Response({
+                "source": source,
+                "templates": list_import_template_variants(),
+            })
+        if variant not in IMPORT_TEMPLATE_VARIANTS:
+            return Response(
+                {
+                    "detail": (
+                        f"Unknown variant {variant!r}. "
+                        f"Choose one of: {', '.join(IMPORT_TEMPLATE_VARIANTS)}."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        filename, csv_text = build_import_template_csv(variant)
+        response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 class AdminBulkImportCommitView(APIView):

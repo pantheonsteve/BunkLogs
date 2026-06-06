@@ -14,6 +14,7 @@ from .assignments import AdminAssignmentsListCreateView
 from .dashboard import AdminDashboardView
 from .imports import AdminBulkImportCommitView
 from .imports import AdminBulkImportPreviewView
+from .imports import AdminBulkImportTemplateView
 from .override import AdminOverrideEditView
 from .people import AdminMembershipDeactivateView
 from .people import AdminMembershipDetailView
@@ -108,6 +109,11 @@ urlpatterns = [
         "people/import/preview/",
         AdminBulkImportPreviewView.as_view(),
         name="admin-people-import-preview",
+    ),
+    path(
+        "people/import/template/",
+        AdminBulkImportTemplateView.as_view(),
+        name="admin-people-import-template",
     ),
     path(
         "people/import/commit/",

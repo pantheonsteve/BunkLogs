@@ -31,13 +31,16 @@ META_FIELD_TYPES = frozenset({"section_header", "instructions"})
 
 # viewer roles that may access templates by template role
 _LT_ACCESS = frozenset({"leadership_team", "admin"})
-_WELLNESS_ACCESS = frozenset({"camper_care", "health_center", "special_diets", "admin"})
+_WELLNESS_ACCESS = frozenset({
+    "camper_care", "health_center", "medical", "special_diets", "admin",
+})
 _ADMIN_ONLY = frozenset({"admin"})
 
 TEMPLATE_ROLE_VIEWER_ROLES: dict[str, frozenset[str]] = {
     "leadership_team": _LT_ACCESS,
     "camper_care": _WELLNESS_ACCESS,
     "health_center": _WELLNESS_ACCESS,
+    "medical": _WELLNESS_ACCESS,
     "special_diets": _WELLNESS_ACCESS,
     "wellness": _WELLNESS_ACCESS,
 }

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   previewAdminPeopleImport,
   commitAdminPeopleImport,
+  listAdminPeopleImportTemplates,
+  downloadAdminPeopleImportTemplate,
 } from '../../api/admin';
 
 const SOURCES = [
@@ -28,6 +30,29 @@ export default function BulkImportModal({ programs, onClose }) {
   const [commitResult, setCommitResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
+
+  useEffect(() => {
+    if (source !== 'campminder') {
+      setTemplates([]);
+      return;
+    }
+    setTemplateLoading(true);
+    listAdminPeopleImportTemplates(source)
+      .then((data) => setTemplates(data.templates || []))
+      .catch(() => setTemplates([]))
+      .finally(() => setTemplateLoading(false));
+  }, [source]);
+
+  const handleDownloadTemplate = async (variant) => {
+    setError(null);
+    try {
+      await downloadAdminPeopleImportTemplate(source, variant);
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Could not download template.');
+    }
+  };
 
   const handlePreview = async (e) => {
     e.preventDefault();
@@ -98,6 +123,50 @@ export default function BulkImportModal({ programs, onClose }) {
               ))}
             </select>
           </label>
+          {source === 'campminder' && (
+            <section className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-2 dark:bg-gray-800">
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                CSV templates
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                Download an example file with the required column headers. Include a
+                {' '}
+                <code className="font-mono">Role</code>
+                {' '}
+                column to assign memberships (e.g.
+                {' '}
+                <code className="font-mono">counselor</code>
+                ,
+                {' '}
+                <code className="font-mono">maintenance</code>
+                ,
+                {' '}
+                <code className="font-mono">administrative_staff</code>
+                ,
+                {' '}
+                <code className="font-mono">medical</code>
+                ).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {templateLoading && (
+                  <span className="text-xs text-gray-500">Loading templates…</span>
+                )}
+                {templates.map((template) => (
+                  <button
+                    key={template.variant}
+                    type="button"
+                    data-testid={`bulk-import-template-${template.variant}`}
+                    onClick={() => handleDownloadTemplate(template.variant)}
+                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 dark:bg-gray-900"
+                  >
+                    Download
+                    {' '}
+                    {template.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <label className="block text-xs font-medium">CSV file
             <input
               type="file"

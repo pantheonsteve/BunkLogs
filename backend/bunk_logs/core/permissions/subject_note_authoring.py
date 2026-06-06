@@ -35,6 +35,7 @@ DEFAULT_AUTHOR_BY_ROLE: dict[str, AuthorScope] = {
     "admin": "org",
     "leadership_team": "org",
     "health_center": "org",
+    "medical": "org",
     "special_diets": "org",
     "unit_head": "supervised",
     "faculty": "supervised",
@@ -46,6 +47,7 @@ DEFAULT_AUTHOR_BY_ROLE: dict[str, AuthorScope] = {
     "specialist": "program",
     "kitchen_staff": "none",
     "maintenance": "none",
+    "administrative_staff": "none",
     "housekeeping": "none",
     "camper": "none",
 }
