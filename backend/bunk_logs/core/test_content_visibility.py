@@ -39,7 +39,7 @@ class TestVisibilityTableAudiences:
         assert default == frozenset({"camper_care", "leadership_team", "admin"})
         sensitive = audience_roles(ContentType.CAMPER_CARE_NOTE, is_sensitive=True)
         assert sensitive == frozenset({
-            "camper_care", "health_center", "special_diets", "admin",
+            "camper_care", "health_center", "medical", "special_diets", "admin",
         })
         assert "counselor" not in sensitive
 
@@ -49,6 +49,7 @@ class TestVisibilityTableAudiences:
         sensitive = audience_roles(ContentType.SPECIALIST_NOTE, is_sensitive=True)
         assert "counselor" not in sensitive
         assert "health_center" in sensitive
+        assert "medical" in sensitive
 
     def test_specialist_self_reflection(self):
         assert audience_roles(ContentType.SPECIALIST_SELF_REFLECTION) == frozenset({
