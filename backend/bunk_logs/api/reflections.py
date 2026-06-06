@@ -233,14 +233,11 @@ def _roster_subjects_data(
         if reflection.subject_id not in covered_map:
             covered_map[reflection.subject_id] = reflection
 
-    is_admin = _has_tenant_admin(viewer)
     subjects_data = []
     for person in subject_persons:
         reflection = covered_map.get(person.id)
         covered_by_name = None
-        if reflection and reflection.author and is_admin:
-            covered_by_name = reflection.author.full_name
-        elif reflection and reflection.author:
+        if reflection and reflection.author:
             covered_by_name = reflection.author.full_name
         subjects_data.append({
             "person_id": person.id,
