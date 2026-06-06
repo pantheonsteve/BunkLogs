@@ -105,7 +105,10 @@ describe('LeadershipTeamTemplateLibrary', () => {
       .mockResolvedValueOnce({
         data: {
           templates: [
-            { id: 40, name: 'Live Template', status: 'published', version: 1, languages: ['en'], cadence: 'daily' },
+            {
+              id: 40, name: 'Live Template', status: 'published', version: 1,
+              languages: ['en'], cadence: 'daily', reflection_count: 2,
+            },
           ],
         },
       })
@@ -116,7 +119,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
     renderLib();
     await waitFor(() => expect(screen.getByTestId('lt-tpl-unpublish-40')).toBeInTheDocument());
 
-    // Unpublish should not appear on draft rows
+    // Delete hidden once responses exist
     expect(screen.queryByTestId('lt-tpl-delete-40')).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId('lt-tpl-unpublish-40'));
@@ -164,13 +167,23 @@ describe('LeadershipTeamTemplateLibrary', () => {
     expect(screen.getByTestId('lt-tpl-edit-12')).toBeInTheDocument();
   });
 
-  it('shows a Delete button only for draft templates and requires confirmation', async () => {
+  it('shows Delete when a template has no responses and requires confirmation', async () => {
     getMock
       .mockResolvedValueOnce({
         data: {
           templates: [
-            { id: 20, name: 'Draft Template', status: 'draft', version: 1, languages: ['en'], cadence: 'daily' },
-            { id: 21, name: 'Published Template', status: 'published', version: 1, languages: ['en'], cadence: 'daily' },
+            {
+              id: 20, name: 'Draft Template', status: 'draft', version: 1,
+              languages: ['en'], cadence: 'daily', reflection_count: 0,
+            },
+            {
+              id: 21, name: 'Published Template', status: 'published', version: 1,
+              languages: ['en'], cadence: 'daily', reflection_count: 0,
+            },
+            {
+              id: 22, name: 'Used Template', status: 'published', version: 1,
+              languages: ['en'], cadence: 'daily', reflection_count: 3,
+            },
           ],
         },
       })
@@ -181,9 +194,9 @@ describe('LeadershipTeamTemplateLibrary', () => {
     renderLib();
     await waitFor(() => expect(screen.getByTestId('lt-tpl-row-20')).toBeInTheDocument());
 
-    // Delete button only for drafts
     expect(screen.getByTestId('lt-tpl-delete-20')).toBeInTheDocument();
-    expect(screen.queryByTestId('lt-tpl-delete-21')).not.toBeInTheDocument();
+    expect(screen.getByTestId('lt-tpl-delete-21')).toBeInTheDocument();
+    expect(screen.queryByTestId('lt-tpl-delete-22')).not.toBeInTheDocument();
 
     // Click Delete shows confirmation
     await user.click(screen.getByTestId('lt-tpl-delete-20'));

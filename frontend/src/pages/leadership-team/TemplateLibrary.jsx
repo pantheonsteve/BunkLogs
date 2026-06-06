@@ -35,6 +35,36 @@ const ROLE_OPTIONS = [
   'madrich', 'faculty',
 ];
 
+/** Permanent delete is allowed only when no one has submitted answers yet. */
+function canDeleteTemplate(tpl) {
+  return (tpl.reflection_count ?? 0) === 0;
+}
+
+function DeleteConfirmButtons({ tplId, actionPending, onConfirm, onCancel }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-xs text-red-600 dark:text-red-400">Delete permanently?</span>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={actionPending === tplId}
+        className="text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-2 py-1"
+        data-testid={`lt-tpl-delete-confirm-${tplId}`}
+      >
+        Yes
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="text-xs rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400"
+        data-testid={`lt-tpl-delete-cancel-${tplId}`}
+      >
+        No
+      </button>
+    </span>
+  );
+}
+
 function statusBadge(status) {
   const map = {
     draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
@@ -246,49 +276,35 @@ export default function LeadershipTeamTemplateLibrary() {
                       Edit
                     </Link>
                     {tpl.status === 'draft' && (
-                      <>
+                      <button
+                        type="button"
+                        onClick={() => doAction(tpl.id, 'publish')}
+                        disabled={actionPending === tpl.id}
+                        className="text-xs rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1"
+                        data-testid={`lt-tpl-publish-${tpl.id}`}
+                      >
+                        Publish
+                      </button>
+                    )}
+                    {canDeleteTemplate(tpl) && (
+                      confirmDeleteId === tpl.id ? (
+                        <DeleteConfirmButtons
+                          tplId={tpl.id}
+                          actionPending={actionPending}
+                          onConfirm={() => doAction(tpl.id, 'delete')}
+                          onCancel={() => setConfirmDeleteId(null)}
+                        />
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => doAction(tpl.id, 'publish')}
+                          onClick={() => setConfirmDeleteId(tpl.id)}
                           disabled={actionPending === tpl.id}
-                          className="text-xs rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1"
-                          data-testid={`lt-tpl-publish-${tpl.id}`}
+                          className="text-xs rounded-md border border-red-300 dark:border-red-700 px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                          data-testid={`lt-tpl-delete-${tpl.id}`}
                         >
-                          Publish
+                          Delete
                         </button>
-                        {confirmDeleteId === tpl.id ? (
-                          <span className="flex items-center gap-1">
-                            <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
-                            <button
-                              type="button"
-                              onClick={() => doAction(tpl.id, 'delete')}
-                              disabled={actionPending === tpl.id}
-                              className="text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-2 py-1"
-                              data-testid={`lt-tpl-delete-confirm-${tpl.id}`}
-                            >
-                              Yes
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteId(null)}
-                              className="text-xs rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400"
-                              data-testid={`lt-tpl-delete-cancel-${tpl.id}`}
-                            >
-                              No
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteId(tpl.id)}
-                            disabled={actionPending === tpl.id}
-                            className="text-xs rounded-md border border-red-300 dark:border-red-700 px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
-                            data-testid={`lt-tpl-delete-${tpl.id}`}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </>
+                      )
                     )}
                     {tpl.status === 'published' && (
                       <>

@@ -6,12 +6,14 @@ import TemplateBuilderPage from '../TemplateBuilder/TemplateBuilderPage';
 const getMock = vi.fn();
 const postMock = vi.fn();
 const patchMock = vi.fn();
+const deleteMock = vi.fn();
 
 vi.mock('../../../api', () => ({
   default: {
     get: (...args) => getMock(...args),
     post: (...args) => postMock(...args),
     patch: (...args) => patchMock(...args),
+    delete: (...args) => deleteMock(...args),
   },
 }));
 
@@ -29,6 +31,7 @@ beforeEach(() => {
   getMock.mockReset();
   postMock.mockReset();
   patchMock.mockReset();
+  deleteMock.mockReset();
 });
 
 function renderNew() {
@@ -193,6 +196,58 @@ describe('TemplateBuilderPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('assign-form-dialog')).toBeInTheDocument(),
     );
+  });
+
+  it('shows Delete on a draft with no responses and calls the delete API', async () => {
+    const draftTemplate = {
+      id: 25,
+      name: 'Deletable Draft',
+      slug: 'deletable-draft',
+      role: 'counselor',
+      languages: ['en'],
+      cadence: 'daily',
+      subject_mode: 'self',
+      assignment_scope: 'none',
+      assignment_group_types: [],
+      status: 'draft',
+      is_active: false,
+      version: 1,
+      reflection_count: 0,
+      schema: { fields: [] },
+    };
+    deleteMock.mockResolvedValue({});
+    renderEdit(draftTemplate);
+
+    await waitFor(() => expect(screen.getByTestId('lt-builder-delete')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('lt-builder-delete'));
+    expect(screen.getByTestId('lt-builder-delete-confirm')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('lt-builder-delete-confirm'));
+    await waitFor(() => expect(deleteMock).toHaveBeenCalled());
+  });
+
+  it('hides Delete and shows archive hint when responses exist', async () => {
+    const usedTemplate = {
+      id: 26,
+      name: 'Used Template',
+      slug: 'used-template',
+      role: 'counselor',
+      languages: ['en'],
+      cadence: 'daily',
+      subject_mode: 'self',
+      assignment_scope: 'none',
+      assignment_group_types: [],
+      status: 'published',
+      is_active: true,
+      version: 1,
+      reflection_count: 2,
+      schema: { fields: [] },
+    };
+    renderEdit(usedTemplate);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('lt-builder-delete-blocked-hint')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('lt-builder-delete')).not.toBeInTheDocument();
   });
 
   it('shows the "Form assignments" section on a published template', async () => {

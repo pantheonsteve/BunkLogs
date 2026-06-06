@@ -48,9 +48,10 @@ beforeEach(() => {
 });
 
 describe('Sidebar — section gating (3.32)', () => {
-  it('participant (counselor) sees My work but no Supervise / Dashboards / Admin / Legacy', () => {
+  it('participant (counselor) sees My work but no Help / Supervise / Admin', () => {
     renderWith({ role: 'Counselor' });
 
+    expect(screen.queryByRole('link', { name: 'Help' })).not.toBeInTheDocument();
     // Multiple "My work" headings can render (mobile + desktop variants);
     // use getAllByText so it doesn't throw on duplicates.
     expect(screen.getAllByText('My work').length).toBeGreaterThan(0);
@@ -117,9 +118,10 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).not.toContain('/my-reflections');
   });
 
-  it('program_lead (leadership) sees Supervise dashboard links but not Admin or Dashboards menu', () => {
+  it('program_lead (leadership) sees Help and Supervise dashboard links but not Admin', () => {
     renderWith({ role: 'Leadership' });
 
+    expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
@@ -138,6 +140,7 @@ describe('Sidebar — section gating (3.32)', () => {
     renderWith({ role: 'Admin' }, { path: '/admin/home' });
 
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin/home');
+    expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
     expect(screen.getByRole('link', { name: 'Bunk Logs' })).toHaveAttribute(
       'href',
       '/dashboards/logs',
@@ -153,6 +156,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
     const links = hrefs();
     expect(links).toContain('/admin/home');
+    expect(links).toContain('/help');
     expect(links).toContain('/admin/dashboard');
     expect(links).toContain('/dashboards/logs');
     expect(links).toContain('/dashboards/reflections');

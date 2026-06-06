@@ -20,6 +20,7 @@ import {
   archiveTemplate,
   cloneTemplate,
   createTemplate,
+  deleteTemplate,
   getTemplate,
   patchTemplate,
   publishTemplate,
@@ -27,6 +28,7 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import AssignmentList from '../AssignmentList';
 import AssignFormDialog from '../AssignFormDialog';
+import { SUBJECT_MODE_OPTIONS } from '../../admin/templates/templateRouting';
 
 const TIER_1_TYPES = [
   { value: 'text', label: 'Short text' },
@@ -52,13 +54,6 @@ const DASHBOARD_ROLES_BY_TYPE = {
 };
 
 const SUPPORTED_LANGUAGES = ['en', 'es', 'he'];
-
-const SUBJECT_MODES = [
-  { value: 'self', label: 'Self-reflection (author == subject)' },
-  { value: 'single_subject', label: 'About one other person' },
-  { value: 'multi_subject', label: 'About multiple people in one submission' },
-  { value: 'group', label: 'About a group / unit (no individual subject)' },
-];
 
 // assignment_scope is derived from subject_mode via the backend coherence rule.
 // Showing it read-only so the user sees what will be saved without being able
@@ -437,6 +432,7 @@ export default function TemplateBuilderPage() {
   const [showForceVersion, setShowForceVersion] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [assignRefreshKey, setAssignRefreshKey] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
 
@@ -460,6 +456,7 @@ export default function TemplateBuilderPage() {
         is_active: data.is_active,
         version: data.version ?? 1,
         slug: data.slug,
+        reflection_count: data.reflection_count ?? 0,
       });
       setFields(addLocalIds(data.schema?.fields ?? []));
       setPreviewLanguage(data.languages?.[0] ?? 'en');
@@ -620,6 +617,25 @@ export default function TemplateBuilderPage() {
     }
   };
 
+  const doDelete = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await deleteTemplate(orgSlug, id);
+      navigate('/admin/templates');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(
+        typeof detail === 'string'
+          ? detail
+          : 'Cannot delete this form. Archive it instead if responses exist.',
+      );
+      setConfirmDelete(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const doClone = async () => {
     setSaving(true);
     try {
@@ -643,6 +659,7 @@ export default function TemplateBuilderPage() {
   const status = template.status ?? 'draft';
   const isPublished = status === 'published';
   const isArchived = status === 'archived';
+  const canDelete = isEdit && (template.reflection_count ?? 0) === 0;
 
   return (
     <div>
@@ -723,6 +740,48 @@ export default function TemplateBuilderPage() {
                 Assign form
               </button>
             )}
+            {canDelete && !confirmDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={saving}
+                className="text-sm rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/30"
+                data-testid="lt-builder-delete"
+              >
+                Delete
+              </button>
+            )}
+            {canDelete && confirmDelete && (
+              <span className="flex items-center gap-2">
+                <span className="text-xs text-red-600 dark:text-red-400">Delete permanently?</span>
+                <button
+                  type="button"
+                  onClick={doDelete}
+                  disabled={saving}
+                  className="text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-1.5"
+                  data-testid="lt-builder-delete-confirm"
+                >
+                  Yes, delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={saving}
+                  className="text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 px-3 py-1.5"
+                  data-testid="lt-builder-delete-cancel"
+                >
+                  Cancel
+                </button>
+              </span>
+            )}
+            {isEdit && (template.reflection_count ?? 0) > 0 && (
+              <p
+                className="text-xs text-gray-500 dark:text-gray-400 self-center"
+                data-testid="lt-builder-delete-blocked-hint"
+              >
+                Has responses — use Archive to retire this form.
+              </p>
+            )}
             {isEdit && (
               <button
                 type="button"
@@ -773,20 +832,39 @@ export default function TemplateBuilderPage() {
             </select>
           </label>
 
-          <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Subject mode
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            <label htmlFor="lt-builder-subject-mode" className="block">
+              Who is each submission about?
+            </label>
             <select
+              id="lt-builder-subject-mode"
               value={template.subject_mode ?? 'self'}
               onChange={(e) => updateSubjectMode(e.target.value)}
               disabled={isArchived}
               className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
               data-testid="lt-builder-subject-mode"
             >
-              {SUBJECT_MODES.map((m) => (
+              {SUBJECT_MODE_OPTIONS.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
-          </label>
+            <p
+              className="mt-1 text-xs text-gray-500 dark:text-gray-400"
+              data-testid="lt-builder-subject-mode-description"
+            >
+              {SUBJECT_MODE_OPTIONS.find((m) => m.value === (template.subject_mode ?? 'self'))?.description}
+            </p>
+            <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              Appears on:{' '}
+              {SUBJECT_MODE_OPTIONS.find((m) => m.value === (template.subject_mode ?? 'self'))?.appearsOn}
+            </p>
+            <Link
+              to="/help/form-types"
+              className="mt-1 inline-block text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Learn about form types
+            </Link>
+          </div>
 
           <div className="text-sm text-gray-700 dark:text-gray-300">
             <p className="mb-1">

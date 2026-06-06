@@ -11,6 +11,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true, // Allow access from other devices on network
+    fs: {
+      // Help center imports markdown from docs/features at build time.
+      allow: ['..'],
+    },
     proxy: {
       // Proxy all requests starting with /_allauth to your Django backend
       '/_allauth': {

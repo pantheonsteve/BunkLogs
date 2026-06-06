@@ -599,7 +599,7 @@ def test_unpublish_with_responses_rejected(org, program, lt_membership, lt_user,
 
 
 # ---------------------------------------------------------------------------
-# DELETE endpoint (draft templates only)
+# DELETE endpoint (no responses — any status)
 # ---------------------------------------------------------------------------
 
 
@@ -621,13 +621,32 @@ def test_delete_draft_template_succeeds(org, lt_membership, lt_user):
 
 
 @pytest.mark.django_db
-def test_delete_published_template_rejected(org, lt_membership, lt_user, published_template):
-    """DELETE on a published template returns 400 — use archive instead."""
+def test_delete_published_template_succeeds_when_no_responses(
+    org, lt_membership, lt_user, published_template,
+):
+    """DELETE on a published template with no responses permanently removes it."""
     c = _client(lt_user, org)
     with organization_context(org):
         resp = c.delete(f"/api/v1/leadership-team/templates/{published_template.id}/")
-    assert resp.status_code == 400
-    assert "draft" in str(resp.data).lower() or "archive" in str(resp.data).lower()
+    assert resp.status_code == 204
+    assert not ReflectionTemplate.all_objects.filter(pk=published_template.id).exists()
+
+
+@pytest.mark.django_db
+def test_delete_archived_template_succeeds_when_no_responses(org, lt_membership, lt_user):
+    """DELETE on an archived template with no responses permanently removes it."""
+    tpl = ReflectionTemplate.all_objects.create(
+        organization=org, name="Archived Empty", slug="archived-empty",
+        cadence="daily",
+        schema={"fields": [{"key": "x", "type": "text", "prompts": {"en": "x?"}}]},
+        languages=["en"], subject_mode="self",
+        status=ReflectionTemplate.Status.ARCHIVED, is_active=False, version=1,
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
+    assert resp.status_code == 204
+    assert not ReflectionTemplate.all_objects.filter(pk=tpl.id).exists()
 
 
 @pytest.mark.django_db

@@ -120,7 +120,15 @@ By default you only see items you have **not** marked read.
 2. Use **Open reflection** for full context (author, all answers, visibility).
 3. Click the subject name to open their **Subject** dashboard for trends and
    history.
-4. Click **Mark read** when you have handled it.
+4. Click **Mark read** when you have handled it—or select several rows with the
+   checkboxes and use **Mark N as read** to clear a batch at once.
+
+### Bulk mark read
+
+Each row has a checkbox. Use **Select all** to select every item in the current
+list, or pick individual rows. When at least one item is selected, a toolbar
+appears with **Mark N as read**. With **Show read items** enabled, you can also
+**Mark N as unread** on selected read rows.
 
 Read state is **personal**: marking read hides the item from *your* default view
 only. Other supervisors still see it until they mark it read themselves.

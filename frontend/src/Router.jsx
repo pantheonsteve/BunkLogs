@@ -86,6 +86,9 @@ import LeadershipTeamSelfReflectionPage from './pages/leadership-team/SelfReflec
 import LeadershipTeamTemplateLibrary from './pages/leadership-team/TemplateLibrary';
 import LeadershipTeamTemplateBuilderPage from './pages/leadership-team/TemplateBuilder/TemplateBuilderPage';
 import LeadershipTeamResponses from './pages/leadership-team/Responses';
+import HelpIndexPage from './pages/help/HelpIndexPage';
+import HelpArticlePage from './pages/help/HelpArticlePage';
+import HelpRoute from './pages/help/HelpRoute';
 import SpecialistDashboard from './pages/specialist/Dashboard';
 import SpecialistCamperView from './pages/specialist/CamperView';
 import SpecialistSelfReflectionPage from './pages/specialist/SelfReflectionPage';
@@ -409,6 +412,22 @@ function Router() {
           <Route path="/reflect" element={<ReflectionFormPage />} />
           <Route path="/reflect/summary" element={<ReflectionSummaryPage />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route
+            path="/help"
+            element={
+              <HelpRoute>
+                <HelpIndexPage />
+              </HelpRoute>
+            }
+          />
+          <Route
+            path="/help/:slug"
+            element={
+              <HelpRoute>
+                <HelpArticlePage />
+              </HelpRoute>
+            }
+          />
           <Route path="/notes" element={<Navigate to="/observations" replace />} />
           <Route path="/notes/*" element={<Navigate to="/observations" replace />} />
           <Route path="/subject-notes" element={<Navigate to="/observations" replace />} />

@@ -26,21 +26,25 @@ export const SUBJECT_MODE_OPTIONS = [
     value: 'self',
     label: 'Self-reflection',
     description: 'The author reflects about themselves. One submission per author per period.',
+    appearsOn: 'My Tasks, Reflections dashboard',
   },
   {
     value: 'single_subject',
     label: 'About one person at a time',
-    description: 'Author files one submission per subject (e.g. one form per camper, per day).',
+    description: 'Author files one submission per subject (e.g. one form per camper, per day). Recommended for bunk logs.',
+    appearsOn: 'My Tasks, Bunk Logs dashboard, group dashboard',
   },
   {
     value: 'multi_subject',
     label: 'About several people in one submission',
-    description: 'Author covers multiple subjects in a single form (rare).',
+    description: 'One form names multiple people with shared answers (rare). Today My Tasks still works one person at a time—use single-subject for standard bunk logs.',
+    appearsOn: 'My Tasks, Bunk Logs dashboard, group dashboard',
   },
   {
     value: 'group',
     label: 'About a group as a whole',
     description: 'One submission per group (e.g. one daily bunk note, no per-camper detail).',
+    appearsOn: 'My Tasks, Bunk Logs dashboard, group dashboard',
   },
 ];
 
