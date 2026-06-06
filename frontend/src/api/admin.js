@@ -171,3 +171,26 @@ export async function commitAdminPeopleImport(source, programSlug, file) {
   });
   return resp?.data ?? null;
 }
+
+export async function listAdminPeopleImportTemplates(source = 'campminder') {
+  const resp = await api.get(`${ADMIN_BASE}/people/import/template/`, {
+    params: { source },
+  });
+  return resp?.data ?? { templates: [] };
+}
+
+export async function downloadAdminPeopleImportTemplate(source, variant) {
+  const resp = await api.get(`${ADMIN_BASE}/people/import/template/`, {
+    params: { source, variant },
+    responseType: 'blob',
+  });
+  const disposition = resp.headers['content-disposition'] || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match?.[1] || `${source}-${variant}-import-template.csv`;
+  const url = window.URL.createObjectURL(resp.data);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(url);
+}

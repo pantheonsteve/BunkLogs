@@ -8,7 +8,8 @@ from django.shortcuts import render
 from .admin_organization import AUTHOR_SCOPE_FIELD_PREFIX
 from .admin_organization import AUTHOR_SCOPE_HELP
 from .admin_organization import MembershipSubjectNoteAuthorField
-from .admin_organization import OrganizationAdminForm
+from .admin_organization import get_organization_admin_form
+from .admin_organization import membership_role_choices
 from .admin_organization import apply_membership_author_override
 from .admin_organization import membership_author_override_initial
 from .models import AssignmentDashboardGrant
@@ -102,13 +103,16 @@ class ProgramInline(admin.TabularInline):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    form = OrganizationAdminForm
     list_display = ["name", "slug", "is_active", "created_at"]
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ["name", "slug"]
     list_filter = ["is_active"]
     inlines = [ProgramInline]
     readonly_fields = ["created_at", "updated_at"]
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        kwargs.setdefault("form", get_organization_admin_form())
+        return super().get_form(request, obj, change=change, **kwargs)
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         """Pin tenant context to the org being edited so inline Program rows validate."""
@@ -155,10 +159,106 @@ class OrganizationAdmin(admin.ModelAdmin):
         )
 
 
+class MembershipInline(admin.TabularInline):
+    model = Membership
+    extra = 0
+    fields = ("program", "role", "capability", "is_active", "start_date", "end_date")
+    readonly_fields = ("capability",)
+    autocomplete_fields = ("program",)
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        if db_field.name == "role":
+            kwargs["choices"] = membership_role_choices()
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
+
+    def get_queryset(self, request):
+        return Membership.all_objects.select_related("program__organization", "person")
+
+    def get_formset(self, request, obj=None, **kwargs):
+        FormSet = super().get_formset(request, obj, **kwargs)
+        membership_qs = Membership.all_objects.select_related("program__organization", "person")
+        program_qs = Program.all_objects.select_related("organization")
+        base_form = FormSet.form
+
+        class AdminMembershipInlineForm(base_form):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.fields["role"].choices = membership_role_choices()
+                if "program" in self.fields:
+                    self.fields["program"].queryset = program_qs
+
+        class AdminMembershipInlineFormSet(FormSet):
+            form = AdminMembershipInlineForm
+
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("queryset", membership_qs)
+                super().__init__(*args, **kwargs)
+
+        return AdminMembershipInlineFormSet
+
+
+class ProgramMembershipInline(MembershipInline):
+    """Memberships on a program — program is implied by the parent row."""
+
+    fields = ("person", "role", "capability", "is_active", "start_date", "end_date")
+    autocomplete_fields = ("person",)
+
+    def get_queryset(self, request):
+        return Membership.all_objects.select_related("person")
+
+    def get_formset(self, request, obj=None, **kwargs):
+        FormSet = super(MembershipInline, self).get_formset(request, obj, **kwargs)
+        membership_qs = Membership.all_objects.select_related("person")
+        person_qs = Person.all_objects.select_related("organization")
+        base_form = FormSet.form
+
+        class ProgramMembershipInlineForm(base_form):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.fields["role"].choices = membership_role_choices()
+                if "person" in self.fields:
+                    self.fields["person"].queryset = person_qs
+
+        class ProgramMembershipInlineFormSet(FormSet):
+            form = ProgramMembershipInlineForm
+
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("queryset", membership_qs)
+                super().__init__(*args, **kwargs)
+
+            def save_new(self, form, commit=True):
+                membership = form.save(commit=False)
+                membership.program = obj
+                if commit:
+                    membership.save()
+                return membership
+
+        return ProgramMembershipInlineFormSet
+
+
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
+    inlines = [MembershipInline]
+
     def get_queryset(self, request):
         return Person.all_objects.all()
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("organization", "user", "first_name", "last_name", "preferred_name", "email"),
+                "description": (
+                    "Program roles (maintenance, administrative staff, medical, etc.) "
+                    "are assigned via the Memberships section below — not on the linked User record."
+                ),
+            },
+        ),
+        (
+            "Profile",
+            {"fields": ("date_of_birth", "preferred_language", "translation_preference", "external_ids", "notes", "created_at")},
+        ),
+    )
 
     list_display = [
         "full_name",
@@ -176,6 +276,7 @@ class PersonAdmin(admin.ModelAdmin):
 @admin.register(Program)
 class ProgramAdmin(admin.ModelAdmin):
     form = ProgramAdminForm
+    inlines = [ProgramMembershipInline]
 
     def get_queryset(self, request):
         return Program.all_objects.select_related("organization")
@@ -355,6 +456,15 @@ class ReflectionTemplateAdminForm(forms.ModelForm):
             "subject_role_filter",
             "required_per_subject_per_period",
             "subject_visible",
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"] = forms.ChoiceField(
+            choices=membership_role_choices(include_blank=True),
+            required=False,
+            initial=getattr(self.instance, "role", None) or "",
+            help_text="Membership role this template targets. Blank = all roles in program type.",
         )
 
 
@@ -667,6 +777,7 @@ class MembershipAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["role"].choices = membership_role_choices()
         if self.instance and self.instance.pk:
             self.fields["subject_note_author_override"].initial = (
                 membership_author_override_initial(self.instance.metadata)
@@ -739,6 +850,11 @@ class MembershipAdmin(admin.ModelAdmin):
     ]
     autocomplete_fields = ["program", "person"]
     readonly_fields = ["capability", "created_at"]
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        if db_field.name == "role":
+            kwargs["choices"] = membership_role_choices()
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         # The admin is privileged staff territory; bypass OrgScopedManager so the

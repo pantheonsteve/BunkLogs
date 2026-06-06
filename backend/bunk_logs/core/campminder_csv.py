@@ -6,6 +6,10 @@ import csv
 import io
 from pathlib import Path
 
+from bunk_logs.core.models import Membership
+
+VALID_ROLE_SLUGS = frozenset(role for role, _ in Membership.ROLES)
+
 
 def _normalize_header(key: str) -> str:
     return (
@@ -98,6 +102,30 @@ def _position_key(value: str) -> str:
     return value.strip().lower()
 
 
+def normalize_role_value(raw: str) -> str:
+    """Map a CSV ``Role`` cell to a canonical Membership.role slug."""
+    value = (raw or "").strip()
+    if not value:
+        return ""
+
+    slug = value.lower().replace(" ", "_").replace("-", "_")
+    if slug in VALID_ROLE_SLUGS:
+        return slug
+
+    for role_slug, label in Membership.ROLES:
+        if value.lower() == label.lower():
+            return role_slug
+
+    from_position = infer_role_from_position("", value)
+    if from_position:
+        return from_position
+    from_type = infer_role_from_position(value, "")
+    if from_type:
+        return from_type
+
+    return slug
+
+
 def infer_role_from_position(position_type: str, position: str) -> str:
     """Map Campminder staff ``Position Types`` / ``Position`` to Membership.role."""
     pos = _position_key(position)
@@ -125,8 +153,8 @@ def infer_role_from_position(position_type: str, position: str) -> str:
         return "kitchen_staff"
     if "housekeeping" in pos:
         return "housekeeping"
-    if "health" in pos or "nurse" in pos or "wellness" in pos:
-        return "health_center"
+    if "medical" in pos or "health" in pos or "nurse" in pos or "wellness" in pos:
+        return "medical"
     if "special diet" in pos or "allerg" in pos:
         return "special_diets"
     if "maintenance" in pos:
@@ -135,7 +163,9 @@ def infer_role_from_position(position_type: str, position: str) -> str:
     if pos_type == "leadership team":
         return "leadership_team"
     if pos_type == "administrative staff":
-        return "maintenance"
+        return "administrative_staff"
+    if pos_type in {"medical", "medical staff", "health center"}:
+        return "medical"
     if pos_type == "counseling staff":
         return "counselor"
     if pos_type == "kitchen staff":
@@ -156,7 +186,7 @@ def _infer_default_role(
     position_type: str,
     position: str,
 ) -> str:
-    explicit_role = _field_value(indexed, "role")
+    explicit_role = normalize_role_value(_field_value(indexed, "role"))
     if explicit_role:
         return explicit_role
 
@@ -239,3 +269,154 @@ def _read_dict_rows(handle) -> list[dict]:
     except csv.Error:
         dialect = csv.excel
     return list(csv.DictReader(handle, dialect=dialect))
+
+
+IMPORT_TEMPLATE_VARIANTS: dict[str, dict] = {
+    "camper": {
+        "label": "Campers",
+        "filename": "campminder-camper-import-template.csv",
+        "headers": ["PersonID", "Last Name", "Preferred Name", "Role"],
+        "required_headers": ["PersonID", "Last Name", "Preferred Name"],
+        "optional_headers": ["Role"],
+        "example_rows": [
+            ["20476515", "Abraham", "Allie", "camper"],
+            ["20476516", "Cohen", "Sam", "camper"],
+        ],
+        "notes": (
+            "Role defaults to camper when omitted. Use role slugs such as "
+            "camper, counselor, camper_care."
+        ),
+    },
+    "staff": {
+        "label": "Staff",
+        "filename": "campminder-staff-import-template.csv",
+        "headers": [
+            "PersonID",
+            "Last Name",
+            "First Name",
+            "Login/Email",
+            "Role",
+            "Position Types",
+            "Position",
+        ],
+        "required_headers": ["PersonID", "Last Name", "First Name", "Role"],
+        "optional_headers": ["Login/Email", "Position Types", "Position"],
+        "example_rows": [
+            [
+                "5927217",
+                "Allen",
+                "Christopher",
+                "drchrisa@gmail.com",
+                "maintenance",
+                "Administrative Staff",
+                "Driver",
+            ],
+            [
+                "5927300",
+                "Baker",
+                "Jordan",
+                "jbaker@example.com",
+                "administrative_staff",
+                "Administrative Staff",
+                "Registrar",
+            ],
+            [
+                "6904465",
+                "Nadel",
+                "Jennifer",
+                "jnadel13@gmail.com",
+                "camper_care",
+                "Leadership Team",
+                "Camper Care Associate",
+            ],
+            [
+                "5200995",
+                "Friedman",
+                "Shain",
+                "shainfriedman11@gmail.com",
+                "specialist",
+                "Leadership Team",
+                "Director: Athletics",
+            ],
+        ],
+        "notes": (
+            "Set Role explicitly to assign memberships. Position Types and "
+            "Position are optional metadata; Role overrides position inference."
+        ),
+    },
+    "roster": {
+        "label": "Campers with bunk assignments",
+        "filename": "campminder-roster-import-template.csv",
+        "headers": [
+            "PersonID",
+            "Last Name",
+            "First Name",
+            "Preferred Name",
+            "Login/Email",
+            "Role",
+            "Bunk Name",
+            "Unit Name",
+            "Division Name",
+        ],
+        "required_headers": ["PersonID", "Last Name", "Role", "Bunk Name"],
+        "optional_headers": [
+            "First Name",
+            "Preferred Name",
+            "Login/Email",
+            "Unit Name",
+            "Division Name",
+        ],
+        "example_rows": [
+            [
+                "CM001",
+                "Smith",
+                "Alice",
+                "",
+                "",
+                "camper",
+                "Bunk Maple",
+                "Sophomores",
+                "Upper Camp",
+            ],
+            [
+                "CM003",
+                "Lee",
+                "Carol",
+                "",
+                "carol@example.com",
+                "counselor",
+                "Bunk Maple",
+                "Sophomores",
+                "Upper Camp",
+            ],
+        ],
+        "notes": "Use for full roster imports that also create bunk hierarchy.",
+    },
+}
+
+
+def list_import_template_variants() -> list[dict]:
+    roles = [{"slug": slug, "label": label} for slug, label in Membership.ROLES]
+    return [
+        {
+            "variant": key,
+            "label": spec["label"],
+            "filename": spec["filename"],
+            "headers": spec["headers"],
+            "required_headers": spec["required_headers"],
+            "optional_headers": spec["optional_headers"],
+            "notes": spec["notes"],
+            "valid_roles": roles,
+        }
+        for key, spec in IMPORT_TEMPLATE_VARIANTS.items()
+    ]
+
+
+def build_import_template_csv(variant: str) -> tuple[str, str]:
+    """Return (filename, csv_text) for a template variant."""
+    spec = IMPORT_TEMPLATE_VARIANTS[variant]
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(spec["headers"])
+    writer.writerows(spec["example_rows"])
+    return spec["filename"], buffer.getvalue()

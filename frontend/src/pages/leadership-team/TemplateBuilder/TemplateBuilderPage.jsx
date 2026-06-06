@@ -752,8 +752,9 @@ export default function TemplateBuilderPage() {
             >
               {[
                 'counselor', 'specialist', 'unit_head', 'leadership_team',
-                'kitchen_staff', 'maintenance', 'housekeeping', 'camper_care',
-                'health_center', 'madrich', 'general_counselor', 'faculty',
+                'kitchen_staff', 'maintenance', 'administrative_staff', 'housekeeping',
+                'camper_care', 'health_center', 'medical', 'madrich', 'general_counselor',
+                'faculty',
               ].map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>

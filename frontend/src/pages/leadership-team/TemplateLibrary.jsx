@@ -31,7 +31,8 @@ const STATUS_OPTIONS = [
 const ROLE_OPTIONS = [
   '', 'counselor', 'junior_counselor', 'specialist', 'general_counselor',
   'unit_head', 'leadership_team', 'kitchen_staff', 'maintenance',
-  'housekeeping', 'camper_care', 'health_center', 'madrich', 'faculty',
+  'administrative_staff', 'housekeeping', 'camper_care', 'health_center', 'medical',
+  'madrich', 'faculty',
 ];
 
 function statusBadge(status) {

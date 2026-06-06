@@ -41,13 +41,15 @@ UNIT_SCOPED_SUPERVISOR_ROLES = frozenset({"faculty", "leadership_team", "camper_
 # ``WELLNESS_TEMPLATE_ROLES``. Reserved for roles whose work is cross-unit by
 # nature (nurses, dietitians). ``camper_care`` is intentionally NOT here -- it
 # moved to the unit-scoped supervisor capability in step 3.21.
-WELLNESS_ROLES = frozenset({"health_center", "special_diets"})
+WELLNESS_ROLES = frozenset({"health_center", "medical", "special_diets"})
 
 # Template.role values that the wellness team can read collectively. Includes
 # ``camper_care`` so a nurse / dietitian still has visibility into pastoral
 # notes about a camper they're co-caring for, even though camper-care staff
 # themselves no longer get this shortcut.
-WELLNESS_TEMPLATE_ROLES = frozenset({"camper_care", "health_center", "special_diets"})
+WELLNESS_TEMPLATE_ROLES = frozenset({
+    "camper_care", "health_center", "medical", "special_diets",
+})
 
 
 def _person_for_user(user) -> Person | None:

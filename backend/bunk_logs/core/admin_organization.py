@@ -30,6 +30,14 @@ AUTHOR_SCOPE_HELP = (
 )
 
 
+def membership_role_choices(*, include_blank: bool = False) -> list[tuple[str, str]]:
+    """Canonical Membership.role choices for Django admin dropdowns."""
+    choices = list(Membership.ROLES)
+    if include_blank:
+        return [("", "---------"), *choices]
+    return choices
+
+
 def _settings_without_author_by_role(settings: dict | None) -> dict:
     """Return a copy of org settings omitting subject_notes.author_by_role."""
     other = dict(settings or {})
@@ -153,7 +161,12 @@ def _build_organization_admin_form() -> type[forms.ModelForm]:
     )
 
 
-OrganizationAdminForm = _build_organization_admin_form()
+def get_organization_admin_form() -> type[forms.ModelForm]:
+    """Build the org admin form from the current ``Membership.ROLES`` list."""
+    return _build_organization_admin_form()
+
+
+OrganizationAdminForm = get_organization_admin_form()
 
 
 MEMBERSHIP_AUTHOR_OVERRIDE_CHOICES = [

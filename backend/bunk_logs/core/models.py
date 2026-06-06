@@ -41,6 +41,7 @@ ROLE_TO_CAPABILITY: dict[str, str] = {
     "general_counselor": "participant",
     "kitchen_staff": "participant",
     "maintenance": "participant",
+    "administrative_staff": "participant",
     "housekeeping": "participant",
     "madrich": "participant",
     "unit_head": "supervisor",
@@ -48,6 +49,7 @@ ROLE_TO_CAPABILITY: dict[str, str] = {
     "camper_care": "supervisor",
     "leadership_team": "program_lead",
     "health_center": "domain_specialist",
+    "medical": "domain_specialist",
     "special_diets": "domain_specialist",
     "admin": "admin",
 }
@@ -313,7 +315,7 @@ class Person(models.Model):
 class Membership(models.Model):
     """A Person's participation in a Program with a specific role.
 
-    ``role`` is the customer-facing label and template-routing key (16 values).
+    ``role`` is the customer-facing label and template-routing key (18 values).
     ``capability`` is a derived RBAC layer with 5 values, kept in sync from
     ``role`` via ``ROLE_TO_CAPABILITY`` on every ``save()``. Permission code
     should query on ``capability``; do not mutate ``role`` via
@@ -330,9 +332,11 @@ class Membership(models.Model):
         ("leadership_team", "Leadership Team"),
         ("kitchen_staff", "Kitchen Staff"),
         ("maintenance", "Maintenance"),
+        ("administrative_staff", "Administrative Staff"),
         ("housekeeping", "Housekeeping"),
         ("camper_care", "Camper Care"),
         ("health_center", "Health Center"),
+        ("medical", "Medical"),
         ("special_diets", "Special Diets"),
         ("madrich", "Madrich"),
         ("faculty", "Faculty"),
