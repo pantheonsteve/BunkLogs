@@ -20,6 +20,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from bunk_logs.core import audit as audit_module
+from bunk_logs.core.assignment_resolution import list_required_assignments_for
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -27,6 +28,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.models import TranslationRecord
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
@@ -176,6 +178,241 @@ def _current_period(today: date, cadence: str) -> tuple[date, date]:
 def _task_id(template_id: int, group_id: int | None, period_start: date) -> str:
     key = f"{template_id}:{group_id or ''}:{period_start.isoformat()}"
     return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def _assignment_cadence(assignment: TemplateAssignment) -> str:
+    if assignment.cadence_override:
+        return assignment.cadence_override
+    return assignment.template.cadence or "daily"
+
+
+def _eligible_groups_for_assignment(
+    assignment: TemplateAssignment,
+    author_agms: list[AssignmentGroupMembership],
+) -> list[AssignmentGroup]:
+    """Assignment groups the viewer authors that this assignment applies to."""
+    tpl = assignment.template
+    allowed_types = set(tpl.assignment_group_types or [])
+    if assignment.target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
+        group = assignment.assignment_group
+        if group is None or not group.is_active:
+            return []
+        if any(agm.group_id == group.id for agm in author_agms):
+            return [group]
+        return []
+    return [
+        agm.group
+        for agm in author_agms
+        if agm.group.is_active
+        and agm.group.program_id == assignment.program_id
+        and (not allowed_types or agm.group.group_type in allowed_types)
+    ]
+
+
+def _roster_subjects_data(
+    *,
+    viewer: Person,
+    template: ReflectionTemplate,
+    group: AssignmentGroup,
+    subject_persons: list[Person],
+    period_start: date,
+    period_end: date,
+) -> list[dict]:
+    person_ids = [p.id for p in subject_persons]
+    reflections = list(
+        Reflection.all_objects.filter(
+            template=template,
+            assignment_group=group,
+            period_start=period_start,
+            period_end=period_end,
+            subject_id__in=person_ids,
+        ).select_related("author"),
+    )
+    covered_map: dict[int, Reflection] = {}
+    for reflection in reflections:
+        if reflection.subject_id not in covered_map:
+            covered_map[reflection.subject_id] = reflection
+
+    subjects_data = []
+    for person in subject_persons:
+        reflection = covered_map.get(person.id)
+        covered_by_name = None
+        if reflection and reflection.author:
+            covered_by_name = reflection.author.full_name
+        subjects_data.append({
+            "person_id": person.id,
+            "name": person.full_name,
+            "preferred_name": person.preferred_name or person.first_name,
+            "covered": bool(reflection),
+            "covered_by_me": bool(reflection and reflection.author_id == viewer.id),
+            "reflection_id": reflection.id if reflection else None,
+            "covered_by_name": covered_by_name,
+        })
+    return subjects_data
+
+
+def _subjects_by_group(group_ids: list[int]) -> dict[int, list[Person]]:
+    subject_agms = list(
+        AssignmentGroupMembership.objects.filter(
+            group_id__in=group_ids,
+            role_in_group="subject",
+            is_active=True,
+        ).select_related("person"),
+    )
+    subjects_by_group: dict[int, list[Person]] = {}
+    for sagm in subject_agms:
+        subjects_by_group.setdefault(sagm.group_id, []).append(sagm.person)
+    return subjects_by_group
+
+
+def _tasks_from_required_assignments(
+    *,
+    viewer: Person,
+    organization,
+    viewer_memberships: list[Membership],
+    author_agms: list[AssignmentGroupMembership],
+    today: date,
+) -> list[dict]:
+    """Build my-tasks rows from active TemplateAssignment audience matches."""
+    tasks: list[dict] = []
+    seen_keys: set[tuple] = set()
+
+    for membership in viewer_memberships:
+        program = membership.program
+        if program.organization_id != organization.id:
+            continue
+        for assignment in list_required_assignments_for(
+            viewer, organization, program, today,
+        ):
+            tpl = assignment.template
+            cadence = _assignment_cadence(assignment)
+            period_start, period_end = _current_period(today, cadence)
+            prog_slug = program.slug
+
+            if tpl.subject_mode == "self":
+                dedupe_key = (tpl.id, None, period_start, program.id)
+                if dedupe_key in seen_keys:
+                    continue
+                seen_keys.add(dedupe_key)
+
+                existing = (
+                    Reflection.all_objects.filter(
+                        author=viewer,
+                        subject=viewer,
+                        template=tpl,
+                        program=program,
+                        period_start=period_start,
+                        period_end=period_end,
+                    )
+                    .order_by("-submitted_at")
+                    .first()
+                )
+                tasks.append({
+                    "id": _task_id(tpl.id, None, period_start),
+                    "template": ReflectionTemplateSummarySerializer(tpl).data,
+                    "assignment_group": None,
+                    "subject_mode": "self",
+                    "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
+                    "program_slug": prog_slug,
+                    "subjects": [],
+                    "completion": {
+                        "covered": 1 if existing else 0,
+                        "total": 1,
+                        "my_count": 1 if existing else 0,
+                    },
+                    "self_status": {
+                        "submitted": bool(existing),
+                        "reflection_id": existing.id if existing else None,
+                        "submitted_at": existing.submitted_at.isoformat() if existing else None,
+                    },
+                })
+                continue
+
+            if tpl.subject_mode in ("single_subject", "multi_subject"):
+                groups = _eligible_groups_for_assignment(assignment, author_agms)
+                if not groups:
+                    continue
+                subjects_by_group = _subjects_by_group([g.id for g in groups])
+                for group in groups:
+                    subject_persons = subjects_by_group.get(group.id, [])
+                    if not subject_persons:
+                        continue
+                    dedupe_key = (tpl.id, group.id, period_start, program.id)
+                    if dedupe_key in seen_keys:
+                        continue
+                    seen_keys.add(dedupe_key)
+
+                    subjects_data = _roster_subjects_data(
+                        viewer=viewer,
+                        template=tpl,
+                        group=group,
+                        subject_persons=subject_persons,
+                        period_start=period_start,
+                        period_end=period_end,
+                    )
+                    covered_count = sum(1 for s in subjects_data if s["covered"])
+                    my_count = sum(1 for s in subjects_data if s["covered_by_me"])
+                    tasks.append({
+                        "id": _task_id(tpl.id, group.id, period_start),
+                        "template": ReflectionTemplateSummarySerializer(tpl).data,
+                        "assignment_group": {
+                            "id": group.id,
+                            "name": group.name,
+                            "group_type": group.group_type,
+                        },
+                        "subject_mode": tpl.subject_mode,
+                        "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
+                        "program_slug": prog_slug,
+                        "subjects": subjects_data,
+                        "completion": {
+                            "covered": covered_count,
+                            "total": len(subjects_data),
+                            "my_count": my_count,
+                        },
+                        "self_status": None,
+                    })
+                continue
+
+            if tpl.subject_mode == "group":
+                groups = _eligible_groups_for_assignment(assignment, author_agms)
+                for group in groups:
+                    dedupe_key = (tpl.id, group.id, period_start, program.id)
+                    if dedupe_key in seen_keys:
+                        continue
+                    seen_keys.add(dedupe_key)
+
+                    existing = (
+                        Reflection.all_objects.filter(
+                            author=viewer,
+                            template=tpl,
+                            program=program,
+                            subject_group=group,
+                            period_start=period_start,
+                            period_end=period_end,
+                        )
+                        .first()
+                    )
+                    tasks.append({
+                        "id": _task_id(tpl.id, group.id, period_start),
+                        "template": ReflectionTemplateSummarySerializer(tpl).data,
+                        "assignment_group": {
+                            "id": group.id,
+                            "name": group.name,
+                            "group_type": group.group_type,
+                        },
+                        "subject_mode": "group",
+                        "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
+                        "program_slug": prog_slug,
+                        "subjects": [],
+                        "completion": {
+                            "covered": 1 if existing else 0,
+                            "total": 1,
+                            "my_count": 1 if existing else 0,
+                        },
+                        "self_status": None,
+                    })
+
+    return tasks
 
 
 def _build_periods(today: date, cadence: str) -> list[tuple[date, date]]:
@@ -817,15 +1054,9 @@ class ReflectionViewSet(viewsets.ModelViewSet):
 
         today = date.today()
 
-        # Viewer's active memberships (needed for self-reflection eligibility + program_slug)
         viewer_memberships = list(
             Membership.objects.filter(person=viewer, is_active=True).select_related("program"),
         )
-        viewer_roles = {m.role for m in viewer_memberships}
-        # Use the most recent program as default for self-reflection submissions
-        default_program = viewer_memberships[0].program if viewer_memberships else None
-
-        # Viewer's assignment group author memberships
         author_agms = list(
             AssignmentGroupMembership.objects.filter(
                 person=viewer,
@@ -834,208 +1065,13 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             ).select_related("group"),
         )
 
-        # Active templates for this org. Org-scoped rows shadow globals
-        # for the same (role, cadence, subject_mode) tuple so a tenant
-        # that has customised a template doesn't double-count the global
-        # fallback (Step 7_6 ships a global counselor self-reflection
-        # template that orgs may override).
-        templates_qs = (
-            ReflectionTemplate.objects.filter(
-                Q(organization=org) | Q(organization__isnull=True),
-                is_active=True,
-            )
-            .annotate(
-                _org_priority=Case(
-                    When(organization__isnull=True, then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                ),
-            )
-            .order_by("_org_priority", "-version", "name")
+        tasks = _tasks_from_required_assignments(
+            viewer=viewer,
+            organization=org,
+            viewer_memberships=viewer_memberships,
+            author_agms=author_agms,
+            today=today,
         )
-        templates: list[ReflectionTemplate] = []
-        _seen_keys: set[tuple] = set()
-        for tpl in templates_qs:
-            shadow_key = (
-                tpl.subject_mode,
-                tpl.cadence,
-                tpl.role or "",
-                tuple(sorted(tpl.author_role_filter or [])),
-                tuple(sorted(tpl.assignment_group_types or [])),
-            )
-            if shadow_key in _seen_keys:
-                continue
-            _seen_keys.add(shadow_key)
-            templates.append(tpl)
-
-        tasks: list[dict] = []
-
-        for tpl in templates:
-            period_start, period_end = _current_period(today, tpl.cadence)
-            prog_slug = default_program.slug if default_program else ""
-
-            if tpl.subject_mode == "self":
-                eligible_roles = tpl.author_role_filter or []
-                if eligible_roles and not viewer_roles.intersection(set(eligible_roles)):
-                    continue
-                if not eligible_roles and not viewer_memberships:
-                    continue
-
-                existing = (
-                    Reflection.all_objects.filter(
-                        author=viewer,
-                        subject=viewer,
-                        template=tpl,
-                        period_start=period_start,
-                        period_end=period_end,
-                    )
-                    .order_by("-submitted_at")
-                    .first()
-                )
-                tasks.append({
-                    "id": _task_id(tpl.id, None, period_start),
-                    "template": ReflectionTemplateSummarySerializer(tpl).data,
-                    "assignment_group": None,
-                    "subject_mode": "self",
-                    "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
-                    "program_slug": prog_slug,
-                    "subjects": [],
-                    "completion": {
-                        "covered": 1 if existing else 0,
-                        "total": 1,
-                        "my_count": 1 if existing else 0,
-                    },
-                    "self_status": {
-                        "submitted": bool(existing),
-                        "reflection_id": existing.id if existing else None,
-                        "submitted_at": existing.submitted_at.isoformat() if existing else None,
-                    },
-                })
-
-            elif tpl.subject_mode in ("single_subject", "multi_subject"):
-                allowed_types = set(tpl.assignment_group_types or [])
-                eligible_agms = [
-                    agm for agm in author_agms
-                    if agm.group.is_active
-                    and (not allowed_types or agm.group.group_type in allowed_types)
-                ]
-                if not eligible_agms:
-                    continue
-
-                # Prefetch subject memberships for all eligible groups in one query
-                group_ids = [agm.group_id for agm in eligible_agms]
-                subject_agms = list(
-                    AssignmentGroupMembership.objects.filter(
-                        group_id__in=group_ids,
-                        role_in_group="subject",
-                        is_active=True,
-                    ).select_related("person"),
-                )
-                subjects_by_group: dict[int, list[Person]] = {}
-                for sagm in subject_agms:
-                    subjects_by_group.setdefault(sagm.group_id, []).append(sagm.person)
-
-                for agm in eligible_agms:
-                    group = agm.group
-                    subject_persons = subjects_by_group.get(group.id, [])
-                    if not subject_persons:
-                        continue
-
-                    person_ids = [p.id for p in subject_persons]
-                    reflections = list(
-                        Reflection.all_objects.filter(
-                            template=tpl,
-                            assignment_group=group,
-                            period_start=period_start,
-                            period_end=period_end,
-                            subject_id__in=person_ids,
-                        ).select_related("author"),
-                    )
-                    covered_map: dict[int, Reflection] = {}
-                    for r in reflections:
-                        if r.subject_id not in covered_map:
-                            covered_map[r.subject_id] = r
-
-                    is_admin = _has_tenant_admin(viewer)
-                    subjects_data = []
-                    for person in subject_persons:
-                        r = covered_map.get(person.id)
-                        covered_by_name = None
-                        if r and r.author and is_admin:
-                            covered_by_name = r.author.full_name
-                        elif r and r.author:
-                            # Authors in the same group can see who logged
-                            covered_by_name = r.author.full_name
-                        subjects_data.append({
-                            "person_id": person.id,
-                            "name": person.full_name,
-                            "preferred_name": person.preferred_name or person.first_name,
-                            "covered": bool(r),
-                            "covered_by_me": bool(r and r.author_id == viewer.id),
-                            "reflection_id": r.id if r else None,
-                            "covered_by_name": covered_by_name,
-                        })
-
-                    covered_count = sum(1 for s in subjects_data if s["covered"])
-                    my_count = sum(1 for s in subjects_data if s["covered_by_me"])
-                    tasks.append({
-                        "id": _task_id(tpl.id, group.id, period_start),
-                        "template": ReflectionTemplateSummarySerializer(tpl).data,
-                        "assignment_group": {
-                            "id": group.id,
-                            "name": group.name,
-                            "group_type": group.group_type,
-                        },
-                        "subject_mode": tpl.subject_mode,
-                        "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
-                        "program_slug": prog_slug,
-                        "subjects": subjects_data,
-                        "completion": {
-                            "covered": covered_count,
-                            "total": len(subjects_data),
-                            "my_count": my_count,
-                        },
-                        "self_status": None,
-                    })
-
-            elif tpl.subject_mode == "group":
-                allowed_types = set(tpl.assignment_group_types or [])
-                eligible_agms = [
-                    agm for agm in author_agms
-                    if agm.group.is_active
-                    and (not allowed_types or agm.group.group_type in allowed_types)
-                ]
-                for agm in eligible_agms:
-                    group = agm.group
-                    existing = (
-                        Reflection.all_objects.filter(
-                            author=viewer,
-                            template=tpl,
-                            subject_group=group,
-                            period_start=period_start,
-                            period_end=period_end,
-                        )
-                        .first()
-                    )
-                    tasks.append({
-                        "id": _task_id(tpl.id, group.id, period_start),
-                        "template": ReflectionTemplateSummarySerializer(tpl).data,
-                        "assignment_group": {
-                            "id": group.id,
-                            "name": group.name,
-                            "group_type": group.group_type,
-                        },
-                        "subject_mode": "group",
-                        "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
-                        "program_slug": prog_slug,
-                        "subjects": [],
-                        "completion": {
-                            "covered": 1 if existing else 0,
-                            "total": 1,
-                            "my_count": 1 if existing else 0,
-                        },
-                        "self_status": None,
-                    })
 
         cadence_order = {"daily": 0, "weekly": 1, "biweekly": 2, "monthly": 3, "on_demand": 4}
 

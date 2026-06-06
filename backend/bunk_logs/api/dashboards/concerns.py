@@ -1,6 +1,7 @@
 """Concerns Inbox dashboard.
 
 GET /api/v1/dashboards/concerns/?date_start=&date_end=&include_read=
+POST /api/v1/dashboards/concerns/bulk-read/  — mark many items read/unread
 POST /api/v1/dashboards/concerns/<reflection_id>/<field_key>/read/
 
 Surfaces every "concern" item (textarea answers on dashboard_role=open_concern
@@ -15,6 +16,7 @@ from __future__ import annotations
 from datetime import date
 from datetime import timedelta
 
+from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -26,6 +28,7 @@ from bunk_logs.core.models import Reflection
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60
 LOW_RATING_THRESHOLD = 1
+BULK_READ_MAX_ITEMS = 200
 
 
 def _parse_date(s: str | None, default: date) -> date:
@@ -159,6 +162,83 @@ class ConcernsInboxView(APIView):
             "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
             "include_read": include_read,
             "items": items,
+        })
+
+
+def _normalize_bulk_items(raw_items) -> list[tuple[int, str]]:
+    """Parse and validate bulk-read payload entries."""
+    if not isinstance(raw_items, list):
+        return []
+    out: list[tuple[int, str]] = []
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        rid = it.get("reflection_id")
+        fk = it.get("field_key")
+        if not isinstance(rid, int) or not isinstance(fk, str):
+            continue
+        fk = fk.strip()
+        if not fk or len(fk) > 64:
+            continue
+        out.append((rid, fk))
+    return out
+
+
+class ConcernBulkReadView(APIView):
+    """POST bulk mark-read / mark-unread for this viewer.
+
+    Body: ``{"items": [{"reflection_id": 1, "field_key": "concerns"}, ...], "read": true}``
+    ``read`` defaults to ``true``. Invisible reflections are skipped silently.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        items = _normalize_bulk_items(request.data.get("items"))
+        if not items:
+            return Response({"detail": "items required."}, status=400)
+        if len(items) > BULK_READ_MAX_ITEMS:
+            return Response(
+                {"detail": f"At most {BULK_READ_MAX_ITEMS} items per request."},
+                status=400,
+            )
+
+        read_flag = request.data.get("read", True)
+        if not isinstance(read_flag, bool):
+            read_flag = str(read_flag).lower() in ("1", "true", "yes")
+
+        ref_ids = {rid for rid, _ in items}
+        visible_ids = set(
+            reflections_visible_for_user(
+                request.user,
+                Reflection.objects.filter(id__in=ref_ids),
+            ).values_list("id", flat=True),
+        )
+        allowed = [(rid, fk) for rid, fk in items if rid in visible_ids]
+        skipped = len(items) - len(allowed)
+
+        if read_flag:
+            ConcernReadState.objects.bulk_create(
+                [
+                    ConcernReadState(
+                        user=request.user,
+                        reflection_id=rid,
+                        field_key=fk,
+                    )
+                    for rid, fk in allowed
+                ],
+                ignore_conflicts=True,
+            )
+        elif allowed:
+            q = Q()
+            for rid, fk in allowed:
+                q |= Q(reflection_id=rid, field_key=fk)
+            ConcernReadState.objects.filter(user=request.user).filter(q).delete()
+
+        return Response({
+            "read": read_flag,
+            "updated": len(allowed),
+            "skipped": skipped,
         })
 
 

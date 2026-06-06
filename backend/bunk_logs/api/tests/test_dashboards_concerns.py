@@ -242,6 +242,92 @@ def test_mark_read_blocked_for_invisible_reflection(
     assert ConcernReadState.objects.count() == 0
 
 
+def test_bulk_mark_read(api_client, org, program, setup):
+    bunk, camper, counselor_user, counselor = setup
+    tpl = _bunk_obs(org)
+    today = date.today()
+    ref_a = _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "worry a"},
+    )
+    ref_b = _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 1},
+    )
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.post(
+        "/api/v1/dashboards/concerns/bulk-read/",
+        {
+            "read": True,
+            "items": [
+                {"reflection_id": ref_a.id, "field_key": "concerns"},
+                {"reflection_id": ref_b.id, "field_key": "overall"},
+            ],
+        },
+        format="json",
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["updated"] == 2
+    assert body["read"] is True
+    inbox = api_client.get("/api/v1/dashboards/concerns/", **_hdr(org.slug)).json()
+    assert inbox["items"] == []
+
+
+def test_bulk_mark_read_skips_invisible_reflections(api_client, org, program, setup):
+    bunk, camper, counselor_user, counselor = setup
+    tpl = _bunk_obs(org)
+    today = date.today()
+    ref = _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "hidden from other"},
+    )
+    other_user = _user("bulk-other@a.com")
+    other = _person(org, "Bu", "Lk", other_user)
+    Membership.all_objects.create(
+        program=program, person=other, role="counselor", is_active=True,
+    )
+    api_client.force_authenticate(user=other_user)
+    r = api_client.post(
+        "/api/v1/dashboards/concerns/bulk-read/",
+        {"items": [{"reflection_id": ref.id, "field_key": "concerns"}]},
+        format="json",
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 200
+    assert r.json()["updated"] == 0
+    assert r.json()["skipped"] == 1
+    assert ConcernReadState.objects.count() == 0
+
+
+def test_bulk_mark_unread(api_client, org, program, setup):
+    bunk, camper, counselor_user, counselor = setup
+    tpl = _bunk_obs(org)
+    today = date.today()
+    ref = _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "restore me"},
+    )
+    api_client.force_authenticate(user=counselor_user)
+    api_client.post(
+        "/api/v1/dashboards/concerns/bulk-read/",
+        {"items": [{"reflection_id": ref.id, "field_key": "concerns"}]},
+        format="json",
+        **_hdr(org.slug),
+    )
+    r = api_client.post(
+        "/api/v1/dashboards/concerns/bulk-read/",
+        {"read": False, "items": [{"reflection_id": ref.id, "field_key": "concerns"}]},
+        format="json",
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 200
+    assert r.json()["read"] is False
+    inbox = api_client.get("/api/v1/dashboards/concerns/", **_hdr(org.slug)).json()
+    assert any(i["reflection_id"] == ref.id for i in inbox["items"])
+
+
 def test_unmark_read_restores_item(api_client, org, program, setup):
     bunk, camper, counselor_user, counselor = setup
     tpl = _bunk_obs(org)

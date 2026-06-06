@@ -156,6 +156,9 @@ export default function TemplateRoutingPanel({ value, onChange, defaultOpen = fa
                 {SUBJECT_MODE_OPTIONS.find((m) => m.value === subjectMode)?.description}
               </p>
               <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                Appears on: {SUBJECT_MODE_OPTIONS.find((m) => m.value === subjectMode)?.appearsOn}
+              </p>
+              <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
                 Assignment scope: <code>{assignmentScopeFor(subjectMode)}</code>
                 <span className="opacity-70"> (auto-set)</span>
               </p>

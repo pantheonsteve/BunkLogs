@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -16,6 +17,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import TemplateAssignment
 
 User = get_user_model()
 
@@ -79,6 +81,59 @@ def counselor_membership(program, counselor_person):
         person=counselor_person,
         role="counselor",
         is_active=True,
+    )
+
+
+@pytest.fixture
+def lt_membership(program, org):
+    user = User.objects.create_user(email="lt_tasks@test.com", password="pw")
+    person = Person.all_objects.create(
+        organization=org,
+        first_name="LT",
+        last_name="Lead",
+        user=user,
+    )
+    return Membership.all_objects.create(
+        program=program,
+        person=person,
+        role="leadership_team",
+        is_active=True,
+    )
+
+
+def _role_assignment(*, organization, program, template, role, lt_membership, start=None):
+    return TemplateAssignment.all_objects.create(
+        organization=organization,
+        program=program,
+        template=template,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": role},
+        start_date=start or (date.today() - timedelta(days=1)),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+        is_required=True,
+    )
+
+
+@pytest.fixture
+def self_assignment(org, program, self_template, lt_membership, counselor_membership):
+    return _role_assignment(
+        organization=org,
+        program=program,
+        template=self_template,
+        role="counselor",
+        lt_membership=lt_membership,
+    )
+
+
+@pytest.fixture
+def roster_assignment(org, program, roster_template, lt_membership, counselor_membership):
+    return _role_assignment(
+        organization=org,
+        program=program,
+        template=roster_template,
+        role="counselor",
+        lt_membership=lt_membership,
     )
 
 
@@ -200,7 +255,13 @@ def _drop_seeded_counselor_self_template():
 
 @pytest.mark.django_db
 def test_my_tasks_self_reflection_appears(
-    org, program, counselor_user, counselor_person, counselor_membership, self_template,
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    self_template,
+    self_assignment,
 ):
     _drop_seeded_counselor_self_template()
     with organization_context(org):
@@ -220,7 +281,13 @@ def test_my_tasks_self_reflection_appears(
 
 @pytest.mark.django_db
 def test_my_tasks_self_reflection_shows_submitted(
-    org, program, counselor_user, counselor_person, counselor_membership, self_template,
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    self_template,
+    self_assignment,
 ):
     _drop_seeded_counselor_self_template()
     today = date.today()
@@ -256,6 +323,51 @@ def test_my_tasks_no_membership_no_tasks(org, counselor_user, counselor_person, 
     assert resp.data["tasks"] == []
 
 
+@pytest.mark.django_db
+def test_my_tasks_leadership_assignment_appears(org, program, lt_membership):
+    """LT-assigned self forms surface via TemplateAssignment, not template metadata alone."""
+    user = lt_membership.person.user
+    lt_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Kitchen Sink",
+        slug="kitchen-sink-my-tasks",
+        cadence="daily",
+        schema=SIMPLE_SCHEMA,
+        languages=["en"],
+        subject_mode="self",
+        author_role_filter=["leadership_team"],
+        is_active=True,
+    )
+    _role_assignment(
+        organization=org,
+        program=program,
+        template=lt_template,
+        role="leadership_team",
+        lt_membership=lt_membership,
+    )
+    with organization_context(org):
+        client = _authed_client(user, org)
+        resp = client.get("/api/v1/reflections/my-tasks/")
+
+    assert resp.status_code == 200
+    slugs = {t["template"]["slug"] for t in resp.data["tasks"]}
+    assert "kitchen-sink-my-tasks" in slugs
+
+
+@pytest.mark.django_db
+def test_my_tasks_ignores_unassigned_templates(
+    org, program, counselor_user, counselor_membership, self_template,
+):
+    """Templates without an active assignment do not produce tasks."""
+    _drop_seeded_counselor_self_template()
+    with organization_context(org):
+        client = _authed_client(counselor_user, org)
+        resp = client.get("/api/v1/reflections/my-tasks/")
+
+    assert resp.status_code == 200
+    assert resp.data["tasks"] == []
+
+
 # ---------------------------------------------------------------------------
 # my-tasks: roster (single_subject) mode
 # ---------------------------------------------------------------------------
@@ -269,6 +381,7 @@ def test_my_tasks_roster_shows_subjects(
     counselor_person,
     counselor_membership,
     roster_template,
+    roster_assignment,
     bunk_group,
     counselor_as_author,
     camper_in_bunk,
@@ -302,6 +415,7 @@ def test_my_tasks_coverage_state_reflects_existing_reflections(
     counselor_person,
     counselor_membership,
     roster_template,
+    roster_assignment,
     bunk_group,
     counselor_as_author,
     camper_in_bunk,
@@ -348,6 +462,7 @@ def test_my_tasks_covered_by_me_flag_accurate(
     counselor_person,
     counselor_membership,
     roster_template,
+    roster_assignment,
     bunk_group,
     counselor_as_author,
     camper_in_bunk,
@@ -395,6 +510,7 @@ def test_my_tasks_multi_bunk_counselor_sees_both_bunks(
     counselor_person,
     counselor_membership,
     roster_template,
+    roster_assignment,
     bunk_group,
     counselor_as_author,
     camper_in_bunk,

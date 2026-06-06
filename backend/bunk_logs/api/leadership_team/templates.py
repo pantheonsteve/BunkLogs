@@ -9,9 +9,10 @@ Endpoints under ``/api/v1/leadership-team/templates/``:
                               ``?force_new_version=true`` to bump version
                               regardless); creates a new version when
                               responses exist.
-* ``DELETE /<id>/``         — permanently delete a draft template
-                              (no responses allowed; published templates
-                              must be archived instead).
+* ``DELETE /<id>/``         — permanently delete a template with no
+                              responses (any status). Templates that
+                              already have submissions must be archived
+                              instead so answers are preserved.
 * ``POST   /<id>/publish/``   — ``draft -> published`` after validation.
 * ``POST   /<id>/unpublish/`` — ``published -> draft`` (no responses allowed).
 * ``POST   /<id>/clone/``   — clone any visible template as a new draft;
@@ -88,6 +89,7 @@ def _serialize(
     request,
     *,
     active_assignment_count: int | None = None,
+    reflection_count: int | None = None,
 ) -> dict[str, Any]:
     """Wrap the shared serializer + attach status + field-key warnings.
 
@@ -102,6 +104,8 @@ def _serialize(
     data["field_key_warnings"] = check_field_key_hints(template.schema or {}, org)
     if active_assignment_count is not None:
         data["active_assignment_count"] = active_assignment_count
+    if reflection_count is not None:
+        data["reflection_count"] = reflection_count
     return data
 
 
@@ -162,9 +166,10 @@ class LeadershipTeamTemplateListCreateView(APIView):
 
         templates = list(qs[:200])
         template_ids = [t.pk for t in templates]
-        counts: dict[int, int] = {}
+        assignment_counts: dict[int, int] = {}
+        reflection_counts: dict[int, int] = {}
         if template_ids:
-            counts_qs = (
+            assignment_counts_qs = (
                 TemplateAssignment.all_objects.filter(
                     organization=ctx.organization,
                     template_id__in=template_ids,
@@ -176,11 +181,22 @@ class LeadershipTeamTemplateListCreateView(APIView):
                 .values("template_id")
                 .annotate(n=models.Count("id"))
             )
-            counts = {row["template_id"]: row["n"] for row in counts_qs}
+            assignment_counts = {row["template_id"]: row["n"] for row in assignment_counts_qs}
+            reflection_counts_qs = (
+                Reflection.all_objects.filter(template_id__in=template_ids)
+                .values("template_id")
+                .annotate(n=models.Count("id"))
+            )
+            reflection_counts = {row["template_id"]: row["n"] for row in reflection_counts_qs}
         return Response(
             {
                 "templates": [
-                    _serialize(t, request, active_assignment_count=counts.get(t.pk, 0))
+                    _serialize(
+                        t,
+                        request,
+                        active_assignment_count=assignment_counts.get(t.pk, 0),
+                        reflection_count=reflection_counts.get(t.pk, 0),
+                    )
                     for t in templates
                 ],
             },
@@ -267,25 +283,24 @@ class LeadershipTeamTemplateDetailView(APIView):
 
     def get(self, request, pk: int, *args, **kwargs):
         tpl = self._get_template(request, pk)
-        return Response(_serialize(tpl, request))
+        reflection_count = Reflection.all_objects.filter(template=tpl).count()
+        return Response(_serialize(tpl, request, reflection_count=reflection_count))
 
     def delete(self, request, pk: int, *args, **kwargs):
-        """``DELETE /<id>/`` — permanently remove a draft template.
+        """``DELETE /<id>/`` — permanently remove a template with no responses.
 
-        Only draft templates with no responses can be deleted. Published
-        templates must be archived via ``POST /<id>/archive/`` instead.
+        Any status (draft, published, or archived) may be deleted when no
+        Reflection rows exist. Once staff have submitted answers, archive
+        the template instead so historical data is preserved.
         """
         ctx = viewer_or_403(request)
         tpl = self._get_template(request, pk)
         self._check_writable(ctx, tpl)
-        if tpl.status != ReflectionTemplate.Status.DRAFT:
-            msg = (
-                "Only draft templates may be deleted. "
-                "Archive published templates via POST /<id>/archive/ instead."
-            )
-            raise ValidationError(msg)
         if Reflection.all_objects.filter(template=tpl).exists():
-            msg = "Cannot delete a template that already has responses."
+            msg = (
+                "Cannot delete a template that already has responses. "
+                "Archive it instead to retire the form while keeping answers."
+            )
             raise ValidationError(msg)
         _audit_template(request=request, template=tpl, action="delete")
         tpl.delete()

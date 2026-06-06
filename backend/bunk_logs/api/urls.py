@@ -321,6 +321,11 @@ urlpatterns = [
         name="dashboard-concerns",
     ),
     path(
+        "dashboards/concerns/bulk-read/",
+        concerns_dashboard.ConcernBulkReadView.as_view(),
+        name="dashboard-concerns-bulk-read",
+    ),
+    path(
         "dashboards/concerns/<int:reflection_id>/<str:field_key>/read/",
         concerns_dashboard.ConcernMarkReadView.as_view(),
         name="dashboard-concerns-mark-read",
