@@ -8,10 +8,10 @@ from django.shortcuts import render
 from .admin_organization import AUTHOR_SCOPE_FIELD_PREFIX
 from .admin_organization import AUTHOR_SCOPE_HELP
 from .admin_organization import MembershipSubjectNoteAuthorField
-from .admin_organization import get_organization_admin_form
-from .admin_organization import membership_role_choices
 from .admin_organization import apply_membership_author_override
+from .admin_organization import get_organization_admin_form
 from .admin_organization import membership_author_override_initial
+from .admin_organization import membership_role_choices
 from .models import AssignmentDashboardGrant
 from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
