@@ -251,7 +251,7 @@ def test_dev_query_param_resolves_organization(org_alpha, settings):
 
 
 @pytest.mark.django_db
-def test_dev_override_disabled_ignores_header(org_alpha, settings):
+def test_header_resolves_organization_without_dev_overrides(org_alpha, settings):
     settings.DEBUG = False
     settings.ORGANIZATION_ROUTING_DEV_OVERRIDES = False
 
@@ -259,11 +259,55 @@ def test_dev_override_disabled_ignores_header(org_alpha, settings):
         return HttpResponse("ok")
 
     rf = RequestFactory()
-    request = rf.get("/", HTTP_HOST="localhost", HTTP_X_ORGANIZATION_SLUG="alpha-mt")
+    request = rf.get("/", HTTP_HOST="admin.bunklogs.net", HTTP_X_ORGANIZATION_SLUG="alpha-mt")
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization == org_alpha
+
+
+@pytest.mark.django_db
+def test_dev_override_disabled_ignores_query_param(org_alpha, settings):
+    settings.DEBUG = False
+    settings.ORGANIZATION_ROUTING_DEV_OVERRIDES = False
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get("/?org=alpha-mt", HTTP_HOST="localhost")
     request.user = AnonymousUser()
     OrganizationMiddleware(get_response)(request)
 
     assert request.organization is None
+
+
+@pytest.mark.django_db
+def test_jwt_bearer_resolves_org_from_person_on_admin_host(org_alpha):
+    from rest_framework_simplejwt.tokens import RefreshToken
+
+    user = User.objects.create_user(email="jwt-org@example.com", password="pw")
+    Person.all_objects.create(
+        organization=org_alpha,
+        first_name="J",
+        last_name="WT",
+        user=user,
+    )
+    access = str(RefreshToken.for_user(user).access_token)
+
+    def get_response(request):
+        return HttpResponse("ok")
+
+    rf = RequestFactory()
+    request = rf.get(
+        "/",
+        HTTP_HOST="admin.bunklogs.net",
+        HTTP_AUTHORIZATION=f"Bearer {access}",
+    )
+    request.user = AnonymousUser()
+    OrganizationMiddleware(get_response)(request)
+
+    assert request.organization == org_alpha
 
 
 @pytest.mark.django_db

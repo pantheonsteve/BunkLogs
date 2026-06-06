@@ -38,14 +38,54 @@ def _dev_org_routing_overrides_enabled() -> bool:
     )
 
 
-def _dev_org_slug_override(request: HttpRequest) -> str | None:
+def _org_slug_from_header(request: HttpRequest) -> str | None:
+    """Tenant slug from X-Organization-Slug (SPA → admin API calls)."""
+    header = (request.META.get("HTTP_X_ORGANIZATION_SLUG") or "").strip()
+    return header or None
+
+
+def _org_slug_from_query_dev_only(request: HttpRequest) -> str | None:
     if not _dev_org_routing_overrides_enabled():
         return None
-    header = (request.META.get("HTTP_X_ORGANIZATION_SLUG") or "").strip()
-    if header:
-        return header
     q = (request.GET.get("org") or "").strip()
     return q or None
+
+
+def _org_slug_override(request: HttpRequest) -> str | None:
+    return _org_slug_from_header(request) or _org_slug_from_query_dev_only(request)
+
+
+def _user_from_bearer_jwt(request: HttpRequest):
+    """Resolve user from Authorization: Bearer for org fallback before DRF runs."""
+    auth = (request.META.get("HTTP_AUTHORIZATION") or "").strip()
+    if not auth.lower().startswith("bearer "):
+        return None
+    from rest_framework_simplejwt.authentication import JWTAuthentication
+
+    try:
+        result = JWTAuthentication().authenticate(request)
+    except Exception:
+        return None
+    if result is None:
+        return None
+    user, _token = result
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    return user
+
+
+def _org_from_linked_person(user) -> Organization | None:
+    from bunk_logs.core.models import Person
+
+    person = (
+        Person.all_objects.select_related("organization")
+        .filter(user=user)
+        .first()
+    )
+    if person is None:
+        return None
+    org = person.organization
+    return org if org.is_active else None
 
 
 def _host_subdomain_label(host: str) -> str | None:
@@ -68,7 +108,6 @@ class OrganizationMiddleware:
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         from bunk_logs.core.models import Organization
-        from bunk_logs.core.models import Person
 
         org: Organization | None = None
         try:
@@ -80,7 +119,7 @@ class OrganizationMiddleware:
                     org = None
 
             if org is None:
-                slug = _dev_org_slug_override(request)
+                slug = _org_slug_override(request)
                 if slug:
                     try:
                         org = Organization.objects.get(slug=slug, is_active=True)
@@ -88,14 +127,13 @@ class OrganizationMiddleware:
                         org = None
 
             user = getattr(request, "user", None)
-            if org is None and user is not None and user.is_authenticated:
-                person = (
-                    Person.all_objects.select_related("organization")
-                    .filter(user=user)
-                    .first()
-                )
-                if person is not None:
-                    org = person.organization if person.organization.is_active else None
+            if user is not None and user.is_authenticated:
+                effective_user = user
+            else:
+                effective_user = _user_from_bearer_jwt(request)
+
+            if org is None and effective_user is not None:
+                org = _org_from_linked_person(effective_user)
 
             request.organization = org
             set_current_organization(org)
