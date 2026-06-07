@@ -10,9 +10,12 @@ AssignmentGroups are keyed by (program, group_type, slugified-name).
 from __future__ import annotations
 
 import logging
-from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
+
+if TYPE_CHECKING:
+    from datetime import date
 
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
