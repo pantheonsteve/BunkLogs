@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import date
 from pathlib import Path
 
 from bunk_logs.core.models import Membership
@@ -87,7 +88,20 @@ _HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     ),
     "language_preference": ("language preference", "language", "language_preference"),
     "tags": ("tags",),
+    "start_date": ("start date", "start_date", "start"),
+    "end_date": ("end date", "end_date", "end"),
 }
+
+
+def parse_optional_iso_date(raw: str) -> date | None:
+    """Parse YYYY-MM-DD from a CSV date cell; return None when blank or invalid."""
+    value = (raw or "").strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
 
 
 def _field_value(indexed: dict[str, str], field: str) -> str:
@@ -245,6 +259,8 @@ def normalize_campminder_row(row: dict) -> dict:
         "caseload_owner_campminder_id": _field_value(indexed, "caseload_owner_campminder_id"),
         "language_preference": _field_value(indexed, "language_preference"),
         "tags": _field_value(indexed, "tags"),
+        "start_date": _field_value(indexed, "start_date"),
+        "end_date": _field_value(indexed, "end_date"),
     }
 
 

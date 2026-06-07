@@ -1,0 +1,61 @@
+campminder_id,first_name,last_name,role,bunk_name,tags,start_date,end_date
+nco-2026-001,Aria,Seltzer,camper,Bunk 1,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-002,Sophia,Hinckley,camper,Bunk 1,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-003,Massimo,Dorn,camper,Bunk 1,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-004,Nathan,Shah,camper,Bunk 1,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-005,Mateo,Goldsmith,camper,Bunk 1,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-006,Kira,Golub,camper,Bunk 1,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-007,Isabel,Forman,camper,Bunk 1,Lower Nitzanim Full Summer,2026-06-06,2026-06-14
+nco-2026-008,Mabel,Fox,camper,Bunk 3,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-009,Ada,Beck,camper,Bunk 3,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-010,Joshua,Prager,camper,Bunk 3,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-011,Jackson,Golub,camper,Bunk 3,K'tanim 1 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-012,Jonah,Cohlan,camper,Bunk 3,Lower Nitzanim Full Summer,2026-06-06,2026-06-14
+nco-2026-013,Ryder,Weil,camper,Bunk 3,Lower Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-014,Caleb,Weil,camper,Bunk 3,Lower Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-015,Ezra,Schwartz,camper,Bunk 3,Lower Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-016,Rose,Rothenberg,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-017,Esther,Sawyer,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-018,Samuel,Ahlfors,camper,Bunk 2,Lower Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-019,Reva,Weber,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-020,Hannah,Weber,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-021,Anya,Wolfe,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-022,Oliver,Povill,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-023,Talia,Allen,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-024,Noah,Lerner,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-025,Nate,Danford,camper,Bunk 2,K'tanim 2 (Grades 2-4),2026-06-06,2026-06-14
+nco-2026-026,Eliza,Schak,camper,Bunk 2,Lower Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-027,Lulu,Rolf,camper,Bunk 2,Lower Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-028,Ruben,DeLano,camper,Bunk 2,Lower Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-029,Azi,Sherman,camper,Bunk 4,Upper Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-030,Sara,Kleinhandler-Dahan,camper,Bunk 4,Upper Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-031,Teo,Chiang,camper,Bunk 4,Upper Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-032,Kirsten,Samuels,camper,Bunk 4,Upper Nitzanim Session 1,2026-06-06,2026-06-14
+nco-2026-033,Noah,Lathroum,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-034,Asher,Leventhal,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-035,Ezra,Berger,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-036,Doron,Yoffe,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-037,Zoe,Reiner,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-038,Asher,Young,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-039,Yossi,Ramadge,camper,Bunk 4,Upper Nitzanim Session 2,2026-06-06,2026-06-14
+nco-2026-040,Aya,Hartwich,camper,Bunk 5,Lower Bonim Session 1,2026-06-06,2026-06-14
+nco-2026-041,Arielle,Brown,camper,Bunk 5,Lower Bonim Session 1,2026-06-06,2026-06-14
+nco-2026-042,Gabrielle,Cohan,camper,Bunk 5,Lower Bonim Session 2,2026-06-06,2026-06-14
+nco-2026-043,Lena,Hadad,camper,Bunk 5,Lower Bonim Session 2,2026-06-06,2026-06-14
+nco-2026-044,Jonah,Steffen,camper,Bunk 5,Lower Bonim Session 2,2026-06-06,2026-06-14
+nco-2026-045,Emilia,Brody,camper,Bunk 5,Upper Bonim Session 1,2026-06-06,2026-06-14
+nco-2026-046,Charlie,Levy,camper,Bunk 5,Upper Bonim Session 1,2026-06-06,2026-06-14
+nco-2026-047,Evelyn,Reimer,camper,Bunk 5,Upper Bonim Session 1,2026-06-06,2026-06-14
+nco-2026-048,Samuel,Scheer,camper,Bunk 6,Lower Chaverim Session 2,2026-06-06,2026-06-14
+nco-2026-049,Inbar,Montias,camper,Bunk 6,Upper Chaverim Session 1,2026-06-06,2026-06-14
+nco-jc-001,Maya,Fox,junior_counselor,Bunk 1,,2026-06-06,2026-06-14
+nco-jc-002,Noa,Epstein,junior_counselor,Bunk 1,,2026-06-06,2026-06-14
+nco-jc-003,Judah,Eglash,junior_counselor,Bunk 2,,2026-06-06,2026-06-14
+nco-jc-004,Sofia,Wolfe,junior_counselor,Bunk 2,,2026-06-06,2026-06-14
+nco-jc-005,Evyn,Cohen,junior_counselor,Bunk 3,,2026-06-06,2026-06-14
+nco-jc-006,Jonah,Bryfman,junior_counselor,Bunk 4,,2026-06-06,2026-06-14
+nco-jc-007,Ella,Kroloff,junior_counselor,Bunk 4,,2026-06-06,2026-06-14
+nco-jc-008,Hailey,Kraut,junior_counselor,Bunk 4,,2026-06-06,2026-06-14
+nco-jc-009,Sammy,Johnson,junior_counselor,Bunk 4,,2026-06-06,2026-06-14
+nco-jc-010,Pearl,Brackup,junior_counselor,Bunk 5,,2026-06-06,2026-06-14
+nco-jc-011,Jane,O'Neill,junior_counselor,Bunk 5,,2026-06-06,2026-06-14
