@@ -952,7 +952,7 @@ class TestAssignedTemplateCards:
 
 
 class TestDateHandling:
-    def test_future_date_rejected(self, api, org, program, bunk, url):
+    def test_future_date_clamped_to_today(self, api, org, program, bunk, url):
         person, user = _make_person(
             org, first="LT", last="Future", email="ltf@dash.test",
         )
@@ -963,7 +963,9 @@ class TestDateHandling:
         api.force_authenticate(user=user)
         with organization_context(org):
             resp = api.get(f"{url}?date={future}", **_hdr(org.slug))
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["header"]["date"] == body["header"]["today"]
 
     def test_invalid_date_format_rejected(self, api, org, program, bunk, url):
         person, user = _make_person(
