@@ -60,8 +60,7 @@ class GroupDashboardView(APIView):
         )
         # Clamp browser-local "today" links (e.g. from Group Performance)
         # to the org rollover-aware cap so the dashboard still loads.
-        if target_date > ctx.today:
-            target_date = ctx.today
+        target_date = min(target_date, ctx.today)
 
         builder = _PAYLOAD_BY_GROUP_TYPE.get(ctx.group.group_type)
         if builder is None:
