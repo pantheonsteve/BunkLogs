@@ -6,6 +6,7 @@ import Button from '../../../components/ui/Button';
 import EmptyState from '../../../components/ui/EmptyState';
 import ErrorPanel from '../../../components/ui/ErrorPanel';
 import LoadingState from '../../../components/ui/LoadingState';
+import GroupDisplayName from '../../../components/GroupDisplayName';
 import Toast, { useToast } from '../../../components/ui/Toast';
 
 const GROUP_TYPE_LABELS = {
@@ -237,16 +238,15 @@ export default function GroupListPage() {
                       to={`/admin/groups/${g.id}`}
                       className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
                     >
-                      <div>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                          {g.name}
-                        </span>
-                        {g.parent && (
-                          <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
-                            parent: {g.parent}
-                          </span>
-                        )}
-                      </div>
+                      <GroupDisplayName
+                        group={{
+                          name: g.name,
+                          program_name: g.program_name,
+                          parent_name: g.parent_name,
+                        }}
+                        nameClassName="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                        subtitleClassName="text-xs text-gray-400 dark:text-gray-500 mt-0.5"
+                      />
                       <div className="flex items-center gap-3">
                         <Badge active={g.is_active} />
                         <ChevronRight size={14} className="text-gray-400" />

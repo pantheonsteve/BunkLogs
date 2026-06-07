@@ -327,3 +327,45 @@ class TestRemoveMembership:
             **_hdr(org.slug),
         )
         assert r.status_code == 404
+
+    def test_list_includes_program_name_and_filters_by_program_id(
+        self, client, org, program, admin_user,
+    ):
+        program2 = Program.all_objects.create(
+            organization=org,
+            name="Write API Org Session 2",
+            slug="write-api-session-2",
+            program_type="summer_camp",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 8, 31),
+        )
+        AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Bunk Maple",
+            slug="bunk-maple-s1", group_type="bunk",
+        )
+        AssignmentGroup.all_objects.create(
+            organization=org, program=program2, name="Bunk Maple",
+            slug="bunk-maple-s2", group_type="bunk",
+        )
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.get("/api/v1/assignment-groups/", **_hdr(org.slug))
+        assert r.status_code == 200
+        payload = r.json()
+        rows = payload["results"] if isinstance(payload, dict) else payload
+        names = {row["program_name"] for row in rows}
+        assert "Write API Org Summer" in names
+        assert "Write API Org Session 2" in names
+
+        r2 = client.get(
+            "/api/v1/assignment-groups/",
+            {"program": str(program2.id)},
+            **_hdr(org.slug),
+        )
+        assert r2.status_code == 200
+        payload2 = r2.json()
+        rows2 = payload2["results"] if isinstance(payload2, dict) else payload2
+        assert len(rows2) == 1
+        row = rows2[0]
+        assert row["name"] == "Bunk Maple"
+        assert row["program_name"] == "Write API Org Session 2"

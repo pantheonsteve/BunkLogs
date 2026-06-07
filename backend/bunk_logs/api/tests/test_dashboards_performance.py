@@ -16,6 +16,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import Supervision
 from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.time_utils import get_today
 
@@ -155,6 +156,7 @@ def test_supervisor_sees_supervised_bunk_with_completion(api_client, org, progra
     assert len(data["groups"]) == 1
     group = data["groups"][0]
     assert group["name"] == "Bunk Maple"
+    assert group["program_name"] == "Perf Org Summer 2026"
     assert group["parent_name"] == "Unit Aleph"
     assert group["author_names"] == ["Sam C."]
     assert group["completion"]["submitted"] == 1
@@ -283,3 +285,137 @@ def test_no_current_program_returns_empty_groups(
     assert data["program"] is None
     assert data["groups"] == []
     assert len(data["programs"]) == 1
+
+
+def test_uh_supervision_only_sees_bunk_and_parent_unit(
+    api_client, org, program, unit_and_bunks,
+):
+    """UH with Supervision to bunk (no AGM author) sees bunk + parent unit."""
+    unit, maple = unit_and_bunks
+    birch = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Birch",
+        slug="bunk-birch", group_type="bunk", parent=unit,
+    )
+    uh_user = _user("uh-super@test.com")
+    uh = _person(org, "Pat", "Supervisor", user=uh_user)
+    uh_membership = Membership.all_objects.create(
+        program=program, person=uh, role="unit_head", is_active=True,
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=uh_membership,
+        target_type=Supervision.TargetType.BUNK,
+        target_bunk=maple,
+        start_date=date(2026, 6, 1),
+    )
+
+    api_client.force_authenticate(user=uh_user)
+    resp = api_client.get(
+        URL,
+        {"group_type": "bunk", "program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    names = {g["name"] for g in resp.json()["groups"]}
+    assert names == {"Bunk Maple"}
+    assert "roster" in resp.json()["groups"][0]
+
+    resp_unit = api_client.get(
+        URL,
+        {"group_type": "unit", "program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    assert {g["name"] for g in resp_unit.json()["groups"]} == {"Unit Aleph"}
+
+    resp_all = api_client.get(
+        URL,
+        {"program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    all_names = {g["name"] for g in resp_all.json()["groups"]}
+    assert "Bunk Maple" in all_names
+    assert "Unit Aleph" in all_names
+    assert "Bunk Birch" not in all_names
+
+
+def test_cc_caseload_only_sees_assigned_bunks(api_client, org, program, unit_and_bunks):
+    unit, maple = unit_and_bunks
+    cc_user = _user("cc@test.com")
+    cc = _person(org, "Care", "Staff", user=cc_user)
+    cc_membership = Membership.all_objects.create(
+        program=program, person=cc, role="camper_care", is_active=True,
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=cc_membership,
+        target_type=Supervision.TargetType.BUNK,
+        target_bunk=maple,
+        start_date=date(2026, 6, 1),
+    )
+
+    api_client.force_authenticate(user=cc_user)
+    resp = api_client.get(
+        URL,
+        {"group_type": "bunk", "program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    assert {g["name"] for g in resp.json()["groups"]} == {"Bunk Maple"}
+
+
+def test_leadership_team_sees_all_program_bunks(
+    api_client, org, program, unit_and_bunks,
+):
+    unit, maple = unit_and_bunks
+    AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Birch",
+        slug="bunk-birch", group_type="bunk", parent=unit,
+    )
+    lt_user = _user("lt@test.com")
+    lt = _person(org, "Lead", "Team", user=lt_user)
+    Membership.all_objects.create(
+        program=program, person=lt, role="leadership_team", is_active=True,
+    )
+
+    api_client.force_authenticate(user=lt_user)
+    resp = api_client.get(
+        URL,
+        {"group_type": "bunk", "program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    assert {g["name"] for g in resp.json()["groups"]} == {"Bunk Maple", "Bunk Birch"}
+
+
+def test_counselor_sees_only_own_bunk_not_sibling(
+    api_client, org, program, unit_and_bunks,
+):
+    unit, maple = unit_and_bunks
+    birch = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Birch",
+        slug="bunk-birch", group_type="bunk", parent=unit,
+    )
+    counselor_user = _user("counselor-only@test.com")
+    counselor = _person(org, "Sam", "Counselor", user=counselor_user)
+    Membership.all_objects.create(
+        program=program, person=counselor, role="counselor", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=maple, person=counselor, role_in_group="author", is_active=True,
+    )
+
+    api_client.force_authenticate(user=counselor_user)
+    resp = api_client.get(
+        URL,
+        {"group_type": "bunk", "program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    assert resp.status_code == 200
+    names = {g["name"] for g in resp.json()["groups"]}
+    assert names == {"Bunk Maple"}
+    assert "Bunk Birch" not in names
+
+    resp_unit = api_client.get(
+        URL,
+        {"group_type": "unit", "program": program.id, "date": "2026-07-10"},
+        **_hdr(org.slug),
+    )
+    assert resp_unit.json()["groups"] == []

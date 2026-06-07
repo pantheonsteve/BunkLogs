@@ -59,16 +59,23 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
 class AssignmentGroupListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views (no memberships)."""
 
+    program_name = serializers.CharField(source="program.name", read_only=True)
+    parent_name = serializers.CharField(source="parent.name", read_only=True, allow_null=True)
+    parent_id = serializers.PrimaryKeyRelatedField(source="parent", read_only=True, allow_null=True)
+
     class Meta:
         model = AssignmentGroup
         fields = [
             "id",
             "organization",
             "program",
+            "program_name",
             "name",
             "slug",
             "group_type",
             "parent",
+            "parent_id",
+            "parent_name",
             "is_active",
             "created_at",
             "updated_at",
@@ -177,9 +184,12 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
         qs = AssignmentGroup.objects.select_related("organization", "program", "parent")
         params = self.request.query_params
 
-        program_slug = (params.get("program") or "").strip()
-        if program_slug:
-            qs = qs.filter(program__slug=program_slug)
+        program_param = (params.get("program") or "").strip()
+        if program_param:
+            if program_param.isdigit():
+                qs = qs.filter(program_id=int(program_param))
+            else:
+                qs = qs.filter(program__slug=program_param)
 
         group_type = (params.get("group_type") or "").strip()
         if group_type:

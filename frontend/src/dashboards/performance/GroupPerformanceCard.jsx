@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
+import GroupDisplayName from '../../components/GroupDisplayName';
+import GroupRoster from '../../components/GroupRoster';
 import ScorePieChart from './ScorePieChart';
 
 function ProgressBar({ percent, complete }) {
@@ -22,18 +26,18 @@ function ProgressBar({ percent, complete }) {
 export default function GroupPerformanceCard({ group, date, program, tab }) {
   const { completion } = group;
   const complete = completion.is_complete;
+  const [rosterOpen, setRosterOpen] = useState(false);
   const params = new URLSearchParams({ date });
   if (program) params.set('program', program);
   if (tab === 'past') params.set('tab', 'past');
   const href = `/dashboards/group/${group.id}?${params.toString()}`;
+  const rosterCount = Array.isArray(group.roster) ? group.roster.length : 0;
 
   return (
-    <Link
-      to={href}
+    <article
       data-testid={`performance-group-${group.id}`}
       className={[
-        'group block rounded-2xl border shadow-sm overflow-hidden transition-all duration-200',
-        'hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+        'rounded-2xl border shadow-sm overflow-hidden transition-all duration-200',
         complete
           ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30'
           : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40',
@@ -44,51 +48,74 @@ export default function GroupPerformanceCard({ group, date, program, tab }) {
           complete ? 'from-emerald-500 to-green-500' : 'from-indigo-500 to-violet-500'
         }`}
       />
-      <div className="p-5 flex flex-col gap-4 h-full">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-              {group.name}
-            </h3>
-            {group.parent_name && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                {group.parent_name}
-              </p>
+      <Link
+        to={href}
+        className="block p-5 pb-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <GroupDisplayName
+                group={group}
+                nameClassName="text-lg font-semibold text-gray-900 dark:text-white truncate block"
+                subtitleClassName="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate"
+              />
+            </div>
+            {complete && (
+              <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-1 rounded-full">
+                Complete
+              </span>
             )}
           </div>
-          {complete && (
-            <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-1 rounded-full">
-              Complete
-            </span>
+
+          {group.author_names?.length > 0 && (
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+              {group.author_names.join(' · ')}
+            </p>
           )}
-        </div>
 
-        {group.author_names?.length > 0 && (
-          <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-            {group.author_names.join(' · ')}
-          </p>
-        )}
-
-        <div className="flex items-center gap-4 mt-auto">
-          <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
-                {completion.percent}%
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
-                {completion.submitted}/{completion.expected} submitted
-              </span>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
+                  {completion.percent}%
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
+                  {completion.submitted}/{completion.expected} submitted
+                </span>
+              </div>
+              <ProgressBar percent={completion.percent} complete={complete} />
             </div>
-            <ProgressBar percent={completion.percent} complete={complete} />
-          </div>
-          <div className="shrink-0">
-            <ScorePieChart
-              distribution={group.scores?.distribution}
-              scaleMax={group.scores?.scale_max ?? 5}
-            />
+            <div className="shrink-0">
+              <ScorePieChart
+                distribution={group.scores?.distribution}
+                scaleMax={group.scores?.scale_max ?? 5}
+              />
+            </div>
           </div>
         </div>
+      </Link>
+
+      <div className="px-5 pb-4 border-t border-gray-100 dark:border-gray-800/80">
+        <button
+          type="button"
+          onClick={() => setRosterOpen((v) => !v)}
+          aria-expanded={rosterOpen}
+          data-testid={`performance-roster-toggle-${group.id}`}
+          className="w-full flex items-center justify-between gap-2 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-700 dark:hover:text-indigo-300"
+        >
+          <span>Roster ({rosterCount})</span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${rosterOpen ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {rosterOpen && (
+          <div data-testid={`performance-roster-panel-${group.id}`} className="pt-1">
+            <GroupRoster roster={group.roster} compact className="mb-0 border-0 bg-transparent px-0 py-0" />
+          </div>
+        )}
       </div>
-    </Link>
+    </article>
   );
 }

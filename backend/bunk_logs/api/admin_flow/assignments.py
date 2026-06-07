@@ -33,6 +33,7 @@ from __future__ import annotations
 from datetime import date
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils.dateparse import parse_date
 from rest_framework import status
 from rest_framework.response import Response
@@ -67,6 +68,15 @@ def _coerce_date(raw, fallback: date | None = None) -> date | None:
 
 
 def _serialize_supervision(s: Supervision) -> dict:
+    target_name = None
+    if s.target_type == Supervision.TargetType.MEMBERSHIP:
+        target_name = _person_name(s.target_membership)
+    elif s.target_type == Supervision.TargetType.BUNK and s.target_bunk_id:
+        target_name = s.target_bunk.name if s.target_bunk else None
+    elif s.target_type == Supervision.TargetType.ROLE_IN_PROGRAM:
+        role = s.target_role or ""
+        prog = s.target_program.name if s.target_program_id else ""
+        target_name = f"{role} in {prog}".strip() if role or prog else None
     return {
         "id": s.id,
         "kind": "supervision",
@@ -75,9 +85,19 @@ def _serialize_supervision(s: Supervision) -> dict:
         "supervisor_name": _person_name(s.supervisor_membership),
         "target_type": s.target_type,
         "target_membership_id": s.target_membership_id,
+        "target_membership_name": _person_name(s.target_membership),
         "target_role": s.target_role or None,
         "target_program_id": s.target_program_id,
+        "target_program_name": s.target_program.name if s.target_program_id else None,
         "target_bunk_id": s.target_bunk_id,
+        "target_bunk_name": s.target_bunk.name if s.target_bunk_id else None,
+        "target_name": target_name,
+        "supervisor_role": (
+            s.supervisor_membership.role if s.supervisor_membership_id else None
+        ),
+        "target_membership_role": (
+            s.target_membership.role if s.target_membership_id else None
+        ),
         "start_date": s.start_date.isoformat() if s.start_date else None,
         "end_date": s.end_date.isoformat() if s.end_date else None,
         "is_active": s.is_active(),
@@ -99,21 +119,128 @@ def _sub_tab_for_group_membership(g: AssignmentGroupMembership) -> str:
     return "counselor_bunk"
 
 
-def _serialize_group_membership(g: AssignmentGroupMembership) -> dict:
+def _membership_role_lookup(
+    agms: list[AssignmentGroupMembership],
+) -> dict[tuple[int, int], str]:
+    """Map (person_id, program_id) to the person's active program membership role."""
+    person_ids = {g.person_id for g in agms if g.person_id}
+    program_ids = {
+        g.group.program_id for g in agms if g.group_id and g.group.program_id
+    }
+    if not person_ids or not program_ids:
+        return {}
+    lookup: dict[tuple[int, int], str] = {}
+    for membership in Membership.all_objects.filter(
+        person_id__in=person_ids,
+        program_id__in=program_ids,
+        is_active=True,
+    ).order_by("person_id", "program_id", "id"):
+        key = (membership.person_id, membership.program_id)
+        lookup.setdefault(key, membership.role)
+    return lookup
+
+
+def _serialize_group_membership(
+    g: AssignmentGroupMembership,
+    *,
+    membership_roles: dict[tuple[int, int], str] | None = None,
+) -> dict:
+    program_id = g.group.program_id if g.group_id else None
+    membership_role = None
+    if membership_roles and g.person_id and program_id:
+        membership_role = membership_roles.get((g.person_id, program_id))
     return {
         "id": g.id,
         "kind": "group_membership",
         "sub_tab": _sub_tab_for_group_membership(g),
         "group_id": g.group_id,
         "group_name": g.group.name if g.group_id else None,
+        "group_type": g.group.group_type if g.group_id else None,
+        "program_id": program_id,
         "person_id": g.person_id,
         "person_name": g.person.full_name if g.person_id else None,
         "role_in_group": g.role_in_group,
+        "membership_role": membership_role,
         "start_date": g.start_date.isoformat() if g.start_date else None,
         "end_date": g.end_date.isoformat() if g.end_date else None,
         "is_active": g.is_active,
         "metadata": g.metadata or {},
     }
+
+
+def _parse_list_filters(request, *, today: date) -> tuple[int | None, str, str, date]:
+    program_raw = (request.query_params.get("program") or "").strip()
+    program_id = int(program_raw) if program_raw.isdigit() else None
+    status = (request.query_params.get("status") or "active").strip().lower()
+    if status not in {"active", "ended", "all"}:
+        status = "active"
+    search = (request.query_params.get("search") or "").strip()
+    as_of = _coerce_date(request.query_params.get("as_of"), today)
+    return program_id, status, search, as_of
+
+
+def _apply_supervision_filters(
+    qs,
+    *,
+    program_id: int | None,
+    status: str,
+    search: str,
+    as_of: date,
+    sub_tab: str | None,
+):
+    if program_id is not None:
+        if sub_tab == "uh_counselor":
+            qs = qs.filter(
+                Q(supervisor_membership__program_id=program_id)
+                | Q(target_membership__program_id=program_id),
+            )
+        elif sub_tab == "cc_caseload":
+            qs = qs.filter(target_bunk__program_id=program_id)
+        elif sub_tab == "lt_team":
+            qs = qs.filter(target_program_id=program_id)
+        else:
+            qs = qs.filter(
+                Q(supervisor_membership__program_id=program_id)
+                | Q(target_bunk__program_id=program_id)
+                | Q(target_program_id=program_id),
+            )
+    if status == "active":
+        qs = qs.active(today=as_of)
+    elif status == "ended":
+        active_ids = qs.active(today=as_of).values_list("id", flat=True)
+        qs = qs.exclude(id__in=active_ids)
+    if search:
+        qs = qs.filter(
+            Q(supervisor_membership__person__first_name__icontains=search)
+            | Q(supervisor_membership__person__last_name__icontains=search)
+            | Q(target_membership__person__first_name__icontains=search)
+            | Q(target_membership__person__last_name__icontains=search)
+            | Q(target_bunk__name__icontains=search)
+            | Q(target_role__icontains=search),
+        )
+    return qs.distinct()
+
+
+def _apply_group_membership_filters(
+    qs,
+    *,
+    program_id: int | None,
+    status: str,
+    search: str,
+):
+    if program_id is not None:
+        qs = qs.filter(group__program_id=program_id)
+    if status == "active":
+        qs = qs.filter(is_active=True)
+    elif status == "ended":
+        qs = qs.filter(is_active=False)
+    if search:
+        qs = qs.filter(
+            Q(person__first_name__icontains=search)
+            | Q(person__last_name__icontains=search)
+            | Q(group__name__icontains=search),
+        )
+    return qs.distinct()
 
 
 def _person_name(membership: Membership | None) -> str | None:
@@ -128,13 +255,17 @@ class AdminAssignmentsListCreateView(APIView):
     permission_classes = [IsOrgAdminOrSuperuser]
 
     def get(self, request, *args, **kwargs):
-        viewer_or_403(request)
+        ctx = viewer_or_403(request)
         sub_tab = (request.query_params.get("sub_tab") or "").strip()
         if sub_tab and sub_tab not in VALID_SUB_TABS:
             return Response(
                 {"detail": f"Unknown sub_tab {sub_tab!r}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        program_id, status_filter, search, as_of = _parse_list_filters(
+            request, today=ctx.today,
+        )
 
         results: list[dict] = []
         if not sub_tab or sub_tab in SUPERVISION_SUB_TABS:
@@ -144,7 +275,18 @@ class AdminAssignmentsListCreateView(APIView):
             )
             if sub_tab:
                 qs = qs.filter(target_type=SUPERVISION_SUB_TABS[sub_tab])
-            results.extend(_serialize_supervision(s) for s in qs.order_by("-created_at")[:500])
+            qs = _apply_supervision_filters(
+                qs,
+                program_id=program_id,
+                status=status_filter,
+                search=search,
+                as_of=as_of,
+                sub_tab=sub_tab or None,
+            )
+            results.extend(
+                _serialize_supervision(s)
+                for s in qs.order_by("-start_date", "-created_at")[:500]
+            )
         if not sub_tab or sub_tab in GROUP_SUB_TABS:
             qs = AssignmentGroupMembership.objects.select_related("group", "person")
             if sub_tab == "counselor_bunk":
@@ -153,9 +295,17 @@ class AdminAssignmentsListCreateView(APIView):
                 qs = qs.filter(role_in_group="author", group__group_type="team")
             elif sub_tab == "camper_bunk":
                 qs = qs.filter(role_in_group="subject", group__group_type__in=("bunk", "classroom"))
+            qs = _apply_group_membership_filters(
+                qs,
+                program_id=program_id,
+                status=status_filter,
+                search=search,
+            )
+            agms = list(qs.order_by("group__name", "person__last_name")[:500])
+            role_lookup = _membership_role_lookup(agms)
             results.extend(
-                _serialize_group_membership(g)
-                for g in qs.order_by("-created_at")[:500]
+                _serialize_group_membership(g, membership_roles=role_lookup)
+                for g in agms
             )
         return Response({"results": results})
 

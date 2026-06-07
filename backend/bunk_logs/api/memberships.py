@@ -126,9 +126,12 @@ class MembershipViewSet(viewsets.ModelViewSet):
         qs = Membership.objects.select_related("program", "program__organization", "person")
         params = self.request.query_params
 
-        program_slug = (params.get("program") or "").strip()
-        if program_slug:
-            qs = qs.filter(program__slug=program_slug)
+        program_param = (params.get("program") or "").strip()
+        if program_param:
+            if program_param.isdigit():
+                qs = qs.filter(program_id=int(program_param))
+            else:
+                qs = qs.filter(program__slug=program_param)
 
         role = (params.get("role") or "").strip()
         if role:

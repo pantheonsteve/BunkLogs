@@ -20,6 +20,7 @@ import ClassroomDashboard from '../../components/ClassroomDashboard';
 import DivisionDashboard from '../../components/DivisionDashboard';
 import UnitDashboard from '../../components/UnitDashboard';
 import UnsupportedGroupDashboard from '../../components/UnsupportedGroupDashboard';
+import GroupRoster from '../../components/GroupRoster';
 import GroupTemplateResponses from '../../components/GroupTemplateResponses';
 import { fetchGroupDashboard } from '../../api/dashboards';
 
@@ -191,6 +192,16 @@ export default function GroupDashboardPage() {
     profileLinkContext,
   };
 
+  const rosterSection = (
+    <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[80rem] mx-auto">
+      <GroupRoster
+        roster={data?.roster}
+        collapsible
+        defaultExpanded
+      />
+    </div>
+  );
+
   const templatesSection = (
     <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[80rem] mx-auto">
       <GroupTemplateResponses
@@ -215,6 +226,7 @@ export default function GroupDashboardPage() {
           showOrders={false}
           showNotes={false}
         />
+        {rosterSection}
         {templatesSection}
         <div className="px-4 sm:px-6 lg:px-8 pb-8 w-full max-w-[80rem] mx-auto space-y-5">
           <BunkDashboardOrdersAndNotes
@@ -229,6 +241,7 @@ export default function GroupDashboardPage() {
   return (
     <>
       <Dash {...sharedProps} />
+      {rosterSection}
       {templatesSection}
     </>
   );

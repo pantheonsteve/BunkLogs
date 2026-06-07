@@ -31,8 +31,13 @@ const groups = [
     id: 5,
     name: 'Bunk Maple',
     group_type: 'bunk',
+    program_id: 1,
+    program_name: 'Summer 2026',
     parent_name: 'Unit Aleph',
     author_names: ['Sam Counselor'],
+    roster: [
+      { person_id: 10, name: 'Sam Counselor', role_in_group: 'author', membership_role: 'counselor' },
+    ],
     completion: { submitted: 2, expected: 3, percent: 67, is_complete: false },
     scores: { scale_max: 5, distribution: { '4': 2, '5': 1 }, total_ratings: 3 },
   },
@@ -40,6 +45,8 @@ const groups = [
     id: 6,
     name: 'Bunk Oak',
     group_type: 'bunk',
+    program_id: 1,
+    program_name: 'Summer 2026',
     parent_name: 'Unit Aleph',
     author_names: ['Alex Counselor'],
     completion: { submitted: 4, expected: 4, percent: 100, is_complete: true },
@@ -82,9 +89,13 @@ describe('PerformanceDashboard', () => {
     expect(screen.getByTestId('performance-program-dates')).toHaveTextContent('June 1, 2026');
     expect(screen.getByTestId('performance-tab-current')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Sam Counselor')).toBeInTheDocument();
+    expect(screen.getAllByText(/Summer 2026/).length).toBeGreaterThan(0);
 
-    const mapleLink = screen.getByTestId('performance-group-5');
-    expect(mapleLink).toHaveAttribute('href', '/dashboards/group/5?date=2026-07-10&program=1');
+    const mapleCard = screen.getByTestId('performance-group-5');
+    expect(mapleCard.querySelector('a')).toHaveAttribute(
+      'href',
+      '/dashboards/group/5?date=2026-07-10&program=1',
+    );
 
     expect(api.get).toHaveBeenCalledWith(
       '/api/v1/dashboards/groups/performance/',
@@ -134,10 +145,25 @@ describe('PerformanceDashboard', () => {
       expect(screen.getByTestId('performance-program-name')).toHaveTextContent('Summer 2025');
     });
     expect(screen.getByTestId('past-programs-back')).toBeInTheDocument();
-    expect(screen.getByTestId('performance-group-5')).toHaveAttribute(
+    expect(screen.getByTestId('performance-group-5').querySelector('a')).toHaveAttribute(
       'href',
       '/dashboards/group/5?date=2025-08-31&program=2&tab=past',
     );
+  });
+
+  it('expands roster panel on tile toggle', async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('Bunk Maple')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('performance-roster-panel-5')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('performance-roster-toggle-5'));
+    const panel = screen.getByTestId('performance-roster-panel-5');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveTextContent('Sam Counselor');
   });
 
   it('shows empty state when no current program is active', async () => {
