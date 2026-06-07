@@ -645,6 +645,11 @@ urlpatterns = [
         name="observations-sent",
     ),
     path(
+        "observations/all/",
+        observations_views.ObservationsAllView.as_view(),
+        name="observations-all",
+    ),
+    path(
         "observations/unread-count/",
         observations_views.ObservationsUnreadCountView.as_view(),
         name="observations-unread-count",

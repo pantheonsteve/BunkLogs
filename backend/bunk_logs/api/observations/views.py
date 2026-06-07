@@ -3,6 +3,7 @@
 Endpoints (all under /api/v1/observations/):
   GET  inbox/                      — received + authored-with-reply (mirrors Notes inbox)
   GET  sent/                       — authored observations without an inbound reply yet
+  GET  all/                        — every observation the org admin may read (admin only)
   GET  unread-count/               — {count} for the nav badge
   GET  <id>/                       — thread view; updates the read receipt
   POST /                           — create (subjects + recipients + sensitivity gate)
@@ -31,12 +32,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.observations.common import ViewerContext
 from bunk_logs.api.observations.common import viewer_or_403
 from bunk_logs.core import audit as audit_trail
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.observation_authoring import recipients_clearing_sensitivity
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
+from bunk_logs.core.permissions.subject_dashboard import _has_legacy_user_role_admin
+from bunk_logs.core.permissions.subject_dashboard import _has_org_admin_membership
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.person_search import filter_persons_by_name_query
 from bunk_logs.notes.models import Observation
@@ -98,6 +102,24 @@ def has_unread_activity(obs: Observation, person: Person, *, is_author: bool) ->
     return bool(not is_author and obs.created_at > latest)
 
 
+def _is_observation_org_admin(request, ctx: ViewerContext) -> bool:
+    """True when the viewer may browse every observation in the org (admin role)."""
+    if is_super_admin(request.user):
+        return True
+    if _has_org_admin_membership(ctx.person, ctx.organization):
+        return True
+    return _has_legacy_user_role_admin(request.user, ctx.person, ctx.organization)
+
+
+def _paginated_observation_list(request, qs, *, person: Person):
+    """Serialize a paginated observation queryset for inbox/sent/all list views."""
+    request._notes_person = person
+    paginator = ObservationsPagination()
+    page = paginator.paginate_queryset(qs, request)
+    serializer = ObservationListSerializer(page, many=True, context={"request": request})
+    return paginator.get_paginated_response(serializer.data)
+
+
 def _readable_observation(ctx, obs_id: int) -> Observation | None:
     """Load an observation in the viewer's org that they are allowed to read."""
     base = Observation.all_objects.filter(organization=ctx.organization, pk=obs_id)
@@ -130,10 +152,7 @@ class ObservationsInboxView(APIView):
             .prefetch_related("subject_links__subject", "replies", "read_receipts")
             .order_by("-observed_at")
         )
-        paginator = ObservationsPagination()
-        page = paginator.paginate_queryset(qs, request)
-        serializer = ObservationListSerializer(page, many=True, context={"request": request})
-        return paginator.get_paginated_response(serializer.data)
+        return _paginated_observation_list(request, qs, person=ctx.person)
 
 
 class ObservationsSentView(APIView):
@@ -155,10 +174,27 @@ class ObservationsSentView(APIView):
             .prefetch_related("subject_links__subject", "replies", "read_receipts")
             .order_by("-observed_at")
         )
-        paginator = ObservationsPagination()
-        page = paginator.paginate_queryset(qs, request)
-        serializer = ObservationListSerializer(page, many=True, context={"request": request})
-        return paginator.get_paginated_response(serializer.data)
+        return _paginated_observation_list(request, qs, person=ctx.person)
+
+
+class ObservationsAllView(APIView):
+    """GET all/ — every observation in the org the admin may read."""
+
+    def get(self, request):
+        ctx = viewer_or_403(request)
+        if not _is_observation_org_admin(request, ctx):
+            return Response(
+                {"detail": "Only org admins may view all observations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        base = Observation.all_objects.filter(organization=ctx.organization)
+        qs = (
+            filter_observations_readable(base, ctx.person, ctx.organization, request.user)
+            .select_related("author")
+            .prefetch_related("subject_links__subject", "replies", "read_receipts")
+            .order_by("-observed_at")
+        )
+        return _paginated_observation_list(request, qs, person=ctx.person)
 
 
 class ObservationsUnreadCountView(APIView):
