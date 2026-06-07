@@ -292,7 +292,7 @@ def test_uh_supervision_only_sees_bunk_and_parent_unit(
 ):
     """UH with Supervision to bunk (no AGM author) sees bunk + parent unit."""
     unit, maple = unit_and_bunks
-    birch = AssignmentGroup.all_objects.create(
+    AssignmentGroup.all_objects.create(
         organization=org, program=program, name="Bunk Birch",
         slug="bunk-birch", group_type="bunk", parent=unit,
     )
@@ -389,7 +389,7 @@ def test_counselor_sees_only_own_bunk_not_sibling(
     api_client, org, program, unit_and_bunks,
 ):
     unit, maple = unit_and_bunks
-    birch = AssignmentGroup.all_objects.create(
+    AssignmentGroup.all_objects.create(
         organization=org, program=program, name="Bunk Birch",
         slug="bunk-birch", group_type="bunk", parent=unit,
     )
