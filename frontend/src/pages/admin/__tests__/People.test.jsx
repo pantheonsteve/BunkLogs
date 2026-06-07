@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../../api/admin', () => ({
   listAdminPeople: vi.fn(),
@@ -51,15 +52,27 @@ beforeEach(() => {
   getAdminPerson.mockResolvedValue(ALICE_DETAIL);
 });
 
+function renderPeople() {
+  return render(
+    <MemoryRouter>
+      <AdminPeople />
+    </MemoryRouter>,
+  );
+}
+
 describe('AdminPeople (7_13 PR2)', () => {
   it('renders the list and opens the profile drawer for the selected Person', async () => {
-    render(<AdminPeople />);
+    renderPeople();
     expect(await screen.findByTestId('person-row-1')).toBeInTheDocument();
     expect(screen.getByTestId('person-row-2')).toBeInTheDocument();
 
+    expect(screen.getByRole('link', { name: 'Alice Admin' })).toHaveAttribute('href', '/profile/1');
+    expect(screen.getByRole('link', { name: 'Bob Counselor' })).toHaveAttribute('href', '/profile/2');
+
     fireEvent.click(screen.getByTestId('person-row-1'));
     await waitFor(() => expect(getAdminPerson).toHaveBeenCalledWith(1));
-    expect(await screen.findByText('Alice Admin', { selector: 'h2' })).toBeInTheDocument();
+    const drawer = await screen.findByTestId('person-drawer');
+    expect(drawer.querySelector('h2 a')).toHaveAttribute('href', '/profile/1');
     expect(screen.getByTestId('identity-tab')).toBeInTheDocument();
   });
 
@@ -73,7 +86,7 @@ describe('AdminPeople (7_13 PR2)', () => {
         },
       },
     });
-    render(<AdminPeople />);
+    renderPeople();
     await screen.findByTestId('person-row-1');
     fireEvent.click(screen.getByTestId('open-add-person'));
     expect(await screen.findByTestId('add-person-modal')).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   listAdminPeople,
   getAdminPerson,
@@ -11,6 +12,7 @@ import {
   listAdminPrograms,
 } from '../../api/admin';
 import BulkImportModal from '../../components/admin/BulkImportModal';
+import { profileLink } from '../../utils/dashboardLinks';
 
 /**
  * Step 7_13 PR2 — People + Memberships management (Story 55).
@@ -594,7 +596,13 @@ export default function AdminPeople() {
                   )}
                   onClick={() => setSelectedId(p.id)}
                 >
-                  <p className="font-medium text-sm">{p.full_name}</p>
+                  <Link
+                    to={profileLink(p.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-medium text-sm text-indigo-700 dark:text-indigo-300 hover:underline"
+                  >
+                    {p.full_name}
+                  </Link>
                   <p className="text-xs text-gray-500">{p.email || 'no email'}</p>
                 </li>
               ))}
@@ -607,7 +615,14 @@ export default function AdminPeople() {
           ) : (
             <>
               <header className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold">{selectedPerson.full_name}</h2>
+                <h2 className="text-lg font-semibold">
+                  <Link
+                    to={profileLink(selectedPerson.id)}
+                    className="text-indigo-700 dark:text-indigo-300 hover:underline"
+                  >
+                    {selectedPerson.full_name}
+                  </Link>
+                </h2>
                 <button
                   type="button"
                   data-testid="invite-person"
