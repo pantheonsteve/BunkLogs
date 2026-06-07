@@ -10,6 +10,7 @@ AssignmentGroups are keyed by (program, group_type, slugified-name).
 from __future__ import annotations
 
 import logging
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from django.utils.text import slugify
 
 from bunk_logs.core.campminder_csv import format_csv_headers
 from bunk_logs.core.campminder_csv import normalize_campminder_row
+from bunk_logs.core.campminder_csv import parse_optional_iso_date
 from bunk_logs.core.campminder_csv import read_campminder_csv_rows
 from bunk_logs.core.campminder_person_match import MatchStrategy
 from bunk_logs.core.campminder_person_match import match_campminder_person
@@ -80,17 +82,33 @@ def _ensure_membership(
     group: AssignmentGroup,
     person: Person,
     role_in_group: str,
-) -> AssignmentGroupMembership:
-    membership, _ = AssignmentGroupMembership.all_objects.get_or_create(
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> tuple[AssignmentGroupMembership, bool]:
+    membership, created = AssignmentGroupMembership.all_objects.get_or_create(
         group=group,
         person=person,
         role_in_group=role_in_group,
-        defaults={"is_active": True},
+        defaults={
+            "is_active": True,
+            "start_date": start_date,
+            "end_date": end_date,
+        },
     )
+    changed: list[str] = []
     if not membership.is_active:
         membership.is_active = True
-        membership.save(update_fields=["is_active"])
-    return membership
+        changed.append("is_active")
+    if start_date is not None and membership.start_date != start_date:
+        membership.start_date = start_date
+        changed.append("start_date")
+    if end_date is not None and membership.end_date != end_date:
+        membership.end_date = end_date
+        changed.append("end_date")
+    if changed:
+        membership.save(update_fields=changed)
+    return membership, created
 
 
 def _duplicate_message(
@@ -299,12 +317,15 @@ class Command(BaseCommand):
             position_type = row.get("position_type") or ""
             position = row.get("position") or ""
             tags = _normalize_tags(row["tags"])
+            start_date = parse_optional_iso_date(row.get("start_date") or "")
+            end_date = parse_optional_iso_date(row.get("end_date") or "")
 
             if dry_run:
                 self.stdout.write(
                     f"[dry-run] Row {i}: campminder_id={campminder_id} role={role} "
                     f"bunk={bunk_name or '—'} unit={unit_name or '—'} "
-                    f"division={division_name or '—'} caseload={caseload_name or '—'}",
+                    f"division={division_name or '—'} caseload={caseload_name or '—'} "
+                    f"dates={start_date or '—'}→{end_date or '—'}",
                 )
                 continue
 
@@ -379,7 +400,14 @@ class Command(BaseCommand):
                     meta["campminder_position"] = position
                 membership.metadata = meta
                 membership.tags = tags
-                membership.save(update_fields=["tags", "metadata"])
+                membership_fields = ["tags", "metadata"]
+                if start_date is not None:
+                    membership.start_date = start_date
+                    membership_fields.append("start_date")
+                if end_date is not None:
+                    membership.end_date = end_date
+                    membership_fields.append("end_date")
+                membership.save(update_fields=membership_fields)
 
                 user_link = ensure_user_for_imported_person(person, membership_role=role)
                 if user_link.action == UserLinkAction.CREATED:
@@ -416,11 +444,12 @@ class Command(BaseCommand):
                     bunk_group = _get_or_create_group(program, "bunk", bunk_name, parent=unit_group)
 
                     role_in_group = "subject" if role == "camper" else "author"
-                    _, bunk_mem_created = AssignmentGroupMembership.all_objects.get_or_create(
-                        group=bunk_group,
-                        person=person,
-                        role_in_group=role_in_group,
-                        defaults={"is_active": True},
+                    _, bunk_mem_created = _ensure_membership(
+                        bunk_group,
+                        person,
+                        role_in_group,
+                        start_date=start_date,
+                        end_date=end_date,
                     )
                     key = (bunk_group.pk, role_in_group)
                     seen_group_members.setdefault(key, set()).add(person.pk)
@@ -443,17 +472,19 @@ class Command(BaseCommand):
                             )
                         else:
                             caseload_group = _get_or_create_group(program, "caseload", caseload_name)
-                            AssignmentGroupMembership.all_objects.get_or_create(
-                                group=caseload_group,
-                                person=owner,
-                                role_in_group="author",
-                                defaults={"is_active": True},
+                            _ensure_membership(
+                                caseload_group,
+                                owner,
+                                "author",
+                                start_date=start_date,
+                                end_date=end_date,
                             )
-                            _, case_mem_created = AssignmentGroupMembership.all_objects.get_or_create(
-                                group=caseload_group,
-                                person=person,
-                                role_in_group="subject",
-                                defaults={"is_active": True},
+                            _, case_mem_created = _ensure_membership(
+                                caseload_group,
+                                person,
+                                "subject",
+                                start_date=start_date,
+                                end_date=end_date,
                             )
                             key = (caseload_group.pk, "subject")
                             seen_group_members.setdefault(key, set()).add(person.pk)
