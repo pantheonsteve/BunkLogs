@@ -205,6 +205,39 @@ class TestInboxAndThread:
         inbox_ids = [o["id"] for o in inbox.json().get("results", inbox.json())]
         assert obs.id not in inbox_ids
 
+    def test_all_lists_every_observation_for_org_admin(
+        self, org, program, counselor_person, counselor_membership, camper,
+    ):
+        from bunk_logs.users.models import User
+
+        admin_user = User.objects.create_user(
+            email="all-tab-admin@t.test", password="pw", role=User.ADMIN,
+        )
+        admin_person = Person.all_objects.create(
+            organization=org, first_name="All", last_name="Admin", user=admin_user,
+        )
+        Membership.all_objects.create(
+            program=program, person=admin_person, role="admin", is_active=True,
+        )
+        obs_a = _make_observation(org, program, counselor_person, subjects=[camper])
+        other_author = Person.all_objects.create(organization=org, first_name="Other", last_name="Staff")
+        obs_b = _make_observation(org, program, other_author, subjects=[camper], sensitivity="confidential")
+
+        client = _auth_client(admin_user, org)
+        resp = client.get("/api/v1/observations/all/")
+        assert resp.status_code == 200
+        ids = [o["id"] for o in resp.json().get("results", resp.json())]
+        assert obs_a.id in ids
+        assert obs_b.id in ids
+
+    def test_all_rejects_non_admin(
+        self, org, program, counselor_user, counselor_membership, counselor_person, camper,
+    ):
+        _make_observation(org, program, counselor_person, subjects=[camper])
+        client = _auth_client(counselor_user, org)
+        resp = client.get("/api/v1/observations/all/")
+        assert resp.status_code == 403
+
     def test_thread_updates_read_receipt(
         self, org, program, counselor_person, counselor_membership, uh_user, uh_membership, uh_person, camper,
     ):

@@ -75,6 +75,12 @@ export async function fetchObservationSent() {
   return r.data;
 }
 
+/** All observations in the org (admin only). */
+export async function fetchObservationAll() {
+  const r = await api.get('/api/v1/observations/all/');
+  return r.data;
+}
+
 export async function fetchObservationThread(id) {
   const r = await api.get(`/api/v1/observations/${id}/`);
   return r.data;

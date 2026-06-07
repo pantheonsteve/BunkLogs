@@ -22,6 +22,11 @@ vi.mock('../../api', () => ({
 vi.mock('../../partials/Header', () => ({ default: () => <div data-testid="header" /> }));
 vi.mock('../../partials/Sidebar', () => ({ default: () => <div data-testid="sidebar" /> }));
 
+const authState = { user: { role: 'Counselor' } };
+vi.mock('../../auth/AuthContext', () => ({
+  useAuth: () => authState,
+}));
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal();
@@ -66,6 +71,7 @@ describe('ObservationsInbox', () => {
   beforeEach(() => {
     getMock.mockReset();
     postMock.mockReset();
+    authState.user = { role: 'Counselor' };
   });
 
   it('renders inbox items with subject summary', async () => {
@@ -95,6 +101,7 @@ describe('ObservationsInbox', () => {
 
   it('shows message counts next to the Inbox and Sent tabs', async () => {
     getMock.mockImplementation((url) => {
+      if (url.includes('/all/')) return Promise.resolve({ data: { count: 0, results: [] } });
       if (url.includes('/sent/')) {
         return Promise.resolve({ data: { count: 4, results: [] } });
       }
@@ -111,8 +118,62 @@ describe('ObservationsInbox', () => {
     });
   });
 
+  it('shows an All tab for admins with every observation', async () => {
+    authState.user = { role: 'Admin' };
+    getMock.mockImplementation((url) => {
+      if (url.includes('/all/')) {
+        return Promise.resolve({
+          data: {
+            count: 2,
+            results: [
+              { id: 10, author: { full_name: 'Bob UH' }, sensitivity: 'normal', subjects_summary: 'Cam Per', last_activity_at: new Date().toISOString(), unread: false, viewer_is_author: false },
+              { id: 11, author: { full_name: 'Org Admin' }, sensitivity: 'sensitive', subjects_summary: 'Sam Smith', last_activity_at: new Date().toISOString(), unread: false, viewer_is_author: true },
+            ],
+          },
+        });
+      }
+      if (url.includes('/sent/')) return Promise.resolve({ data: { count: 0, results: [] } });
+      return Promise.resolve({ data: { count: 0, results: [] } });
+    });
+    render(
+      <MemoryRouter>
+        <ObservationsInbox />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /All/i })).toBeDefined();
+      expect(screen.getByTestId('observations-tab-count-all')).toHaveTextContent('2');
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /All/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Cam Per')).toBeDefined();
+      expect(screen.getByText('Sam Smith')).toBeDefined();
+      expect(screen.getByText(/From Bob UH/)).toBeDefined();
+      expect(screen.getByText('You wrote this')).toBeDefined();
+    });
+  });
+
+  it('does not show the All tab for counselors', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/sent/')) return Promise.resolve({ data: { count: 0, results: [] } });
+      return Promise.resolve({ data: { count: 0, results: [] } });
+    });
+    render(
+      <MemoryRouter>
+        <ObservationsInbox />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Inbox/i })).toBeDefined();
+    });
+    expect(screen.queryByRole('button', { name: /^All/i })).toBeNull();
+    expect(getMock.mock.calls.some(([url]) => url.includes('/all/'))).toBe(false);
+  });
+
   it('filters the list by search query and shows a no-match state', async () => {
     getMock.mockImplementation((url) => {
+      if (url.includes('/all/')) return Promise.resolve({ data: { count: 0, results: [] } });
       if (url.includes('/sent/')) return Promise.resolve({ data: { count: 0, results: [] } });
       return Promise.resolve({
         data: {
@@ -148,6 +209,7 @@ describe('ObservationsInbox', () => {
     const older = new Date(Date.now() - 7200000).toISOString();
     const newer = new Date(Date.now() - 600000).toISOString();
     getMock.mockImplementation((url) => {
+      if (url.includes('/all/')) return Promise.resolve({ data: { count: 0, results: [] } });
       if (url.includes('/sent/')) return Promise.resolve({ data: { count: 0, results: [] } });
       return Promise.resolve({
         data: {

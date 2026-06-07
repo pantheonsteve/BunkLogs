@@ -4,14 +4,18 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import ObservationComposer from '../../components/observations/ObservationComposer';
 import {
+  fetchObservationAll,
   fetchObservationInbox,
   fetchObservationSent,
   sensitivityAudience,
 } from '../../api/observations';
+import { hasCapability } from '../../utils/auth/capability';
+import isSuperAdmin from '../../utils/auth/isSuperAdmin';
 
-const TABS = [
+const BASE_TABS = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Sent' },
 ];
@@ -35,9 +39,15 @@ function timeAgo(iso) {
 
 export default function ObservationsInbox() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canViewAll = hasCapability(user, 'admin') || isSuperAdmin(user);
+  const tabs = useMemo(
+    () => (canViewAll ? [...BASE_TABS, { key: 'all', label: 'All' }] : BASE_TABS),
+    [canViewAll],
+  );
   const [activeTab, setActiveTab] = useState('inbox');
-  const [itemsByTab, setItemsByTab] = useState({ inbox: [], sent: [] });
-  const [counts, setCounts] = useState({ inbox: null, sent: null });
+  const [itemsByTab, setItemsByTab] = useState({ inbox: [], sent: [], all: [] });
+  const [counts, setCounts] = useState({ inbox: null, sent: null, all: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [composing, setComposing] = useState(false);
@@ -48,27 +58,36 @@ export default function ObservationsInbox() {
     setLoading(true);
     setError(null);
     try {
-      const [inbox, sent] = await Promise.all([
-        fetchObservationInbox(),
-        fetchObservationSent(),
-      ]);
+      const requests = [fetchObservationInbox(), fetchObservationSent()];
+      if (canViewAll) {
+        requests.push(fetchObservationAll());
+      }
+      const [inbox, sent, all] = await Promise.all(requests);
       const inboxItems = inbox.results ?? inbox ?? [];
       const sentItems = sent.results ?? sent ?? [];
-      setItemsByTab({ inbox: inboxItems, sent: sentItems });
+      const allItems = all ? (all.results ?? all ?? []) : [];
+      setItemsByTab({ inbox: inboxItems, sent: sentItems, all: allItems });
       setCounts({
         inbox: inbox.count ?? inboxItems.length,
         sent: sent.count ?? sentItems.length,
+        all: all ? (all.count ?? allItems.length) : null,
       });
     } catch {
       setError('Failed to load observations.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canViewAll]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!canViewAll && activeTab === 'all') {
+      setActiveTab('inbox');
+    }
+  }, [canViewAll, activeTab]);
 
   function handleSent(data) {
     if (data?.id) {
@@ -123,7 +142,7 @@ export default function ObservationsInbox() {
         </div>
 
         <div className="flex flex-wrap gap-2 mb-5">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             const count = counts[tab.key];
             return (
@@ -207,6 +226,7 @@ export default function ObservationsInbox() {
           <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 py-12 text-center text-gray-500 dark:text-gray-400">
             {activeTab === 'inbox' && 'Your observations inbox is empty.'}
             {activeTab === 'sent' && "You haven't sent any observations yet."}
+            {activeTab === 'all' && 'No observations in this organization yet.'}
           </div>
         )}
         {!loading && !error && items.length > 0 && visibleItems.length === 0 && (
@@ -250,7 +270,7 @@ export default function ObservationsInbox() {
                   <span className="text-xs text-gray-500 dark:text-gray-400">
                     {o.viewer_is_author || activeTab === 'sent'
                       ? 'You wrote this'
-                      : `From ${o.author?.full_name}`}
+                      : `From ${o.author?.full_name || 'Unknown'}`}
                   </span>
                   <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
                     {sensitivityAudience(o.sensitivity)}
