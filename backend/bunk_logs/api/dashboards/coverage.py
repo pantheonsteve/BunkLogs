@@ -19,15 +19,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.dashboards.group_dashboard_common import groups_visible_to_viewer
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import is_super_admin
-from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.core.permissions.visibility import is_org_admin
+from bunk_logs.core.time_utils import get_today
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60
@@ -95,21 +97,7 @@ class CoverageDashboardView(APIView):
         if request.query_params.get("group_type"):
             groups_qs = groups_qs.filter(group_type=request.query_params["group_type"])
 
-        if not is_org_admin(request.user):
-            visible_group_ids = (
-                author_group_ids_with_descendants(viewer) if viewer else set()
-            )
-            if not visible_group_ids:
-                return Response({
-                    "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
-                    "org_summary": {"covered": 0, "total": 0, "percent": 0},
-                    "programs": [],
-                    "groups": [],
-                })
-            groups_qs = groups_qs.filter(id__in=visible_group_ids)
-
-        # Program (session) picker options, derived from the type/visibility
-        # filtered set so they stay stable while a single program is selected.
+        # Program (session) picker options before per-program visibility scoping.
         program_options = [
             {"id": pid, "name": name}
             for pid, name in groups_qs.values_list("program_id", "program__name")
@@ -121,6 +109,41 @@ class CoverageDashboardView(APIView):
         program_filter = (request.query_params.get("program") or "").strip()
         if program_filter.isdigit():
             groups_qs = groups_qs.filter(program_id=int(program_filter))
+
+        if not is_org_admin(request.user):
+            if viewer is None:
+                return Response({
+                    "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
+                    "org_summary": {"covered": 0, "total": 0, "percent": 0},
+                    "programs": program_options,
+                    "groups": [],
+                })
+            org_today = get_today(org)
+            program_ids = (
+                [int(program_filter)]
+                if program_filter.isdigit()
+                else [p["id"] for p in program_options]
+            )
+            visible_group_ids: set[int] = set()
+            for pid in program_ids:
+                program_obj = Program.objects.filter(
+                    id=pid, organization=org,
+                ).first()
+                if program_obj is not None:
+                    visible_group_ids |= groups_visible_to_viewer(
+                        person=viewer,
+                        organization=org,
+                        program=program_obj,
+                        today=org_today,
+                    )
+            if not visible_group_ids:
+                return Response({
+                    "period": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
+                    "org_summary": {"covered": 0, "total": 0, "percent": 0},
+                    "programs": program_options,
+                    "groups": [],
+                })
+            groups_qs = groups_qs.filter(id__in=visible_group_ids)
 
         groups = list(
             groups_qs.values(

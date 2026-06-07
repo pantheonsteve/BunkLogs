@@ -307,6 +307,34 @@ class TestAdminAssignments:
         assert r1.status_code == 201
         assert r2.status_code == 409
 
+    def test_list_filters_by_program_and_status(
+        self, api, org, program, admin_user, supervisor, target,
+    ):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            active = api.post(self.URL, {
+                "sub_tab": "uh_counselor",
+                "supervisor_membership_id": supervisor.id,
+                "target_membership_id": target.id,
+            }, format="json", **_hdr(org.slug))
+            assert active.status_code == 201
+            listed = api.get(
+                self.URL,
+                {
+                    "sub_tab": "uh_counselor",
+                    "program": program.id,
+                    "status": "active",
+                    "search": "Rget",
+                },
+                **_hdr(org.slug),
+            )
+        assert listed.status_code == 200
+        assert len(listed.json()["results"]) == 1
+        row = listed.json()["results"][0]
+        assert row["target_membership_name"] == "Ta Rget"
+        assert row["supervisor_role"] == "unit_head"
+        assert row["target_membership_role"] == "counselor"
+
     def test_staff_team_membership_create_and_list(
         self, api, org, program, admin_user,
     ):
@@ -317,6 +345,9 @@ class TestAdminAssignments:
             )
             person = Person.all_objects.create(
                 organization=org, first_name="Kit", last_name="Chen",
+            )
+            Membership.all_objects.create(
+                program=program, person=person, role="kitchen_staff", is_active=True,
             )
         api.force_authenticate(user=admin_user)
         payload = {
@@ -336,6 +367,7 @@ class TestAdminAssignments:
         assert len(rows) == 1
         assert rows[0]["sub_tab"] == "staff_team"
         assert rows[0]["group_id"] == team.id
+        assert rows[0]["membership_role"] == "kitchen_staff"
 
     def test_staff_team_rejects_non_team_group(
         self, api, org, program, admin_user,

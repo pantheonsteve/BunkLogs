@@ -101,6 +101,23 @@ def test_admin_can_list_memberships_in_program(api, org_a, program_a, admin_user
 
 
 @pytest.mark.django_db
+def test_filter_by_program_id(api, org_a, program_a, admin_user):
+    user, _ = admin_user
+    _make_member(org_a, program_a, last="ById")
+    api.force_authenticate(user=user)
+    resp = api.get(
+        "/api/v1/memberships/",
+        {"program": str(program_a.id)},
+        **_hdr_org(org_a.slug),
+    )
+    assert resp.status_code == 200, resp.content
+    body = resp.json()
+    items = body if isinstance(body, list) else body.get("results", body)
+    assert len(items) >= 1
+    assert all(item["program"] == program_a.id for item in items)
+
+
+@pytest.mark.django_db
 def test_non_admin_cannot_list(api, org_a, counselor_user):
     user, _ = counselor_user
     api.force_authenticate(user=user)

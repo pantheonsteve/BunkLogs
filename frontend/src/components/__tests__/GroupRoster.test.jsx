@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import GroupRoster from '../GroupRoster';
 
 const ROSTER = [
@@ -28,7 +29,15 @@ describe('GroupRoster', () => {
   it('shows an empty state when there are no members', () => {
     render(<GroupRoster roster={[]} />);
     expect(screen.getByText('Roster (0)')).toBeInTheDocument();
-    expect(screen.getByText(/no members assigned/i)).toBeInTheDocument();
+    expect(screen.getByText(/no active members/i)).toBeInTheDocument();
+  });
+
+  it('collapses and expands when collapsible', async () => {
+    const user = userEvent.setup();
+    render(<GroupRoster roster={ROSTER} collapsible defaultExpanded={false} />);
+    expect(screen.queryByText('Pat Lee')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('group-roster-toggle'));
+    expect(screen.getByText('Pat Lee')).toBeInTheDocument();
   });
 
   it('tolerates a missing roster prop', () => {

@@ -252,3 +252,91 @@ def resolve_group_dashboard_context(
             )
 
     raise PermissionDenied(_ACCESS_DENIED_MESSAGE)
+
+
+def groups_visible_to_viewer(
+    *,
+    person: Person,
+    organization: Organization,
+    program: Program,
+    today: date,
+) -> set[int]:
+    """Return group IDs the viewer may see on list dashboards (performance, coverage).
+
+    Mirrors :func:`resolve_group_dashboard_context` rules without probing a
+    single group: LT sees all program groups; UH/CC see groups whose leaf
+    bunks overlap supervision/caseload; counselors see authored bunks only;
+    faculty/madrich see authored classrooms only.
+    """
+    program_groups = list(
+        AssignmentGroup.objects.filter(
+            organization=organization,
+            program=program,
+            is_active=True,
+        ).select_related("parent", "parent__parent", "parent__parent__parent"),
+    )
+    if not program_groups:
+        return set()
+
+    if Membership.objects.filter(
+        person=person, role="leadership_team", is_active=True,
+    ).exists():
+        return {g.id for g in program_groups}
+
+    visible: set[int] = set()
+
+    counselor_bunk_ids = set(
+        AssignmentGroupMembership.objects.filter(
+            person=person,
+            role_in_group="author",
+            is_active=True,
+            group__program=program,
+            group__group_type="bunk",
+        ).values_list("group_id", flat=True),
+    )
+    if counselor_bunk_ids:
+        counselor_membership = Membership.objects.filter(
+            person=person,
+            role__in=tuple(COUNSELOR_ROLES),
+            is_active=True,
+            program=program,
+        ).exists()
+        if counselor_membership:
+            visible.update(counselor_bunk_ids)
+
+    classroom_ids = set(
+        AssignmentGroupMembership.objects.filter(
+            person=person,
+            role_in_group="author",
+            is_active=True,
+            group__program=program,
+            group__group_type="classroom",
+        ).values_list("group_id", flat=True),
+    )
+    if classroom_ids:
+        has_classroom_role = Membership.objects.filter(
+            person=person,
+            role__in=tuple(CLASSROOM_AUTHOR_ROLES),
+            is_active=True,
+            program=program,
+        ).exists()
+        if has_classroom_role:
+            visible.update(classroom_ids)
+
+    supervised_leaf_ids: set[int] = set()
+    for uh_membership in Membership.objects.filter(
+        person=person, role="unit_head", is_active=True, program=program,
+    ):
+        supervised_leaf_ids |= supervised_bunk_ids(uh_membership, today=today)
+
+    for cc_membership in Membership.objects.filter(
+        person=person, role="camper_care", is_active=True, program=program,
+    ):
+        supervised_leaf_ids |= caseload_bunk_ids(cc_membership, today=today)
+
+    if supervised_leaf_ids:
+        for group in program_groups:
+            if _expand_group_to_bunk_ids(group) & supervised_leaf_ids:
+                visible.add(group.id)
+
+    return visible

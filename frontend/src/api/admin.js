@@ -77,9 +77,13 @@ export async function inviteAdminPerson(personId, payload = {}) {
 // Assignments (Story 56)
 // ---------------------------------------------------------------------------
 
-export async function listAdminAssignments(subTab) {
-  const params = subTab ? { sub_tab: subTab } : {};
-  const resp = await api.get(`${ADMIN_BASE}/assignments/`, { params });
+export async function listAdminAssignments(params = {}) {
+  const query = typeof params === 'string' ? { sub_tab: params } : { ...params };
+  if (query.sub_tab === undefined && query.subTab) {
+    query.sub_tab = query.subTab;
+    delete query.subTab;
+  }
+  const resp = await api.get(`${ADMIN_BASE}/assignments/`, { params: query });
   return resp?.data ?? { results: [] };
 }
 

@@ -387,7 +387,7 @@ export default function PerformanceDashboard() {
 
           {groups.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-12">
-              No groups visible for the selected filters.
+              No groups visible to you for the selected filters.
             </p>
           ) : (
             <div

@@ -18,12 +18,14 @@ from bunk_logs.api.camper_care.common import bunk_camper_ids
 from bunk_logs.api.counselor.common import camper_reflection_template
 from bunk_logs.api.counselor.common import off_camp_camper_ids
 from bunk_logs.api.counselor.common import person_display_name
+from bunk_logs.api.dashboards.group_dashboard_common import groups_visible_to_viewer
+from bunk_logs.api.dashboards.group_roster import build_group_roster
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.permissions import is_super_admin
-from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
 from bunk_logs.core.permissions.visibility import is_org_admin
 from bunk_logs.core.reflection_scores import iter_scored_fields
 from bunk_logs.core.reflection_scores import resolve_rating_cells
@@ -166,29 +168,18 @@ class GroupPerformanceDashboardView(APIView):
         if group_type:
             groups_qs = groups_qs.filter(group_type=group_type)
 
-        if not is_org_admin(request.user):
-            visible_ids = (
-                author_group_ids_with_descendants(viewer) if viewer else set()
-            )
-            if not visible_ids:
-                return Response(_performance_response(
-                    target_date=target_date,
-                    today=today,
-                    program_options=[],
-                    selected_program=None,
-                    groups=[],
-                ))
-            groups_qs = groups_qs.filter(id__in=visible_ids)
-
-        program_options = _program_options_from_qs(groups_qs)
-
         program_filter = (request.query_params.get("program") or "").strip()
+
+        # Resolve program before visibility scoping (visibility is program-scoped).
+        all_program_groups_qs = groups_qs
+        program_options = _program_options_from_qs(all_program_groups_qs)
+
         selected_program = None
+        target_program_id = None
         if program_filter.isdigit():
-            pid = int(program_filter)
-            groups_qs = groups_qs.filter(program_id=pid)
+            target_program_id = int(program_filter)
             for opt in program_options:
-                if opt["id"] == pid:
+                if opt["id"] == target_program_id:
                     selected_program = opt
                     break
         else:
@@ -201,8 +192,39 @@ class GroupPerformanceDashboardView(APIView):
                     selected_program=None,
                     groups=[],
                 ))
-            groups_qs = groups_qs.filter(program_id=current["id"])
+            target_program_id = current["id"]
             selected_program = current
+
+        groups_qs = groups_qs.filter(program_id=target_program_id)
+
+        if not is_org_admin(request.user):
+            if viewer is None:
+                return Response(_performance_response(
+                    target_date=target_date,
+                    today=today,
+                    program_options=program_options,
+                    selected_program=selected_program,
+                    groups=[],
+                ))
+            program_obj = Program.objects.filter(id=target_program_id).first()
+            if program_obj is None:
+                visible_ids: set[int] = set()
+            else:
+                visible_ids = groups_visible_to_viewer(
+                    person=viewer,
+                    organization=org,
+                    program=program_obj,
+                    today=today,
+                )
+            if not visible_ids:
+                return Response(_performance_response(
+                    target_date=target_date,
+                    today=today,
+                    program_options=program_options,
+                    selected_program=selected_program,
+                    groups=[],
+                ))
+            groups_qs = groups_qs.filter(id__in=visible_ids)
 
         groups = list(groups_qs.order_by("group_type", "name"))
         if not groups:
@@ -252,8 +274,11 @@ class GroupPerformanceDashboardView(APIView):
                 "id": group.id,
                 "name": group.name,
                 "group_type": group.group_type,
+                "program_id": group.program_id,
+                "program_name": program.name if program else None,
                 "parent_name": group.parent.name if group.parent_id else None,
                 "author_names": authors.get(group.id, []),
+                "roster": build_group_roster(group=group, program=program),
                 "completion": {
                     "submitted": submitted,
                     "expected": expected,
