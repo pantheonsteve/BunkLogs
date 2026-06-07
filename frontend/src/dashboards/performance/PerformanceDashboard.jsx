@@ -79,7 +79,9 @@ export default function PerformanceDashboard() {
   const programParam = searchParams.get('program') || '';
 
   const tab = tabParam === 'past' ? 'past' : 'current';
-  const selectedDate = dateParam || todayIso();
+  // Omit date on the initial API call so the backend picks org-local
+  // "today" (rollover-aware). Browser ``todayIso()`` can be ahead of
+  // that before the 04:00 camp rollover and breaks group-dashboard links.
   const groupType = groupTypeParam;
   const program = programParam;
 
@@ -119,7 +121,7 @@ export default function PerformanceDashboard() {
         params: {
           group_type: groupType || undefined,
           program: program || undefined,
-          date: selectedDate,
+          date: dateParam || undefined,
         },
       });
       setPayload(data);
@@ -132,7 +134,7 @@ export default function PerformanceDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [groupType, program, selectedDate, shouldFetchGroups, programOptions.length]);
+  }, [groupType, program, dateParam, shouldFetchGroups, programOptions.length]);
 
   useEffect(() => {
     load();
@@ -146,6 +148,7 @@ export default function PerformanceDashboard() {
   }, [payload, tab, program, syncParams]);
 
   const orgToday = payload?.today ?? null;
+  const effectiveDate = dateParam || payload?.date || orgToday || '';
 
   const selectedProgramMeta = useMemo(() => {
     if (program) {
@@ -220,7 +223,7 @@ export default function PerformanceDashboard() {
             )}
             {showGroups && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {formatDisplayDate(payload?.date || selectedDate)}
+                {formatDisplayDate(effectiveDate)}
               </p>
             )}
           </div>
@@ -243,7 +246,7 @@ export default function PerformanceDashboard() {
                 <span>Date</span>
                 <input
                   type="date"
-                  value={selectedDate}
+                  value={effectiveDate}
                   onChange={(e) => syncParams({ date: e.target.value })}
                   data-testid="performance-date-picker"
                   className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
@@ -395,7 +398,7 @@ export default function PerformanceDashboard() {
                 <GroupPerformanceCard
                   key={group.id}
                   group={group}
-                  date={payload?.date || selectedDate}
+                  date={payload?.date || effectiveDate}
                   program={program}
                   tab={tab}
                 />

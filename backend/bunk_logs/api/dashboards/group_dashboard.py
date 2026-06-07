@@ -58,9 +58,10 @@ class GroupDashboardView(APIView):
         target_date = _parse_date_param(
             request.query_params.get("date"), default=ctx.today,
         )
+        # Clamp browser-local "today" links (e.g. from Group Performance)
+        # to the org rollover-aware cap so the dashboard still loads.
         if target_date > ctx.today:
-            msg = "Future dates are not selectable."
-            raise ValidationError(msg)
+            target_date = ctx.today
 
         builder = _PAYLOAD_BY_GROUP_TYPE.get(ctx.group.group_type)
         if builder is None:
