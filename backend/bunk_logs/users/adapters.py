@@ -54,12 +54,12 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             return None
 
         # Check if we have a user with the same email
-        email = sociallogin.account.extra_data.get("email")
+        email = (sociallogin.account.extra_data.get("email") or "").strip()
         if email:
             User = sociallogin.user.__class__
             try:
-                # Try to find an existing user with this email
-                user = User.objects.get(email=email)
+                # Case-insensitive match — Campminder linking uses email__iexact too.
+                user = User.objects.get(email__iexact=email)
                 # Connect the social account to this user and login
                 sociallogin.connect(request, user)
                 # Skip the rest of the social login flow and redirect using dynamic URL

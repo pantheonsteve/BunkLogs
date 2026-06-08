@@ -192,6 +192,15 @@ info "running 'manage.py scrub_pii --confirm'..."
 $CMP -f "$COMPOSE_FILE" exec -T django \
     python manage.py scrub_pii --confirm "${SCRUB_EXTRA_ARGS[@]+"${SCRUB_EXTRA_ARGS[@]}"}"
 
+info "post-sync row counts (scrubbed):"
+$CMP -f "$COMPOSE_FILE" exec -T django python manage.py shell -c "
+from bunk_logs.core.models import Person, Reflection
+from bunk_logs.notes.models import Observation
+print(f'  persons={Person.all_objects.count()}')
+print(f'  observations={Observation.all_objects.count()}')
+print(f'  reflections={Reflection.all_objects.count()}')
+"
+
 # --- cleanup ---------------------------------------------------------------
 
 if [[ "$KEEP_DUMP" -eq 1 ]]; then
