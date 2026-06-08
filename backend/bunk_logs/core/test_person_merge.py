@@ -1,7 +1,8 @@
 """Tests for duplicate identity audit and Person merge tooling."""
 
-import pytest
+from io import StringIO
 
+import pytest
 from django.core.management import call_command
 
 from bunk_logs.core.models import AssignmentGroup
@@ -51,8 +52,6 @@ class TestAuditDuplicateIdentities:
             email="Staff@example.com",
             external_ids={"campminder_id": "12345"},
         )
-
-        from io import StringIO
 
         out = StringIO()
         call_command("audit_duplicate_identities", org_slug="clc", stdout=out)
