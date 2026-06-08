@@ -27,6 +27,8 @@ help:
 	@echo "  make setup-crane-lake  New tenant models: ensure CLC org + Summer 2026 program"
 	@echo "  make onboard-clc       Full CLC Summer 2026 onboarding (org+templates; pass CSV_PATH=... for staff)"
 	@echo "  make seed-clc-assignments  Seed 12 TemplateAssignment rows for CLC Summer 2026 (pass DRY_RUN=1 to preview)"
+	@echo "  make audit-duplicates  Audit duplicate Person/User identity issues (ORG_SLUG=clc)"
+	@echo "  make merge-persons     Merge duplicate Persons (ORG_SLUG=clc WINNER=1 LOSER=2 APPLY=1)"
 	@echo "  make shell           Open Django shell (shell_plus if available)"
 	@echo ""
 	@echo "Frontend:"
@@ -90,6 +92,16 @@ seed-clc-assignments:
 	  --org-slug clc --program-slug summer-2026 \
 	  $(if $(ACTOR_USERNAME),--actor-username $(ACTOR_USERNAME),) \
 	  $(if $(DRY_RUN),--dry-run,)
+
+audit-duplicates:
+	$(DJANGO_EXEC) python manage.py audit_duplicate_identities \
+	  $(if $(ORG_SLUG),--org-slug $(ORG_SLUG),) \
+	  $(if $(JSON_OUT),--json-out $(JSON_OUT),)
+
+merge-persons:
+	$(DJANGO_EXEC) python manage.py merge_persons \
+	  --org-slug $(ORG_SLUG) --winner $(WINNER) --loser $(LOSER) \
+	  $(if $(APPLY),--apply,) $(if $(FORCE_USER),--force-user,)
 
 shell:
 	$(DJANGO_EXEC) python manage.py shell_plus 2>/dev/null || $(DJANGO_EXEC) python manage.py shell

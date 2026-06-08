@@ -143,11 +143,21 @@ for the source.
 | Model / table                     | Action                                                                 |
 | --------------------------------- | ---------------------------------------------------------------------- |
 | `users.User`                      | `email` → `user{pk}@example.test`, names → Faker, password → `devpass123`, `last_login` → null |
+| `core.Person`                     | names → Faker, DOB → same year/month + random day, `email` → `user{user_id}@example.test` or `person{pk}@example.test`, `notes` → `[scrubbed]` |
 | `campers.Camper`                  | names → Faker, DOB → same year/month, random day; emergency contact → Faker; all `*_notes` / `status_note` → `[scrubbed]` |
 | `bunks.Cabin`                     | `location`, `notes` → blank / `[scrubbed]` (capacity preserved)         |
 | `bunklogs.BunkLog`                | `description` → `[scrubbed]` (scores preserved so the UI looks real)   |
 | `bunklogs.StaffLog`               | `elaboration`, `values_reflection` → `[scrubbed]` (scores preserved for all staff roles) |
-| `orders.Order`                    | `additional_notes`, `narrative_description` → `[scrubbed]`             |
+| `orders.Order` (legacy)           | `additional_notes`, `narrative_description` → `[scrubbed]`             |
+| `notes.Observation`               | `body` → `[scrubbed]`                                                  |
+| `notes.ObservationReply`          | `body` → `[scrubbed]`                                                  |
+| `core.Reflection`                 | string values inside `answers` JSON → `[scrubbed]` (structure preserved) |
+| `core.Order` (camper care)        | `item_note`, `description` → `[scrubbed]`                              |
+| `core.MaintenanceTicket`          | `description`, `urgent_reason` → `[scrubbed]`                          |
+| `core.CamperDayState`             | `reason` → `[scrubbed]`                                                |
+| `core.OrderActivityEvent`         | `note`, `reason` → `[scrubbed]`                                        |
+| `core.AuditEvent`                 | `reason_note` → `[scrubbed]`; `before_state` / `after_state` / `metadata` cleared via raw SQL (append-only model) |
+| `core.TranslationRecord`          | `translated_text`, `last_error` → `[scrubbed]`                         |
 | `messaging.EmailRecipient`        | `email`, `name` → Faker                                                 |
 | `messaging.EmailLog`              | TRUNCATE                                                                |
 | `django_session`                  | TRUNCATE                                                                |
@@ -207,7 +217,12 @@ upstream:
 - **`scrub_pii` aborts with "DB host not in local allowlist"** -- you
   ran the command outside the podman django container, or `DATABASE_URL`
   in your `.django` env points somewhere unexpected. Always invoke via
-  `./backend/dev.sh sync-prod` or `./backend/dev.sh scrub-pii`.
+  `make sync-prod-db` or `./scripts/sync-prod-db.sh`.
+- **Observations / reflections missing after sync** -- the dump is full-database;
+  if counts are zero, production likely has no rows yet. After a successful
+  sync, the script prints post-scrub counts for `persons`, `observations`,
+  and `reflections`. Re-grant `SELECT` on new tables to `bunklogs_readonly` if
+  `pg_dump` fails after a schema migration (see [One-time setup](#one-time-setup)).
 - **Local sign-in fails after scrub** -- you're a superuser? rerun with
   `--keep-superuser-emails`. You're not? Use `user{your_pk}@example.test`
   / `devpass123`. Find your pk in Django admin or via shell.

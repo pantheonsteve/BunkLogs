@@ -34,9 +34,19 @@ from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.bunklogs.models import StaffLog
 from bunk_logs.bunks.models import Cabin
 from bunk_logs.campers.models import Camper
+from bunk_logs.core.models import AuditEvent
+from bunk_logs.core.models import CamperDayState
+from bunk_logs.core.models import MaintenanceTicket
+from bunk_logs.core.models import Order as CamperCareOrder
+from bunk_logs.core.models import OrderActivityEvent
+from bunk_logs.core.models import Person
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import TranslationRecord
 from bunk_logs.messaging.models import EmailLog
 from bunk_logs.messaging.models import EmailRecipient
-from bunk_logs.orders.models import Order
+from bunk_logs.notes.models import Observation
+from bunk_logs.notes.models import ObservationReply
+from bunk_logs.orders.models import Order as LegacyOrder
 from bunk_logs.users.models import User
 
 LOCAL_DB_HOST_ALLOWLIST = {
@@ -49,6 +59,17 @@ LOCAL_DB_HOST_ALLOWLIST = {
 
 DEV_PASSWORD = "devpass123"
 SCRUB_PLACEHOLDER = "[scrubbed]"
+
+
+def scrub_json_strings(value: object) -> object:
+    """Replace string leaves in JSON-ish structures with the scrub placeholder."""
+    if isinstance(value, str):
+        return SCRUB_PLACEHOLDER if value else value
+    if isinstance(value, list):
+        return [scrub_json_strings(item) for item in value]
+    if isinstance(value, dict):
+        return {key: scrub_json_strings(item) for key, item in value.items()}
+    return value
 
 
 class Command(BaseCommand):
@@ -97,11 +118,21 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             counts["users"] = self._scrub_users(fake, keep_superuser_emails=keep_superuser_emails)
+            counts["persons"] = self._scrub_persons(fake)
             counts["campers"] = self._scrub_campers(fake)
             counts["cabins"] = self._scrub_cabins(fake)
             counts["bunk_logs"] = self._scrub_bunk_logs()
             counts["staff_logs"] = self._scrub_staff_logs()
-            counts["orders"] = self._scrub_orders()
+            counts["legacy_orders"] = self._scrub_legacy_orders()
+            counts["observations"] = self._scrub_observations()
+            counts["observation_replies"] = self._scrub_observation_replies()
+            counts["reflections"] = self._scrub_reflections()
+            counts["camper_care_orders"] = self._scrub_camper_care_orders()
+            counts["maintenance_tickets"] = self._scrub_maintenance_tickets()
+            counts["camper_day_states"] = self._scrub_camper_day_states()
+            counts["order_activity_events"] = self._scrub_order_activity_events()
+            counts["audit_events"] = self._scrub_audit_events()
+            counts["translation_records"] = self._scrub_translation_records()
             counts["email_recipients"] = self._scrub_email_recipients(fake)
             counts["email_logs_truncated"] = self._truncate_email_logs()
             counts["sessions_truncated"] = self._truncate_table("django_session")
@@ -179,6 +210,35 @@ class Command(BaseCommand):
             count += 1
         return count
 
+    # --------------------------------------------------------------- persons
+
+    def _scrub_persons(self, fake: Faker) -> int:
+        count = 0
+        for person in Person.all_objects.all().iterator(chunk_size=500):
+            person.first_name = fake.first_name()
+            person.last_name = fake.last_name()
+            if person.preferred_name:
+                person.preferred_name = fake.first_name()
+            person.date_of_birth = self._jitter_dob(person.date_of_birth)
+            person.notes = SCRUB_PLACEHOLDER
+            if person.email:
+                if person.user_id:
+                    person.email = f"user{person.user_id}@example.test"
+                else:
+                    person.email = f"person{person.pk}@example.test"
+            person.save(
+                update_fields=[
+                    "first_name",
+                    "last_name",
+                    "preferred_name",
+                    "date_of_birth",
+                    "email",
+                    "notes",
+                ],
+            )
+            count += 1
+        return count
+
     # --------------------------------------------------------------- campers
 
     def _scrub_campers(self, fake: Faker) -> int:
@@ -240,10 +300,84 @@ class Command(BaseCommand):
 
     # --------------------------------------------------------------- orders
 
-    def _scrub_orders(self) -> int:
-        return Order.objects.update(
+    def _scrub_legacy_orders(self) -> int:
+        return LegacyOrder.objects.update(
             additional_notes=SCRUB_PLACEHOLDER,
             narrative_description=SCRUB_PLACEHOLDER,
+        )
+
+    # ----------------------------------------------------- observations / reflections
+
+    def _scrub_observations(self) -> int:
+        return Observation.all_objects.exclude(body="").update(body=SCRUB_PLACEHOLDER)
+
+    def _scrub_observation_replies(self) -> int:
+        return ObservationReply.objects.exclude(body="").update(body=SCRUB_PLACEHOLDER)
+
+    def _scrub_reflections(self) -> int:
+        count = 0
+        for reflection in Reflection.all_objects.all().iterator(chunk_size=200):
+            scrubbed = scrub_json_strings(reflection.answers)
+            if scrubbed != reflection.answers:
+                reflection.answers = scrubbed
+                reflection.save(update_fields=["answers"])
+                count += 1
+        return count
+
+    def _scrub_camper_care_orders(self) -> int:
+        return CamperCareOrder.all_objects.update(
+            item_note=SCRUB_PLACEHOLDER,
+            description=SCRUB_PLACEHOLDER,
+        )
+
+    def _scrub_maintenance_tickets(self) -> int:
+        return MaintenanceTicket.all_objects.update(
+            description=SCRUB_PLACEHOLDER,
+            urgent_reason=SCRUB_PLACEHOLDER,
+        )
+
+    def _scrub_camper_day_states(self) -> int:
+        return CamperDayState.all_objects.exclude(reason="").update(reason=SCRUB_PLACEHOLDER)
+
+    def _scrub_order_activity_events(self) -> int:
+        return OrderActivityEvent.all_objects.update(
+            note=SCRUB_PLACEHOLDER,
+            reason=SCRUB_PLACEHOLDER,
+        )
+
+    def _scrub_audit_events(self) -> int:
+        """Scrub audit rows via raw SQL — AuditEvent.save() blocks updates."""
+        table = AuditEvent._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT to_regclass(%s)", [f"public.{table}"])
+            row = cursor.fetchone()
+            if not row or row[0] is None:
+                return -1
+
+            cursor.execute(f'SELECT COUNT(*) FROM "{table}"')  # noqa: S608
+            total = cursor.fetchone()[0]
+            if total == 0:
+                return 0
+
+            cursor.execute(
+                f"""
+                UPDATE "{table}"
+                SET reason_note = CASE
+                        WHEN reason_note <> '' THEN %s
+                        ELSE reason_note
+                    END,
+                    before_state = %s::jsonb,
+                    after_state = %s::jsonb,
+                    metadata = %s::jsonb
+                """,  # noqa: S608
+                [SCRUB_PLACEHOLDER, "{}", "{}", "{}"],
+            )
+            return cursor.rowcount
+
+    def _scrub_translation_records(self) -> int:
+        return TranslationRecord.all_objects.update(
+            translated_text=SCRUB_PLACEHOLDER,
+            last_error=SCRUB_PLACEHOLDER,
         )
 
     # ------------------------------------------------------------ messaging
