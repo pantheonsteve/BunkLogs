@@ -60,13 +60,7 @@ class Command(BaseCommand):
             msg = f"Person not found in org {org_slug!r}: {exc}"
             raise CommandError(msg) from exc
 
-        plan = plan_person_merge(winner=winner, loser=loser)
-        user_blocker = (
-            winner.user_id
-            and loser.user_id
-            and winner.user_id != loser.user_id
-            and not force_user
-        )
+        plan = plan_person_merge(winner=winner, loser=loser, force_user=force_user)
 
         self.stdout.write(
             f"Merge plan: keep Person #{winner.id} ({winner.full_name}), "
@@ -78,10 +72,6 @@ class Command(BaseCommand):
         for action in plan.actions:
             suffix = f" (x{action.count})" if action.count > 1 else ""
             self.stdout.write(f"  [{action.model}] {action.description}{suffix}")
-
-        if user_blocker:
-            msg = "Merge blocked: both Persons link to different Users. Use --force-user."
-            raise CommandError(msg)
 
         if plan.blockers:
             msg = "Merge blocked; resolve blockers before applying."
