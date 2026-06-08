@@ -131,6 +131,66 @@ class TestMergePersons:
         assert not plan.ok
         assert "campminder_id" in plan.blockers[0]
 
+    def test_merge_force_user_unlinks_loser_and_keeps_winner_user(self, org, program):
+        winner_user = User.objects.create_user(email="winner@example.com", password="pass")
+        loser_user = User.objects.create_user(email="loser@example.com", password="pass")
+        winner = Person.all_objects.create(
+            organization=org,
+            first_name="Charlie",
+            last_name="Capewell",
+            email="winner@example.com",
+            user=winner_user,
+            external_ids={"campminder_id": "18045818"},
+        )
+        loser = Person.all_objects.create(
+            organization=org,
+            first_name="Charles",
+            last_name="Capewell",
+            email="loser@example.com",
+            user=loser_user,
+        )
+        Membership.all_objects.create(program=program, person=loser, role="counselor")
+
+        plan = plan_person_merge(winner=winner, loser=loser, force_user=True)
+        assert plan.ok
+        assert any(action.model == "Person.user" for action in plan.actions)
+
+        merge_persons(winner=winner, loser=loser, force_user=True)
+
+        winner.refresh_from_db()
+        assert winner.user_id == winner_user.id
+        assert not Person.all_objects.filter(pk=loser.pk).exists()
+        assert Membership.all_objects.filter(person=winner, role="counselor").exists()
+        assert Person.all_objects.filter(user=loser_user).count() == 0
+
+    def test_merge_command_force_user_dry_run_succeeds(self, org):
+        winner_user = User.objects.create_user(email="winner@example.com", password="pass")
+        loser_user = User.objects.create_user(email="loser@example.com", password="pass")
+        winner = Person.all_objects.create(
+            organization=org,
+            first_name="Charlie",
+            last_name="Capewell",
+            user=winner_user,
+        )
+        loser = Person.all_objects.create(
+            organization=org,
+            first_name="Charles",
+            last_name="Capewell",
+            user=loser_user,
+        )
+
+        out = StringIO()
+        call_command(
+            "merge_persons",
+            org_slug="clc",
+            winner=winner.pk,
+            loser=loser.pk,
+            force_user=True,
+            stdout=out,
+        )
+        assert "BLOCKER" not in out.getvalue()
+        assert "Dry-run only" in out.getvalue()
+
     def test_merge_repoints_group_membership(self, org, program):
         winner = Person.all_objects.create(
             organization=org, first_name="Sam", last_name="Lee",

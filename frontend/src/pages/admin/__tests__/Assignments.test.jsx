@@ -82,7 +82,7 @@ describe('AdminAssignments', () => {
 
   it('passes filter params when listing assignments', async () => {
     render(<AdminAssignments />);
-    await screen.findByTestId('assignment-filter-bar');
+    await screen.findByTestId('assignment-program-chip-1');
 
     fireEvent.click(screen.getByTestId('assignment-program-chip-1'));
 

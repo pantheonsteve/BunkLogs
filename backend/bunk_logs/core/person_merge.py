@@ -45,7 +45,7 @@ def _count(qs) -> int:
     return qs.count()
 
 
-def plan_person_merge(*, winner: Person, loser: Person) -> MergePlan:
+def plan_person_merge(*, winner: Person, loser: Person, force_user: bool = False) -> MergePlan:
     """Dry-run plan for merging ``loser`` into ``winner``."""
     plan = MergePlan(winner_id=winner.pk, loser_id=loser.pk)
 
@@ -69,10 +69,16 @@ def plan_person_merge(*, winner: Person, loser: Person) -> MergePlan:
         )
 
     if winner.user_id and loser.user_id and winner.user_id != loser.user_id:
-        plan.blockers.append(
-            f"Both persons are linked to different Users "
-            f"({winner.user_id} vs {loser.user_id}); unlink loser or pass --force-user",
-        )
+        if force_user:
+            plan.actions.append(MergeAction(
+                "Person.user",
+                f"unlink User {loser.user_id} from loser (keep winner's User {winner.user_id})",
+            ))
+        else:
+            plan.blockers.append(
+                f"Both persons are linked to different Users "
+                f"({winner.user_id} vs {loser.user_id}); unlink loser or pass --force-user",
+            )
 
     for membership in Membership.all_objects.filter(person=loser):
         conflict = Membership.all_objects.filter(
@@ -242,16 +248,13 @@ def merge_persons(
     force_user: bool = False,
 ) -> MergePlan:
     """Merge ``loser`` into ``winner``. Raises ValueError when blocked."""
-    plan = plan_person_merge(winner=winner, loser=loser)
-    if winner.user_id and loser.user_id and winner.user_id != loser.user_id:
-        if not force_user:
-            msg = plan.blockers[0] if plan.blockers else "user conflict"
-            raise ValueError(msg)
-        loser.user = None
-        loser.save(update_fields=["user"])
-
+    plan = plan_person_merge(winner=winner, loser=loser, force_user=force_user)
     if plan.blockers:
         raise ValueError("; ".join(plan.blockers))
+
+    if force_user and winner.user_id and loser.user_id and winner.user_id != loser.user_id:
+        loser.user = None
+        loser.save(update_fields=["user"])
 
     _merge_memberships(winner=winner, loser=loser)
     _merge_assignment_group_memberships(winner=winner, loser=loser)
