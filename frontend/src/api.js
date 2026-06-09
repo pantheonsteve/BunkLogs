@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getCSRFToken } from './django';
+import { trackApiSuccess } from './lib/datadog';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
 import { resolveOrganizationSlug } from './utils/orgSlug';
 
@@ -77,7 +78,10 @@ api.interceptors.request.use(
 
 // Add response interceptor to handle token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    trackApiSuccess(response.config, response);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 

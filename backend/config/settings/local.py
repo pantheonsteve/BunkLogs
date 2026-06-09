@@ -114,6 +114,13 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-organization-slug",
     "x-requested-with",
+    "x-datadog-origin",
+    "x-datadog-parent-id",
+    "x-datadog-sampling-priority",
+    "x-datadog-trace-id",
+    "x-datadog-sampled",
+    "traceparent",
+    "tracestate",
 ]
 
 

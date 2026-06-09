@@ -1,9 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { initDatadogRum } from './lib/datadog';
 import ThemeProvider from './utils/ThemeContext';
 import App from './App';
 
-import { init } from './init'
+import { init } from './init';
+
+initDatadogRum();
 
 // Initialize the application asynchronously
 async function initializeApp() {

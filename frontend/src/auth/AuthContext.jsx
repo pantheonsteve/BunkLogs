@@ -1,6 +1,12 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import api from '../api';
+import {
+  setDatadogUser,
+  clearDatadogUser,
+  trackUserLogin,
+  trackUserLogout,
+} from '../lib/datadog';
 
 const AuthContext = createContext(null);
 export { AuthContext }; // Add named export alongside default export
@@ -90,6 +96,14 @@ export function AuthProvider({ children }) {
   checkAuth();
 }, []);
 
+  useEffect(() => {
+    if (user) {
+      setDatadogUser(user);
+    } else {
+      clearDatadogUser();
+    }
+  }, [user]);
+
   const login = async (tokens) => {
     setIsAuthenticating(true); // Set authenticating state
     try {
@@ -115,6 +129,7 @@ export function AuthProvider({ children }) {
         }
         setUser(profile);
         localStorage.setItem('user_profile', JSON.stringify(profile));
+        trackUserLogin(tokens);
         return profile;
       }
       
@@ -123,6 +138,7 @@ export function AuthProvider({ children }) {
         console.log('Setting user from provided profile:', tokens.user_profile);
         setUser(tokens.user_profile);
         localStorage.setItem('user_profile', JSON.stringify(tokens.user_profile));
+        trackUserLogin(tokens);
         return tokens.user_profile;
       }
       
@@ -147,7 +163,7 @@ export function AuthProvider({ children }) {
           console.log('✅ User profile fetched:', userProfile);
           setUser(userProfile);
           localStorage.setItem('user_profile', JSON.stringify(userProfile));
-          
+          trackUserLogin(tokens);
           return userProfile;
           
         } catch (apiError) {
@@ -161,6 +177,7 @@ export function AuthProvider({ children }) {
         userProfile = decoded.user_data;
         setUser(userProfile);
         localStorage.setItem('user_profile', JSON.stringify(userProfile));
+        trackUserLogin(tokens);
         return userProfile;
       }
       
@@ -171,6 +188,7 @@ export function AuthProvider({ children }) {
           const profile = JSON.parse(storedProfile);
           setUser(profile);
           console.log('📁 User set from stored profile:', profile);
+          trackUserLogin(tokens);
           return profile;
         } catch (e) {
           console.warn('Failed to parse stored profile:', e);
@@ -188,7 +206,7 @@ export function AuthProvider({ children }) {
       setUser(userProfile);
       localStorage.setItem('user_profile', JSON.stringify(userProfile));
       console.log('⚠️ Using minimal user profile from token:', userProfile);
-      
+      trackUserLogin(tokens);
       return userProfile;
       
     } catch (error) {
@@ -205,6 +223,7 @@ export function AuthProvider({ children }) {
         };
         setUser(fallbackUser);
         localStorage.setItem('user_profile', JSON.stringify(fallbackUser));
+        trackUserLogin(tokens);
         return fallbackUser;
       } catch (decodeError) {
         console.error("Failed to decode token:", decodeError);
@@ -239,6 +258,7 @@ export function AuthProvider({ children }) {
       // Also clear any other potential auth-related items
       localStorage.removeItem('auth_state');
       
+      trackUserLogout();
       // Clear user from state
       setUser(null);
       

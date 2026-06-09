@@ -196,6 +196,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-datadog-sampling-priority",
     "x-datadog-trace-id",
     "x-datadog-sampled",
+    "traceparent",
+    "tracestate",
     "x-request-id",
     # Additional common CORS headers that might be needed
     "access-control-allow-origin",

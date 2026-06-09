@@ -513,6 +513,14 @@ CORS_ALLOW_HEADERS = (
     "x-email-verification-key",
     "x-password-reset-key",
     "x-organization-slug",
+    # Datadog RUM distributed tracing (browser -> backend APM)
+    "x-datadog-origin",
+    "x-datadog-parent-id",
+    "x-datadog-sampling-priority",
+    "x-datadog-trace-id",
+    "x-datadog-sampled",
+    "traceparent",
+    "tracestate",
 )
 
 CORS_ALLOW_CREDENTIALS = True
