@@ -26,10 +26,9 @@ Design notes:
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from typing import Any
-
-import re
 
 from django.db import transaction
 from django.db.models.functions import Trim
