@@ -12,6 +12,22 @@ function campminderId(person) {
   return person?.external_ids?.campminder_id || '';
 }
 
+function hasUserConflictBlocker(plans) {
+  return (plans || []).some(
+    (plan) => plan.blockers?.some((blocker) => blocker.includes('different Users')),
+  );
+}
+
+function repointLosersWithUsers(people, winnerId, loserStrategies) {
+  const winner = people.find((person) => person.id === winnerId);
+  if (!winner?.has_user) return false;
+  return people.some(
+    (person) => person.id !== winnerId
+      && person.has_user
+      && (loserStrategies[person.id] || 'repoint') === 'repoint',
+  );
+}
+
 /**
  * Modal for merging duplicate Person records selected on the Admin People page.
  */
@@ -78,14 +94,24 @@ export default function DedupePeopleModal({
       });
       setPreview(data);
       if (!data.ok) {
-        setPreviewError('Resolve the blockers below before deduping.');
+        setPreviewError(
+          hasUserConflictBlocker(data.plans)
+            ? 'Both records have separate logins. Enable "Keep winner\'s login" and preview again.'
+            : 'Resolve the blockers below before deduping.',
+        );
       }
     } catch (err) {
       const data = err?.response?.data;
       if (data?.plans) {
         setPreview(data);
+        setPreviewError(
+          hasUserConflictBlocker(data.plans)
+            ? 'Both records have separate logins. Enable "Keep winner\'s login" and preview again.'
+            : 'Resolve the blockers below before deduping.',
+        );
+      } else {
+        setPreviewError(data?.detail || 'Preview failed.');
       }
-      setPreviewError(data?.detail || 'Preview failed.');
     } finally {
       setPreviewLoading(false);
     }
@@ -112,9 +138,9 @@ export default function DedupePeopleModal({
     }
   };
 
-  const needsForceUser = preview?.plans?.some(
-    (plan) => plan.blockers?.some((blocker) => blocker.includes('different Users')),
-  );
+  const needsForceUser = hasUserConflictBlocker(preview?.plans);
+  const showForceUserOption = repointLosersWithUsers(people, winnerId, loserStrategies)
+    || needsForceUser;
   const needsDestructiveConfirm = preview?.plans?.some(
     (plan) => plan.blockers?.some((blocker) => blocker.includes('confirm_destructive')),
   );
@@ -159,7 +185,7 @@ export default function DedupePeopleModal({
                   <p className="font-medium text-sm">{person.full_name}</p>
                   <p className="text-xs text-gray-500">{person.email || 'no email'}</p>
                   <p className="text-xs text-gray-500">
-                    User: {person.has_user ? 'linked' : 'none'}
+                    Login: {person.has_user ? `User #${person.user_id}` : 'none'}
                     {campminderId(person) ? ` · Campminder ${campminderId(person)}` : ''}
                   </p>
                   <p className="text-xs text-gray-500">
@@ -205,17 +231,28 @@ export default function DedupePeopleModal({
           </section>
         )}
 
-        <div className="flex flex-wrap items-center gap-4">
-          {needsForceUser && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={forceUser}
-                onChange={(e) => setForceUser(e.target.checked)}
-                data-testid="dedupe-force-user"
-              />
-              Keep winner&apos;s login (unlink duplicate users)
-            </label>
+        <div className="flex flex-col gap-3">
+          {showForceUserOption && (
+            <div
+              data-testid="dedupe-force-user-panel"
+              className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100"
+            >
+              <p className="font-medium">Separate login accounts detected</p>
+              <p className="text-xs mt-1">
+                The winner and duplicate each have a User record. To roll the duplicate into the
+                winner, keep one login and unlink the loser&apos;s User before deleting Person #
+                {losers.map((person) => person.id).join(', ')}.
+              </p>
+              <label className="mt-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={forceUser}
+                  onChange={(e) => setForceUser(e.target.checked)}
+                  data-testid="dedupe-force-user"
+                />
+                Keep winner&apos;s login (unlink duplicate users)
+              </label>
+            </div>
           )}
           {needsDestructiveConfirm && (
             <label className="flex items-center gap-2 text-sm text-amber-800">

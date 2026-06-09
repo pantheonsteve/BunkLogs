@@ -35,6 +35,22 @@ vi.mock('../../../components/admin/DedupePeopleModal', () => ({
   ),
 }));
 
+vi.mock('../../../components/admin/DeletePersonModal', () => ({
+  default: ({ person, onClose, onCompleted }) => (
+    <div data-testid="delete-person-modal">
+      <span>{person.full_name}</span>
+      <button type="button" data-testid="delete-modal-close" onClick={onClose}>Close</button>
+      <button
+        type="button"
+        data-testid="delete-modal-complete"
+        onClick={() => onCompleted({ person_id: person.id })}
+      >
+        Complete
+      </button>
+    </div>
+  ),
+}));
+
 import {
   listAdminPeople,
   getAdminPerson,
@@ -160,6 +176,16 @@ describe('AdminPeople (7_13 PR2)', () => {
     fireEvent.click(screen.getByTestId('add-person-save'));
 
     expect(await screen.findByTestId('add-person-conflict')).toBeInTheDocument();
+  });
+
+  it('opens the delete modal from the profile panel', async () => {
+    renderPeople();
+    await screen.findByTestId('person-row-1');
+    fireEvent.click(screen.getByTestId('person-row-1'));
+    await screen.findByTestId('person-profile-panel-1');
+
+    fireEvent.click(screen.getByTestId('delete-person-1'));
+    expect(await screen.findByTestId('delete-person-modal')).toBeInTheDocument();
   });
 
   it('paginates the people list and passes filter params to the API', async () => {

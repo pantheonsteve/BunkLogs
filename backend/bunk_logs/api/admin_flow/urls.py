@@ -24,6 +24,8 @@ from .people import AdminPersonInviteView
 from .people import AdminPersonMembershipsView
 from .people_dedupe import AdminPeopleDedupeApplyView
 from .people_dedupe import AdminPeopleDedupePreviewView
+from .people_delete import AdminPersonDeleteApplyView
+from .people_delete import AdminPersonDeletePreviewView
 from .programs import AdminProgramDetailView
 from .programs import AdminProgramEndView
 from .programs import AdminProgramsListCreateView
@@ -72,6 +74,16 @@ urlpatterns = [
         "people/dedupe/",
         AdminPeopleDedupeApplyView.as_view(),
         name="admin-people-dedupe",
+    ),
+    path(
+        "people/<int:person_id>/delete/preview/",
+        AdminPersonDeletePreviewView.as_view(),
+        name="admin-person-delete-preview",
+    ),
+    path(
+        "people/<int:person_id>/delete/",
+        AdminPersonDeleteApplyView.as_view(),
+        name="admin-person-delete",
     ),
     path(
         "memberships/<int:membership_id>/",
