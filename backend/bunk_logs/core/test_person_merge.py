@@ -1,5 +1,6 @@
 """Tests for duplicate identity audit and Person merge tooling."""
 
+from datetime import date
 from io import StringIO
 
 import pytest
@@ -11,7 +12,13 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.person_merge import LoserSpec
+from bunk_logs.core.person_merge import dedupe_persons
+from bunk_logs.core.person_merge import discard_person
 from bunk_logs.core.person_merge import merge_persons
+from bunk_logs.core.person_merge import plan_discard_person
 from bunk_logs.core.person_merge import plan_person_merge
 from bunk_logs.users.models import User
 
@@ -216,3 +223,84 @@ class TestMergePersons:
 
         agm.refresh_from_db()
         assert agm.person_id == winner.id
+
+
+@pytest.mark.django_db
+class TestDiscardPerson:
+    def test_discard_deactivates_memberships_and_deletes_person(self, org, program):
+        person = Person.all_objects.create(
+            organization=org,
+            first_name="Dup",
+            last_name="Licate",
+            email="dup@example.com",
+        )
+        Membership.all_objects.create(program=program, person=person, role="counselor", is_active=True)
+
+        plan = plan_discard_person(person=person)
+        assert plan.ok
+
+        discard_person(person=person)
+
+        assert not Person.all_objects.filter(pk=person.pk).exists()
+        assert not Membership.all_objects.filter(person_id=person.pk, is_active=True).exists()
+
+    def test_discard_blocks_when_subject_reflections_without_confirm(self, org, program):
+        person = Person.all_objects.create(
+            organization=org, first_name="Cam", last_name="Per",
+        )
+        author = Person.all_objects.create(
+            organization=org, first_name="Auth", last_name="Or",
+        )
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Dedupe Org Daily",
+            slug="daily",
+            cadence="daily",
+            schema={"fields": []},
+        )
+        Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            subject=person,
+            author=author,
+            template=template,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={},
+        )
+
+        plan = plan_discard_person(person=person)
+        assert not plan.ok
+        assert "confirm_destructive" in plan.blockers[0]
+
+        discard_person(person=person, confirm_destructive=True)
+        assert not Person.all_objects.filter(pk=person.pk).exists()
+
+
+@pytest.mark.django_db
+class TestDedupePersons:
+    def test_dedupe_repoints_multiple_losers(self, org, program):
+        winner = Person.all_objects.create(
+            organization=org, first_name="Win", last_name="Ner",
+            external_ids={"campminder_id": "111"},
+        )
+        loser_one = Person.all_objects.create(
+            organization=org, first_name="Los", last_name="One",
+        )
+        loser_two = Person.all_objects.create(
+            organization=org, first_name="Los", last_name="Two",
+        )
+        Membership.all_objects.create(program=program, person=loser_one, role="counselor")
+        Membership.all_objects.create(program=program, person=loser_two, role="kitchen_staff")
+
+        dedupe_persons(
+            winner=winner,
+            loser_specs=[
+                LoserSpec(person_id=loser_one.pk, strategy="repoint"),
+                LoserSpec(person_id=loser_two.pk, strategy="repoint"),
+            ],
+        )
+
+        assert not Person.all_objects.filter(pk__in=[loser_one.pk, loser_two.pk]).exists()
+        assert Membership.all_objects.filter(person=winner, role="counselor").exists()
+        assert Membership.all_objects.filter(person=winner, role="kitchen_staff").exists()

@@ -150,6 +150,55 @@ class TestAdminPeople:
         body = r.json()
         assert body["existing_person"]["id"] == existing_person.id
 
+    def test_list_pagination_and_last_name_initial(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            for last_name, first_name in [
+                ("Adams", "Amy"),
+                ("Brown", "Ben"),
+                ("Adams", "Zoe"),
+            ]:
+                person = Person.all_objects.create(
+                    organization=org,
+                    first_name=first_name,
+                    last_name=last_name,
+                )
+                Membership.all_objects.create(
+                    program=program, person=person, role="counselor", is_active=True,
+                )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            page1 = api.get(
+                self.URL,
+                {"offset": 0, "page_size": 2},
+                **_hdr(org.slug),
+            )
+            assert page1.status_code == 200
+            body1 = page1.json()
+            assert body1["count"] == 4  # admin + 3 created
+            assert body1["page_size"] == 2
+            assert len(body1["results"]) == 2
+            assert body1["results"][0]["last_name"] == "Adams"
+            assert body1["results"][1]["last_name"] == "Adams"
+
+            page2 = api.get(
+                self.URL,
+                {"offset": 2, "page_size": 2},
+                **_hdr(org.slug),
+            )
+            assert page2.status_code == 200
+            assert len(page2.json()["results"]) == 2
+
+            filtered = api.get(
+                self.URL,
+                {"last_name_initial": "b", "status": "active"},
+                **_hdr(org.slug),
+            )
+        assert filtered.status_code == 200
+        names = [row["full_name"] for row in filtered.json()["results"]]
+        assert names == ["Ben Brown"]
+
     def test_membership_role_is_immutable(
         self, api, org, program, admin_user, existing_person,
     ):
