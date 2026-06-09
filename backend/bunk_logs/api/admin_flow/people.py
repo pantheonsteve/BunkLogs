@@ -86,6 +86,7 @@ def _serialize_person(person: Person, *, include_memberships: bool = False) -> d
         "translation_preference": person.translation_preference,
         "external_ids": person.external_ids or {},
         "has_user": person.user_id is not None,
+        "user_id": person.user_id,
         "created_at": person.created_at.isoformat() if person.created_at else None,
     }
     if include_memberships:

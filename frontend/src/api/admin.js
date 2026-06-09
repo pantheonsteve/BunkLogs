@@ -101,6 +101,16 @@ export async function commitAdminPeopleDedupe(payload) {
   return resp?.data ?? null;
 }
 
+export async function previewAdminPersonDelete(personId, payload = {}) {
+  const resp = await api.post(`${ADMIN_BASE}/people/${personId}/delete/preview/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function commitAdminPersonDelete(personId, payload) {
+  const resp = await api.post(`${ADMIN_BASE}/people/${personId}/delete/`, payload);
+  return resp?.data ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Assignments (Story 56)
 // ---------------------------------------------------------------------------

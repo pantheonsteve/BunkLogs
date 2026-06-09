@@ -14,6 +14,7 @@ import {
 } from '../../api/admin';
 import BulkImportModal from '../../components/admin/BulkImportModal';
 import DedupePeopleModal from '../../components/admin/DedupePeopleModal';
+import DeletePersonModal from '../../components/admin/DeletePersonModal';
 import { profileLink } from '../../utils/dashboardLinks';
 
 /**
@@ -527,6 +528,7 @@ function PersonProfilePanel({
   programs,
   invitedStatus,
   onInvite,
+  onDelete,
   onPersonChanged,
   onDismiss,
 }) {
@@ -548,6 +550,14 @@ function PersonProfilePanel({
           <p className="text-xs text-gray-500">{person.email || 'no email'}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            data-testid={`delete-person-${person.id}`}
+            onClick={() => onDelete(person)}
+            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-700 hover:bg-red-50"
+          >
+            Delete
+          </button>
           <button
             type="button"
             data-testid={`invite-person-${person.id}`}
@@ -596,6 +606,7 @@ export default function AdminPeople() {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [deduping, setDeduping] = useState(false);
+  const [deletingPerson, setDeletingPerson] = useState(null);
   const [invitedStatus, setInvitedStatus] = useState({});
   const [reloadToken, setReloadToken] = useState(0);
   const reloadPeople = () => setReloadToken((token) => token + 1);
@@ -878,6 +889,7 @@ export default function AdminPeople() {
                   programs={programs}
                   invitedStatus={invitedStatus}
                   onInvite={handleInvite}
+                  onDelete={setDeletingPerson}
                   onPersonChanged={() => refreshPerson(person.id)}
                   onDismiss={multiSelected ? (personId) => togglePersonSelection(personId) : null}
                 />
@@ -908,6 +920,28 @@ export default function AdminPeople() {
               setSelectedIds(new Set([result.winner_id]));
             } else {
               clearSelection();
+            }
+          }}
+        />
+      )}
+      {deletingPerson && (
+        <DeletePersonModal
+          person={deletingPerson}
+          onClose={() => setDeletingPerson(null)}
+          onCompleted={(result) => {
+            setDeletingPerson(null);
+            reloadPeople();
+            if (result?.person_id) {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(result.person_id);
+                return next;
+              });
+              setSelectedPeople((prev) => {
+                const next = new Map(prev);
+                next.delete(result.person_id);
+                return next;
+              });
             }
           }}
         />
