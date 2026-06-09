@@ -26,10 +26,12 @@ Design notes:
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from typing import Any
 
 from django.db import transaction
+from django.db.models.functions import Trim
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -179,6 +181,14 @@ class AdminPeopleListCreateView(APIView):
         tag = (request.query_params.get("tag") or "").strip().lower()
         if tag:
             qs = qs.filter(memberships__tags__contains=[tag]).distinct()
+
+        last_name_initial = (request.query_params.get("last_name_initial") or "").strip()
+        if last_name_initial:
+            letter = last_name_initial[0].upper()
+            if letter.isalpha():
+                qs = qs.annotate(_last_name_trim=Trim("last_name")).filter(
+                    _last_name_trim__iregex=rf"^\s*{re.escape(letter)}",
+                )
 
         status_filter = (request.query_params.get("status") or "").strip().lower()
         if status_filter == "active":

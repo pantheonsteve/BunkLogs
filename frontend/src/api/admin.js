@@ -33,9 +33,27 @@ export async function postAdminOverrideEdit({
 // People (Story 55)
 // ---------------------------------------------------------------------------
 
-export async function listAdminPeople(params = {}) {
-  const resp = await api.get(`${ADMIN_BASE}/people/`, { params });
+export async function listAdminPeople(params = {}, config = {}) {
+  const resp = await api.get(`${ADMIN_BASE}/people/`, { params, ...config });
   return resp?.data ?? { results: [] };
+}
+
+/** Build query params for GET /admin/people/ — omits empty filters. */
+export function buildAdminPeopleListParams({
+  search = '',
+  role = '',
+  status = '',
+  last_name_initial = '',
+  offset = 0,
+  page_size = 50,
+} = {}) {
+  const params = { offset, page_size };
+  const trimmedSearch = search.trim();
+  if (trimmedSearch) params.search = trimmedSearch;
+  if (role) params.role = role;
+  if (status) params.status = status;
+  if (last_name_initial) params.last_name_initial = last_name_initial;
+  return params;
 }
 
 export async function getAdminPerson(personId) {
@@ -70,6 +88,16 @@ export async function deactivateAdminMembership(membershipId, reason) {
 
 export async function inviteAdminPerson(personId, payload = {}) {
   const resp = await api.post(`${ADMIN_BASE}/people/${personId}/invite/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function previewAdminPeopleDedupe(payload) {
+  const resp = await api.post(`${ADMIN_BASE}/people/dedupe/preview/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function commitAdminPeopleDedupe(payload) {
+  const resp = await api.post(`${ADMIN_BASE}/people/dedupe/`, payload);
   return resp?.data ?? null;
 }
 

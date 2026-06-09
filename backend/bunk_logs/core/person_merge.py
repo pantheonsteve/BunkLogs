@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Literal
 
 from django.db import transaction
+from django.utils import timezone
 
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import CamperDayState
@@ -163,6 +165,242 @@ def plan_person_merge(*, winner: Person, loser: Person, force_user: bool = False
 
     plan.actions.append(MergeAction("Person", f"delete Person {loser.pk}"))
     return plan
+
+
+@dataclass
+class DiscardPlan:
+    person_id: int
+    actions: list[MergeAction] = field(default_factory=list)
+    blockers: list[str] = field(default_factory=list)
+    impact_counts: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        return not self.blockers
+
+
+@dataclass
+class LoserSpec:
+    person_id: int
+    strategy: Literal["repoint", "discard"]
+    force_user: bool = False
+
+
+@dataclass
+class DedupePlan:
+    winner_id: int
+    losers: list[dict] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return all(entry.get("ok") for entry in self.losers)
+
+
+def serialize_merge_plan(plan: MergePlan) -> dict:
+    return {
+        "ok": plan.ok,
+        "winner_id": plan.winner_id,
+        "loser_id": plan.loser_id,
+        "actions": [
+            {"model": action.model, "description": action.description, "count": action.count}
+            for action in plan.actions
+        ],
+        "blockers": list(plan.blockers),
+    }
+
+
+def serialize_discard_plan(plan: DiscardPlan) -> dict:
+    return {
+        "ok": plan.ok,
+        "person_id": plan.person_id,
+        "actions": [
+            {"model": action.model, "description": action.description, "count": action.count}
+            for action in plan.actions
+        ],
+        "blockers": list(plan.blockers),
+        "impact_counts": dict(plan.impact_counts),
+    }
+
+
+def person_impact_counts(person: Person) -> dict[str, int]:
+    return {
+        "reflections_as_subject": _count(Reflection.all_objects.filter(subject=person)),
+        "reflections_as_author": _count(Reflection.all_objects.filter(author=person)),
+        "observations_as_author": _count(Observation.all_objects.filter(author=person)),
+        "observation_replies_as_author": _count(ObservationReply.objects.filter(author=person)),
+        "memberships_active": _count(Membership.all_objects.filter(person=person, is_active=True)),
+        "group_memberships_active": _count(
+            AssignmentGroupMembership.all_objects.filter(person=person, is_active=True),
+        ),
+        "orders_as_subject": _count(Order.all_objects.filter(subject=person)),
+        "flags_as_camper": _count(Flag.all_objects.filter(subject_camper=person)),
+    }
+
+
+def plan_discard_person(*, person: Person, confirm_destructive: bool = False) -> DiscardPlan:
+    """Dry-run plan for discarding a duplicate Person without repointing to a winner."""
+    plan = DiscardPlan(person_id=person.pk)
+    plan.impact_counts = person_impact_counts(person)
+
+    if plan.impact_counts["reflections_as_subject"] > 0 and not confirm_destructive:
+        plan.blockers.append(
+            f"Person is subject of {plan.impact_counts['reflections_as_subject']} reflection(s); "
+            "confirm_destructive required to delete",
+        )
+
+    n_memberships = _count(Membership.all_objects.filter(person=person, is_active=True))
+    if n_memberships:
+        plan.actions.append(MergeAction(
+            "Membership",
+            f"deactivate {n_memberships} active membership(s)",
+            count=n_memberships,
+        ))
+
+    n_group = _count(AssignmentGroupMembership.all_objects.filter(person=person, is_active=True))
+    if n_group:
+        plan.actions.append(MergeAction(
+            "AssignmentGroupMembership",
+            f"deactivate {n_group} active group membership(s)",
+            count=n_group,
+        ))
+
+    if person.user_id:
+        plan.actions.append(MergeAction("Person.user", f"unlink User {person.user_id}"))
+
+    for label, key in (
+        ("Reflection.subject", "reflections_as_subject"),
+        ("Reflection.author", "reflections_as_author"),
+        ("Observation.author", "observations_as_author"),
+        ("ObservationReply.author", "observation_replies_as_author"),
+    ):
+        count = plan.impact_counts[key]
+        if count:
+            plan.actions.append(MergeAction(label, f"affected on delete ({count} row(s))", count=count))
+
+    plan.actions.append(MergeAction("Person", f"delete Person {person.pk}"))
+    return plan
+
+
+def _soft_deactivate_memberships(*, person: Person, today) -> None:
+    for membership in Membership.all_objects.filter(person=person, is_active=True):
+        membership.is_active = False
+        if not membership.end_date:
+            membership.end_date = today
+        membership.save(update_fields=["is_active", "end_date"])
+
+    for agm in AssignmentGroupMembership.all_objects.filter(person=person, is_active=True):
+        agm.is_active = False
+        if not agm.end_date:
+            agm.end_date = today
+        agm.save(update_fields=["is_active", "end_date"])
+
+
+def discard_person(*, person: Person, confirm_destructive: bool = False) -> DiscardPlan:
+    """Discard a Person without merging content to a winner."""
+    plan = plan_discard_person(person=person, confirm_destructive=confirm_destructive)
+    if plan.blockers:
+        raise ValueError("; ".join(plan.blockers))
+
+    today = timezone.localdate()
+    _soft_deactivate_memberships(person=person, today=today)
+    if person.user_id:
+        person.user = None
+        person.save(update_fields=["user"])
+    person.delete()
+    return plan
+
+
+def plan_dedupe(
+    *,
+    winner: Person,
+    loser_specs: list[LoserSpec],
+    confirm_destructive: bool = False,
+) -> DedupePlan:
+    """Dry-run plan for deduping multiple losers into one winner."""
+    dedupe = DedupePlan(winner_id=winner.pk)
+    for spec in loser_specs:
+        if spec.person_id == winner.pk:
+            dedupe.losers.append({
+                "person_id": spec.person_id,
+                "strategy": spec.strategy,
+                "ok": False,
+                "actions": [],
+                "blockers": ["winner cannot also be a loser"],
+                "impact_counts": {},
+            })
+            continue
+
+        try:
+            loser = Person.all_objects.get(pk=spec.person_id, organization=winner.organization)
+        except Person.DoesNotExist:
+            dedupe.losers.append({
+                "person_id": spec.person_id,
+                "strategy": spec.strategy,
+                "ok": False,
+                "actions": [],
+                "blockers": [f"Person {spec.person_id} not found in org"],
+                "impact_counts": {},
+            })
+            continue
+
+        if spec.strategy == "discard":
+            discard_plan = plan_discard_person(
+                person=loser,
+                confirm_destructive=confirm_destructive,
+            )
+            dedupe.losers.append({
+                "person_id": spec.person_id,
+                "strategy": spec.strategy,
+                **serialize_discard_plan(discard_plan),
+            })
+        else:
+            merge_plan = plan_person_merge(
+                winner=winner,
+                loser=loser,
+                force_user=spec.force_user,
+            )
+            entry = serialize_merge_plan(merge_plan)
+            entry["person_id"] = spec.person_id
+            entry["strategy"] = spec.strategy
+            entry["impact_counts"] = person_impact_counts(loser)
+            dedupe.losers.append(entry)
+
+    return dedupe
+
+
+@transaction.atomic
+def dedupe_persons(
+    *,
+    winner: Person,
+    loser_specs: list[LoserSpec],
+    confirm_destructive: bool = False,
+) -> DedupePlan:
+    """Apply dedupe for all losers into winner."""
+    plan = plan_dedupe(
+        winner=winner,
+        loser_specs=loser_specs,
+        confirm_destructive=confirm_destructive,
+    )
+    if not plan.ok:
+        blockers = [
+            blocker
+            for entry in plan.losers
+            for blocker in entry.get("blockers", [])
+        ]
+        raise ValueError("; ".join(blockers) if blockers else "dedupe blocked")
+
+    preview = plan
+    for spec in loser_specs:
+        if spec.person_id == winner.pk:
+            continue
+        loser = Person.all_objects.get(pk=spec.person_id, organization=winner.organization)
+        if spec.strategy == "discard":
+            discard_person(person=loser, confirm_destructive=confirm_destructive)
+        else:
+            merge_persons(winner=winner, loser=loser, force_user=spec.force_user)
+            winner.refresh_from_db()
+
+    return preview
 
 
 def _merge_memberships(*, winner: Person, loser: Person) -> int:

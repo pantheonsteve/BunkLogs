@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   listAdminPeople,
+  buildAdminPeopleListParams,
   getAdminPerson,
   createAdminPerson,
   patchAdminPerson,
@@ -12,6 +13,7 @@ import {
   listAdminPrograms,
 } from '../../api/admin';
 import BulkImportModal from '../../components/admin/BulkImportModal';
+import DedupePeopleModal from '../../components/admin/DedupePeopleModal';
 import { profileLink } from '../../utils/dashboardLinks';
 
 /**
@@ -30,6 +32,9 @@ const ROLE_OPTIONS = [
   'medical', 'special_diets',
   'madrich', 'faculty', 'camper',
 ];
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+const LAST_NAME_INITIALS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 function classNames(...args) {
   return args.filter(Boolean).join(' ');
@@ -467,55 +472,224 @@ function AddPersonModal({ programs, onClose, onCreated }) {
   );
 }
 
+function PeopleListPagination({
+  offset,
+  resultCount,
+  totalCount,
+  loading,
+  onPrevious,
+  onNext,
+}) {
+  if (totalCount === 0) return null;
+  const start = offset + 1;
+  const end = Math.min(offset + resultCount, totalCount);
+  const hasPrevious = offset > 0;
+  const hasNext = offset + Math.max(resultCount, 1) < totalCount;
+  return (
+    <div
+      data-testid="people-list-pagination"
+      className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-500"
+    >
+      <p>
+        Showing <span className="font-medium text-gray-700 dark:text-gray-300">{start}</span>
+        {' '}to{' '}
+        <span className="font-medium text-gray-700 dark:text-gray-300">{end}</span>
+        {' '}of{' '}
+        <span className="font-medium text-gray-700 dark:text-gray-300">{totalCount}</span>
+        {' '}· sorted A–Z by last name
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="people-page-previous"
+          disabled={!hasPrevious || loading}
+          onClick={onPrevious}
+          className="px-3 py-1 rounded-md border border-gray-300 bg-white text-gray-700 disabled:opacity-40 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          data-testid="people-page-next"
+          disabled={!hasNext || loading}
+          onClick={onNext}
+          className="px-3 py-1 rounded-md border border-gray-300 bg-white text-gray-700 disabled:opacity-40 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PersonProfilePanel({
+  person,
+  programs,
+  invitedStatus,
+  onInvite,
+  onPersonChanged,
+  onDismiss,
+}) {
+  return (
+    <div
+      className="rounded-md border border-gray-200 dark:border-gray-700 p-3 bg-gray-50/50 dark:bg-gray-900/40"
+      data-testid={`person-profile-panel-${person.id}`}
+    >
+      <header className="flex items-start justify-between gap-2 mb-3">
+        <div>
+          <h2 className="text-base font-semibold">
+            <Link
+              to={profileLink(person.id)}
+              className="text-indigo-700 dark:text-indigo-300 hover:underline"
+            >
+              {person.full_name}
+            </Link>
+          </h2>
+          <p className="text-xs text-gray-500">{person.email || 'no email'}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            data-testid={`invite-person-${person.id}`}
+            onClick={() => onInvite(person.id)}
+            disabled={!person.email || invitedStatus[person.id] === 'pending'}
+            className="text-xs px-2 py-1 rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          >
+            {invitedStatus[person.id] === 'sent' ? 'Invitation sent' : 'Send invitation'}
+          </button>
+          {onDismiss && (
+            <button
+              type="button"
+              aria-label={`Remove ${person.full_name} from selection`}
+              data-testid={`dismiss-person-${person.id}`}
+              onClick={() => onDismiss(person.id)}
+              className="text-xs px-2 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </header>
+      <ProfileTabs
+        person={person}
+        programs={programs}
+        onPersonChanged={onPersonChanged}
+      />
+    </div>
+  );
+}
+
 export default function AdminPeople() {
   const [people, setPeople] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [lastNameInitial, setLastNameInitial] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [selectedPeople, setSelectedPeople] = useState(() => new Map());
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [deduping, setDeduping] = useState(false);
   const [invitedStatus, setInvitedStatus] = useState({});
+  const [reloadToken, setReloadToken] = useState(0);
+  const reloadPeople = () => setReloadToken((token) => token + 1);
 
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const [list, progList] = await Promise.all([
-        listAdminPeople({
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const fetchPeople = async () => {
+      setError(null);
+      setLoading(true);
+      try {
+        const params = buildAdminPeopleListParams({
           search,
           role: roleFilter,
           status: statusFilter,
-          page_size: 100,
-        }),
-        listAdminPrograms('active'),
-      ]);
-      setPeople(list.results || []);
-      setPrograms(progList.results || []);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, roleFilter, statusFilter]);
+          last_name_initial: lastNameInitial,
+          offset,
+          page_size: pageSize,
+        });
+        const [list, progList] = await Promise.all([
+          listAdminPeople(params, { signal: controller.signal }),
+          listAdminPrograms('active'),
+        ]);
+        if (cancelled) return;
+        setPeople(list.results || []);
+        setTotalCount(list.count ?? 0);
+        setPrograms(progList.results || []);
+      } catch (err) {
+        if (cancelled || err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        setError(err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-  useEffect(() => { load(); }, [load]);
+    fetchPeople();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [search, roleFilter, statusFilter, lastNameInitial, offset, pageSize, reloadToken]);
+
+  const resetPage = () => setOffset(0);
+  const updateSearch = (value) => {
+    setSearch(value);
+    resetPage();
+  };
 
   useEffect(() => {
-    if (selectedId == null) {
-      setSelectedPerson(null);
-      return;
+    let cancelled = false;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      setSelectedPeople(new Map());
+      return undefined;
     }
-    getAdminPerson(selectedId).then(setSelectedPerson).catch(() => setSelectedPerson(null));
-  }, [selectedId]);
+    Promise.all(
+      ids.map(async (id) => {
+        try {
+          const person = await getAdminPerson(id);
+          return [id, person];
+        } catch {
+          return [id, null];
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setSelectedPeople(new Map(entries.filter(([, person]) => person)));
+    });
+    return () => { cancelled = true; };
+  }, [selectedIds]);
 
-  const refreshSelected = () => {
-    if (selectedId == null) return;
-    getAdminPerson(selectedId).then(setSelectedPerson);
+  const togglePersonSelection = (personId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(personId)) next.delete(personId);
+      else next.add(personId);
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectedPeople(new Map());
+  };
+
+  const refreshPerson = (personId) => {
+    getAdminPerson(personId).then((person) => {
+      setSelectedPeople((prev) => {
+        const next = new Map(prev);
+        next.set(personId, person);
+        return next;
+      });
+    });
   };
 
   const handleInvite = async (personId) => {
@@ -527,6 +701,12 @@ export default function AdminPeople() {
       setInvitedStatus({ ...invitedStatus, [personId]: 'error' });
     }
   };
+
+  const selectedCount = selectedIds.size;
+  const multiSelected = selectedCount > 1;
+  const selectedProfiles = Array.from(selectedIds)
+    .map((id) => selectedPeople.get(id))
+    .filter(Boolean);
 
   return (
     <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-6xl mx-auto" data-testid="admin-people">
@@ -551,12 +731,12 @@ export default function AdminPeople() {
           </button>
         </div>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
-        <FieldInput label="Search name or email" value={search} onChange={setSearch} />
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+        <FieldInput label="Search name or email" value={search} onChange={updateSearch} />
         <label className="block text-xs font-medium">Role
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
+            onChange={(e) => { setRoleFilter(e.target.value); resetPage(); }}
             className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm"
           >
             <option value="">Any</option>
@@ -566,7 +746,7 @@ export default function AdminPeople() {
         <label className="block text-xs font-medium">Status
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
             className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm"
           >
             <option value="active">Active</option>
@@ -574,9 +754,59 @@ export default function AdminPeople() {
             <option value="">All</option>
           </select>
         </label>
+        <label className="block text-xs font-medium">Last name starts with
+          <select
+            value={lastNameInitial}
+            onChange={(e) => { setLastNameInitial(e.target.value); resetPage(); }}
+            data-testid="last-name-initial-filter"
+            className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm"
+          >
+            <option value="">Any letter</option>
+            {LAST_NAME_INITIALS.map((letter) => (
+              <option key={letter} value={letter}>{letter}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-xs font-medium">Per page
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); resetPage(); }}
+            data-testid="people-page-size"
+            className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </label>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <section data-testid="people-list" className="space-y-2">
+      {selectedCount > 0 && (
+        <div
+          data-testid="people-selection-toolbar"
+          className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm dark:border-indigo-800 dark:bg-indigo-900/20"
+        >
+          <span>{selectedCount} selected</span>
+          <button
+            type="button"
+            data-testid="open-dedupe"
+            disabled={selectedCount < 2}
+            onClick={() => setDeduping(true)}
+            className="px-3 py-1 rounded-md bg-red-600 text-white disabled:opacity-50"
+          >
+            Dedupe
+          </button>
+          <button
+            type="button"
+            data-testid="clear-people-selection"
+            onClick={clearSelection}
+            className="text-indigo-700 hover:underline dark:text-indigo-300"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+      <div className={classNames('grid grid-cols-1 gap-4', multiSelected ? 'md:grid-cols-5' : 'md:grid-cols-2')}>
+        <section data-testid="people-list" className={classNames('space-y-2', multiSelected && 'md:col-span-2')}>
           {loading ? (
             <p className="text-sm text-gray-500">Loading…</p>
           ) : error ? (
@@ -591,54 +821,68 @@ export default function AdminPeople() {
                   key={p.id}
                   data-testid={`person-row-${p.id}`}
                   className={classNames(
-                    'p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800',
-                    selectedId === p.id && 'bg-indigo-50 dark:bg-indigo-900/20',
+                    'p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 flex items-start gap-3',
+                    selectedIds.has(p.id) && 'bg-indigo-50 dark:bg-indigo-900/20',
                   )}
-                  onClick={() => setSelectedId(p.id)}
+                  onClick={() => togglePersonSelection(p.id)}
                 >
-                  <Link
-                    to={profileLink(p.id)}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(p.id)}
+                    onChange={() => togglePersonSelection(p.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className="font-medium text-sm text-indigo-700 dark:text-indigo-300 hover:underline"
-                  >
-                    {p.full_name}
-                  </Link>
-                  <p className="text-xs text-gray-500">{p.email || 'no email'}</p>
+                    data-testid={`person-select-${p.id}`}
+                    className="mt-1"
+                    aria-label={`Select ${p.full_name}`}
+                  />
+                  <div className="min-w-0">
+                    <Link
+                      to={profileLink(p.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-medium text-sm text-indigo-700 dark:text-indigo-300 hover:underline"
+                    >
+                      {p.full_name}
+                    </Link>
+                    <p className="text-xs text-gray-500">{p.email || 'no email'}</p>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
+          {!loading && !error && (
+            <PeopleListPagination
+              offset={offset}
+              resultCount={people.length}
+              totalCount={totalCount}
+              loading={loading}
+              onPrevious={() => setOffset((prev) => Math.max(0, prev - pageSize))}
+              onNext={() => setOffset((prev) => prev + pageSize)}
+            />
+          )}
         </section>
-        <aside data-testid="person-drawer" className="rounded-md border bg-white dark:bg-gray-900 p-4">
-          {!selectedPerson ? (
+        <aside
+          data-testid="person-drawer"
+          className={classNames(
+            'rounded-md border bg-white dark:bg-gray-900 p-4',
+            multiSelected && 'md:col-span-3',
+          )}
+        >
+          {selectedCount === 0 ? (
             <p className="text-sm italic text-gray-500">Select a Person to view their profile.</p>
           ) : (
-            <>
-              <header className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold">
-                  <Link
-                    to={profileLink(selectedPerson.id)}
-                    className="text-indigo-700 dark:text-indigo-300 hover:underline"
-                  >
-                    {selectedPerson.full_name}
-                  </Link>
-                </h2>
-                <button
-                  type="button"
-                  data-testid="invite-person"
-                  onClick={() => handleInvite(selectedPerson.id)}
-                  disabled={!selectedPerson.email || invitedStatus[selectedPerson.id] === 'pending'}
-                  className="text-xs px-2 py-1 rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
-                >
-                  {invitedStatus[selectedPerson.id] === 'sent' ? 'Invitation sent' : 'Send invitation'}
-                </button>
-              </header>
-              <ProfileTabs
-                person={selectedPerson}
-                programs={programs}
-                onPersonChanged={refreshSelected}
-              />
-            </>
+            <div className="max-h-[70vh] overflow-y-auto space-y-4">
+              {selectedProfiles.map((person) => (
+                <PersonProfilePanel
+                  key={person.id}
+                  person={person}
+                  programs={programs}
+                  invitedStatus={invitedStatus}
+                  onInvite={handleInvite}
+                  onPersonChanged={() => refreshPerson(person.id)}
+                  onDismiss={multiSelected ? (personId) => togglePersonSelection(personId) : null}
+                />
+              ))}
+            </div>
           )}
         </aside>
       </div>
@@ -648,15 +892,30 @@ export default function AdminPeople() {
           onClose={() => setAdding(false)}
           onCreated={(person) => {
             setAdding(false);
-            load();
-            if (person?.id) setSelectedId(person.id);
+            reloadPeople();
+            if (person?.id) setSelectedIds(new Set([person.id]));
+          }}
+        />
+      )}
+      {deduping && (
+        <DedupePeopleModal
+          selectedPeople={selectedPeople}
+          onClose={() => setDeduping(false)}
+          onCompleted={(result) => {
+            setDeduping(false);
+            reloadPeople();
+            if (result?.winner_id) {
+              setSelectedIds(new Set([result.winner_id]));
+            } else {
+              clearSelection();
+            }
           }}
         />
       )}
       {importing && (
         <BulkImportModal
           programs={programs}
-          onClose={() => { setImporting(false); load(); }}
+          onClose={() => { setImporting(false); reloadPeople(); }}
         />
       )}
     </main>
