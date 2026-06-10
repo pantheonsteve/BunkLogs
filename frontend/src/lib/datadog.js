@@ -1,8 +1,32 @@
 import { datadogRum } from '@datadog/browser-rum';
-import { reactPlugin } from '@datadog/browser-rum-react';
 import { resolveOrganizationSlug } from '../utils/orgSlug';
 
 let initialized = false;
+
+function createTraceIdentifier(bits = 64) {
+  const buffer = crypto.getRandomValues(new Uint32Array(2));
+  if (bits === 63) {
+    buffer[buffer.length - 1] >>>= 1;
+  }
+  return {
+    toString(radix = 10) {
+      let high = buffer[1];
+      let low = buffer[0];
+      let str = '';
+      do {
+        const mod = (high % radix) * 4294967296 + low;
+        high = Math.floor(high / radix);
+        low = Math.floor(mod / radix);
+        str = (mod % radix).toString(radix) + str;
+      } while (high || low);
+      return str;
+    },
+  };
+}
+
+function toPaddedHexadecimalString(id) {
+  return id.toString(16).padStart(16, '0');
+}
 
 function normalizeApiUrl(url) {
   if (!url) return null;
@@ -39,6 +63,55 @@ export function isDatadogRumEnabled() {
   return initialized;
 }
 
+function resolveRequestUrl(baseURL, url) {
+  if (!url) return null;
+  if (/^https?:\/\//.test(url)) return url;
+  const base = (baseURL || '').replace(/\/$/, '');
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
+/**
+ * Inject Datadog + W3C trace headers on API requests.
+ * RUM's passive XHR hook is unreliable with axios; set headers explicitly here.
+ */
+export function applyTraceHeaders(headers, requestUrl) {
+  if (!initialized || !requestUrl || !isApiTracingUrl(requestUrl)) {
+    return;
+  }
+
+  const traceId = createTraceIdentifier(64);
+  const spanId = createTraceIdentifier(63);
+  const traceIdHex = toPaddedHexadecimalString(traceId);
+  const spanIdHex = toPaddedHexadecimalString(spanId);
+
+  const setHeader = (name, value) => {
+    if (headers?.set) {
+      headers.set(name, value);
+    } else {
+      headers[name] = value;
+    }
+  };
+
+  setHeader('x-datadog-origin', 'rum');
+  setHeader('x-datadog-trace-id', traceId.toString());
+  setHeader('x-datadog-parent-id', spanId.toString());
+  setHeader('x-datadog-sampling-priority', '1');
+  setHeader('traceparent', `00-0000000000000000${traceIdHex}-${spanIdHex}-01`);
+  setHeader('tracestate', 'dd=s:1;o:rum');
+}
+
+export async function waitForDatadogSession(timeoutMs = 3000) {
+  if (!shouldEnableDatadog()) return;
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (datadogRum.getInternalContext?.()?.session_id) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 export function initDatadogRum() {
   if (initialized || !shouldEnableDatadog()) {
     return;
@@ -59,6 +132,7 @@ export function initDatadogRum() {
       sessionSampleRate: 100,
       sessionReplaySampleRate: 20,
       traceSampleRate: 100,
+      traceContextInjection: 'all',
       defaultPrivacyLevel: 'mask-user-input',
       trackUserInteractions: true,
       trackResources: true,
@@ -68,13 +142,14 @@ export function initDatadogRum() {
       silentMultipleInit: true,
       allowedTracingUrls: [
         {
-          match: isApiTracingUrl,
+          match: normalizeApiUrl(import.meta.env.VITE_API_URL) || 'https://admin.bunklogs.net',
+          propagatorTypes: ['datadog', 'tracecontext'],
+        },
+        {
+          match: 'http://localhost:8000',
           propagatorTypes: ['datadog', 'tracecontext'],
         },
       ],
-      // Automatic view tracking — router:true sets trackViewsManually but requires
-      // startView() on every route change, which we do not wire up yet.
-      plugins: [reactPlugin()],
     });
 
     initialized = true;

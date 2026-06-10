@@ -1,25 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { initDatadogRum } from './lib/datadog';
+import { initDatadogRum, waitForDatadogSession } from './lib/datadog';
 import ThemeProvider from './utils/ThemeContext';
 import App from './App';
 
 import { init } from './init';
-
-initDatadogRum();
-
-// Initialize the application asynchronously
-async function initializeApp() {
-  try {
-    await init();
-    console.log('App initialization completed');
-  } catch (error) {
-    console.error('App initialization failed:', error);
-  }
-}
-
-// Start initialization
-initializeApp();
 
 // Create a function to safely render the app after DOM is ready
 function renderApp() {
@@ -43,9 +28,22 @@ function renderApp() {
   }
 }
 
-// Render only after DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', renderApp);
-} else {
-  renderApp();
+async function bootstrap() {
+  initDatadogRum();
+  await waitForDatadogSession();
+
+  try {
+    await init();
+    console.log('App initialization completed');
+  } catch (error) {
+    console.error('App initialization failed:', error);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderApp, { once: true });
+  } else {
+    renderApp();
+  }
 }
+
+bootstrap();

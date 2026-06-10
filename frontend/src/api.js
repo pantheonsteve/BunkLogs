@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getCSRFToken } from './django';
-import { trackApiSuccess } from './lib/datadog';
+import { applyTraceHeaders, trackApiSuccess } from './lib/datadog';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
 import { resolveOrganizationSlug } from './utils/orgSlug';
 
@@ -35,9 +35,20 @@ const getServerCSRFToken = async () => {
   }
 };
 
+function resolveAxiosRequestUrl(config) {
+  const url = config.url || '';
+  if (/^https?:\/\//.test(url)) {
+    return url;
+  }
+  const base = (config.baseURL || apiUrl).replace(/\/$/, '');
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
 // Add request interceptor to attach token and CSRF token
 api.interceptors.request.use(
   async (config) => {
+    applyTraceHeaders(config.headers, resolveAxiosRequestUrl(config));
+
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
