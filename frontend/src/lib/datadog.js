@@ -72,7 +72,9 @@ export function initDatadogRum() {
           propagatorTypes: ['datadog', 'tracecontext'],
         },
       ],
-      plugins: [reactPlugin({ router: true })],
+      // Automatic view tracking — router:true sets trackViewsManually but requires
+      // startView() on every route change, which we do not wire up yet.
+      plugins: [reactPlugin()],
     });
 
     initialized = true;
