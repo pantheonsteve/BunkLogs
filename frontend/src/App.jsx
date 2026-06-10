@@ -1,10 +1,31 @@
 import { useState, useEffect } from 'react';
+import { ErrorBoundary } from '@datadog/browser-rum-react';
 import { AuthProvider } from './auth/AuthContext';
 import { AllAuthProvider } from './context/AllAuthContext';
 import { BunkProvider } from './contexts/BunkContext';
 import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
 import './css/style.css';
+
+function AppErrorFallback({ resetError, error }) {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="text-center max-w-md px-4">
+        <p className="text-gray-700 dark:text-gray-300">
+          Something went wrong.{' '}
+          <strong className="block mt-2 text-sm">{String(error)}</strong>
+        </p>
+        <button
+          type="button"
+          onClick={resetError}
+          className="mt-4 px-4 py-2 bg-violet-500 text-white rounded hover:bg-violet-600"
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [appReady, setAppReady] = useState(false);
@@ -33,13 +54,15 @@ function App() {
   }
 
   return (
-    <AllAuthProvider>
-      <AuthProvider>
-        <BunkProvider>
-          <Router />
-        </BunkProvider>
-      </AuthProvider>
-    </AllAuthProvider>
+    <ErrorBoundary fallback={AppErrorFallback}>
+      <AllAuthProvider>
+        <AuthProvider>
+          <BunkProvider>
+            <Router />
+          </BunkProvider>
+        </AuthProvider>
+      </AllAuthProvider>
+    </ErrorBoundary>
   );
 }
 

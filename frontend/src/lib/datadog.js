@@ -1,32 +1,8 @@
 import { datadogRum } from '@datadog/browser-rum';
+import { reactPlugin } from '@datadog/browser-rum-react';
 import { resolveOrganizationSlug } from '../utils/orgSlug';
 
 let initialized = false;
-
-function createTraceIdentifier(bits = 64) {
-  const buffer = crypto.getRandomValues(new Uint32Array(2));
-  if (bits === 63) {
-    buffer[buffer.length - 1] >>>= 1;
-  }
-  return {
-    toString(radix = 10) {
-      let high = buffer[1];
-      let low = buffer[0];
-      let str = '';
-      do {
-        const mod = (high % radix) * 4294967296 + low;
-        high = Math.floor(high / radix);
-        low = Math.floor(mod / radix);
-        str = (mod % radix).toString(radix) + str;
-      } while (high || low);
-      return str;
-    },
-  };
-}
-
-function toPaddedHexadecimalString(id) {
-  return id.toString(16).padStart(16, '0');
-}
 
 function normalizeApiUrl(url) {
   if (!url) return null;
@@ -47,57 +23,8 @@ function shouldEnableDatadog() {
   return import.meta.env.PROD || import.meta.env.VITE_DATADOG_FORCE_ENABLE === 'true';
 }
 
-function isApiTracingUrl(url) {
-  const apiUrl = normalizeApiUrl(import.meta.env.VITE_API_URL);
-  if (apiUrl && url.startsWith(apiUrl)) {
-    return true;
-  }
-
-  return (
-    /^https:\/\/admin\.bunklogs\.net/.test(url) ||
-    /^http:\/\/localhost:8000/.test(url)
-  );
-}
-
 export function isDatadogRumEnabled() {
   return initialized;
-}
-
-function resolveRequestUrl(baseURL, url) {
-  if (!url) return null;
-  if (/^https?:\/\//.test(url)) return url;
-  const base = (baseURL || '').replace(/\/$/, '');
-  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
-}
-
-/**
- * Inject Datadog + W3C trace headers on API requests.
- * RUM's passive XHR hook is unreliable with axios; set headers explicitly here.
- */
-export function applyTraceHeaders(headers, requestUrl) {
-  if (!initialized || !requestUrl || !isApiTracingUrl(requestUrl)) {
-    return;
-  }
-
-  const traceId = createTraceIdentifier(64);
-  const spanId = createTraceIdentifier(63);
-  const traceIdHex = toPaddedHexadecimalString(traceId);
-  const spanIdHex = toPaddedHexadecimalString(spanId);
-
-  const setHeader = (name, value) => {
-    if (headers?.set) {
-      headers.set(name, value);
-    } else {
-      headers[name] = value;
-    }
-  };
-
-  setHeader('x-datadog-origin', 'rum');
-  setHeader('x-datadog-trace-id', traceId.toString());
-  setHeader('x-datadog-parent-id', spanId.toString());
-  setHeader('x-datadog-sampling-priority', '1');
-  setHeader('traceparent', `00-0000000000000000${traceIdHex}-${spanIdHex}-01`);
-  setHeader('tracestate', 'dd=s:1;o:rum');
 }
 
 export async function waitForDatadogSession(timeoutMs = 3000) {
@@ -119,7 +46,7 @@ export function initDatadogRum() {
 
   const environment =
     import.meta.env.VITE_DATADOG_ENV ||
-    (import.meta.env.PROD ? 'production' : 'development');
+    (import.meta.env.PROD ? 'prod' : 'development');
 
   try {
     datadogRum.init({
@@ -150,6 +77,7 @@ export function initDatadogRum() {
           propagatorTypes: ['datadog', 'tracecontext'],
         },
       ],
+      plugins: [reactPlugin({ router: true })],
     });
 
     initialized = true;

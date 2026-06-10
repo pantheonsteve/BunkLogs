@@ -1,12 +1,12 @@
 import {
   BrowserRouter,
-  Routes,
   Route,
   Navigate,
   useLocation,
   useParams,
   useSearchParams,
 } from 'react-router-dom';
+import { Routes } from '@datadog/browser-rum-react/react-router-v7';
 import { useAuth } from './auth/AuthContext';
 import { useEffect } from 'react';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
