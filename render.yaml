@@ -42,7 +42,7 @@ services:
       - key: DD_ENV
         value: production
       - key: DD_SERVICE
-        value: bunklogs
+        value: bunklogs-backend
       - key: DD_VERSION
         value: "1.0"
       - key: DD_LOGS_INJECTION

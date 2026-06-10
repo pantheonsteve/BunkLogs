@@ -519,8 +519,10 @@ CORS_ALLOW_HEADERS = (
     "x-datadog-sampling-priority",
     "x-datadog-trace-id",
     "x-datadog-sampled",
+    "x-datadog-tags",
     "traceparent",
     "tracestate",
+    "baggage",
 )
 
 CORS_ALLOW_CREDENTIALS = True
@@ -640,7 +642,7 @@ INTERNAL_IPS = [
 # ------------------------------------------------------------------------------
 # All DD_* vars default to safe no-op values; real values are set via env/Render.
 DD_ENV = env("DD_ENV", default="development")
-DD_SERVICE = env("DD_SERVICE", default="bunklogs")
+DD_SERVICE = env("DD_SERVICE", default="bunklogs-backend")
 DD_VERSION = env("DD_VERSION", default="")
 DD_AGENT_HOST = env("DD_AGENT_HOST", default="localhost")
 DD_DOGSTATSD_PORT = env.int("DD_DOGSTATSD_PORT", default=8125)
