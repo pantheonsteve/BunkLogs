@@ -119,8 +119,10 @@ CORS_ALLOW_HEADERS = [
     "x-datadog-sampling-priority",
     "x-datadog-trace-id",
     "x-datadog-sampled",
+    "x-datadog-tags",
     "traceparent",
     "tracestate",
+    "baggage",
 ]
 
 

@@ -21,7 +21,7 @@ def _send(metric: str, value: int = 1, tags: dict | None = None) -> None:
     port = int(os.environ.get("DD_DOGSTATSD_PORT", "8125"))
     base_tags = [
         f"env:{os.environ.get('DD_ENV', 'development')}",
-        f"service:{os.environ.get('DD_SERVICE', 'bunklogs')}",
+        f"service:{os.environ.get('DD_SERVICE', 'bunklogs-backend')}",
     ]
     extra = [f"{k}:{v}" for k, v in (tags or {}).items()]
     payload = f"{metric}:{value}|c|#{','.join(base_tags + extra)}".encode()
