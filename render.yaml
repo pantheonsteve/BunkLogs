@@ -40,7 +40,7 @@ services:
       - key: DD_API_KEY
         sync: false
       - key: DD_ENV
-        value: production
+        value: prod
       - key: DD_SERVICE
         value: bunklogs-backend
       - key: DD_VERSION
