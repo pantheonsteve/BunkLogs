@@ -27,7 +27,19 @@ export function isDatadogRumEnabled() {
   return initialized;
 }
 
-export async function waitForDatadogSession(timeoutMs = 3000) {
+/**
+ * reactPlugin({ router: true }) enables trackViewsManually, so RUM does not
+ * trace API calls until a view exists. Bootstrap network calls (CSRF prefetch,
+ * auth) run before React mounts Routes — start the current path immediately.
+ */
+export function startInitialDatadogView() {
+  if (!initialized) return;
+
+  const path = window.location.pathname || '/';
+  datadogRum.startView({ name: path });
+}
+
+export async function waitForDatadogSession(timeoutMs = 5000) {
   if (!shouldEnableDatadog()) return;
 
   const deadline = Date.now() + timeoutMs;
@@ -81,6 +93,7 @@ export function initDatadogRum() {
     });
 
     initialized = true;
+    startInitialDatadogView();
 
     if (import.meta.env.DEV) {
       console.info('Datadog RUM initialized', {
