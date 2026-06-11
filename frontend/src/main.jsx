@@ -32,17 +32,19 @@ async function bootstrap() {
   initDatadogRum();
   await waitForDatadogSession();
 
+  if (document.readyState === 'loading') {
+    await new Promise((resolve) => {
+      document.addEventListener('DOMContentLoaded', resolve, { once: true });
+    });
+  }
+
+  renderApp();
+
   try {
     await init();
     console.log('App initialization completed');
   } catch (error) {
     console.error('App initialization failed:', error);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderApp, { once: true });
-  } else {
-    renderApp();
   }
 }
 
