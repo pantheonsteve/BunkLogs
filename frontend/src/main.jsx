@@ -1,12 +1,12 @@
 import React from 'react';
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
+import { addReactError } from '@datadog/browser-rum-react';
 import { initDatadogRum, waitForDatadogSession } from './lib/datadog';
 import ThemeProvider from './utils/ThemeContext';
 import App from './App';
 
 import { init } from './init';
 
-// Create a function to safely render the app after DOM is ready
 function renderApp() {
   try {
     const rootElement = document.getElementById('root');
@@ -15,7 +15,22 @@ function renderApp() {
       return;
     }
 
-    ReactDOM.createRoot(rootElement).render(
+    const root = createRoot(rootElement, {
+      onUncaughtError: (error, errorInfo) => {
+        addReactError(error, errorInfo);
+        console.error('Uncaught error:', error, errorInfo);
+      },
+      onCaughtError: (error, errorInfo) => {
+        addReactError(error, errorInfo);
+        console.error('Caught error:', error, errorInfo);
+      },
+      onRecoverableError: (error, errorInfo) => {
+        addReactError(error, errorInfo);
+        console.warn('Recoverable error:', error, errorInfo);
+      },
+    });
+
+    root.render(
       <React.StrictMode>
         <ThemeProvider>
           <App />
