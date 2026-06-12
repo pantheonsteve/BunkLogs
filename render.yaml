@@ -9,13 +9,13 @@ services:
     previews:
       generation: automatic
     buildCommand: "./build.sh"
-    startCommand: "ddtrace-run gunicorn --config gunicorn.conf.py config.wsgi:application"
     healthCheckPath: "/health/"
+    startCommand: "ddtrace-run gunicorn --config gunicorn.conf.py config.wsgi:application"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
       - key: WEB_CONCURRENCY
-        value: "1"  # Use single worker for bulk operations
+        value: "1"
       - key: DJANGO_SETTINGS_MODULE
         value: "config.settings.production"
       - key: DJANGO_SECRET_KEY
@@ -29,16 +29,13 @@ services:
           type: redis
           name: bunklogs-redis
           property: connectionString
-      # Mailgun settings for email service
       - key: MAILGUN_API_KEY
         fromSecret: MAILGUN_API_KEY
       - key: MAILGUN_DOMAIN
         fromSecret: MAILGUN_DOMAIN
       - key: MAILGUN_FROM_EMAIL
         fromSecret: MAILGUN_FROM_EMAIL
-      # Datadog APM — set DD_API_KEY in Render dashboard (not committed to repo)
-      - key: DD_API_KEY
-        sync: false
+      # --- Datadog: service tagging (existing) ---
       - key: DD_ENV
         value: prod
       - key: DD_SERVICE
@@ -49,16 +46,19 @@ services:
         value: "true"
       - key: DD_TRACE_ENABLED
         value: "true"
-      # DD_AGENT_HOST: only needed if running a Datadog Agent sidecar/service.
-      # Leave unset to let traces be dropped gracefully when no agent is present.
+      # --- Datadog: point tracer + statsd at the Agent over the private network (NEW) ---
+      - key: DD_AGENT_HOST
+        value: "datadog-agent-fbsh"
+      - key: DD_RUNTIME_METRICS_ENABLED
+        value: "true"
 
   # Cron job for daily email reports
   - type: cron
     name: daily-reports
     runtime: python3
     buildCommand: "./build.sh"
-    startCommand: "python manage.py send_daily_reports"
     schedule: "0 8 * * *"  # Daily at 8 AM
+    startCommand: "python manage.py send_daily_reports"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
@@ -76,6 +76,19 @@ services:
         fromSecret: MAILGUN_DOMAIN
       - key: MAILGUN_FROM_EMAIL
         fromSecret: MAILGUN_FROM_EMAIL
+      # --- Datadog (NEW) ---
+      - key: DD_ENV
+        value: prod
+      - key: DD_SERVICE
+        value: bunklogs-daily-reports   # or "bunklogs-backend" to group it with the web app in APM
+      - key: DD_VERSION
+        value: "1.0"
+      - key: DD_TRACE_ENABLED
+        value: "true"
+      - key: DD_LOGS_INJECTION
+        value: "true"
+      - key: DD_AGENT_HOST
+        value: "datadog-agent-fbsh"
 
   - type: redis
     name: bunklogs-redis
