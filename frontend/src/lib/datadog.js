@@ -1,8 +1,10 @@
 import { datadogRum } from '@datadog/browser-rum';
+import { datadogLogs } from '@datadog/browser-logs';
 import { reactPlugin } from '@datadog/browser-rum-react';
 import { resolveOrganizationSlug } from '../utils/orgSlug';
 
-let initialized = false;
+let rumInitialized = false;
+let logsInitialized = false;
 
 function normalizeApiUrl(url) {
   if (!url) return null;
@@ -23,8 +25,27 @@ function shouldEnableDatadog() {
   return import.meta.env.PROD || import.meta.env.VITE_DATADOG_FORCE_ENABLE === 'true';
 }
 
+function getDatadogConfig() {
+  const environment =
+    import.meta.env.VITE_DATADOG_ENV ||
+    (import.meta.env.PROD ? 'prod' : 'development');
+
+  return {
+    applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
+    clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
+    site: import.meta.env.VITE_DATADOG_SITE || 'datadoghq.com',
+    service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
+    env: environment,
+    version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
+  };
+}
+
 export function isDatadogRumEnabled() {
-  return initialized;
+  return rumInitialized;
+}
+
+export function isDatadogLogsEnabled() {
+  return logsInitialized;
 }
 
 /**
@@ -33,7 +54,7 @@ export function isDatadogRumEnabled() {
  * auth) run before React mounts Routes — start the current path immediately.
  */
 export function startInitialDatadogView() {
-  if (!initialized) return;
+  if (!rumInitialized) return;
 
   const path = window.location.pathname || '/';
   datadogRum.startView({ name: path });
@@ -52,22 +73,20 @@ export async function waitForDatadogSession(timeoutMs = 5000) {
 }
 
 export function initDatadogRum() {
-  if (initialized || !shouldEnableDatadog()) {
+  if (rumInitialized || !shouldEnableDatadog()) {
     return;
   }
 
-  const environment =
-    import.meta.env.VITE_DATADOG_ENV ||
-    (import.meta.env.PROD ? 'prod' : 'development');
+  const config = getDatadogConfig();
 
   try {
     datadogRum.init({
-      applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
-      clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
-      site: import.meta.env.VITE_DATADOG_SITE || 'datadoghq.com',
-      service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
-      env: environment,
-      version: import.meta.env.VITE_DATADOG_VERSION || '1.0.0',
+      applicationId: config.applicationId,
+      clientToken: config.clientToken,
+      site: config.site,
+      service: config.service,
+      env: config.env,
+      version: config.version,
       sessionSampleRate: 100,
       sessionReplaySampleRate: 20,
       traceSampleRate: 100,
@@ -92,13 +111,28 @@ export function initDatadogRum() {
       plugins: [reactPlugin({ router: true })],
     });
 
-    initialized = true;
+    rumInitialized = true;
     startInitialDatadogView();
 
+    // Logs SDK must share env/service/version/site/clientToken with RUM for correlation.
+    // See https://docs.datadoghq.com/real_user_monitoring/correlate_with_other_telemetry/logs/
+    datadogLogs.init({
+      clientToken: config.clientToken,
+      site: config.site,
+      service: config.service,
+      env: config.env,
+      version: config.version,
+      forwardErrorsToLogs: true,
+      // Avoid forwarding hundreds of dev console.log calls; capture warn/error only.
+      forwardConsoleLogs: ['error', 'warn'],
+      sessionSampleRate: 100,
+    });
+    logsInitialized = true;
+
     if (import.meta.env.DEV) {
-      console.info('Datadog RUM initialized', {
-        env: environment,
-        service: import.meta.env.VITE_DATADOG_SERVICE || 'bunklogs-frontend',
+      console.info('Datadog RUM + Logs initialized', {
+        env: config.env,
+        service: config.service,
         tracing: true,
       });
     }
@@ -108,7 +142,7 @@ export function initDatadogRum() {
 }
 
 export function setDatadogUser(user) {
-  if (!initialized || !user) return;
+  if (!rumInitialized || !user) return;
 
   const displayName =
     user.name ||
@@ -137,7 +171,7 @@ export function setDatadogUser(user) {
 }
 
 export function clearDatadogUser() {
-  if (!initialized) return;
+  if (!rumInitialized) return;
 
   datadogRum.clearUser();
   datadogRum.removeGlobalContextProperty('user.role');
@@ -146,8 +180,17 @@ export function clearDatadogUser() {
 }
 
 export function addDatadogAction(name, context = {}) {
-  if (!initialized) return;
+  if (!rumInitialized) return;
   datadogRum.addAction(name, context);
+}
+
+/** Structured browser log correlated with the active RUM session/trace. */
+export function logToDatadog(level, message, context = {}) {
+  if (!logsInitialized) return;
+  const logger = datadogLogs.logger;
+  if (typeof logger[level] === 'function') {
+    logger[level](message, context);
+  }
 }
 
 function detectLoginMethod(tokens) {
@@ -166,7 +209,7 @@ export function trackUserLogout() {
 }
 
 export function trackApiSuccess(config, response) {
-  if (!initialized || !config?.url) return;
+  if (!rumInitialized || !config?.url) return;
 
   const method = (config.method || 'get').toLowerCase();
   const url = config.url;
@@ -215,4 +258,4 @@ export function trackApiSuccess(config, response) {
   }
 }
 
-export { datadogRum };
+export { datadogRum, datadogLogs };

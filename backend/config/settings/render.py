@@ -275,47 +275,10 @@ if os.getenv("DD_TRACE_ENABLED", "false").lower() == "true":
     # Ensure ddtrace patches Django components
     INSTALLED_APPS += ["ddtrace.contrib.django"]
 
-    # Enhanced logging for Datadog
-    LOGGING = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "verbose": {
-                "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-                "style": "{",
-            },
-            "datadog": {
-                "format": "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] %(levelname)s %(asctime)s %(module)s %(message)s",  # noqa: E501
-            },
-        },
-        "handlers": {
-            "console": {
-                "level": "INFO",
-                "class": "logging.StreamHandler",
-                "formatter": "datadog" if os.getenv("DD_LOGS_INJECTION") == "true" else "verbose",
-            },
-        },
-        "loggers": {
-            "django": {
-                "handlers": ["console"],
-                "level": "INFO",
-                "propagate": True,
-            },
-            "ddtrace": {
-                "handlers": ["console"],
-                "level": "WARNING",
-            },
-            "bunk_logs": {  # Your app-specific logging
-                "handlers": ["console"],
-                "level": "INFO",
-                "propagate": True,
-            },
-        },
-        "root": {
-            "handlers": ["console"],
-            "level": "INFO",
-        },
-    }
+    if os.getenv("DD_LOGS_INJECTION", "false").lower() == "true":
+        from config.datadog_logging import apply_log_injection
+
+        apply_log_injection(LOGGING)
 
 # Database instrumentation settings
 DATABASES["default"]["OPTIONS"] = DATABASES["default"].get("OPTIONS", {})

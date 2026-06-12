@@ -242,41 +242,12 @@ SPECTACULAR_SETTINGS["SERVERS"] = [
 # Set DD_TRACE_ENABLED=false in the Render dashboard to disable without redeploy.
 DD_TRACE_ENABLED = env.bool("DD_TRACE_ENABLED", default=True)
 DD_LOGS_INJECTION = env.bool("DD_LOGS_INJECTION", default=True)
-DD_ENV = env("DD_ENV", default="production")
+DD_ENV = env("DD_ENV", default="prod")
 
 if DD_LOGS_INJECTION:
-    LOGGING = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "verbose": {
-                "format": "[{levelname}] {asctime} {name} {message}",
-                "style": "{",
-            },
-        },
-        "handlers": {
-            "console": {
-                "level": "INFO",
-                "class": "logging.StreamHandler",
-                "formatter": "verbose",
-            },
-        },
-        "loggers": {
-            "django": {
-                "handlers": ["console"],
-                "level": "INFO",
-                "propagate": True,
-            },
-            "ddtrace": {
-                "handlers": ["console"],
-                "level": "WARNING",
-            },
-        },
-        "root": {
-            "handlers": ["console"],
-            "level": "INFO",
-        },
-    }
+    from config.datadog_logging import apply_log_injection
+
+    apply_log_injection(LOGGING)
 
 # Frontend URLs - Production overrides
 # ------------------------------------------------------------------------------
