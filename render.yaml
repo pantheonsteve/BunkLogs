@@ -58,7 +58,7 @@ services:
     runtime: python3
     buildCommand: "./build.sh"
     schedule: "0 8 * * *"  # Daily at 8 AM
-    startCommand: "python manage.py send_daily_reports"
+    startCommand: "ddtrace-run python manage.py send_daily_reports"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"

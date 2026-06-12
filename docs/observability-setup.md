@@ -1,121 +1,171 @@
 # Observability Setup
 
-BunkLogs uses Datadog for APM tracing, log management, and custom metrics.
+BunkLogs uses Datadog for browser RUM, browser logs, APM tracing, and log management.
 
-## Architecture
+## End-to-end correlation on Render (multi-service)
+
+BunkLogs production on Render splits across separate services. Correlation works across
+them when each hop uses matching tags and trace propagation — not because they share a
+process or agent.
 
 ```
-Render (Django) ──ddtrace-run──► Datadog Agent (if present)
-                                       │
-                                       ├── Traces  → Datadog APM
-                                       ├── Metrics → Datadog Metrics
-                                       └── Logs    → Datadog Log Management
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Browser (clc.bunklogs.net)                                                 │
+│  Static frontend — no Node/dd-trace at runtime                              │
+│                                                                             │
+│  @datadog/browser-rum  ──► RUM views, resources, errors, session replay     │
+│  @datadog/browser-logs ──► warn/error console + structured logs             │
+│         │                                                                   │
+│         │  traceContextInjection: 'all' + allowedTracingUrls                │
+│         │  injects x-datadog-* / traceparent headers on API calls           │
+└─────────┼───────────────────────────────────────────────────────────────────┘
+          │ HTTPS  (admin.bunklogs.net)
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  bunklogs-backend (Render web service)                                      │
+│  ddtrace-run gunicorn                                                       │
+│                                                                             │
+│  • Continues distributed trace from browser headers                         │
+│  • Emits APM spans (Django, DRF, psycopg, Redis) ──► DD_AGENT_HOST:8126     │
+│  • DD_LOGS_INJECTION=true adds dd.trace_id to stdout log lines              │
+└─────────┼───────────────────────────────────────────────────────────────────┘
+          │ private network
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  datadog-agent-fbsh (Render private service)                                │
+│  Forwards traces + DogStatsD metrics to Datadog intake                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-Render logs ──► Render Log Drain ──► Datadog Log Management (always on)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  bunklogs-db (Render Postgres)                                              │
+│  Appears as child spans inside backend traces (psycopg instrumentation).    │
+│  Not a separate log/trace source.                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Log paths (two separate pipelines, linked by trace_id / session_id):
+
+  Browser logs  ──► browser-intake-datadoghq.com  (direct from SDK, no agent)
+  Backend logs  ──► Render stdout ──► Render Log Stream ──► Datadog Logs
 ```
+
+### Correlation matrix
+
+| Link | Mechanism | Required config |
+|------|-----------|-----------------|
+| **RUM ↔ Browser Logs** | Same `clientToken`, `site`, `env`, `service`, `version` on both SDKs; shared `session_id` | `initDatadogRum()` initializes Logs immediately after RUM |
+| **RUM ↔ Backend APM** | RUM injects trace headers on XHR/fetch to `VITE_API_URL`; ddtrace continues the trace | `allowedTracingUrls`, `traceContextInjection: 'all'`, backend `DD_TRACE_ENABLED=true`, CORS allows `traceparent` + `x-datadog-*` (in `base.py`) |
+| **APM ↔ Backend Logs** | `DD_LOGS_INJECTION=true` + log formatter emits `dd.trace_id` / `dd.span_id` | `ddtrace-run`, `config/datadog_logging.py`, Render log stream to Datadog |
+| **RUM ↔ Backend Logs** | **Indirect** — pivot through the shared trace in APM, or match `session_id` on browser logs | No direct link; use Traces tab in RUM Explorer |
+
+Datadog documents this explicitly: there is no direct RUM-view ↔ server-log link; you
+navigate through traces. See
+[Ease troubleshooting with cross-product correlation](https://docs.datadoghq.com/logs/guide/ease-troubleshooting-with-cross-product-correlation/).
+
+### Tag alignment checklist (must match across services)
+
+| Tag | Frontend (`VITE_*`) | Backend (`DD_*` in render.yaml) |
+|-----|---------------------|----------------------------------|
+| env | `VITE_DATADOG_ENV=prod` | `DD_ENV=prod` |
+| service | `bunklogs-frontend` | `bunklogs-backend` |
+| version | `VITE_DATADOG_VERSION` | `DD_VERSION` |
+
+Different `service` names are correct (frontend vs backend). **`env` must match** or
+traces won't group in the same environment facet.
+
+### Render prerequisites
+
+1. **Backend APM**: `DD_AGENT_HOST=datadog-agent-fbsh` (private network hostname) +
+   agent service running with valid `DD_API_KEY`.
+2. **Backend logs in Datadog**: Render dashboard → bunklogs-backend → **Log Streams** →
+   add Datadog drain with `DD_API_KEY`. Without this, `DD_LOGS_INJECTION` enriches
+   stdout but logs never reach Datadog Log Management.
+3. **Frontend**: `VITE_DATADOG_*` vars baked in at static-site build time (Render
+   env vars on the frontend service, or `.env.production` in CI).
+4. **Postgres**: no extra setup; query spans appear under Django request traces.
+
+### Validate after deploy
+
+1. **RUM → APM**: In Datadog RUM Explorer, open a session → Resources tab → click an
+   API call to `admin.bunklogs.net` → should show linked backend trace.
+2. **RUM → Browser Logs**: Same session → Logs tab → warn/error console output appears
+   with matching `session_id`.
+3. **APM → Backend Logs**: APM Trace Explorer → open a trace → Logs tab → Django
+   stdout lines with the same `dd.trace_id`.
+4. **Network sanity**: Browser DevTools → API request headers include `traceparent`
+   and/or `x-datadog-trace-id`.
 
 ## Components
 
-### ddtrace (APM tracing)
+### Browser RUM + Logs (frontend)
 
-`ddtrace==4.7.1` is installed in all environments (base.txt). The Django process
-starts via `ddtrace-run gunicorn ...` which auto-instruments Django, DRF, psycopg,
-and Redis without code changes.
+Packages: `@datadog/browser-rum`, `@datadog/browser-rum-react`, `@datadog/browser-logs`.
 
-- **Traces**: sent to `DD_AGENT_HOST:8126` (TCP). Dropped silently if no agent.
-- **Log injection**: when `DD_LOGS_INJECTION=true`, trace/span IDs are injected
-  into every log line so logs and traces correlate in the Datadog UI.
+Initialized in `frontend/src/lib/datadog.js`:
+
+- **RUM**: views (via `createBrowserRouter`), errors, session replay, API resource timing.
+- **Logs**: `forwardErrorsToLogs`, `forwardConsoleLogs: ['error', 'warn']`, plus
+  `logToDatadog()` for structured messages.
+- **Trace propagation**: headers injected on requests to `VITE_API_URL`.
+
+Browser telemetry goes **directly** to Datadog intake — it does not route through the
+Render Datadog Agent.
+
+### ddtrace (backend APM)
+
+`ddtrace==4.7.1` in base.txt. Django starts via `ddtrace-run gunicorn` (see `render.yaml`).
+
+- Traces sent to `DD_AGENT_HOST:8126`.
+- Log injection via `DD_LOGS_INJECTION=true` and `config/datadog_logging.py`.
 
 ### Log forwarding (Render → Datadog)
 
-Render streams all stdout/stderr to its log drain. To forward to Datadog:
+Render streams stdout/stderr. Forward to Datadog:
 
-1. Render dashboard → **Environment** → **Log Streams** → **Add Log Stream**
-2. Select **Datadog**
-3. Paste your **DD_API_KEY** and choose the correct Datadog site (e.g. `datadoghq.com`)
-4. Save — logs start flowing within minutes
-
-No code changes are required for log forwarding.
+1. Render dashboard → **Log Streams** → **Add Log Stream** → Datadog
+2. Paste `DD_API_KEY`, select site `datadoghq.com`
 
 ### Custom metrics (DogStatsD)
 
-Custom metrics are sent via UDP to the Datadog Agent on port 8125.
-
-| Metric | Type | Tags | Source |
-|--------|------|------|--------|
-| `bunklogs.reflections.submitted` | counter | `tenant`, `env`, `service` | Reflection model signal (Phase 2) |
-| `bunklogs.users.logged_in` | counter | `method`, `env`, `service` | `user_logged_in` signal |
-
-Metrics silently no-op when `DD_AGENT_HOST` is unreachable (e.g. local dev without agent).
-
-To add a new metric, call `_send()` from `bunk_logs/utils/metrics.py` or add a
-typed helper alongside the existing ones.
+UDP to agent port 8125. See `bunk_logs/utils/metrics.py`.
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DD_API_KEY` | — | **Required in production.** Set in Render dashboard, never commit. |
-| `DD_ENV` | `development` / `production` | Separates dev/prod in Datadog |
-| `DD_SERVICE` | `bunklogs` | Service name shown in APM |
-| `DD_VERSION` | `""` | App version tag (set to git SHA in CI for deployment tracking) |
-| `DD_AGENT_HOST` | `localhost` | Hostname of the Datadog Agent. Leave unset on Render unless running an agent service. |
-| `DD_DOGSTATSD_PORT` | `8125` | DogStatsD UDP port |
-| `DD_TRACE_ENABLED` | `false` (dev) / `true` (prod) | Master switch for APM traces |
-| `DD_LOGS_INJECTION` | `false` (dev) / `true` (prod) | Injects trace IDs into Django log records |
-
-## Enabling in Production (Render)
-
-All DD env vars are declared in `render.yaml`. Only `DD_API_KEY` requires manual
-entry in the Render dashboard (it is marked `sync: false` to avoid accidental
-commits).
-
-Steps:
-1. Render dashboard → `bunklogs-backend` → **Environment**
-2. Add `DD_API_KEY` with your Datadog API key
-3. Optionally set `DD_VERSION` to the current release SHA
-4. Redeploy — `ddtrace-run` will pick up the vars at startup
-
-## Running a Datadog Agent on Render (optional, for full APM)
-
-Render does not support sidecars. To get APM traces (not just logs) in production:
-
-**Option A – Render Background Worker as Agent** (not recommended; agent is heavyweight)
-
-**Option B – Datadog Agentless Tracing** (ddtrace 2.x+ supports sending traces
-directly to the Datadog intake without an agent):
-```
-DD_TRACE_AGENT_URL=https://trace.agent.datadoghq.com
-DD_API_KEY=<your key>
-```
-Set `DD_TRACE_AGENT_URL` in the Render dashboard alongside `DD_API_KEY`.
-
-**Option C – Logs only** (current default): rely on Render log drain + log injection
-for correlated traces via logs. This is zero-infrastructure-cost and sufficient for
-most debugging needs.
+| Variable | Frontend | Backend | Description |
+|----------|----------|---------|-------------|
+| `DD_ENV` / `VITE_DATADOG_ENV` | `prod` | `prod` | **Must match** for cross-product correlation |
+| `DD_SERVICE` / `VITE_DATADOG_SERVICE` | `bunklogs-frontend` | `bunklogs-backend` | Different per tier (expected) |
+| `DD_VERSION` / `VITE_DATADOG_VERSION` | `1.0.0` | `1.0` | Release tag |
+| `DD_LOGS_INJECTION` | — | `true` | Injects trace IDs into Django log records |
+| `DD_TRACE_ENABLED` | — | `true` | Master switch for APM |
+| `DD_AGENT_HOST` | — | `datadog-agent-fbsh` | Private Render agent hostname |
+| `VITE_DATADOG_CLIENT_TOKEN` | required | — | Shared by RUM + Logs SDKs |
+| `VITE_DATADOG_APPLICATION_ID` | required | — | RUM application ID |
 
 ## Local Development
 
-ddtrace is installed locally but tracing is disabled by default (`DD_TRACE_ENABLED=false`).
-The app starts normally without any Datadog agent running.
+Tracing disabled by default (`DD_TRACE_ENABLED=false`). To test full correlation locally:
 
-To test metrics locally:
 ```bash
-# Start a local Datadog Agent (requires a Datadog account)
+# Terminal 1: local Datadog Agent (optional)
 docker run -d --name dd-agent \
-  -e DD_API_KEY=<your-key> \
-  -e DD_SITE=datadoghq.com \
-  -p 8125:8125/udp \
-  -p 8126:8126/tcp \
+  -e DD_API_KEY=<key> -e DD_SITE=datadoghq.com \
+  -p 8125:8125/udp -p 8126:8126/tcp \
   gcr.io/datadoghq/agent:7
 
-# Then in .envs/.local/.django add:
+# .envs/.local/.django
 DD_TRACE_ENABLED=true
 DD_LOGS_INJECTION=true
+DD_ENV=development
 DD_AGENT_HOST=localhost
+
+# frontend/.env
+VITE_DATADOG_FORCE_ENABLE=true
+VITE_DATADOG_ENV=development
+# + application ID and client token
 ```
+
+`ddtrace` "failed to send traces to localhost:8126" without an agent is harmless.
 
 ## Synthetic Checks
 
-Synthetic monitor definitions are in `docs/synthetics.yml`. Import them via the
-Datadog API or Terraform provider (`datadog_synthetics_test` resource).
+Definitions in `docs/synthetics.yml`.
