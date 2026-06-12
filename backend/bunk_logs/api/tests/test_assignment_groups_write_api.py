@@ -167,6 +167,23 @@ class TestCreateGroup:
         )
         assert r.status_code in (400, 403)
 
+    def test_create_auto_suffixes_duplicate_slug(self, client, org, program, group, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.post(
+            "/api/v1/assignment-groups/",
+            {
+                "name": "Bunk Maple Again",
+                "group_type": "bunk",
+                "program": program.pk,
+                "slug": group.slug,
+            },
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 201, r.content
+        created = AssignmentGroup.all_objects.get(program=program, slug=f"{group.slug}-2")
+        assert created.name == "Bunk Maple Again"
+
 
 # ---------------------------------------------------------------------------
 # UPDATE group

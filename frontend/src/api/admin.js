@@ -43,6 +43,7 @@ export function buildAdminPeopleListParams({
   search = '',
   role = '',
   status = '',
+  program = '',
   last_name_initial = '',
   offset = 0,
   page_size = 50,
@@ -52,6 +53,7 @@ export function buildAdminPeopleListParams({
   if (trimmedSearch) params.search = trimmedSearch;
   if (role) params.role = role;
   if (status) params.status = status;
+  if (program) params.program = String(program);
   if (last_name_initial) params.last_name_initial = last_name_initial;
   return params;
 }

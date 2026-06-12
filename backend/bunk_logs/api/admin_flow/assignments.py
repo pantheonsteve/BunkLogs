@@ -55,7 +55,7 @@ SUPERVISION_SUB_TABS = {
     "cc_caseload": Supervision.TargetType.BUNK,
     "lt_team": Supervision.TargetType.ROLE_IN_PROGRAM,
 }
-GROUP_SUB_TABS = {"counselor_bunk", "staff_team", "camper_bunk"}
+GROUP_SUB_TABS = {"counselor_bunk", "staff_team", "camper_bunk", "uh_unit"}
 VALID_SUB_TABS = set(SUPERVISION_SUB_TABS) | GROUP_SUB_TABS
 
 
@@ -116,6 +116,8 @@ def _sub_tab_for_group_membership(g: AssignmentGroupMembership) -> str:
         return "camper_bunk"
     if g.group_id and g.group.group_type == "team":
         return "staff_team"
+    if g.group_id and g.group.group_type == "unit":
+        return "uh_unit"
     return "counselor_bunk"
 
 
@@ -295,6 +297,8 @@ class AdminAssignmentsListCreateView(APIView):
                 qs = qs.filter(role_in_group="author", group__group_type="team")
             elif sub_tab == "camper_bunk":
                 qs = qs.filter(role_in_group="subject", group__group_type__in=("bunk", "classroom"))
+            elif sub_tab == "uh_unit":
+                qs = qs.filter(role_in_group="author", group__group_type="unit")
             qs = _apply_group_membership_filters(
                 qs,
                 program_id=program_id,
@@ -629,6 +633,8 @@ def _group_sub_tab_mismatch(group: AssignmentGroup, sub_tab: str) -> str | None:
         return "staff_team assignments require a team group."
     if sub_tab == "camper_bunk" and group.group_type not in ("bunk", "classroom"):
         return "camper_bunk assignments require a bunk or classroom group."
+    if sub_tab == "uh_unit" and group.group_type != "unit":
+        return "uh_unit assignments require a unit group."
     return None
 
 

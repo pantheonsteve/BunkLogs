@@ -356,6 +356,38 @@ class TestAdminAssignments:
         assert r1.status_code == 201
         assert r2.status_code == 409
 
+    def test_uh_unit_group_membership_create_and_list(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            unit = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Unit Alef",
+                slug="unit-alef", group_type="unit",
+            )
+            uh_person = Person.all_objects.create(
+                organization=org, first_name="Uh", last_name="Lead",
+            )
+        api.force_authenticate(user=admin_user)
+        payload = {
+            "sub_tab": "uh_unit",
+            "group_id": unit.id,
+            "person_id": uh_person.id,
+        }
+        with organization_context(org):
+            created = api.post(self.URL, payload, format="json", **_hdr(org.slug))
+            assert created.status_code == 201, created.content
+            listed = api.get(
+                self.URL,
+                {"sub_tab": "uh_unit", "program": program.id, "status": "active"},
+                **_hdr(org.slug),
+            )
+        assert listed.status_code == 200
+        rows = listed.json()["results"]
+        assert len(rows) == 1
+        assert rows[0]["group_name"] == "Unit Alef"
+        assert rows[0]["person_name"] == uh_person.full_name
+        assert rows[0]["sub_tab"] == "uh_unit"
+
     def test_list_filters_by_program_and_status(
         self, api, org, program, admin_user, supervisor, target,
     ):

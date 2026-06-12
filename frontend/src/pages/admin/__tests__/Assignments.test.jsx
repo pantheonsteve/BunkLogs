@@ -61,30 +61,28 @@ describe('AdminAssignments', () => {
     render(<AdminAssignments />);
     expect(await screen.findByTestId('assignment-sub-tab-counselor_bunk')).toBeInTheDocument();
     expect(screen.getByTestId('assignment-sub-tab-staff_team')).toBeInTheDocument();
-    expect(screen.getByTestId('assignment-sub-tab-uh_counselor')).toBeInTheDocument();
+    expect(screen.getByTestId('assignment-sub-tab-uh_unit')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('assignment-sub-tab-uh_counselor'));
+    fireEvent.click(screen.getByTestId('assignment-sub-tab-uh_unit'));
     await waitFor(() => {
       expect(listAdminAssignments).toHaveBeenCalledWith(
-        expect.objectContaining({ sub_tab: 'uh_counselor' }),
+        expect.objectContaining({ sub_tab: 'uh_unit' }),
       );
     });
   });
 
-  it('shows program names with active and ended badges', async () => {
+  it('lists programs in the dropdown with active and ended labels', async () => {
     render(<AdminAssignments />);
-    await screen.findByTestId('assignment-program-chips');
-    expect(screen.getByText('Summer 2026')).toBeInTheDocument();
-    expect(screen.getByText('Summer 2025')).toBeInTheDocument();
-    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Ended').length).toBeGreaterThan(0);
+    const select = await screen.findByTestId('assignment-program-select');
+    expect(select).toHaveTextContent('Summer 2026 (Active)');
+    expect(select).toHaveTextContent('Summer 2025 (Ended)');
   });
 
   it('passes filter params when listing assignments', async () => {
     render(<AdminAssignments />);
-    await screen.findByTestId('assignment-program-chip-1');
+    const select = await screen.findByTestId('assignment-program-select');
 
-    fireEvent.click(screen.getByTestId('assignment-program-chip-1'));
+    fireEvent.change(select, { target: { value: '1' } });
 
     await waitFor(() => {
       expect(listAdminAssignments).toHaveBeenCalledWith(
@@ -99,12 +97,38 @@ describe('AdminAssignments', () => {
     });
   });
 
+  it('shows assignments empty pane until a group is selected', async () => {
+    render(<AdminAssignments />);
+    await screen.findByTestId('assignment-group-list');
+
+    expect(screen.getByTestId('assignments-empty-pane')).toBeInTheDocument();
+    expect(screen.queryByTestId('assignment-group-tile')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Bunk Maple'));
+
+    expect(screen.queryByTestId('assignments-empty-pane')).not.toBeInTheDocument();
+    expect(screen.getByTestId('assignment-group-tile')).toBeInTheDocument();
+  });
+
+  it('keeps the selected program while browsing groups', async () => {
+    render(<AdminAssignments />);
+    const select = await screen.findByTestId('assignment-program-select');
+    await screen.findByTestId('assignment-group-list');
+
+    fireEvent.change(select, { target: { value: '1' } });
+    await waitFor(() => expect(select).toHaveValue('1'));
+
+    fireEvent.click(screen.getByText('Bunk Maple'));
+
+    expect(select).toHaveValue('1');
+  });
+
   it('bulk assign posts once per selected person', async () => {
     createAdminAssignment.mockResolvedValue({ id: 1 });
     render(<AdminAssignments />);
     await screen.findByTestId('assignment-group-list');
 
-    fireEvent.click(screen.getByTestId('assignment-program-chip-1'));
+    fireEvent.change(screen.getByTestId('assignment-program-select'), { target: { value: '1' } });
     await waitFor(() => expect(api.get).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText('Bunk Maple'));

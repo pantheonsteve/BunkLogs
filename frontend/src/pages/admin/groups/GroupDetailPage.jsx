@@ -6,6 +6,7 @@ import Button from '../../../components/ui/Button';
 import ErrorPanel from '../../../components/ui/ErrorPanel';
 import LoadingState from '../../../components/ui/LoadingState';
 import Toast, { useToast } from '../../../components/ui/Toast';
+import { canHaveParent, parentTypesFor } from '../../../lib/groupHierarchy';
 
 function PersonSearchInput({ orgContext, onSelect }) {
   const [query, setQuery] = useState('');
@@ -167,6 +168,9 @@ export default function GroupDetailPage() {
   // Edit state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
+  const [editParent, setEditParent] = useState('');
+  const [parentOptions, setParentOptions] = useState([]);
+  const [editingParent, setEditingParent] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,6 +178,7 @@ export default function GroupDetailPage() {
       const { data } = await api.get(`/api/v1/assignment-groups/${id}/`);
       setGroup(data);
       setEditName(data.name);
+      setEditParent(data.parent_id ? String(data.parent_id) : '');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load group.');
     } finally {
@@ -185,6 +190,37 @@ export default function GroupDetailPage() {
     load();
     return () => { if (pollInterval) clearInterval(pollInterval); };
   }, [load]);
+
+  useEffect(() => {
+    if (!group?.program || !canHaveParent(group.group_type)) {
+      setParentOptions([]);
+      return;
+    }
+    let cancelled = false;
+    const types = parentTypesFor(group.group_type);
+    Promise.all(
+      types.map((groupType) => api.get('/api/v1/assignment-groups/', {
+        params: {
+          program: group.program,
+          group_type: groupType,
+          is_active: 'true',
+          page_size: 500,
+        },
+      })),
+    )
+      .then((responses) => {
+        if (cancelled) return;
+        const merged = responses.flatMap((r) => {
+          const data = r.data;
+          return Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
+        })
+          .filter((g) => g.id !== group.id)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setParentOptions(merged);
+      })
+      .catch(() => { if (!cancelled) setParentOptions([]); });
+    return () => { cancelled = true; };
+  }, [group?.id, group?.program, group?.group_type]);
 
   const handleAddMember = async () => {
     if (!selectedPerson) return;
@@ -236,6 +272,18 @@ export default function GroupDetailPage() {
       load();
     } catch (err) {
       showToast(err.response?.data?.detail || 'Failed to update name.');
+    }
+  };
+
+  const handleParentSave = async () => {
+    try {
+      const payload = { parent: editParent ? Number(editParent) : null };
+      await api.patch(`/api/v1/assignment-groups/${id}/`, payload);
+      setEditingParent(false);
+      showToast('Parent group updated.');
+      load();
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to update parent.');
     }
   };
 
@@ -333,6 +381,67 @@ export default function GroupDetailPage() {
               {group.group_type} · slug: {group.slug}
               {!group.is_active && <span className="ml-2 text-red-500">(inactive)</span>}
             </p>
+            {canHaveParent(group.group_type) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-gray-500 dark:text-gray-400">Parent:</span>
+                {editingParent ? (
+                  <>
+                    <select
+                      value={editParent}
+                      onChange={(e) => setEditParent(e.target.value)}
+                      className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      data-testid="group-edit-parent"
+                    >
+                      <option value="">None</option>
+                      {parentOptions.map((g) => (
+                        <option key={g.id} value={String(g.id)}>
+                          {g.name} ({g.group_type})
+                        </option>
+                      ))}
+                    </select>
+                    <Button size="sm" onClick={handleParentSave}>Save</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setEditingParent(false);
+                        setEditParent(group.parent_id ? String(group.parent_id) : '');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : group.parent_id ? (
+                  <>
+                    <Link
+                      to={`/admin/groups/${group.parent_id}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                      data-testid="group-parent-link"
+                    >
+                      {group.parent_name || `Group #${group.parent_id}`}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setEditingParent(true)}
+                      className="text-xs text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline"
+                    >
+                      change
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-gray-400 italic">None</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingParent(true)}
+                      className="text-xs text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline"
+                    >
+                      set parent
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <Link
