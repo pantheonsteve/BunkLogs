@@ -25,7 +25,7 @@ export default function AssignmentsPage() {
       </header>
 
       <nav
-        className="flex gap-2 overflow-x-auto pb-2 mb-6"
+        className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 mb-6"
         aria-label="Assignment types"
       >
         {SUB_TABS.map((t) => {
@@ -37,7 +37,7 @@ export default function AssignmentsPage() {
               data-testid={`assignment-sub-tab-${t.key}`}
               onClick={() => setSubTab(t.key)}
               className={[
-                'shrink-0 rounded-xl px-4 py-2.5 text-left transition-colors min-w-[11rem]',
+                'w-full rounded-xl px-4 py-2.5 text-left transition-colors',
                 active
                   ? 'bg-indigo-600 text-white shadow-md'
                   : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-indigo-300 dark:hover:border-indigo-600',

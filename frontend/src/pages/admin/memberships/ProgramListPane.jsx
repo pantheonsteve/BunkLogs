@@ -1,4 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import Button from '../../../components/ui/Button';
+import {
+  AddProgramModal,
+  EditProgramModal,
+  EndProgramModal,
+  ViewProgramModal,
+} from '../../../components/admin/ProgramAdminModals';
 
 const FILTER_OPTIONS = [
   { key: 'all', label: 'All' },
@@ -13,7 +20,9 @@ export default function ProgramListPane({
   selectedProgramId,
   onSelectProgram,
   loading,
+  onProgramsChanged,
 }) {
+  const [programModal, setProgramModal] = useState(null);
   const filteredPrograms = useMemo(() => {
     if (programFilter === 'active') {
       return programs.filter((p) => p.is_active);
@@ -23,6 +32,11 @@ export default function ProgramListPane({
     }
     return programs;
   }, [programs, programFilter]);
+
+  const selectedProgram = programs.find(
+    (p) => String(p.id) === String(selectedProgramId),
+  ) || null;
+  const canActOnProgram = Boolean(selectedProgram);
 
   return (
     <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3 space-y-2 min-h-[20rem] flex flex-col">
@@ -46,6 +60,38 @@ export default function ProgramListPane({
             </button>
           ))}
         </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5" data-testid="membership-program-actions">
+        <Button size="sm" onClick={() => setProgramModal('add')} data-testid="membership-program-add">
+          Add Program
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!canActOnProgram}
+          onClick={() => setProgramModal('view')}
+          data-testid="membership-program-view"
+        >
+          View Program
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!canActOnProgram}
+          onClick={() => setProgramModal('edit')}
+          data-testid="membership-program-edit"
+        >
+          Edit Program
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={!canActOnProgram || !selectedProgram?.is_active}
+          onClick={() => setProgramModal('delete')}
+          data-testid="membership-program-delete"
+        >
+          Delete Program
+        </Button>
       </div>
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
@@ -75,6 +121,48 @@ export default function ProgramListPane({
             </li>
           ))}
         </ul>
+      )}
+
+      {programModal === 'add' && (
+        <AddProgramModal
+          onClose={() => setProgramModal(null)}
+          onCreated={(created) => {
+            setProgramModal(null);
+            onProgramsChanged?.(created);
+            if (created?.id) {
+              onSelectProgram(created.id);
+            }
+          }}
+        />
+      )}
+      {programModal === 'view' && selectedProgramId && (
+        <ViewProgramModal
+          programId={selectedProgramId}
+          onClose={() => setProgramModal(null)}
+        />
+      )}
+      {programModal === 'edit' && selectedProgramId && (
+        <EditProgramModal
+          programId={selectedProgramId}
+          onClose={() => setProgramModal(null)}
+          onSaved={(updated) => {
+            setProgramModal(null);
+            onProgramsChanged?.(updated);
+            if (updated?.id) {
+              onSelectProgram(updated.id);
+            }
+          }}
+        />
+      )}
+      {programModal === 'delete' && selectedProgram && (
+        <EndProgramModal
+          program={selectedProgram}
+          onClose={() => setProgramModal(null)}
+          onEnded={() => {
+            setProgramModal(null);
+            onProgramsChanged?.();
+          }}
+        />
       )}
     </section>
   );

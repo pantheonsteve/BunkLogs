@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Users, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Users, ArrowLeft, ChevronRight } from 'lucide-react';
 import api from '../../../api';
 import { listAdminPrograms } from '../../../api/admin';
 import {
@@ -250,7 +250,7 @@ export default function GroupListPage() {
   const typesPresent = GROUP_TYPE_ORDER.filter((t) => byType[t]?.length > 0);
 
   return (
-    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-5xl mx-auto">
+    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-screen-2xl mx-auto" data-testid="admin-groups">
       <Link
         to="/admin/home"
         className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
@@ -258,21 +258,24 @@ export default function GroupListPage() {
         <ArrowLeft size={14} /> Admin
       </Link>
 
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Groups</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage bunks, teams, classrooms, caseloads, and other assignment groups
-            </p>
-          </div>
-          <Button onClick={() => {
-            setCreating(true);
-            if (programFilter) {
-              setNewGroup((g) => ({ ...g, program: programFilter }));
-            }
-          }}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Groups</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Manage bunks, teams, classrooms, caseloads, and other assignment groups
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 mb-5" data-testid="group-list-actions">
+          <Button
+            onClick={() => {
+              setCreating(true);
+              if (programFilter) {
+                setNewGroup((g) => ({ ...g, program: programFilter }));
+              }
+            }}
+            data-testid="group-list-add"
           >
-            <Plus size={16} /> New group
+            Add Group
           </Button>
         </div>
 
@@ -433,6 +436,7 @@ export default function GroupListPage() {
                     <Link
                       key={g.id}
                       to={`/admin/groups/${g.id}`}
+                      data-testid={`group-list-row-${g.id}`}
                       className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
                     >
                       <GroupDisplayName

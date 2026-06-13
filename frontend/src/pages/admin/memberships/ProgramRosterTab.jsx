@@ -14,7 +14,7 @@ import ProgramMembersPane from './ProgramMembersPane';
 
 const PAGE_SIZE = 50;
 
-export default function ProgramRosterTab() {
+function ProgramRosterTab() {
   const [programs, setPrograms] = useState([]);
   const [activePrograms, setActivePrograms] = useState([]);
   const [programsLoading, setProgramsLoading] = useState(true);
@@ -32,6 +32,11 @@ export default function ProgramRosterTab() {
   const [invitedStatus, setInvitedStatus] = useState({});
   const [deletingPerson, setDeletingPerson] = useState(null);
   const [reloadRosterToken, setReloadRosterToken] = useState(0);
+  const [reloadProgramsToken, setReloadProgramsToken] = useState(0);
+
+  const reloadPrograms = useCallback(() => {
+    setReloadProgramsToken((token) => token + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +52,7 @@ export default function ProgramRosterTab() {
       if (!cancelled) setProgramsLoading(false);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadProgramsToken]);
 
   useEffect(() => {
     if (!selectedProgramId) {
@@ -159,6 +164,10 @@ export default function ProgramRosterTab() {
           selectedProgramId={selectedProgramId}
           onSelectProgram={handleSelectProgram}
           loading={programsLoading}
+          onProgramsChanged={() => {
+            reloadPrograms();
+            setReloadRosterToken((t) => t + 1);
+          }}
         />
 
         <ProgramMembersPane
@@ -219,3 +228,5 @@ export default function ProgramRosterTab() {
     </div>
   );
 }
+
+export default ProgramRosterTab;

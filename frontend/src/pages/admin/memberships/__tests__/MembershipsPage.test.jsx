@@ -149,4 +149,19 @@ describe('MembershipManagementPage', () => {
     });
     expect(screen.getByTestId('membership-tags-table')).toBeInTheDocument();
   });
+
+  it('shows program CRUD action buttons', async () => {
+    renderPage();
+    await screen.findByTestId('membership-program-list');
+
+    expect(screen.getByTestId('membership-program-add')).toBeInTheDocument();
+    expect(screen.getByTestId('membership-program-view')).toBeDisabled();
+    expect(screen.getByTestId('membership-program-edit')).toBeDisabled();
+    expect(screen.getByTestId('membership-program-delete')).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('membership-program-1'));
+    expect(screen.getByTestId('membership-program-view')).toBeEnabled();
+    expect(screen.getByTestId('membership-program-edit')).toBeEnabled();
+    expect(screen.getByTestId('membership-program-delete')).toBeEnabled();
+  });
 });
