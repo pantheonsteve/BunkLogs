@@ -19,6 +19,20 @@ from bunk_logs.core.models import RosterImportLog
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 
 
+def _unique_group_slug(program: Program, base_slug: str) -> str:
+    """Return a slug unique within the program, suffixing -2, -3, … on collision."""
+    slug = (base_slug or "group").strip("-")[:100] or "group"
+    if not AssignmentGroup.all_objects.filter(program=program, slug=slug).exists():
+        return slug
+    stem = slug[:95] if len(slug) > 95 else slug
+    for n in range(2, 1000):
+        candidate = f"{stem}-{n}"
+        if not AssignmentGroup.all_objects.filter(program=program, slug=candidate).exists():
+            return candidate
+    msg = "Could not generate a unique slug for this program."
+    raise serializers.ValidationError({"slug": msg})
+
+
 class PersonSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Person
@@ -36,6 +50,7 @@ class AssignmentGroupMembershipSerializer(serializers.ModelSerializer):
 class AssignmentGroupSerializer(serializers.ModelSerializer):
     memberships = AssignmentGroupMembershipSerializer(many=True, read_only=True)
     parent_id = serializers.PrimaryKeyRelatedField(source="parent", read_only=True)
+    parent_name = serializers.CharField(source="parent.name", read_only=True, allow_null=True)
 
     class Meta:
         model = AssignmentGroup
@@ -47,6 +62,7 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
             "slug",
             "group_type",
             "parent_id",
+            "parent_name",
             "metadata",
             "is_active",
             "created_at",
@@ -94,12 +110,21 @@ class AssignmentGroupWriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AssignmentGroup
-        fields = ["name", "slug", "group_type", "program", "parent", "metadata", "is_active"]
+        fields = ["id", "name", "slug", "group_type", "program", "parent", "metadata", "is_active"]
+        read_only_fields = ["id"]
+
+    def run_validators(self, attrs):
+        if self.instance is None:
+            program = attrs.get("program")
+            if program:
+                base_slug = attrs.get("slug") or slugify(attrs.get("name", ""))[:100]
+                attrs["slug"] = _unique_group_slug(program, base_slug)
+        super().run_validators(attrs)
 
     def validate(self, attrs):
         request = self.context.get("request")
         org = getattr(request, "organization", None)
-        program = attrs.get("program")
+        program = attrs.get("program") or getattr(self.instance, "program", None)
         if org and program and program.organization_id != org.pk:
             raise serializers.ValidationError({"program": "Program must belong to your organization."})
         parent = attrs.get("parent")
@@ -110,8 +135,6 @@ class AssignmentGroupWriteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
         org = request.organization
-        if not validated_data.get("slug"):
-            validated_data["slug"] = slugify(validated_data.get("name", ""))[:100]
         return AssignmentGroup.all_objects.create(organization=org, **validated_data)
 
     def update(self, instance, validated_data):

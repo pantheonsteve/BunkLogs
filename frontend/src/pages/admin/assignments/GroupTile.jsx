@@ -41,6 +41,7 @@ export default function GroupTile({
   onEndSelected,
   onAssignPerson,
   dimEnded = false,
+  className = '',
 }) {
   const [ending, setEnding] = useState(false);
   const [reason, setReason] = useState('');
@@ -58,7 +59,10 @@ export default function GroupTile({
 
   return (
     <section
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-4 space-y-3"
+      className={[
+        'rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-4 space-y-3 min-h-[20rem] flex flex-col',
+        className,
+      ].join(' ')}
       data-testid="assignment-group-tile"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -68,21 +72,32 @@ export default function GroupTile({
             <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onAssignPerson}
-          data-testid="assign-person-btn"
-          className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-        >
-          Assign Person
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            disabled={selectedAssignmentIds.size === 0 || ending}
+            onClick={() => setEnding(true)}
+            data-testid="unassign-btn"
+            className="text-sm font-medium px-3 py-1.5 rounded-md border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:hover:bg-transparent"
+          >
+            Unassign{selectedAssignmentIds.size > 0 ? ` (${selectedAssignmentIds.size})` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={onAssignPerson}
+            data-testid="assign-person-btn"
+            className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            Assign Person
+          </button>
+        </div>
       </div>
 
       {assignments.length === 0 ? (
         <p className="text-sm italic text-gray-500">No assignments in this view.</p>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onToggleAllAssignments(!allSelected)}
@@ -90,18 +105,8 @@ export default function GroupTile({
             >
               {allSelected ? 'Clear selection' : 'Select active'}
             </button>
-            {selectedAssignmentIds.size > 0 && !ending && (
-              <button
-                type="button"
-                onClick={() => setEnding(true)}
-                data-testid="end-selected-btn"
-                className="text-xs text-red-700 dark:text-red-400 hover:underline"
-              >
-                End selected ({selectedAssignmentIds.size})
-              </button>
-            )}
           </div>
-          <ul className="space-y-2 max-h-56 overflow-y-auto">
+          <ul className="space-y-2 flex-1 overflow-y-auto max-h-96">
             {assignments.map((row) => {
               const faded = dimEnded && !row.is_active;
               return (
@@ -156,7 +161,7 @@ export default function GroupTile({
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason for ending"
+            placeholder="Reason for unassigning"
             className="text-sm rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 flex-1 bg-white dark:bg-gray-800"
           />
           <button
@@ -165,7 +170,7 @@ export default function GroupTile({
             onClick={handleEnd}
             className="text-xs px-3 py-1.5 rounded-md bg-red-600 text-white disabled:opacity-50"
           >
-            Confirm end
+            Confirm unassign
           </button>
           <button
             type="button"

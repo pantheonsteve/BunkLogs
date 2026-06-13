@@ -1,13 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Users, ArrowLeft, ChevronRight } from 'lucide-react';
 import api from '../../../api';
+import { listAdminPrograms } from '../../../api/admin';
+import {
+  readStoredProgramId,
+  resolveInitialProgramId,
+  writeStoredProgramId,
+} from '../../../lib/adminProgramContext';
 import Button from '../../../components/ui/Button';
 import EmptyState from '../../../components/ui/EmptyState';
 import ErrorPanel from '../../../components/ui/ErrorPanel';
 import LoadingState from '../../../components/ui/LoadingState';
 import GroupDisplayName from '../../../components/GroupDisplayName';
 import Toast, { useToast } from '../../../components/ui/Toast';
+import { canHaveParent, parentTypesFor } from '../../../lib/groupHierarchy';
 
 const GROUP_TYPE_LABELS = {
   bunk: 'Bunk',
@@ -45,26 +52,147 @@ function Badge({ active }) {
   );
 }
 
+function ProgramSelect({ programs, value, onChange, id, className = '', allowAll = true, required = false }) {
+  return (
+    <select
+      id={id}
+      value={value}
+      required={required}
+      onChange={(e) => onChange(e.target.value)}
+      className={className || 'border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white'}
+      data-testid={id}
+    >
+      {allowAll && <option value="">All programs</option>}
+      {programs.map((p) => (
+        <option key={p.id} value={String(p.id)}>
+          {p.name}{p.is_active ? '' : ' (Ended)'}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function GroupListPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('active');
   const [programFilter, setProgramFilter] = useState('');
+  const [programs, setPrograms] = useState([]);
+  const [programsReady, setProgramsReady] = useState(false);
   const { toast, showToast } = useToast(3000);
   const [creating, setCreating] = useState(false);
-  const [newGroup, setNewGroup] = useState({ name: '', group_type: 'bunk', program: '' });
-  const [programs, setPrograms] = useState([]);
+  const [newGroup, setNewGroup] = useState({ name: '', group_type: 'bunk', program: '', parent: '' });
+  const [parentFilter, setParentFilter] = useState('');
+  const [parentOptions, setParentOptions] = useState([]);
+  const [createParentOptions, setCreateParentOptions] = useState([]);
+
+  const syncProgramContext = useCallback((programId) => {
+    writeStoredProgramId(programId);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (programId) next.set('program', String(programId));
+      else next.delete('program');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const handleProgramFilterChange = useCallback((programId) => {
+    setProgramFilter(programId);
+    setNewGroup((g) => ({ ...g, program: programId }));
+    syncProgramContext(programId);
+  }, [syncProgramContext]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listAdminPrograms()
+      .then((data) => {
+        if (cancelled) return;
+        const list = data.results || [];
+        setPrograms(list);
+        const initial = resolveInitialProgramId({
+          urlProgramId: searchParams.get('program'),
+          storedProgramId: readStoredProgramId(),
+          programs: list,
+        });
+        if (initial) {
+          setProgramFilter(initial);
+          setNewGroup((g) => ({ ...g, program: initial }));
+          if (!searchParams.get('program')) {
+            syncProgramContext(initial);
+          } else {
+            writeStoredProgramId(initial);
+          }
+        }
+        setProgramsReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setProgramsReady(true);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- init once on mount
+  }, []);
+
+  const loadParentOptions = useCallback(async (programId, childType = null) => {
+    if (!programId) return [];
+    const types = childType ? parentTypesFor(childType) : ['division', 'unit'];
+    if (!types.length) return [];
+    const responses = await Promise.all(
+      types.map((groupType) => api.get('/api/v1/assignment-groups/', {
+        params: {
+          program: programId,
+          group_type: groupType,
+          is_active: 'true',
+          page_size: 500,
+        },
+      })),
+    );
+    const merged = responses.flatMap((r) => {
+      const data = r.data;
+      return Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
+    });
+    return merged.sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
+
+  useEffect(() => {
+    if (!programFilter) {
+      setParentOptions([]);
+      return;
+    }
+    let cancelled = false;
+    loadParentOptions(programFilter)
+      .then((list) => { if (!cancelled) setParentOptions(list); })
+      .catch(() => { if (!cancelled) setParentOptions([]); });
+    return () => { cancelled = true; };
+  }, [programFilter, loadParentOptions]);
+
+  useEffect(() => {
+    if (!creating || !newGroup.program || !canHaveParent(newGroup.group_type)) {
+      setCreateParentOptions([]);
+      return;
+    }
+    let cancelled = false;
+    loadParentOptions(newGroup.program, newGroup.group_type)
+      .then((list) => { if (!cancelled) setCreateParentOptions(list); })
+      .catch(() => { if (!cancelled) setCreateParentOptions([]); });
+    return () => { cancelled = true; };
+  }, [creating, newGroup.program, newGroup.group_type, loadParentOptions]);
 
   const load = useCallback(async () => {
+    if (!programsReady) return;
     setLoading(true);
     setError('');
     try {
       const params = {};
       if (typeFilter) params.group_type = typeFilter;
       if (programFilter) params.program = programFilter;
+      if (parentFilter) {
+        params.parent = parentFilter;
+        params.include_descendants = 'true';
+      }
       if (activeFilter === 'active') params.is_active = 'true';
       else if (activeFilter === 'inactive') params.is_active = 'false';
       const { data } = await api.get('/api/v1/assignment-groups/', { params });
@@ -75,33 +203,46 @@ export default function GroupListPage() {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, programFilter, activeFilter]);
+  }, [typeFilter, programFilter, parentFilter, activeFilter, programsReady]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    api.get('/api/v1/memberships/', { params: { page_size: 1 } })
-      .then(() => {})
-      .catch(() => {});
-    // Load programs for the create form
-    api.get('/api/v1/memberships/', { params: { page_size: 1 } }).catch(() => {});
-  }, []);
+  const formatApiError = (data) => {
+    if (!data) return 'Create failed.';
+    if (typeof data.detail === 'string') return data.detail;
+    if (Array.isArray(data.non_field_errors) && data.non_field_errors.length) {
+      return data.non_field_errors.join(' ');
+    }
+    const fieldMsgs = Object.entries(data)
+      .filter(([, v]) => Array.isArray(v) && v.length)
+      .map(([k, v]) => `${k}: ${v.join(', ')}`);
+    if (fieldMsgs.length) return fieldMsgs.join('; ');
+    return 'Create failed.';
+  };
 
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const slug = newGroup.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const payload = { ...newGroup, slug };
+      const payload = {
+        name: newGroup.name.trim(),
+        group_type: newGroup.group_type,
+        program: Number(newGroup.program),
+      };
+      if (newGroup.parent) payload.parent = Number(newGroup.parent);
       const { data } = await api.post('/api/v1/assignment-groups/', payload);
       showToast(`Created group "${data.name}"`);
       setCreating(false);
-      setNewGroup({ name: '', group_type: 'bunk', program: '' });
+      setNewGroup({
+        name: '',
+        group_type: 'bunk',
+        program: programFilter || '',
+        parent: '',
+      });
       navigate(`/admin/groups/${data.id}`);
     } catch (err) {
-      const detail = err.response?.data?.detail || JSON.stringify(err.response?.data) || 'Create failed.';
-      showToast(detail);
+      showToast(formatApiError(err.response?.data));
     }
   };
 
@@ -124,7 +265,13 @@ export default function GroupListPage() {
               Manage bunks, teams, classrooms, caseloads, and other assignment groups
             </p>
           </div>
-          <Button onClick={() => setCreating(true)}>
+          <Button onClick={() => {
+            setCreating(true);
+            if (programFilter) {
+              setNewGroup((g) => ({ ...g, program: programFilter }));
+            }
+          }}
+          >
             <Plus size={16} /> New group
           </Button>
         </div>
@@ -149,7 +296,11 @@ export default function GroupListPage() {
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Type</label>
                 <select
                   value={newGroup.group_type}
-                  onChange={(e) => setNewGroup((g) => ({ ...g, group_type: e.target.value }))}
+                  onChange={(e) => setNewGroup((g) => ({
+                    ...g,
+                    group_type: e.target.value,
+                    parent: '',
+                  }))}
                   className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   {Object.entries(GROUP_TYPE_LABELS).map(([v, l]) => (
@@ -158,17 +309,37 @@ export default function GroupListPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Program ID</label>
-                <input
-                  type="number"
-                  required
+                <label htmlFor="create-group-program" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Program</label>
+                <ProgramSelect
+                  id="create-group-program"
+                  programs={programs}
                   value={newGroup.program}
-                  onChange={(e) => setNewGroup((g) => ({ ...g, program: e.target.value }))}
-                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white w-28"
-                  placeholder="Program ID"
+                  onChange={(v) => setNewGroup((g) => ({ ...g, program: v }))}
+                  allowAll={false}
+                  required
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[12rem]"
                 />
               </div>
-              <Button type="submit" size="sm">
+              {canHaveParent(newGroup.group_type) && (
+                <div>
+                  <label htmlFor="create-group-parent" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Parent group</label>
+                  <select
+                    id="create-group-parent"
+                    value={newGroup.parent}
+                    onChange={(e) => setNewGroup((g) => ({ ...g, parent: e.target.value }))}
+                    className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[12rem]"
+                    data-testid="create-group-parent"
+                  >
+                    <option value="">None</option>
+                    {createParentOptions.map((g) => (
+                      <option key={g.id} value={String(g.id)}>
+                        {g.name} ({GROUP_TYPE_LABELS[g.group_type] || g.group_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <Button type="submit" size="sm" disabled={!newGroup.program}>
                 Create
               </Button>
               <Button variant="secondary" size="sm" onClick={() => setCreating(false)}>
@@ -179,7 +350,7 @@ export default function GroupListPage() {
         )}
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex flex-wrap gap-2 mb-5 items-center">
           <div className="flex gap-1">
             {['active', 'inactive', 'all'].map((v) => (
               <button
@@ -207,6 +378,32 @@ export default function GroupListPage() {
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
+          <ProgramSelect
+            id="group-list-program-filter"
+            programs={programs}
+            value={programFilter}
+            onChange={(v) => {
+              handleProgramFilterChange(v);
+              setParentFilter('');
+            }}
+            className="px-3 py-1 rounded-full text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+          />
+          {programFilter && parentOptions.length > 0 && (
+            <select
+              value={parentFilter}
+              onChange={(e) => setParentFilter(e.target.value)}
+              className="px-3 py-1 rounded-full text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 max-w-[14rem]"
+              aria-label="Filter by parent group"
+              data-testid="group-list-parent-filter"
+            >
+              <option value="">All parents</option>
+              {parentOptions.map((g) => (
+                <option key={g.id} value={String(g.id)}>
+                  Under: {g.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {error && (

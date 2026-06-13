@@ -8,21 +8,6 @@ function partitionPrograms(programs) {
   return { active, ended };
 }
 
-function ProgramStatusBadge({ isActive }) {
-  if (isActive) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-        Active
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-      Ended
-    </span>
-  );
-}
-
 export default function AssignmentFilterBar({
   programs,
   programId,
@@ -33,7 +18,6 @@ export default function AssignmentFilterBar({
   onSearchChange,
 }) {
   const { active, ended } = partitionPrograms(programs);
-  const selected = programs.find((p) => String(p.id) === String(programId));
 
   return (
     <div
@@ -93,56 +77,6 @@ export default function AssignmentFilterBar({
           />
         </label>
       </div>
-
-      {selected && (
-        <p className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
-          <span>Filtering:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{selected.name}</span>
-          <ProgramStatusBadge isActive={selected.is_active} />
-        </p>
-      )}
-
-      {programs.length > 0 && (
-        <div data-testid="assignment-program-chips">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-            Programs in this organization
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onProgramChange('')}
-              className={[
-                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                !programId
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200'
-                  : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800',
-              ].join(' ')}
-            >
-              All programs
-            </button>
-            {programs.map((p) => {
-              const isSelected = String(p.id) === String(programId);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  data-testid={`assignment-program-chip-${p.id}`}
-                  onClick={() => onProgramChange(String(p.id))}
-                  className={[
-                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                    isSelected
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200'
-                      : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800',
-                  ].join(' ')}
-                >
-                  <span>{p.name}</span>
-                  <ProgramStatusBadge isActive={p.is_active} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import GroupTile from '../GroupTile';
 
 describe('GroupTile', () => {
@@ -55,5 +55,40 @@ describe('GroupTile', () => {
     expect(screen.getByText('Sue Per → Ta Rget')).toBeInTheDocument();
     expect(screen.getByText('Unit Head')).toBeInTheDocument();
     expect(screen.getByText('Counselor')).toBeInTheDocument();
+  });
+
+  it('disables unassign until assignments are selected, then opens confirm flow', () => {
+    const assignment = {
+      id: 1,
+      kind: 'group_membership',
+      person_name: 'Sam Lee',
+      membership_role: 'counselor',
+      is_active: true,
+      start_date: '2026-06-01',
+      end_date: null,
+    };
+    const props = {
+      title: 'Bunk Maple',
+      assignments: [assignment],
+      onToggleAssignment: vi.fn(),
+      onToggleAllAssignments: vi.fn(),
+      onEndSelected: vi.fn(),
+      onAssignPerson: vi.fn(),
+    };
+
+    const { rerender } = render(
+      <GroupTile {...props} selectedAssignmentIds={new Set()} />,
+    );
+
+    expect(screen.getByTestId('unassign-btn')).toBeDisabled();
+
+    rerender(<GroupTile {...props} selectedAssignmentIds={new Set([1])} />);
+
+    const unassignBtn = screen.getByTestId('unassign-btn');
+    expect(unassignBtn).toBeEnabled();
+    expect(unassignBtn).toHaveTextContent('Unassign (1)');
+
+    fireEvent.click(unassignBtn);
+    expect(screen.getByPlaceholderText('Reason for unassigning')).toBeInTheDocument();
   });
 });

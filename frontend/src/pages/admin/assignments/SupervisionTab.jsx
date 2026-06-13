@@ -5,9 +5,11 @@ import {
   listAdminAssignments,
   patchAdminAssignment,
 } from '../../../api/admin';
-import { parseListPayload, personFromMembership, mergeMembershipPeople } from './assignmentApiHelpers';
+import { parseListPayload, mergeMembershipPeople } from './assignmentApiHelpers';
+import { writeStoredProgramId } from '../../../lib/adminProgramContext';
 import AssignmentFilterBar from './AssignmentFilterBar';
 import { programQueryParam } from './assignmentProgramRef';
+import AssignmentsEmptyPane from './AssignmentsEmptyPane';
 import GroupTile, { todayIso } from './GroupTile';
 import PeopleAssignPane from './PeopleAssignPane';
 
@@ -46,61 +48,6 @@ export default function SupervisionTab({ config, programs }) {
   }, [config.key, programId, status, search]);
 
   const loadLeftAndSupervisors = useCallback(async () => {
-    if (config.key === 'uh_counselor') {
-      if (!programId) {
-        setLeftItems([]);
-        setSupervisors([]);
-        return;
-      }
-      const [uhResp, counselorResp] = await Promise.all([
-        api.get('/api/v1/memberships/', {
-          params: { program: programRef, role: 'unit_head', is_active: true, page_size: 500 },
-        }),
-        api.get('/api/v1/memberships/', {
-          params: {
-            program: programRef,
-            role: config.targetRoles[0],
-            is_active: true,
-            page_size: 500,
-          },
-        }),
-      ]);
-      const uhs = parseListPayload(uhResp.data).map((m) => {
-        const person = personFromMembership(m);
-        return {
-          key: `uh-${m.id}`,
-          membershipId: m.id,
-          label: person?.full_name || m.person_name || 'Unit head',
-          subtitle: 'Unit head',
-        };
-      });
-      setLeftItems(uhs);
-      const counselors = new Map();
-      for (const [personId, entry] of mergeMembershipPeople(
-        parseListPayload(counselorResp.data),
-        config.targetRoles[0],
-      )) {
-        counselors.set(personId, entry);
-      }
-      for (const role of config.targetRoles.slice(1)) {
-        const { data } = await api.get('/api/v1/memberships/', {
-          params: { program: programRef, role, is_active: true, page_size: 500 },
-        });
-        for (const [personId, entry] of mergeMembershipPeople(parseListPayload(data), role)) {
-          const existing = counselors.get(personId);
-          if (!existing) {
-            counselors.set(personId, entry);
-            continue;
-          }
-          for (const r of entry.roles) {
-            if (!existing.roles.includes(r)) existing.roles.push(r);
-          }
-        }
-      }
-      setSupervisors([...counselors.values()]);
-      return;
-    }
-
     if (config.key === 'cc_caseload') {
       const params = { is_active: 'true', group_type: 'bunk', page_size: 500 };
       if (programRef) params.program = programRef;
@@ -160,9 +107,6 @@ export default function SupervisionTab({ config, programs }) {
 
   const visibleAssignments = useMemo(() => {
     if (!selectedLeft) return [];
-    if (config.key === 'uh_counselor') {
-      return assignments.filter((a) => a.supervisor_membership_id === selectedLeft.membershipId);
-    }
     if (config.key === 'cc_caseload') {
       return assignments.filter((a) => a.target_bunk_id === selectedLeft.bunkId);
     }
@@ -180,10 +124,7 @@ export default function SupervisionTab({ config, programs }) {
     if (!selectedLeft) return ids;
     visibleAssignments.forEach((a) => {
       if (!a.is_active) return;
-      if (config.key === 'uh_counselor' && a.target_membership_id) {
-        const counselor = supervisors.find((s) => s.membershipId === a.target_membership_id);
-        if (counselor?.id) ids.add(counselor.id);
-      } else if (a.supervisor_membership_id) {
+      if (a.supervisor_membership_id) {
         const sup = supervisors.find((s) => s.membershipId === a.supervisor_membership_id);
         if (sup?.id) ids.add(sup.id);
       }
@@ -218,25 +159,7 @@ export default function SupervisionTab({ config, programs }) {
     let anyWarnings = false;
     let clamped = false;
 
-    if (config.key === 'uh_counselor') {
-      for (const counselorId of selectedSupervisorIds) {
-        const counselor = supervisors.find((s) => s.id === counselorId);
-        if (!counselor?.membershipId) continue;
-        try {
-          const resp = await createAdminAssignment({
-            sub_tab: config.key,
-            supervisor_membership_id: selectedLeft.membershipId,
-            target_membership_id: counselor.membershipId,
-            start_date: startDate || undefined,
-            end_date: endDate || undefined,
-          });
-          if (resp?.backdated_clamped) clamped = true;
-          if (resp?.warnings?.length) anyWarnings = true;
-        } catch (err) {
-          errors.push(err?.response?.data?.detail || counselor.full_name);
-        }
-      }
-    } else if (config.key === 'cc_caseload') {
+    if (config.key === 'cc_caseload') {
       for (const ccId of selectedSupervisorIds) {
         const cc = supervisors.find((s) => s.id === ccId);
         if (!cc?.membershipId) continue;
@@ -287,9 +210,7 @@ export default function SupervisionTab({ config, programs }) {
     }
   };
 
-  const rightPaneLabel = config.key === 'uh_counselor'
-    ? 'Counselors to supervise'
-    : config.key === 'cc_caseload'
+  const rightPaneLabel = config.key === 'cc_caseload'
       ? 'Camper care staff'
       : 'Leadership team';
 
@@ -314,6 +235,7 @@ export default function SupervisionTab({ config, programs }) {
         onProgramChange={(v) => {
           setProgramId(v);
           setSelectedLeftKey(null);
+          writeStoredProgramId(v);
         }}
         status={status}
         onStatusChange={setStatus}
@@ -333,8 +255,8 @@ export default function SupervisionTab({ config, programs }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3 space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3 space-y-2 min-h-[20rem]">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               {config.leftLabel}
@@ -378,6 +300,39 @@ export default function SupervisionTab({ config, programs }) {
           )}
         </section>
 
+        {selectedLeft ? (
+          <GroupTile
+            title={selectedLeft.label}
+            subtitle={selectedLeft.subtitle || config.subtitle}
+            assignments={visibleAssignments}
+            selectedAssignmentIds={selectedAssignmentIds}
+            onToggleAssignment={(id) => {
+              setSelectedAssignmentIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              });
+            }}
+            onToggleAllAssignments={(checked) => {
+              if (!checked) setSelectedAssignmentIds(new Set());
+              else {
+                setSelectedAssignmentIds(new Set(
+                  visibleAssignments.filter((a) => a.is_active).map((a) => a.id),
+                ));
+              }
+            }}
+            onEndSelected={handleEndSelected}
+            onAssignPerson={() => {
+              setHighlightPeople(true);
+              setTimeout(() => setHighlightPeople(false), 2000);
+            }}
+            dimEnded={status === 'all'}
+          />
+        ) : (
+          <AssignmentsEmptyPane leftLabel={config.leftLabel} />
+        )}
+
         <PeopleAssignPane
           people={supervisors}
           selectedIds={selectedSupervisorIds}
@@ -394,37 +349,6 @@ export default function SupervisionTab({ config, programs }) {
           highlighted={highlightPeople}
         />
       </div>
-
-      {selectedLeft && (
-        <GroupTile
-          title={selectedLeft.label}
-          subtitle={selectedLeft.subtitle || config.subtitle}
-          assignments={visibleAssignments}
-          selectedAssignmentIds={selectedAssignmentIds}
-          onToggleAssignment={(id) => {
-            setSelectedAssignmentIds((prev) => {
-              const next = new Set(prev);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
-              return next;
-            });
-          }}
-          onToggleAllAssignments={(checked) => {
-            if (!checked) setSelectedAssignmentIds(new Set());
-            else {
-              setSelectedAssignmentIds(new Set(
-                visibleAssignments.filter((a) => a.is_active).map((a) => a.id),
-              ));
-            }
-          }}
-          onEndSelected={handleEndSelected}
-          onAssignPerson={() => {
-            setHighlightPeople(true);
-            setTimeout(() => setHighlightPeople(false), 2000);
-          }}
-          dimEnded={status === 'all'}
-        />
-      )}
 
       <p className="text-xs text-gray-500 sr-only">{rightPaneLabel}</p>
     </div>

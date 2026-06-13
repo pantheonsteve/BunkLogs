@@ -5,12 +5,18 @@ import {
   listAdminAssignments,
   patchAdminAssignment,
 } from '../../../api/admin';
+import { writeStoredProgramId } from '../../../lib/adminProgramContext';
 import GroupDisplayName from '../../../components/GroupDisplayName';
 import AssignmentFilterBar from './AssignmentFilterBar';
 import { parseListPayload, mergeMembershipPeople } from './assignmentApiHelpers';
 import { programQueryParam } from './assignmentProgramRef';
+import AssignmentsEmptyPane from './AssignmentsEmptyPane';
 import GroupTile, { todayIso } from './GroupTile';
 import PeopleAssignPane from './PeopleAssignPane';
+
+function prettyRole(role) {
+  return role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
 
 export default function GroupMembershipTab({ config, programs }) {
   const [programId, setProgramId] = useState('');
@@ -29,6 +35,7 @@ export default function GroupMembershipTab({ config, programs }) {
   const [highlightPeople, setHighlightPeople] = useState(false);
   const [banner, setBanner] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [coveredCounselors, setCoveredCounselors] = useState([]);
   const loadSeq = useRef(0);
 
   const programRef = programQueryParam(programId, programs);
@@ -115,6 +122,57 @@ export default function GroupMembershipTab({ config, programs }) {
     if (!selectedGroupId) return [];
     return assignments.filter((a) => a.group_id === selectedGroupId);
   }, [assignments, selectedGroupId]);
+
+  useEffect(() => {
+    if (config.key !== 'uh_unit' || !selectedGroupId) {
+      setCoveredCounselors([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const bunkParams = {
+          parent: String(selectedGroupId),
+          group_type: 'bunk',
+          is_active: 'true',
+          include_descendants: 'true',
+          page_size: 500,
+        };
+        if (programRef) bunkParams.program = programRef;
+        const { data: bunkData } = await api.get('/api/v1/assignment-groups/', { params: bunkParams });
+        const bunkIds = new Set(parseListPayload(bunkData).map((b) => b.id));
+        if (!bunkIds.size) {
+          if (!cancelled) setCoveredCounselors([]);
+          return;
+        }
+        const counselorData = await listAdminAssignments({
+          sub_tab: 'counselor_bunk',
+          program: programId || undefined,
+          status: 'active',
+        });
+        const seen = new Map();
+        for (const row of counselorData.results || []) {
+          if (!row.is_active || !bunkIds.has(row.group_id) || !row.person_name) continue;
+          const key = row.person_id || row.person_name;
+          if (!seen.has(key)) {
+            seen.set(key, {
+              name: row.person_name,
+              bunk: row.group_name,
+              role: row.membership_role,
+            });
+          }
+        }
+        if (!cancelled) {
+          setCoveredCounselors(
+            [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)),
+          );
+        }
+      } catch {
+        if (!cancelled) setCoveredCounselors([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [config.key, selectedGroupId, programId, programRef]);
 
   const disabledPersonIds = useMemo(() => {
     const ids = new Set();
@@ -215,7 +273,10 @@ export default function GroupMembershipTab({ config, programs }) {
       <AssignmentFilterBar
         programs={programs}
         programId={programId}
-        onProgramChange={setProgramId}
+        onProgramChange={(v) => {
+          setProgramId(v);
+          writeStoredProgramId(v);
+        }}
         status={status}
         onStatusChange={setStatus}
         search={search}
@@ -234,8 +295,8 @@ export default function GroupMembershipTab({ config, programs }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3 space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3 space-y-2 min-h-[20rem]">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               {config.leftLabel}
@@ -286,6 +347,60 @@ export default function GroupMembershipTab({ config, programs }) {
           )}
         </section>
 
+        {selectedGroup ? (
+          <div className="space-y-3 min-h-[20rem] flex flex-col">
+            <GroupTile
+              title={selectedGroup.name}
+              subtitle={[
+                selectedGroup.program_name,
+                selectedGroup.parent_name,
+              ].filter(Boolean).join(' · ') || config.subtitle}
+              assignments={groupAssignments}
+              selectedAssignmentIds={selectedAssignmentIds}
+              onToggleAssignment={toggleAssignment}
+              onToggleAllAssignments={toggleAllAssignments}
+              onEndSelected={handleEndSelected}
+              onAssignPerson={focusAssign}
+              dimEnded={status === 'all'}
+              className="flex-1"
+            />
+            {config.key === 'uh_unit' && (
+              <div
+                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-4"
+                data-testid="unit-covered-counselors"
+              >
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Counselors supervised via bunks
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Assign counselors to bunks in this unit on the Counselor → Bunk tab.
+                  Unit heads see those bunks automatically.
+                </p>
+                {coveredCounselors.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                    No counselors assigned to bunks in this unit yet.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-1 max-h-40 overflow-y-auto text-sm">
+                    {coveredCounselors.map((c) => (
+                      <li key={`${c.name}-${c.bunk}`} className="text-gray-800 dark:text-gray-200">
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {' '}
+                          · {c.bunk}
+                          {c.role ? ` (${prettyRole(c.role)})` : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <AssignmentsEmptyPane leftLabel={config.leftLabel} />
+        )}
+
         <PeopleAssignPane
           people={people}
           emptyMessage={
@@ -306,23 +421,6 @@ export default function GroupMembershipTab({ config, programs }) {
           highlighted={highlightPeople}
         />
       </div>
-
-      {selectedGroup && (
-        <GroupTile
-          title={selectedGroup.name}
-          subtitle={[
-            selectedGroup.program_name,
-            selectedGroup.parent_name,
-          ].filter(Boolean).join(' · ') || config.subtitle}
-          assignments={groupAssignments}
-          selectedAssignmentIds={selectedAssignmentIds}
-          onToggleAssignment={toggleAssignment}
-          onToggleAllAssignments={toggleAllAssignments}
-          onEndSelected={handleEndSelected}
-          onAssignPerson={focusAssign}
-          dimEnded={status === 'all'}
-        />
-      )}
     </div>
   );
 }
