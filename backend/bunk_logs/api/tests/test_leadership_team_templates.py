@@ -455,6 +455,12 @@ def test_responses_aggregate_tab(
     assert dim is not None
     assert dim["count"] == 3
     assert dim["avg"] == pytest.approx(4.0)
+    assert dim["scale_max"] == 5
+    assert dim["distribution"]["3"] == 1
+    assert dim["distribution"]["4"] == 1
+    assert dim["distribution"]["5"] == 1
+    assert body["avg_rating_over_time"]
+    assert body["avg_rating_over_time"][0]["avg"] == pytest.approx(4.0)
 
 
 # ---------------------------------------------------------------------------
