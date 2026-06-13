@@ -17,7 +17,7 @@
  * already supports range filters so no backend change required. Date
  * range remains available through the Filters drawer for power users.
  *
- * Aggregate tab is unchanged.
+ * Aggregate tab: pie charts per scored dimension, daily trend line, date picker.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -47,7 +47,10 @@ import {
   getInitials,
   pickLabel,
   ratingTierClass,
+  seriesDisplayLabel,
 } from '../../dashboards/subject/responseTable/schema';
+import ScorePieChart from '../../dashboards/performance/ScorePieChart';
+import { ratingColor } from '../../dashboards/colors';
 import {
   DescriptionCell,
   FlagChip,
@@ -303,84 +306,369 @@ function IndividualTab({
   );
 }
 
-function AggregateTab({ payload }) {
-  if (!payload) return null;
-  // Backend serializers (LT responses endpoint) emit:
-  //   avg_rating_per_dimension: [{key, avg, count, versions}]
-  //   language_distribution:    [{language, count}]  -- list, not dict
-  //   response_volume_per_period: [{period_start, count}]
-  const dims = payload.avg_rating_per_dimension ?? payload.avg_per_dimension ?? [];
-  const langDistRaw = payload.language_distribution ?? [];
-  const langDist = Array.isArray(langDistRaw)
-    ? langDistRaw
-    : Object.entries(langDistRaw).map(([language, count]) => ({ language, count }));
-  const volume = payload.response_volume_per_period ?? [];
+function orderRatingDims(dims, ratingCols) {
+  const orderIndex = (key) => {
+    const col = ratingCols.find((c) =>
+      (c.subKey ? `${c.key}__${c.subKey}` : c.key) === key,
+    );
+    const sortKey = col?.subKey ?? col?.key ?? key;
+    return RATING_COLUMN_ORDER[sortKey] ?? 99;
+  };
+  return [...dims].sort((a, b) => {
+    const ra = orderIndex(a.key);
+    const rb = orderIndex(b.key);
+    if (ra !== rb) return ra - rb;
+    return a.key.localeCompare(b.key);
+  });
+}
+
+function emptyDistribution(scaleMax = 5) {
+  const dist = {};
+  for (let i = 1; i <= scaleMax; i += 1) dist[String(i)] = 0;
+  return dist;
+}
+
+/** Merge API aggregate dimensions with schema rating columns so every scored field gets a card. */
+function buildAggregateDims(apiDims, ratingCols) {
+  const byKey = Object.fromEntries((apiDims ?? []).map((d) => [d.key, d]));
+  const orderedCols = orderRatingCols(ratingCols);
+  const fromSchema = orderedCols.map((col) => {
+    const key = col.subKey ? `${col.key}__${col.subKey}` : col.key;
+    const scaleMax = col.scaleMax ?? 5;
+    const fromApi = byKey[key];
+    if (fromApi) {
+      return {
+        ...fromApi,
+        scale_max: fromApi.scale_max ?? scaleMax,
+        distribution: fromApi.distribution ?? emptyDistribution(fromApi.scale_max ?? scaleMax),
+      };
+    }
+    return {
+      key,
+      avg: null,
+      count: 0,
+      scale_max: scaleMax,
+      distribution: emptyDistribution(scaleMax),
+      versions: [],
+    };
+  });
+  const schemaKeys = new Set(fromSchema.map((d) => d.key));
+  const extras = orderRatingDims(
+    (apiDims ?? []).filter((d) => !schemaKeys.has(d.key)),
+    ratingCols,
+  );
+  return [...fromSchema, ...extras];
+}
+
+function distributionLegend(distribution) {
+  return Object.entries(distribution)
+    .filter(([, count]) => Number(count) > 0)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([value, count]) => `${value}: ${count}`)
+    .join(' · ');
+}
+
+function DateStepperBar({ dateStr, setSingleDate, stepDate, embedded = false }) {
+  const controls = (
+    <div className="flex flex-wrap items-center gap-3 shrink-0">
+      <div className="flex items-center space-x-3">
+        <button
+          type="button"
+          onClick={() => stepDate(-1)}
+          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+          aria-label="Previous day"
+          data-testid="lt-responses-prev-day"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="flex items-center space-x-2">
+          <Calendar className="w-5 h-5 text-gray-400" />
+          <SingleDatePicker
+            date={dateFromISO(dateStr)}
+            setDate={(d) => d && setSingleDate(isoFromDate(d))}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => stepDate(1)}
+          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+          aria-label="Next day"
+          data-testid="lt-responses-next-day"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+      <div
+        className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap"
+        data-testid="lt-responses-long-date"
+      >
+        {formatLongDate(dateStr)}
+      </div>
+    </div>
+  );
+
+  if (embedded) return controls;
+
   return (
-    <div className="space-y-4">
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 mb-6">
+      {controls}
+    </div>
+  );
+}
+
+function AggregateTrendChart({ series, selectedDate, scaleMax = 5, onSelectDate }) {
+  const containerRef = useRef(null);
+  const [chartWidth, setChartWidth] = useState(0);
+  const [hoveredDate, setHoveredDate] = useState(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+    const update = () => setChartWidth(el.clientWidth);
+    update();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const selectDate = (date) => {
+    if (!onSelectDate || !date || date === selectedDate) return;
+    onSelectDate(date);
+  };
+
+  const points = (series ?? []).filter((p) => p.avg != null);
+  if (points.length === 0) {
+    return (
+      <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+        No rating history yet.
+      </p>
+    );
+  }
+  const w = chartWidth || 640;
+  const h = 160;
+  const padX = 36;
+  const padY = 20;
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+  const xs = sorted.length;
+  const xStep = xs > 1 ? (w - 2 * padX) / (xs - 1) : 0;
+  const yScale = (v) => {
+    const clamped = Math.max(1, Math.min(scaleMax, v));
+    return h - padY - ((clamped - 1) / (scaleMax - 1)) * (h - 2 * padY);
+  };
+  const path = sorted
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${padX + i * xStep},${yScale(p.avg)}`)
+    .join(' ');
+
+  return (
+    <div ref={containerRef} className="w-full">
+      <svg
+        width="100%"
+        height={h}
+        viewBox={`0 0 ${w} ${h}`}
+        aria-label="Average score over time. Click a point to view that day."
+        className="block w-full"
+        data-testid="lt-responses-trend-chart"
+      >
+        {[1, Math.ceil(scaleMax / 2), scaleMax].map((v) => (
+          <g key={v}>
+            <line
+              x1={padX}
+              x2={w - padX}
+              y1={yScale(v)}
+              y2={yScale(v)}
+              stroke="#e5e7eb"
+              strokeWidth="0.5"
+            />
+            <text x={4} y={yScale(v) + 4} className="fill-gray-400 text-[10px]">{v}</text>
+          </g>
+        ))}
+        <path d={path} stroke="#4f46e5" strokeWidth="2" fill="none" />
+        {sorted.map((p, i) => {
+          const selected = p.date === selectedDate;
+          const hovered = p.date === hoveredDate;
+          const cx = padX + i * xStep;
+          const cy = yScale(p.avg);
+          const dotR = selected ? 5 : hovered ? 5 : 3.5;
+          return (
+            <g
+              key={p.date}
+              className="cursor-pointer"
+              data-testid={`lt-responses-trend-point-${p.date}`}
+              onMouseEnter={() => setHoveredDate(p.date)}
+              onMouseLeave={() => setHoveredDate((cur) => (cur === p.date ? null : cur))}
+              onClick={() => selectDate(p.date)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectDate(p.date);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`View ${formatLongDate(p.date)}, average ${p.avg.toFixed(2)}`}
+              aria-current={selected ? 'date' : undefined}
+            >
+              <title>{`${formatLongDate(p.date)} · avg ${p.avg.toFixed(2)} · click to view`}</title>
+              <circle
+                cx={cx}
+                cy={cy}
+                r={14}
+                fill="transparent"
+              />
+              {hovered && (
+                <g pointerEvents="none" data-testid={`lt-responses-trend-tooltip-${p.date}`}>
+                  <rect
+                    x={cx - 72}
+                    y={cy - 30}
+                    width={144}
+                    height={20}
+                    rx={4}
+                    className="fill-gray-900 dark:fill-gray-700"
+                    opacity={0.92}
+                  />
+                  <text
+                    x={cx}
+                    y={cy - 16}
+                    textAnchor="middle"
+                    className="fill-white text-[10px]"
+                  >
+                    {formatLongDate(p.date)}
+                  </text>
+                </g>
+              )}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={dotR}
+                fill={selected || hovered ? '#4f46e5' : (ratingColor(p.avg, scaleMax) ?? '#6b7280')}
+                stroke="#fff"
+                strokeWidth="1.5"
+                pointerEvents="none"
+              />
+              <text
+                x={cx}
+                y={h - 4}
+                textAnchor="middle"
+                pointerEvents="none"
+                className={`text-[9px] ${
+                  selected || hovered
+                    ? 'fill-indigo-600 font-semibold'
+                    : 'fill-gray-500'
+                }`}
+              >
+                {formatShortDate(p.date)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function AggregateRatingCard({ dim, ratingCols }) {
+  const displayLabel = seriesDisplayLabel(dim.key, ratingCols) || dim.key;
+  const scaleMax = dim.scale_max ?? 5;
+  const distribution = dim.distribution ?? emptyDistribution(scaleMax);
+  const total = Object.values(distribution).reduce((sum, count) => sum + Number(count), 0);
+
+  return (
+    <div
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex flex-col items-center text-center"
+      data-testid={`lt-responses-dim-${dim.key}`}
+    >
+      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+        {displayLabel}
+      </h4>
+      {total === 0 ? (
+        <p className="text-xs text-gray-400 italic py-8">No ratings for this day.</p>
+      ) : (
+        <div className="flex flex-col items-center gap-2" aria-label={`${displayLabel} score distribution`}>
+          <ScorePieChart distribution={distribution} scaleMax={scaleMax} size={96} />
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
+            {distributionLegend(distribution)}
+          </p>
+        </div>
+      )}
+      <p className="mt-3 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+        {dim.avg == null ? '—' : dim.avg.toFixed(2)}
+      </p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        average · {dim.count ?? 0} rating{(dim.count ?? 0) === 1 ? '' : 's'}
+      </p>
+    </div>
+  );
+}
+
+function AggregateTab({ payload, dateStr, ratingCols, onSelectDate, loading = false }) {
+  if (!payload) return null;
+  const ratingColsOrdered = orderRatingCols(ratingCols);
+  const dims = buildAggregateDims(
+    payload.avg_rating_per_dimension ?? payload.avg_per_dimension ?? [],
+    ratingColsOrdered,
+  );
+  const trend = payload.avg_rating_over_time ?? [];
+  const trendScaleMax = dims.reduce(
+    (max, d) => Math.max(max, d.scale_max ?? 5),
+    5,
+  );
+
+  return (
+    <div className="space-y-6">
+      {loading && (
+        <p className="text-xs text-gray-500 dark:text-gray-400" data-testid="lt-responses-aggregate-loading">
+          Updating…
+        </p>
+      )}
       <div
         className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
         data-testid="lt-responses-summary"
       >
         <p className="text-sm text-gray-700 dark:text-gray-300">
-          <span className="font-semibold text-gray-900 dark:text-white">{payload.total_responses}</span> responses
+          <span className="font-semibold text-gray-900 dark:text-white">
+            {payload.total_responses}
+          </span>
+          {' '}
+          response{payload.total_responses === 1 ? '' : 's'} on {formatLongDate(dateStr)}
         </p>
       </div>
 
-      <div
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-        data-testid="lt-responses-avg"
-      >
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-          Average per dimension
-        </h3>
-        {dims.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">No scored fields.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {dims.map((d) => (
-              <li key={d.key} className="flex justify-between" data-testid={`lt-responses-dim-${d.key}`}>
-                <span className="text-gray-700 dark:text-gray-300">
-                  {d.key}
-                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                    versions: {(d.versions ?? []).join(', ') || '—'}
-                  </span>
-                </span>
-                <span className="text-gray-900 dark:text-white font-medium">
-                  {d.avg == null ? '—' : d.avg.toFixed(2)}
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">({d.count})</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {dims.length === 0 ? (
+        <div
+          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6"
+          data-testid="lt-responses-avg"
+        >
+          <p className="text-sm text-gray-500 dark:text-gray-400">No scored fields on this template.</p>
+        </div>
+      ) : (
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+          data-testid="lt-responses-avg"
+        >
+          {dims.map((d) => (
+            <AggregateRatingCard
+              key={d.key}
+              dim={d}
+              ratingCols={ratingColsOrdered}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-          Language distribution
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+          Average score over time
         </h3>
-        <ul className="text-sm space-y-1">
-          {langDist.map(({ language, count }) => (
-            <li key={language} className="flex justify-between text-gray-700 dark:text-gray-300">
-              <span>{language}</span>
-              <span>{count}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-          Volume per period
-        </h3>
-        <ul className="text-xs space-y-0.5">
-          {volume.map((v) => (
-            <li key={v.period_start} className="flex justify-between text-gray-700 dark:text-gray-300">
-              <span>{v.period_start}</span>
-              <span>{v.count}</span>
-            </li>
-          ))}
-        </ul>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Composite average across all rating fields for each day. Hover to preview a date; click to view that day.
+        </p>
+        <AggregateTrendChart
+          series={trend}
+          selectedDate={dateStr}
+          scaleMax={trendScaleMax}
+          onSelectDate={onSelectDate}
+        />
       </div>
     </div>
   );
@@ -397,7 +685,7 @@ function AggregateTab({ payload }) {
  * any stale range in the URL. The Filters drawer clears ``?date=`` when
  * the user picks a range, so the two never conflict in practice.
  */
-function buildApiParams(urlParams) {
+function buildApiParams(urlParams, activeTab) {
   const out = {};
   for (const [k, v] of urlParams.entries()) {
     if (k === 'q' || k === 'date') continue;
@@ -408,6 +696,7 @@ function buildApiParams(urlParams) {
     out.date_from = single;
     out.date_to = single;
   }
+  out.tab = activeTab;
   return out;
 }
 
@@ -424,6 +713,7 @@ export default function LeadershipTeamResponses() {
   const [showFilters, setShowFilters] = useState(false);
   const [template, setTemplate] = useState(null);
   const [payload, setPayload] = useState(null);
+  const lastAggregatePayloadRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -444,9 +734,9 @@ export default function LeadershipTeamResponses() {
   }, []);
 
   const apiParamsKey = useMemo(() => {
-    const built = buildApiParams(params);
+    const built = buildApiParams(params, tab);
     return JSON.stringify(built);
-  }, [params]);
+  }, [params, tab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -461,6 +751,7 @@ export default function LeadershipTeamResponses() {
         if (cancelled) return;
         setTemplate(tpl);
         setPayload(data);
+        if (data?.tab === 'aggregate') lastAggregatePayloadRef.current = data;
       } catch (err) {
         if (cancelled) return;
         if (err?.response?.status === 403) setError('You cannot view these responses.');
@@ -543,7 +834,11 @@ export default function LeadershipTeamResponses() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredRows, sections.flagFields, params]);
 
-  const exportHref = exportResponsesUrl(id, buildApiParams(params));
+  const exportHref = exportResponsesUrl(id, buildApiParams(params, tab));
+
+  const aggregatePayload = payload?.tab === 'aggregate'
+    ? payload
+    : lastAggregatePayloadRef.current;
 
   const { href: backHref, label: backLabel } = responsesBackLink({
     dashboard: params.get('dashboard'),
@@ -640,41 +935,12 @@ export default function LeadershipTeamResponses() {
                         </button>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 shrink-0">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          type="button"
-                          onClick={() => stepDate(-1)}
-                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                          aria-label="Previous day"
-                          data-testid="lt-responses-prev-day"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="w-5 h-5 text-gray-400" />
-                          <SingleDatePicker
-                            date={dateFromISO(dateStr)}
-                            setDate={(d) => d && setSingleDate(isoFromDate(d))}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => stepDate(1)}
-                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                          aria-label="Next day"
-                          data-testid="lt-responses-next-day"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div
-                        className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap"
-                        data-testid="lt-responses-long-date"
-                      >
-                        {formatLongDate(dateStr)}
-                      </div>
-                    </div>
+                    <DateStepperBar
+                      dateStr={dateStr}
+                      setSingleDate={setSingleDate}
+                      stepDate={stepDate}
+                      embedded
+                    />
                   </div>
                 </div>
 
@@ -811,7 +1077,15 @@ export default function LeadershipTeamResponses() {
               </>
             )}
 
-            {loading && (
+            {tab === 'aggregate' && (
+              <DateStepperBar
+                dateStr={dateStr}
+                setSingleDate={setSingleDate}
+                stepDate={stepDate}
+              />
+            )}
+
+            {loading && tab !== 'aggregate' && (
               <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="lt-responses-loading">
                 Loading…
               </p>
@@ -832,7 +1106,15 @@ export default function LeadershipTeamResponses() {
                 dateStr={dateStr}
               />
             )}
-            {!loading && !error && tab === 'aggregate' && <AggregateTab payload={payload} />}
+            {!error && tab === 'aggregate' && aggregatePayload && (
+              <AggregateTab
+                payload={aggregatePayload}
+                dateStr={dateStr}
+                ratingCols={sections.ratingCols}
+                onSelectDate={setSingleDate}
+                loading={loading}
+              />
+            )}
     </div>
   );
 }

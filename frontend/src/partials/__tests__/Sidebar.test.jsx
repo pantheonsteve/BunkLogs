@@ -181,7 +181,7 @@ describe('Sidebar — section gating (3.32)', () => {
     const links = hrefs();
     expect(links).toContain('/admin/home');
     expect(links).toContain('/help');
-    expect(links).toContain('/admin/dashboard');
+    expect(links).not.toContain('/admin/dashboard');
     expect(links).toContain('/dashboards/logs');
     expect(links).toContain('/dashboards/reflections');
     expect(links).toContain('/admin/templates');
@@ -238,7 +238,7 @@ describe('Sidebar — maintenance-only nav', () => {
     renderWith({ role: 'Admin', membership_roles: ['maintenance', 'admin'] });
     const links = hrefs();
     expect(links).toContain('/admin/home');
-    expect(links).toContain('/admin/dashboard');
+    expect(links).not.toContain('/admin/dashboard');
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
   });
 });
@@ -275,18 +275,19 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     expect(hrefs()).toContain('/admin/field-keys');
   });
 
-  it('still includes Memberships / Templates / Groups and top-level Home', () => {
+  it('still includes People / Memberships / Groups / Templates and top-level Home', () => {
     renderWith({ role: 'Admin' }, { path: '/admin/home' });
     const links = hrefs();
     expect(links).toEqual(
       expect.arrayContaining([
         '/admin/home',
-        '/admin/dashboard',
+        '/admin/people',
         '/admin/memberships',
-        '/admin/templates',
         '/admin/groups',
+        '/admin/templates',
       ]),
     );
+    expect(links).not.toContain('/admin/dashboard');
   });
 
   it('renders Admin submenu after Supervise with no legacy links', () => {
@@ -297,16 +298,25 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
     const logsIdx = links.indexOf('/dashboards/logs');
     const reflectionsIdx = links.indexOf('/dashboards/reflections');
     const authorsIdx = links.indexOf('/dashboards/authors');
-    const adminDashboardIdx = links.indexOf('/admin/dashboard');
-    const templatesIdx = links.indexOf('/admin/templates');
     const peopleIdx = links.indexOf('/admin/people');
+    const membershipsIdx = links.indexOf('/admin/memberships');
+    const groupsIdx = links.indexOf('/admin/groups');
+    const assignmentsIdx = links.indexOf('/admin/assignments');
+    const templatesIdx = links.indexOf('/admin/templates');
+    const fieldKeysIdx = links.indexOf('/admin/field-keys');
+    const settingsIdx = links.indexOf('/admin/settings');
     expect(homeIdx).toBeGreaterThanOrEqual(0);
     expect(performanceIdx).toBeGreaterThan(homeIdx);
     expect(logsIdx).toBeGreaterThan(performanceIdx);
     expect(reflectionsIdx).toBeGreaterThan(logsIdx);
-    expect(authorsIdx).toBeLessThan(adminDashboardIdx);
-    expect(templatesIdx).toBeGreaterThan(adminDashboardIdx);
-    expect(peopleIdx).toBeGreaterThan(templatesIdx);
+    expect(authorsIdx).toBeLessThan(peopleIdx);
+    expect(membershipsIdx).toBeGreaterThan(peopleIdx);
+    expect(groupsIdx).toBeGreaterThan(membershipsIdx);
+    expect(assignmentsIdx).toBeGreaterThan(groupsIdx);
+    expect(templatesIdx).toBeGreaterThan(assignmentsIdx);
+    expect(fieldKeysIdx).toBeGreaterThan(templatesIdx);
+    expect(settingsIdx).toBeGreaterThan(fieldKeysIdx);
+    expect(links).not.toContain('/admin/dashboard');
     expect(links).not.toContain('/admin-bunk-logs');
     expect(links).not.toContain('/admin-dashboard');
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();

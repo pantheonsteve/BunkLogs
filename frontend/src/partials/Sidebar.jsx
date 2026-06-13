@@ -71,12 +71,11 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Author attribution /dashboards/authors
  *
  *   ADMIN (collapsible, below Supervise)
- *     Admin dashboard     /admin/dashboard
- *     Templates           /admin/templates
  *     People              /admin/people
- *     Assignments         /admin/assignments
  *     Memberships         /admin/memberships
- *     Assignment groups   /admin/groups
+ *     Groups              /admin/groups
+ *     Assignments         /admin/assignments
+ *     Templates           /admin/templates
  *     Field keys          /admin/field-keys
  *     Settings            /admin/settings
  *
@@ -300,13 +299,12 @@ function Sidebar({
           >
             {canAdmin && (
               <>
-                <SubItem to="/admin/dashboard" label="Admin Dashboard" />
-                <SubItem to="/admin/templates" label="Templates" />
                 <SubItem to="/admin/people" label="People" />
-                <SubItem to="/admin/assignments" label="Assignments" />
                 <SubItem to="/admin/memberships" label="Memberships" />
-                <SubItem to="/admin/groups" label="Assignment groups" />
-                <SubItem to="/admin/field-keys" label="Field keys" />
+                <SubItem to="/admin/groups" label="Groups" />
+                <SubItem to="/admin/assignments" label="Assignments" />
+                <SubItem to="/admin/templates" label="Templates" />
+                <SubItem to="/admin/field-keys" label="Field Keys" />
                 <SubItem to="/admin/settings" label="Settings" />
               </>
             )}
