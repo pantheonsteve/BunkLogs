@@ -150,6 +150,11 @@ export async function listAdminPrograms(status) {
   return resp?.data ?? { results: [] };
 }
 
+export async function getAdminProgram(programId) {
+  const resp = await api.get(`${ADMIN_BASE}/programs/${programId}/`);
+  return resp?.data ?? null;
+}
+
 export async function createAdminProgram(payload) {
   const resp = await api.post(`${ADMIN_BASE}/programs/`, payload);
   return resp?.data ?? null;
