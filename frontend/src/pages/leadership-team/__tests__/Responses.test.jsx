@@ -125,10 +125,21 @@ const individualPayload = {
 const aggregatePayload = {
   tab: 'aggregate',
   total_responses: 2,
-  response_volume_per_period: [{ period_start: '2026-07-06', count: 2 }],
+  response_volume_per_period: [{ period_start: '2026-07-12', count: 2 }],
   language_distribution: [{ language: 'en', count: 2 }],
   avg_rating_per_dimension: [
-    { key: 'behavior', avg: 3.0, count: 2, versions: [1] },
+    {
+      key: 'camper_scores__behavior',
+      avg: 3.0,
+      count: 2,
+      scale_max: 5,
+      distribution: { 1: 0, 2: 1, 3: 0, 4: 1, 5: 0 },
+      versions: [1],
+    },
+  ],
+  avg_rating_over_time: [
+    { date: '2026-07-11', avg: 3.2, count: 3 },
+    { date: '2026-07-12', avg: 3.5, count: 4 },
   ],
 };
 
@@ -251,16 +262,44 @@ describe('LeadershipTeamResponses', () => {
     expect(back).toHaveTextContent('← Bunk Logs');
   });
 
-  it('switches to the aggregate tab and shows per-dimension averages', async () => {
+  it('switches to the aggregate tab and shows rating pie charts with averages', async () => {
     getMock.mockImplementation((url, { params } = {}) => {
       if (!url.includes('/responses/')) return Promise.resolve({ data: templatePayload });
       if (params?.tab === 'aggregate') return Promise.resolve({ data: aggregatePayload });
       return Promise.resolve({ data: individualPayload });
     });
-    renderAt('/admin/templates/7/responses');
+    renderAt('/admin/templates/7/responses?date=2026-07-12');
     await screen.findByTestId('lt-responses-row-401');
     fireEvent.click(screen.getByTestId('lt-responses-tab-aggregate'));
-    await waitFor(() => expect(screen.getByTestId('lt-responses-dim-behavior')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('lt-responses-dim-camper_scores__behavior')).toBeInTheDocument(),
+    );
     expect(screen.getByText('3.00')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-responses-trend-chart')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-responses-prev-day')).toBeInTheDocument();
+  });
+
+  it('navigates to a trend chart date when clicking a point', async () => {
+    getMock.mockImplementation((url, { params } = {}) => {
+      if (!url.includes('/responses/')) return Promise.resolve({ data: templatePayload });
+      if (params?.tab === 'aggregate') return Promise.resolve({ data: aggregatePayload });
+      return Promise.resolve({ data: individualPayload });
+    });
+    renderAt('/admin/templates/7/responses?date=2026-07-12&tab=aggregate');
+    await waitFor(() =>
+      expect(screen.getByTestId('lt-responses-trend-point-2026-07-11')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId('lt-responses-trend-point-2026-07-11'));
+
+    await waitFor(() => {
+      const responseCalls = getMock.mock.calls.filter(
+        ([url, config]) =>
+          url.includes('/responses/')
+          && config?.params?.tab === 'aggregate'
+          && config?.params?.date_from === '2026-07-11',
+      );
+      expect(responseCalls.length).toBeGreaterThan(0);
+    });
   });
 });

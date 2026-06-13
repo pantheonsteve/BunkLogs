@@ -5,10 +5,10 @@
 * ``tab=individual`` — paginated reflections under a template (across
   versions), with filters: date range, respondent multi-select,
   language_of_authorship, ``rating_le``, ``has_free_text``.
-* ``tab=aggregate`` — completion rate over time, avg rating per
-  dimension (annotated with version-boundary markers when a dimension
-  only exists in some versions), language distribution, response volume
-  per period.
+* ``tab=aggregate`` — per-dimension rating distributions and averages
+  for the filtered date window, plus ``avg_rating_over_time`` (composite
+  daily average across all scored fields, computed from the full visible
+  reflection set so day filtering does not hide the trend line).
 
 ``combine_assignments=true`` includes responses from all assignments of
 the same template slug rather than only the matching version chain.
@@ -36,6 +36,7 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.reflection_scores import _as_float
 from bunk_logs.core.reflection_scores import iter_scored_fields
+from bunk_logs.core.reflection_scores import scale_max
 
 from .common import viewer_or_403
 
@@ -107,6 +108,7 @@ class LeadershipTeamTemplateResponsesView(APIView):
         date_to = _parse_filter_date(
             request.query_params.get("date_to"), field="date_to",
         )
+        reflections_for_trend = reflections
         if date_from:
             reflections = reflections.filter(period_end__gte=date_from)
         if date_to:
@@ -114,7 +116,13 @@ class LeadershipTeamTemplateResponsesView(APIView):
 
         tab = (request.query_params.get("tab") or "individual").lower()
         if tab == "aggregate":
-            return Response(self._aggregate(reflections, list(templates_qs)))
+            return Response(
+                self._aggregate(
+                    reflections,
+                    list(templates_qs),
+                    reflections_for_trend,
+                ),
+            )
         return Response(self._individual(request, reflections, template))
 
     # ------------------------------------------------------------------
@@ -245,8 +253,15 @@ class LeadershipTeamTemplateResponsesView(APIView):
     # Aggregate tab
     # ------------------------------------------------------------------
 
-    def _aggregate(self, reflections, templates) -> dict[str, Any]:
-        rows = list(reflections.values("pk", "language", "period_start", "answers", "template_id"))
+    def _aggregate(
+        self,
+        reflections,
+        templates,
+        reflections_for_trend,
+    ) -> dict[str, Any]:
+        row_fields = ("pk", "language", "period_start", "answers", "template_id")
+        rows = list(reflections.values(*row_fields))
+        trend_rows = list(reflections_for_trend.values(*row_fields))
 
         per_period: dict[date, int] = defaultdict(int)
         per_language: dict[str, int] = defaultdict(int)
@@ -254,42 +269,7 @@ class LeadershipTeamTemplateResponsesView(APIView):
             per_period[r["period_start"]] += 1
             per_language[r["language"] or "en"] += 1
 
-        ratings_by_key: dict[str, list[float]] = defaultdict(list)
-        valid_versions_by_key: dict[str, set[int]] = defaultdict(set)
-        templates_by_id = {t.pk: t for t in templates}
-        for r in rows:
-            tpl = templates_by_id.get(r["template_id"])
-            if tpl is None:
-                continue
-            for field, label, _ in iter_scored_fields(tpl):
-                valid_versions_by_key[label].add(tpl.version)
-                key = field.get("key")
-                ftype = field.get("type")
-                answers = r["answers"] or {}
-                if ftype == "single_rating":
-                    val = _as_float(answers.get(key))
-                    if val is not None:
-                        ratings_by_key[label].append(val)
-                else:
-                    block = answers.get(key) or {}
-                    if isinstance(block, dict):
-                        for cat in field.get("categories") or []:
-                            ck = cat.get("key") if isinstance(cat, dict) else None
-                            if ck is None:
-                                continue
-                            v = _as_float(block.get(ck))
-                            if v is not None:
-                                ratings_by_key[f"{key}__{ck}"].append(v)
-
-        avg_per_dimension = [
-            {
-                "key": label,
-                "avg": (sum(values) / len(values)) if values else None,
-                "count": len(values),
-                "versions": sorted(valid_versions_by_key.get(label, set())),
-            }
-            for label, values in sorted(ratings_by_key.items())
-        ]
+        avg_per_dimension = _avg_rating_per_dimension(rows, templates)
 
         return {
             "tab": "aggregate",
@@ -303,8 +283,119 @@ class LeadershipTeamTemplateResponsesView(APIView):
                 for k, v in sorted(per_language.items())
             ],
             "avg_rating_per_dimension": avg_per_dimension,
+            "avg_rating_over_time": _avg_rating_over_time(trend_rows, templates),
             "completion_rate_over_time": _completion_rate_over_time(reflections),
         }
+
+
+def _extract_scored_values(
+    answers: dict,
+    field: dict,
+    label: str,
+) -> float | None:
+    """Return the numeric rating for ``label`` on this answers blob."""
+    key = field.get("key")
+    ftype = field.get("type")
+    if ftype == "single_rating":
+        return _as_float(answers.get(key))
+    if ftype != "rating_group":
+        return None
+    block = answers.get(key) or {}
+    if not isinstance(block, dict):
+        return None
+    suffix = f"{key}__"
+    if not label.startswith(suffix):
+        return None
+    cat_key = label[len(suffix):]
+    return _as_float(block.get(cat_key))
+
+
+def _distribution_for_field(field: dict) -> dict[str, int]:
+    scale = field.get("scale") or [1, 5]
+    scale_min, scale_max_val = int(scale[0]), int(scale[-1])
+    return {str(i): 0 for i in range(scale_min, scale_max_val + 1)}
+
+
+def _avg_rating_per_dimension(
+    rows: list[dict[str, Any]],
+    templates: list,
+) -> list[dict[str, Any]]:
+    ratings_by_key: dict[str, list[float]] = defaultdict(list)
+    dists_by_key: dict[str, dict[str, int]] = {}
+    scale_by_key: dict[str, int] = {}
+    field_by_label: dict[str, dict] = {}
+    valid_versions_by_key: dict[str, set[int]] = defaultdict(set)
+    templates_by_id = {t.pk: t for t in templates}
+
+    for tpl in templates:
+        for field, label, sm in iter_scored_fields(tpl):
+            scale_by_key[label] = sm
+            field_by_label.setdefault(label, field)
+            valid_versions_by_key[label].add(tpl.version)
+            if label not in dists_by_key:
+                dists_by_key[label] = _distribution_for_field(field)
+
+    for r in rows:
+        tpl = templates_by_id.get(r["template_id"])
+        if tpl is None:
+            continue
+        answers = r["answers"] or {}
+        for field, label, _sm in iter_scored_fields(tpl):
+            val = _extract_scored_values(answers, field, label)
+            if val is None:
+                continue
+            ratings_by_key[label].append(val)
+            scale = field.get("scale") or [1, 5]
+            scale_min, scale_max_val = int(scale[0]), int(scale[-1])
+            bucket = str(max(scale_min, min(scale_max_val, int(round(val)))))
+            if bucket in dists_by_key[label]:
+                dists_by_key[label][bucket] += 1
+
+    out: list[dict[str, Any]] = []
+    for label in sorted(field_by_label.keys()):
+        values = ratings_by_key.get(label, [])
+        out.append(
+            {
+                "key": label,
+                "avg": (sum(values) / len(values)) if values else None,
+                "count": len(values),
+                "scale_max": scale_by_key.get(label, scale_max(field_by_label[label])),
+                "distribution": dists_by_key.get(label, {}),
+                "versions": sorted(valid_versions_by_key.get(label, set())),
+            },
+        )
+    return out
+
+
+def _avg_rating_over_time(
+    rows: list[dict[str, Any]],
+    templates: list,
+) -> list[dict[str, Any]]:
+    """Composite average of every scored value submitted on each day."""
+    by_date: dict[date, list[float]] = defaultdict(list)
+    templates_by_id = {t.pk: t for t in templates}
+
+    for r in rows:
+        tpl = templates_by_id.get(r["template_id"])
+        if tpl is None:
+            continue
+        day = r["period_start"]
+        if day is None:
+            continue
+        answers = r["answers"] or {}
+        for field, label, _sm in iter_scored_fields(tpl):
+            val = _extract_scored_values(answers, field, label)
+            if val is not None:
+                by_date[day].append(val)
+
+    return [
+        {
+            "date": day.isoformat(),
+            "avg": (sum(values) / len(values)) if values else None,
+            "count": len(values),
+        }
+        for day, values in sorted(by_date.items())
+    ]
 
 
 def _completion_rate_over_time(reflections) -> list[dict[str, Any]]:
