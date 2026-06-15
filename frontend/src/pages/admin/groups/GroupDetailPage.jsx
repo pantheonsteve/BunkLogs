@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, UserPlus, Trash2, Upload, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 import api from '../../../api';
 import Button from '../../../components/ui/Button';
@@ -144,6 +144,7 @@ function ImportStatus({ log }) {
 export default function GroupDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -190,6 +191,12 @@ export default function GroupDetailPage() {
     load();
     return () => { if (pollInterval) clearInterval(pollInterval); };
   }, [load]);
+
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') {
+      setEditing(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!group?.program || !canHaveParent(group.group_type)) {
@@ -331,15 +338,27 @@ export default function GroupDetailPage() {
     }
   };
 
-  if (loading) return <div className="p-8"><LoadingState>Loading…</LoadingState></div>;
-  if (error) return <div className="p-8"><ErrorPanel>{error}</ErrorPanel></div>;
+  if (loading) {
+    return (
+      <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-screen-2xl mx-auto">
+        <LoadingState>Loading…</LoadingState>
+      </main>
+    );
+  }
+  if (error) {
+    return (
+      <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-screen-2xl mx-auto">
+        <ErrorPanel>{error}</ErrorPanel>
+      </main>
+    );
+  }
   if (!group) return null;
 
   const subjects = (group.memberships || []).filter((m) => m.role_in_group === 'subject');
   const authors = (group.memberships || []).filter((m) => m.role_in_group === 'author');
 
   return (
-    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-5xl mx-auto">
+    <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-screen-2xl mx-auto" data-testid="admin-group-detail">
       <Link
         to="/admin/groups"
         className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
@@ -367,7 +386,7 @@ export default function GroupDetailPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">{group.name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{group.name}</h1>
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
