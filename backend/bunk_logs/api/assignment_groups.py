@@ -99,6 +99,7 @@ class AssignmentGroupListSerializer(serializers.ModelSerializer):
 
 
 class AssignmentGroupWriteSerializer(serializers.ModelSerializer):
+    slug = serializers.SlugField(required=False, allow_blank=True)
     parent = serializers.PrimaryKeyRelatedField(
         queryset=AssignmentGroup.all_objects.all(),
         required=False,

@@ -121,6 +121,18 @@ class TestCreateGroup:
         assert r.status_code == 201
         assert AssignmentGroup.all_objects.filter(slug="bunk-bravo-write").exists()
 
+    def test_admin_can_create_without_slug(self, client, org, program, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.post(
+            "/api/v1/assignment-groups/",
+            {"name": "Bunk Delta", "group_type": "bunk", "program": program.pk},
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 201, r.content
+        created = AssignmentGroup.all_objects.get(program=program, name="Bunk Delta")
+        assert created.slug == "bunk-delta"
+
     def test_admin_can_create_team_group(self, client, org, program, admin_user):
         user, _ = admin_user
         client.force_authenticate(user=user)
