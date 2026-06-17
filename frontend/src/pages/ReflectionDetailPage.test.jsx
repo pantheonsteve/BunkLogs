@@ -108,4 +108,31 @@ describe('ReflectionDetailPage', () => {
 
     expect(screen.queryByTestId('privacy-chip')).toBeNull();
   });
+
+  it('renders textarea answers as formatted HTML, not raw tags', async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        ...FULL_REFLECTION,
+        localized_schema: {
+          fields: [
+            {
+              key: 'notes',
+              type: 'textarea',
+              prompts: { en: 'Notes' },
+            },
+          ],
+        },
+        answers: { notes: '<p>Great <strong>day</strong></p>' },
+      },
+    });
+    renderAt('/reflections/91');
+
+    await waitFor(() => expect(screen.getByText('Notes')).toBeInTheDocument());
+
+    expect(screen.queryByText('<p>Great')).not.toBeInTheDocument();
+    expect(screen.getByText('day')).toBeInTheDocument();
+    const strong = document.querySelector('strong');
+    expect(strong).not.toBeNull();
+    expect(strong.textContent).toBe('day');
+  });
 });

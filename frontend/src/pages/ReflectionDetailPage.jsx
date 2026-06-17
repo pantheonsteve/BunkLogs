@@ -5,6 +5,9 @@ import api from '../api';
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
 import PrivacyChip from '../components/reflection/PrivacyChip';
+import RichText from '../components/ui/RichText';
+
+const RICH_TEXT_FIELD_TYPES = new Set(['textarea', 'long_text', 'rich_text', 'text', 'short_text']);
 
 function promptText(field) {
   if (!field?.prompts || typeof field.prompts !== 'object') return '';
@@ -32,6 +35,29 @@ function formatAnswer(field, value) {
   if (Array.isArray(value)) return value.join(', ') || '—';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function AnswerDisplay({ field, value }) {
+  if (value === undefined || value === null || value === '') {
+    return (
+      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">—</p>
+    );
+  }
+
+  if (RICH_TEXT_FIELD_TYPES.has(field.type)) {
+    return (
+      <RichText
+        html={String(value)}
+        className="mt-1 text-sm text-gray-600 dark:text-gray-400 prose prose-sm dark:prose-invert max-w-none"
+      />
+    );
+  }
+
+  return (
+    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+      {formatAnswer(field, value)}
+    </p>
+  );
 }
 
 function formatDate(iso) {
@@ -214,9 +240,7 @@ export default function ReflectionDetailPage() {
                           ? 'Ratings'
                           : promptText(field) || field.key}
                       </p>
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                        {formatAnswer(field, reflection.answers?.[field.key])}
-                      </p>
+                      <AnswerDisplay field={field} value={reflection.answers?.[field.key]} />
                     </li>
                   ))}
                 </ul>
