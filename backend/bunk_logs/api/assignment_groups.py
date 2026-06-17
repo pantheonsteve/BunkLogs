@@ -10,6 +10,9 @@ from rest_framework.parsers import FormParser
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
+from bunk_logs.core.group_clone import GroupCloneError
+from bunk_logs.core.group_clone import clone_assignment_group
+from bunk_logs.core.group_clone import unique_group_slug
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
@@ -17,20 +20,6 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import RosterImportLog
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
-
-
-def _unique_group_slug(program: Program, base_slug: str) -> str:
-    """Return a slug unique within the program, suffixing -2, -3, … on collision."""
-    slug = (base_slug or "group").strip("-")[:100] or "group"
-    if not AssignmentGroup.all_objects.filter(program=program, slug=slug).exists():
-        return slug
-    stem = slug[:95] if len(slug) > 95 else slug
-    for n in range(2, 1000):
-        candidate = f"{stem}-{n}"
-        if not AssignmentGroup.all_objects.filter(program=program, slug=candidate).exists():
-            return candidate
-    msg = "Could not generate a unique slug for this program."
-    raise serializers.ValidationError({"slug": msg})
 
 
 class PersonSummarySerializer(serializers.ModelSerializer):
@@ -119,7 +108,10 @@ class AssignmentGroupWriteSerializer(serializers.ModelSerializer):
             program = attrs.get("program")
             if program:
                 base_slug = attrs.get("slug") or slugify(attrs.get("name", ""))[:100]
-                attrs["slug"] = _unique_group_slug(program, base_slug)
+                try:
+                    attrs["slug"] = unique_group_slug(program, base_slug)
+                except GroupCloneError as exc:
+                    raise serializers.ValidationError({"slug": exc.message}) from exc
         super().run_validators(attrs)
 
     def validate(self, attrs):
@@ -178,6 +170,28 @@ class RosterImportLogSerializer(serializers.ModelSerializer):
         ]
 
 
+class GroupCloneSerializer(serializers.Serializer):
+    target_program = serializers.PrimaryKeyRelatedField(queryset=Program.all_objects.all())
+
+    def validate_target_program(self, value: Program) -> Program:
+        request = self.context.get("request")
+        org = getattr(request, "organization", None)
+        if org and value.organization_id != org.pk:
+            msg = "Target program must belong to your organization."
+            raise serializers.ValidationError(msg)
+        return value
+
+
+class AssignmentGroupCloneResponseSerializer(AssignmentGroupSerializer):
+    clone_summary = serializers.SerializerMethodField()
+
+    class Meta(AssignmentGroupSerializer.Meta):
+        fields = [*AssignmentGroupSerializer.Meta.fields, "clone_summary"]
+
+    def get_clone_summary(self, obj):
+        return self.context.get("clone_summary", {})
+
+
 class AssignmentGroupPermission(permissions.BasePermission):
     message = "Organization context required."
 
@@ -193,13 +207,15 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
     permission_classes = [AssignmentGroupPermission]
 
     def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy", "add_membership", "remove_membership", "import_roster"):
+        if self.action in ("create", "update", "partial_update", "destroy", "add_membership", "remove_membership", "import_roster", "clone"):
             return [AssignmentGroupPermission(), IsOrgAdminOrSuperuser()]
         return [AssignmentGroupPermission()]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
             return AssignmentGroupSerializer
+        if self.action == "clone":
+            return AssignmentGroupCloneResponseSerializer
         if self.action in ("create", "update", "partial_update"):
             return AssignmentGroupWriteSerializer
         return AssignmentGroupListSerializer
@@ -397,6 +413,38 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
             RosterImportLogSerializer(log).data,
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["post"], url_path="clone")
+    def clone(self, request, pk=None):
+        source = self.get_object()
+        serializer = GroupCloneSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        target_program = serializer.validated_data["target_program"]
+
+        try:
+            result = clone_assignment_group(
+                source=source,
+                target_program=target_program,
+                organization=request.organization,
+            )
+        except GroupCloneError as exc:
+            field = exc.field_name or "detail"
+            return Response({field: exc.message}, status=status.HTTP_400_BAD_REQUEST)
+
+        cloned = AssignmentGroup.all_objects.prefetch_related(
+            "memberships__person",
+        ).select_related("parent", "program", "organization").get(pk=result.group.pk)
+
+        clone_summary = {
+            "memberships_copied": result.memberships_copied,
+            "program_memberships_copied": result.program_memberships_copied,
+            "warnings": result.warnings,
+        }
+        out = AssignmentGroupCloneResponseSerializer(
+            cloned,
+            context={"request": request, "clone_summary": clone_summary},
+        )
+        return Response(out.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["get"], url_path=r"import-logs/(?P<log_id>\d+)")
     def import_log_status(self, request, log_id=None):

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, UserPlus, Trash2, Upload, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, BarChart3, Copy, UserPlus, Trash2, Upload, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 import api from '../../../api';
-import { listAdminPeople } from '../../../api/admin';
+import { listAdminPeople, listAdminPrograms } from '../../../api/admin';
 import Button from '../../../components/ui/Button';
 import ErrorPanel from '../../../components/ui/ErrorPanel';
 import LoadingState from '../../../components/ui/LoadingState';
@@ -239,6 +239,12 @@ export default function GroupDetailPage() {
   const [parentOptions, setParentOptions] = useState([]);
   const [editingParent, setEditingParent] = useState(false);
 
+  // Clone state
+  const [showClonePanel, setShowClonePanel] = useState(false);
+  const [clonePrograms, setClonePrograms] = useState([]);
+  const [cloneTargetProgram, setCloneTargetProgram] = useState('');
+  const [cloning, setCloning] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -294,6 +300,56 @@ export default function GroupDetailPage() {
       .catch(() => { if (!cancelled) setParentOptions([]); });
     return () => { cancelled = true; };
   }, [group?.id, group?.program, group?.group_type]);
+
+  useEffect(() => {
+    if (!showClonePanel) return;
+    let cancelled = false;
+    listAdminPrograms()
+      .then((data) => {
+        if (cancelled) return;
+        const list = (data.results || []).filter(
+          (p) => String(p.id) !== String(group?.program),
+        );
+        setClonePrograms(list);
+        setCloneTargetProgram(list.length ? String(list[0].id) : '');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClonePrograms([]);
+          setCloneTargetProgram('');
+        }
+      });
+    return () => { cancelled = true; };
+  }, [showClonePanel, group?.program]);
+
+  const handleClone = async () => {
+    if (!cloneTargetProgram) {
+      showToast('Select a target program.');
+      return;
+    }
+    setCloning(true);
+    try {
+      const { data } = await api.post(`/api/v1/assignment-groups/${id}/clone/`, {
+        target_program: Number(cloneTargetProgram),
+      });
+      const summary = data.clone_summary || {};
+      const parts = [
+        `Cloned with ${summary.memberships_copied ?? 0} roster member(s)`,
+      ];
+      if (summary.program_memberships_copied) {
+        parts.push(`${summary.program_memberships_copied} program membership(s) created`);
+      }
+      showToast(parts.join('; '));
+      if (summary.warnings?.length) {
+        setTimeout(() => showToast(summary.warnings.join(' ')), 500);
+      }
+      navigate(`/admin/groups/${data.id}`);
+    } catch (err) {
+      showToast(formatApiError(err.response?.data, 'Clone failed.'));
+    } finally {
+      setCloning(false);
+    }
+  };
 
   const handleAddMember = async () => {
     if (!selectedPerson) return;
@@ -661,6 +717,15 @@ export default function GroupDetailPage() {
             </Link>
             <button
               type="button"
+              onClick={() => setShowClonePanel((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              data-testid="group-clone-toggle"
+            >
+              <Copy size={14} aria-hidden="true" />
+              Clone to program
+            </button>
+            <button
+              type="button"
               onClick={handleDeactivate}
               disabled={!group.is_active}
               className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 underline disabled:opacity-40 disabled:cursor-not-allowed"
@@ -669,6 +734,59 @@ export default function GroupDetailPage() {
             </button>
           </div>
         </div>
+
+        {showClonePanel && (
+          <div
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-6"
+            data-testid="group-clone-panel"
+          >
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <Copy size={15} /> Clone to another program
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Creates a copy of <span className="font-medium text-gray-700 dark:text-gray-300">{group.name}</span>{' '}
+              in the selected program, including active roster members and their program memberships.
+            </p>
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <label htmlFor="clone-target-program" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Target program
+                </label>
+                <select
+                  id="clone-target-program"
+                  value={cloneTargetProgram}
+                  onChange={(e) => setCloneTargetProgram(e.target.value)}
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-48"
+                  data-testid="clone-target-program"
+                >
+                  {clonePrograms.length === 0 && (
+                    <option value="">No other programs available</option>
+                  )}
+                  {clonePrograms.map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.name}{p.is_active ? '' : ' (Ended)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleClone}
+                disabled={cloning || !cloneTargetProgram}
+                data-testid="group-clone-confirm"
+              >
+                {cloning ? 'Cloning…' : 'Clone group'}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowClonePanel(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Add member */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-6">
