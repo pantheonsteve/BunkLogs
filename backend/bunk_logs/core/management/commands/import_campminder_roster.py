@@ -31,6 +31,8 @@ from bunk_logs.core.campminder_person_match import match_campminder_person
 from bunk_logs.core.campminder_person_match import strategy_is_duplicate
 from bunk_logs.core.campminder_user_link import UserLinkAction
 from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
+from bunk_logs.core.group_roster_import import load_target_group
+from bunk_logs.core.group_roster_import import resolve_role_in_group
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -242,6 +244,61 @@ class Command(BaseCommand):
                 "for (group, role_in_group) pairs that appear in the DB but not in the CSV."
             ),
         )
+        parser.add_argument(
+            "--log-id",
+            type=int,
+            default=None,
+            help="Existing RosterImportLog PK to update (API import path).",
+        )
+        parser.add_argument(
+            "--target-group-id",
+            type=int,
+            default=None,
+            help="Add each imported row to this AssignmentGroup (group detail import path).",
+        )
+        parser.add_argument(
+            "--bulk-role-in-group",
+            default="",
+            help="Default role_in_group for target-group imports (subject or author).",
+        )
+
+    def _resolve_import_log(
+        self,
+        *,
+        org: Organization,
+        program: Program,
+        csv_path: Path,
+        log_id: int | None,
+        dry_run: bool,
+    ) -> RosterImportLog | None:
+        if dry_run:
+            return None
+        if log_id is not None:
+            try:
+                log = RosterImportLog.all_objects.get(pk=log_id)
+            except RosterImportLog.DoesNotExist:
+                msg = f"RosterImportLog not found: {log_id}"
+                raise CommandError(msg)
+            if log.organization_id != org.pk or log.program_id != program.pk:
+                msg = "RosterImportLog organization/program does not match import target."
+                raise CommandError(msg)
+            updates: list[str] = []
+            if log.csv_filename != csv_path.name:
+                log.csv_filename = csv_path.name
+                updates.append("csv_filename")
+            if log.status != "running":
+                log.status = "running"
+                updates.append("status")
+            if updates:
+                log.save(update_fields=updates)
+            return log
+        return RosterImportLog.all_objects.create(
+            organization=org,
+            program=program,
+            importer_type="campminder",
+            status="running",
+            csv_filename=csv_path.name,
+        )
 
     def handle(self, *args, **options) -> None:
         csv_path = Path(options["csv_path"])
@@ -265,18 +322,25 @@ class Command(BaseCommand):
 
         dry_run: bool = options["dry_run"]
         reconcile: bool = options["reconcile"]
+        target_group = load_target_group(
+            target_group_id=options.get("target_group_id"),
+            org=org,
+            program=program,
+        )
+        bulk_role_in_group = (options.get("bulk_role_in_group") or "").strip().lower()
+        if bulk_role_in_group and bulk_role_in_group not in {"subject", "author"}:
+            msg = f"Invalid bulk_role_in_group: {bulk_role_in_group!r}"
+            raise CommandError(msg)
 
         rows = read_campminder_csv_rows(csv_path)
 
-        log: RosterImportLog | None = None
-        if not dry_run:
-            log = RosterImportLog.all_objects.create(
-                organization=org,
-                program=program,
-                importer_type="campminder",
-                status="running",
-                csv_filename=csv_path.name,
-            )
+        log = self._resolve_import_log(
+            org=org,
+            program=program,
+            csv_path=csv_path,
+            log_id=options.get("log_id"),
+            dry_run=dry_run,
+        )
 
         persons_created = persons_updated = persons_skipped = persons_merged = 0
         users_created = users_linked = users_already_linked = 0
@@ -434,7 +498,24 @@ class Command(BaseCommand):
                         "message": user_link.message,
                     })
 
-                if bunk_name:
+                if target_group is not None:
+                    role_in_group = resolve_role_in_group(
+                        row,
+                        role,
+                        bulk_role_in_group=bulk_role_in_group or None,
+                    )
+                    _, group_mem_created = _ensure_membership(
+                        target_group,
+                        person,
+                        role_in_group,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                    key = (target_group.pk, role_in_group)
+                    seen_group_members.setdefault(key, set()).add(person.pk)
+                    if group_mem_created:
+                        memberships_created += 1
+                elif bunk_name:
                     division_group: AssignmentGroup | None = None
                     unit_group: AssignmentGroup | None = None
 

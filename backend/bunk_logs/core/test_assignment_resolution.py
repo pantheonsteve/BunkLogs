@@ -400,3 +400,71 @@ class TestActiveAssignmentsFor:
             viewer=viewer, organization=org, program=program, as_of=TODAY,
         )
         assert len(out) == 1
+
+
+class TestAssignmentGroupSelfAudience:
+    def test_self_team_subject_counts_with_template_role_fallback(
+        self, org, program, lt_membership,
+    ):
+        """Team self-reflection: subjects qualify; role falls back to template.role."""
+        user = User.objects.create_user(email="kitchen@test.com", password="pw")
+        person = Person.all_objects.create(
+            organization=org, first_name="Kitchen", last_name="Staff", user=user,
+        )
+        Membership.all_objects.create(
+            program=program, person=person, role="kitchen_staff", is_active=True,
+        )
+        team = AssignmentGroup.objects.create(
+            organization=org, program=program, name="Kitchen Staff",
+            slug="kitchen-staff-team", group_type="team", is_active=True,
+        )
+        AssignmentGroupMembership.objects.create(
+            group=team, person=person, role_in_group="subject", is_active=True,
+        )
+        template = ReflectionTemplate.all_objects.create(
+            organization=org, name="Kitchen Daily", slug="kitchen-daily-team",
+            cadence="daily", subject_mode="self", schema=SCHEMA, languages=["en"],
+            is_active=True, role="kitchen_staff", author_role_filter=[],
+        )
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=template,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            assignment_group=team,
+            start_date=TODAY - timedelta(days=1),
+            status=TemplateAssignment.Status.ACTIVE,
+            created_by=lt_membership, is_required=True,
+        )
+        out = active_assignments_for(
+            viewer=person, organization=org, program=program, as_of=TODAY,
+        )
+        assert len(out) == 1
+
+    def test_roster_template_still_requires_author(
+        self, org, program, viewer, lt_membership,
+    ):
+        template = ReflectionTemplate.all_objects.create(
+            organization=org, name="Bunk Reflection", slug="bunk-reflection-subject",
+            cadence="daily", subject_mode="single_subject",
+            assignment_group_types=["bunk"],
+            schema=SCHEMA, languages=["en"], is_active=True,
+            author_role_filter=["counselor"],
+        )
+        bunk = AssignmentGroup.objects.create(
+            organization=org, program=program, name="Bunk Pine", slug="bunk-pine-subject",
+            group_type="bunk", is_active=True,
+        )
+        AssignmentGroupMembership.objects.create(
+            group=bunk, person=viewer, role_in_group="subject", is_active=True,
+        )
+        TemplateAssignment.all_objects.create(
+            organization=org, program=program, template=template,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            target_payload={}, assignment_group=bunk,
+            start_date=TODAY - timedelta(days=1),
+            status=TemplateAssignment.Status.ACTIVE,
+            created_by=lt_membership,
+        )
+        out = active_assignments_for(
+            viewer=viewer, organization=org, program=program, as_of=TODAY,
+        )
+        assert out == []

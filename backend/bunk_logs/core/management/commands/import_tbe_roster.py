@@ -17,6 +17,7 @@ from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils.text import slugify
 
+from bunk_logs.core.group_roster_import import load_target_group
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -112,6 +113,61 @@ class Command(BaseCommand):
             action="store_true",
             help="Validate and report without writing to the database.",
         )
+        parser.add_argument(
+            "--log-id",
+            type=int,
+            default=None,
+            help="Existing RosterImportLog PK to update (API import path).",
+        )
+        parser.add_argument(
+            "--target-group-id",
+            type=int,
+            default=None,
+            help="Add each imported row to this AssignmentGroup (group detail import path).",
+        )
+        parser.add_argument(
+            "--bulk-role-in-group",
+            default="",
+            help="Default role_in_group for target-group imports (subject or author).",
+        )
+
+    def _resolve_import_log(
+        self,
+        *,
+        org: Organization,
+        program: Program,
+        csv_path: Path,
+        log_id: int | None,
+        dry_run: bool,
+    ) -> RosterImportLog | None:
+        if dry_run:
+            return None
+        if log_id is not None:
+            try:
+                log = RosterImportLog.all_objects.get(pk=log_id)
+            except RosterImportLog.DoesNotExist:
+                msg = f"RosterImportLog not found: {log_id}"
+                raise CommandError(msg)
+            if log.organization_id != org.pk or log.program_id != program.pk:
+                msg = "RosterImportLog organization/program does not match import target."
+                raise CommandError(msg)
+            updates: list[str] = []
+            if log.csv_filename != csv_path.name:
+                log.csv_filename = csv_path.name
+                updates.append("csv_filename")
+            if log.status != "running":
+                log.status = "running"
+                updates.append("status")
+            if updates:
+                log.save(update_fields=updates)
+            return log
+        return RosterImportLog.all_objects.create(
+            organization=org,
+            program=program,
+            importer_type="tbe_shulcloud",
+            status="running",
+            csv_filename=csv_path.name,
+        )
 
     def handle(self, *args, **options) -> None:
         csv_path = Path(options["csv_path"])
@@ -134,19 +190,26 @@ class Command(BaseCommand):
             )
 
         dry_run: bool = options["dry_run"]
+        target_group = load_target_group(
+            target_group_id=options.get("target_group_id"),
+            org=org,
+            program=program,
+        )
+        bulk_role_in_group = (options.get("bulk_role_in_group") or "").strip().lower()
+        if bulk_role_in_group and bulk_role_in_group not in {"subject", "author"}:
+            msg = f"Invalid bulk_role_in_group: {bulk_role_in_group!r}"
+            raise CommandError(msg)
 
         with csv_path.open(newline="", encoding="utf-8") as f:
             rows = list(csv.DictReader(f))
 
-        log: RosterImportLog | None = None
-        if not dry_run:
-            log = RosterImportLog.all_objects.create(
-                organization=org,
-                program=program,
-                importer_type="tbe_shulcloud",
-                status="running",
-                csv_filename=csv_path.name,
-            )
+        log = self._resolve_import_log(
+            org=org,
+            program=program,
+            csv_path=csv_path,
+            log_id=options.get("log_id"),
+            dry_run=dry_run,
+        )
 
         persons_created = persons_updated = persons_skipped = 0
         memberships_created = 0
@@ -169,7 +232,7 @@ class Command(BaseCommand):
             if role not in VALID_ROLES:
                 warnings.append(f"Row {i} ({first_name} {last_name}): unknown role {role!r} — skipped")
                 continue
-            if not classroom_name:
+            if not classroom_name and target_group is None:
                 warnings.append(f"Row {i} ({first_name} {last_name}): missing classroom_name — skipped")
                 continue
 
@@ -206,9 +269,18 @@ class Command(BaseCommand):
                     membership.grade_level = grade_level
                     membership.save(update_fields=["grade_level"])
 
-                classroom = _get_or_create_classroom(program, classroom_name)
+                classroom = target_group if target_group is not None else _get_or_create_classroom(program, classroom_name)
 
-                if role == "madrich":
+                if bulk_role_in_group in {"subject", "author"}:
+                    _, created_flag = AssignmentGroupMembership.all_objects.get_or_create(
+                        group=classroom,
+                        person=person,
+                        role_in_group=bulk_role_in_group,
+                        defaults={"is_active": True},
+                    )
+                    if created_flag:
+                        memberships_created += 1
+                elif role == "madrich":
                     # Madrichim: subject in the classroom (faculty observes them)
                     _, sub_created = AssignmentGroupMembership.all_objects.get_or_create(
                         group=classroom,

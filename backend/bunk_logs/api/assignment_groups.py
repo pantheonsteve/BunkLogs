@@ -344,6 +344,16 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
             )
 
         reconcile = request.data.get("reconcile", "false").lower() in ("1", "true", "yes")
+        bulk_role_in_group = (
+            request.data.get("default_role_in_group")
+            or request.data.get("bulk_role_in_group")
+            or "subject"
+        ).strip().lower()
+        if bulk_role_in_group not in {"subject", "author"}:
+            return Response(
+                {"default_role_in_group": "Must be 'subject' or 'author'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         csv_content = csv_file.read().decode("utf-8")
 
         log = RosterImportLog.all_objects.create(
@@ -356,16 +366,36 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
         )
 
         from bunk_logs.core.tasks import import_roster_task
-        import_roster_task.delay(
-            log_id=log.pk,
-            csv_content=csv_content,
-            importer_type=importer_type,
-            options={"reconcile": reconcile},
-        )
 
+        # No Celery worker is deployed yet; run inline so admin imports complete.
+        try:
+            import_roster_task.apply(
+                kwargs={
+                    "log_id": log.pk,
+                    "csv_content": csv_content,
+                    "importer_type": importer_type,
+                    "options": {
+                        "reconcile": reconcile,
+                        "target_group_id": group.pk,
+                        "bulk_role_in_group": bulk_role_in_group,
+                    },
+                },
+            ).get()
+        except Exception as exc:
+            log.refresh_from_db()
+            if log.status != "failed":
+                log.status = "failed"
+                log.summary = {**(log.summary or {}), "error": str(exc)}
+                log.save(update_fields=["status", "summary"])
+            return Response(
+                RosterImportLogSerializer(log).data,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        log.refresh_from_db()
         return Response(
-            {"task_id": log.pk, "log_id": log.pk, "status": log.status},
-            status=status.HTTP_202_ACCEPTED,
+            RosterImportLogSerializer(log).data,
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=False, methods=["get"], url_path=r"import-logs/(?P<log_id>\d+)")

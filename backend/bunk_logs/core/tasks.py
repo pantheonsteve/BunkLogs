@@ -347,6 +347,9 @@ def import_roster_task(
                 program_slug=log.program.slug,
                 dry_run=False,
                 reconcile=opts.get("reconcile", False),
+                log_id=log_id,
+                target_group_id=opts.get("target_group_id"),
+                bulk_role_in_group=opts.get("bulk_role_in_group"),
             )
         elif importer_type == "tbe_shulcloud":
             from bunk_logs.core.management.commands.import_tbe_roster import Command as TBECmd
@@ -357,6 +360,9 @@ def import_roster_task(
                 org_slug=log.organization.slug,
                 program_slug=log.program.slug,
                 dry_run=False,
+                log_id=log_id,
+                target_group_id=opts.get("target_group_id"),
+                bulk_role_in_group=opts.get("bulk_role_in_group"),
             )
         else:
             msg = f"Unknown importer_type: {importer_type!r}"

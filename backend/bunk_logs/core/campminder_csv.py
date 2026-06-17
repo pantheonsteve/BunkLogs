@@ -90,6 +90,7 @@ _HEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "tags": ("tags",),
     "start_date": ("start date", "start_date", "start"),
     "end_date": ("end date", "end_date", "end"),
+    "role_in_group": ("role in group", "role_in_group", "group role"),
 }
 
 
@@ -261,6 +262,7 @@ def normalize_campminder_row(row: dict) -> dict:
         "tags": _field_value(indexed, "tags"),
         "start_date": _field_value(indexed, "start_date"),
         "end_date": _field_value(indexed, "end_date"),
+        "role_in_group": _field_value(indexed, "role_in_group"),
     }
 
 

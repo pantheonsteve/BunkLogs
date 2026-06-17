@@ -5,10 +5,10 @@ import { ratingColor } from '../colors';
  */
 export default function ScorePieChart({ distribution = {}, scaleMax = 5, size = 72 }) {
   const entries = Object.entries(distribution)
-    .filter(([, count]) => count > 0)
+    .filter(([, count]) => Number(count) > 0)
     .sort((a, b) => Number(a[0]) - Number(b[0]));
 
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  const total = entries.reduce((sum, [, count]) => sum + Number(count), 0);
   if (total === 0) {
     return (
       <div
@@ -24,6 +24,25 @@ export default function ScorePieChart({ distribution = {}, scaleMax = 5, size = 
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 2;
+
+  // A single bucket holding 100% of ratings must render as a circle.
+  // SVG arc paths degenerate when start and end points coincide.
+  if (entries.length === 1 && Number(entries[0][1]) === total) {
+    const [value] = entries[0];
+    const fill = ratingColor(Number(value), scaleMax) || '#9ca3af';
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="img"
+        aria-label={`Score distribution: ${value}: ${total}`}
+      >
+        <circle cx={cx} cy={cy} r={r} fill={fill} stroke="white" strokeWidth="1" />
+      </svg>
+    );
+  }
+
   let startAngle = -Math.PI / 2;
   const slices = entries.map(([value, count]) => {
     const angle = (count / total) * Math.PI * 2;
