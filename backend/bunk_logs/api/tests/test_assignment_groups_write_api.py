@@ -398,3 +398,108 @@ class TestRemoveMembership:
         row = rows2[0]
         assert row["name"] == "Bunk Maple"
         assert row["program_name"] == "Write API Org Session 2"
+
+
+# ---------------------------------------------------------------------------
+# CLONE group
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestCloneGroup:
+    def test_admin_clones_team_with_roster_and_program_memberships(
+        self, client, org, program, admin_user,
+    ):
+        program2 = Program.all_objects.create(
+            organization=org,
+            name="Write API Org Session 2",
+            slug="write-api-session-2-clone",
+            program_type="summer_camp",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 8, 31),
+        )
+        team = AssignmentGroup.all_objects.create(
+            organization=org,
+            program=program,
+            name="Kitchen Staff",
+            slug="kitchen-staff-clone",
+            group_type="team",
+        )
+        person1 = Person.all_objects.create(organization=org, first_name="Kit", last_name="Chen")
+        person2 = Person.all_objects.create(organization=org, first_name="Sam", last_name="Lee")
+        Membership.all_objects.create(
+            program=program, person=person1, role="kitchen_staff", is_active=True,
+        )
+        Membership.all_objects.create(
+            program=program, person=person2, role="kitchen_staff", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=team, person=person1, role_in_group="author", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=team, person=person2, role_in_group="author", is_active=True,
+        )
+
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.post(
+            f"/api/v1/assignment-groups/{team.pk}/clone/",
+            {"target_program": program2.pk},
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 201, r.content
+        data = r.json()
+        assert data["name"] == "Kitchen Staff"
+        assert data["program"] == program2.pk
+        assert data["clone_summary"]["memberships_copied"] == 2
+        assert data["clone_summary"]["program_memberships_copied"] == 2
+        assert len(data["memberships"]) == 2
+
+        cloned = AssignmentGroup.all_objects.get(pk=data["id"])
+        assert cloned.program_id == program2.pk
+        assert cloned.slug == "kitchen-staff-clone"
+        assert AssignmentGroupMembership.all_objects.filter(
+            group=cloned, is_active=True,
+        ).count() == 2
+        assert Membership.all_objects.filter(
+            program=program2, role="kitchen_staff", is_active=True,
+        ).count() == 2
+
+    def test_regular_user_denied(self, client, org, program, group, regular_user):
+        program2 = Program.all_objects.create(
+            organization=org,
+            name="Write API Org Session 2",
+            slug="session-2-clone-denied",
+            program_type="summer_camp",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 8, 31),
+        )
+        user, _ = regular_user
+        client.force_authenticate(user=user)
+        r = client.post(
+            f"/api/v1/assignment-groups/{group.pk}/clone/",
+            {"target_program": program2.pk},
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 403
+
+    def test_same_program_and_cross_org_rejected(
+        self, client, org, org_b, program, program_b, group, admin_user,
+    ):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+
+        r_same = client.post(
+            f"/api/v1/assignment-groups/{group.pk}/clone/",
+            {"target_program": program.pk},
+            **_hdr(org.slug),
+        )
+        assert r_same.status_code == 400
+        assert "target_program" in r_same.json()
+
+        r_cross = client.post(
+            f"/api/v1/assignment-groups/{group.pk}/clone/",
+            {"target_program": program_b.pk},
+            **_hdr(org.slug),
+        )
+        assert r_cross.status_code == 400
+        assert "target_program" in r_cross.json()
