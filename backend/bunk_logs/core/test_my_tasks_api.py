@@ -355,6 +355,46 @@ def test_my_tasks_leadership_assignment_appears(org, program, lt_membership):
 
 
 @pytest.mark.django_db
+def test_my_tasks_team_self_reflection_subject_in_group(org, program, lt_membership):
+    """Kitchen-style team assignment surfaces for subjects, not only authors."""
+    user = User.objects.create_user(email="kitchen_tasks@test.com", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="Kitchen", last_name="Staff", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="kitchen_staff", is_active=True,
+    )
+    team = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Kitchen Staff",
+        slug="kitchen-team-tasks", group_type="team", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=team, person=person, role_in_group="subject", is_active=True,
+    )
+    template = ReflectionTemplate.all_objects.create(
+        organization=org, name="Kitchen Daily", slug="kitchen-daily-tasks",
+        cadence="daily", subject_mode="self", schema=SIMPLE_SCHEMA,
+        languages=["en"], is_active=True, role="kitchen_staff",
+        author_role_filter=[],
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=team,
+        start_date=date.today() - timedelta(days=1),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership, is_required=True,
+    )
+    with organization_context(org):
+        client = _authed_client(user, org)
+        resp = client.get("/api/v1/reflections/my-tasks/")
+
+    assert resp.status_code == 200
+    slugs = {t["template"]["slug"] for t in resp.data["tasks"]}
+    assert "kitchen-daily-tasks" in slugs
+
+
+@pytest.mark.django_db
 def test_my_tasks_ignores_unassigned_templates(
     org, program, counselor_user, counselor_membership, self_template,
 ):

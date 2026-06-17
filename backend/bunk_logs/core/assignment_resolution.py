@@ -63,6 +63,33 @@ _ACTIVE_STATUSES = (
 
 
 # ---------------------------------------------------------------------------
+# Assignment-group audience helpers
+# ---------------------------------------------------------------------------
+
+
+def _effective_author_roles(template: ReflectionTemplate) -> list[str]:
+    """Membership roles that qualify to fill an assignment-group form."""
+    roles = [r for r in (template.author_role_filter or []) if r]
+    if roles:
+        return roles
+    if template.role:
+        return [template.role]
+    return []
+
+
+def _assignment_group_membership_roles(template: ReflectionTemplate) -> tuple[str, ...]:
+    """Which ``AssignmentGroupMembership.role_in_group`` values count.
+
+    Self-reflection templates are filled by the team member themselves,
+    so both ``author`` and ``subject`` roster rows qualify. Roster-style
+    templates still require active ``author`` rows only.
+    """
+    if template.subject_mode == "self":
+        return ("author", "subject")
+    return ("author",)
+
+
+# ---------------------------------------------------------------------------
 # Membership resolution (moved from api/leadership_team/assignments.py)
 # ---------------------------------------------------------------------------
 
@@ -78,8 +105,10 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
     * ``tag_group``: dynamic — Memberships whose ``tags`` JSON contains
       the given tag.
     * ``assignment_group``: dynamic — Memberships whose role is in
-      ``template.author_role_filter`` AND who are active authors in the
-      group.
+      ``template.author_role_filter`` (or ``template.role`` when that
+      filter is empty) AND who hold an active roster row in the group.
+      Self-reflection templates accept either ``author`` or ``subject``
+      roster rows; roster templates require ``author``.
     """
     payload = assignment.target_payload or {}
     base = Membership.all_objects.filter(
@@ -103,16 +132,18 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
         group_id = assignment.assignment_group_id
         if not group_id:
             return base.none()
-        author_roles = assignment.template.author_role_filter or []
+        tpl = assignment.template
+        author_roles = _effective_author_roles(tpl)
         if not author_roles:
             return base.none()
-        author_person_ids = AssignmentGroupMembership.all_objects.filter(
+        roster_roles = _assignment_group_membership_roles(tpl)
+        member_person_ids = AssignmentGroupMembership.all_objects.filter(
             group_id=group_id,
-            role_in_group="author",
+            role_in_group__in=roster_roles,
             is_active=True,
         ).values_list("person_id", flat=True)
         return base.filter(
-            person_id__in=author_person_ids, role__in=author_roles,
+            person_id__in=member_person_ids, role__in=author_roles,
         )
     return base.none()
 
@@ -204,13 +235,15 @@ def _viewer_in_audience(
         group_id = assignment.assignment_group_id
         if not group_id:
             return False
-        author_roles = assignment.template.author_role_filter or []
+        tpl = assignment.template
+        author_roles = _effective_author_roles(tpl)
         if not author_roles:
             return False
+        roster_roles = _assignment_group_membership_roles(tpl)
         return AssignmentGroupMembership.all_objects.filter(
             group_id=group_id,
             person=viewer,
-            role_in_group="author",
+            role_in_group__in=roster_roles,
             is_active=True,
         ).filter(
             Q(person__memberships__role__in=author_roles)
@@ -241,8 +274,9 @@ def active_assignments_for(
         * target_type='role' and target_payload['role'] matches, OR
         * target_type='individuals' and the viewer's Membership is in
           target_payload['membership_ids'], OR
-        * target_type='assignment_group' and the viewer is an author in
-          that group whose role is in template.author_role_filter, OR
+        * target_type='assignment_group' and the viewer is in that
+          group's roster with a role in template.author_role_filter
+          (or template.role when the filter is empty), OR
         * target_type='tag_group' and the viewer's Membership tags
           include the tag.
     - When ``require_required`` is True (default), drops is_required=False

@@ -416,6 +416,69 @@ class TestCampminderRosterImportLog:
         assert log.status == "completed"
         assert log.summary["persons_created"] == 3
 
+    def test_reuses_existing_log_id(self, tmp_path, program):
+        existing = RosterImportLog.all_objects.create(
+            organization=program.organization,
+            program=program,
+            importer_type="campminder",
+            status="pending",
+            csv_filename="roster.csv",
+        )
+        _run_campminder(tmp_path, CAMPMINDER_BUNK_CSV, log_id=existing.pk)
+        existing.refresh_from_db()
+        assert existing.status == "completed"
+        assert existing.summary["persons_created"] == 3
+        assert RosterImportLog.all_objects.filter(program=program).count() == 1
+
+    def test_target_group_bulk_import_as_subjects(self, tmp_path, program):
+        team = AssignmentGroup.all_objects.create(
+            organization=program.organization,
+            program=program,
+            name="Camper Bunk",
+            slug="camper-bunk-import",
+            group_type="bunk",
+        )
+        _run_campminder(
+            tmp_path,
+            CAMPMINDER_STAFF_ONLY_CSV,
+            target_group_id=team.pk,
+            bulk_role_in_group="subject",
+        )
+        dave = Person.all_objects.get(
+            organization=program.organization,
+            external_ids__campminder_id="CM010",
+        )
+        assert AssignmentGroupMembership.all_objects.filter(
+            group=team,
+            person=dave,
+            role_in_group="subject",
+            is_active=True,
+        ).exists()
+
+    def test_target_group_adds_staff_without_bunk_column(self, tmp_path, program):
+        team = AssignmentGroup.all_objects.create(
+            organization=program.organization,
+            program=program,
+            name="Kitchen Staff",
+            slug="kitchen-staff-import",
+            group_type="team",
+        )
+        _run_campminder(
+            tmp_path,
+            CAMPMINDER_STAFF_ONLY_CSV,
+            target_group_id=team.pk,
+        )
+        dave = Person.all_objects.get(
+            organization=program.organization,
+            external_ids__campminder_id="CM010",
+        )
+        assert AssignmentGroupMembership.all_objects.filter(
+            group=team,
+            person=dave,
+            role_in_group="author",
+            is_active=True,
+        ).exists()
+
 
 @pytest.mark.django_db
 class TestCampminderDryRun:
