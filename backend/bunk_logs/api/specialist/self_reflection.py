@@ -16,7 +16,6 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import serializers
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied

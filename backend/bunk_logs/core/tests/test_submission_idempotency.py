@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -22,8 +23,6 @@ def org(db):
 
 @pytest.fixture
 def program(org):
-    from datetime import date
-
     return Program.all_objects.create(
         organization=org,
         name="Idem Camp Summer 2026",
@@ -92,7 +91,7 @@ def test_idempotent_create_integrity_error_returns_existing(program, org, templa
     )
 
     def _raise_integrity():
-        raise IntegrityError("duplicate key")
+        raise IntegrityError
 
     with patch.object(Reflection.all_objects, "filter") as mock_filter:
         mock_qs = mock_filter.return_value

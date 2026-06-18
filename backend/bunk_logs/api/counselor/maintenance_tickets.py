@@ -12,7 +12,6 @@ production (with presigned URLs) and the local filesystem in dev / tests.
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser

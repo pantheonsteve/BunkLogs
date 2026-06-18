@@ -1,14 +1,7 @@
 """Idempotent client-submission helpers for network-tolerant POST endpoints."""
 
-from __future__ import annotations
-
-from typing import Callable
-from typing import TypeVar
-
 from django.db import IntegrityError
 from django.db import transaction
-
-T = TypeVar("T")
 
 
 def idempotent_create(
@@ -16,8 +9,8 @@ def idempotent_create(
     *,
     program,
     client_submission_id,
-    create_fn: Callable[[], T],
-) -> tuple[T, bool]:
+    create_fn,
+):
     """Insert via ``create_fn`` or return an existing row on replay/race.
 
     Lookup key is ``(program, client_submission_id)``. Concurrent duplicate
