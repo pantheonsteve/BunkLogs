@@ -1,12 +1,11 @@
-# ruff: noqa: E501
 import os
 
 from .base import *
 from .base import DATABASES
 from .base import INSTALLED_APPS
 from .base import REDIS_URL
-from .base import build_redis_cache_options
 from .base import SPECTACULAR_SETTINGS
+from .base import build_redis_cache_options
 from .base import env
 
 # GENERAL
