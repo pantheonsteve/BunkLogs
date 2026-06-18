@@ -332,6 +332,19 @@ LOGGING = {
 REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
 REDIS_SSL = REDIS_URL.startswith("rediss://")
 
+
+def build_redis_cache_options(*, ignore_exceptions: bool = False) -> dict:
+    """django-redis OPTIONS for CACHES; enables TLS when REDIS_URL uses rediss://."""
+    import ssl
+
+    options: dict = {"CLIENT_CLASS": "django_redis.client.DefaultClient"}
+    if ignore_exceptions:
+        options["IGNORE_EXCEPTIONS"] = True
+    if REDIS_SSL:
+        options["CONNECTION_POOL_KWARGS"] = {"ssl_cert_reqs": ssl.CERT_NONE}
+    return options
+
+
 # CELERY
 # ------------------------------------------------------------------------------
 CELERY_BROKER_URL = REDIS_URL
@@ -342,6 +355,12 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+if REDIS_SSL:
+    import ssl
+
+    CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": ssl.CERT_NONE}
+    CELERY_REDIS_BACKEND_USE_SSL = {"ssl_cert_reqs": ssl.CERT_NONE}
 
 # MAINTENANCE DIGEST
 # ------------------------------------------------------------------------------

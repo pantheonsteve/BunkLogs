@@ -197,6 +197,8 @@ podman ps -a             # stop/remove old containers
 
 **ddtrace errors in local logs**: "failed to send traces to intake at localhost:8126" is harmless -- Datadog agent isn't running locally. Ignore.
 
+**Production Render names**: The live API service is **BunkLogs** (not `bunklogs-backend`); APM still tags `service:bunklogs-backend` via `DD_SERVICE`. The agent dashboard name is **datadog-agent**; `DD_AGENT_HOST` uses the private-network hostname (e.g. `datadog-agent-fbsh`).
+
 **Cache not working in production health check**: Redis on Render may need re-provisioning. See `render.yaml` for the declared Redis service.
 
 ## Multi-tenant Migration

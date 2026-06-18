@@ -3,8 +3,9 @@ previews:
   expireAfterDays: 7
 
 services:
+  # Production web API (Render dashboard name: BunkLogs → admin.bunklogs.net)
   - type: web
-    name: bunklogs-backend
+    name: BunkLogs
     runtime: python3
     previews:
       generation: automatic
@@ -22,7 +23,7 @@ services:
         fromSecret: DJANGO_SECRET_KEY
       - key: DATABASE_URL
         fromDatabase:
-          name: bunklogs-db
+          name: clc-bunklogs-postgres
           property: connectionString
       - key: REDIS_URL
         fromService:
@@ -35,7 +36,6 @@ services:
         fromSecret: MAILGUN_DOMAIN
       - key: MAILGUN_FROM_EMAIL
         fromSecret: MAILGUN_FROM_EMAIL
-      # --- Datadog: service tagging (existing) ---
       - key: DD_ENV
         value: prod
       - key: DD_SERVICE
@@ -46,11 +46,35 @@ services:
         value: "true"
       - key: DD_TRACE_ENABLED
         value: "true"
-      # --- Datadog: point tracer + statsd at the Agent over the private network (NEW) ---
+      # Private-network hostname from datadog-agent → Connect tab (not the dashboard name).
       - key: DD_AGENT_HOST
         value: "datadog-agent-fbsh"
       - key: DD_RUNTIME_METRICS_ENABLED
         value: "true"
+
+  - type: web
+    name: BunkLogs-frontend
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_URL
+        value: https://admin.bunklogs.net
+      - key: VITE_DATADOG_ENV
+        value: prod
+      - key: VITE_DATADOG_SERVICE
+        value: bunklogs-frontend
+      - key: VITE_DATADOG_SITE
+        value: datadoghq.com
+      - key: VITE_DATADOG_VERSION
+        value: "1.0.0"
+      - key: VITE_DATADOG_APPLICATION_ID
+        fromSecret: VITE_DATADOG_APPLICATION_ID
+      - key: VITE_DATADOG_CLIENT_TOKEN
+        fromSecret: VITE_DATADOG_CLIENT_TOKEN
+      - key: VITE_GOOGLE_CLIENT_ID
+        fromSecret: VITE_GOOGLE_CLIENT_ID
 
   # Celery worker for translation pipeline and other async tasks
   - type: worker
@@ -67,7 +91,7 @@ services:
         fromSecret: DJANGO_SECRET_KEY
       - key: DATABASE_URL
         fromDatabase:
-          name: bunklogs-db
+          name: clc-bunklogs-postgres
           property: connectionString
       - key: REDIS_URL
         fromService:
@@ -103,7 +127,7 @@ services:
         fromSecret: DJANGO_SECRET_KEY
       - key: DATABASE_URL
         fromDatabase:
-          name: bunklogs-db
+          name: clc-bunklogs-postgres
           property: connectionString
       - key: MAILGUN_API_KEY
         fromSecret: MAILGUN_API_KEY
@@ -111,11 +135,10 @@ services:
         fromSecret: MAILGUN_DOMAIN
       - key: MAILGUN_FROM_EMAIL
         fromSecret: MAILGUN_FROM_EMAIL
-      # --- Datadog (NEW) ---
       - key: DD_ENV
         value: prod
       - key: DD_SERVICE
-        value: bunklogs-daily-reports   # or "bunklogs-backend" to group it with the web app in APM
+        value: bunklogs-daily-reports
       - key: DD_VERSION
         value: "1.0"
       - key: DD_TRACE_ENABLED
@@ -125,11 +148,33 @@ services:
       - key: DD_AGENT_HOST
         value: "datadog-agent-fbsh"
 
+  # Datadog Agent — private service (dashboard name: datadog-agent).
+  # Internal hostname for DD_AGENT_HOST is on Connect tab (currently datadog-agent-fbsh).
+  - type: pserv
+    name: datadog-agent
+    runtime: image
+    plan: starter
+    image:
+      url: gcr.io/datadoghq/agent:7
+    envVars:
+      - key: DD_API_KEY
+        fromSecret: DD_API_KEY
+      - key: DD_SITE
+        value: datadoghq.com
+      - key: DD_APM_ENABLED
+        value: "true"
+      - key: DD_APM_NON_LOCAL_TRAFFIC
+        value: "true"
+      - key: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
+        value: "true"
+      - key: DD_SYSTEM_PROBE_ENABLED
+        value: "false"
+
   - type: redis
     name: bunklogs-redis
     plan: starter
 
 databases:
-  - name: bunklogs-db
+  - name: clc-bunklogs-postgres
     plan: starter
     previewPlan: free
