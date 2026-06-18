@@ -6,6 +6,11 @@
  */
 
 import api from '../api';
+import { newClientSubmissionId } from './counselor';
+import {
+  SUBMISSION_KIND,
+  submitWithQueue,
+} from '../lib/submissionQueue/queue';
 
 export const SENSITIVITY_AUDIENCE = Object.freeze({
   normal: 'Everyone',
@@ -49,6 +54,7 @@ export async function createObservation({
   sensitivity = 'normal',
   subjectVisible = false,
   observedAt = null,
+  clientSubmissionId = newClientSubmissionId(),
 }) {
   const payload = {
     subject_ids: subjectIds,
@@ -57,12 +63,30 @@ export async function createObservation({
     context,
     sensitivity,
     subject_visible: subjectVisible,
+    client_submission_id: clientSubmissionId,
   };
   if (observedAt) {
     payload.observed_at = observedAt;
   }
-  const r = await api.post('/api/v1/observations/', payload);
-  return r.data;
+  const result = await submitWithQueue({
+    kind: SUBMISSION_KIND.OBSERVATION,
+    clientSubmissionId,
+    metadata: { subjectIds, sensitivity },
+    payload: {
+      subject_ids: subjectIds,
+      recipient_ids: recipientIds,
+      body,
+      context,
+      sensitivity,
+      subject_visible: subjectVisible,
+      observed_at: observedAt,
+    },
+    execute: async () => {
+      const r = await api.post('/api/v1/observations/', payload);
+      return { data: r.data, status: r.status };
+    },
+  });
+  return result.data;
 }
 
 export async function fetchObservationInbox() {

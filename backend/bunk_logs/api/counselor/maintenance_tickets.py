@@ -12,7 +12,6 @@ production (with presigned URLs) and the local filesystem in dev / tests.
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser
@@ -26,9 +25,9 @@ from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import TicketPhoto
+from bunk_logs.core.submission import idempotent_create
 
 from .common import co_counselor_person_ids
-from .common import find_existing_by_client_submission_id
 from .common import invalidate_dashboard_for_viewers
 from .common import viewer_bunk_groups
 from .common import viewer_or_403
@@ -87,16 +86,7 @@ class MaintenanceTicketCreateView(APIView):
             raise PermissionDenied(msg)
         program = primary_membership.program
 
-        existing = find_existing_by_client_submission_id(
-            MaintenanceTicket, program=program,
-            client_submission_id=payload["client_submission_id"],
-        )
-        if existing is not None:
-            return Response(
-                maintenance_ticket_response(existing), status=status.HTTP_200_OK,
-            )
-
-        with transaction.atomic():
+        def _create_ticket():
             ticket = MaintenanceTicket(
                 organization=org,
                 program=program,
@@ -108,15 +98,8 @@ class MaintenanceTicketCreateView(APIView):
                 urgent_reason=payload.get("urgent_reason", ""),
                 client_submission_id=payload["client_submission_id"],
             )
-            try:
-                ticket.full_clean()
-            except DjangoValidationError as e:
-                return Response(
-                    e.message_dict if hasattr(e, "message_dict") else str(e),
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            ticket.full_clean()
             ticket.save()
-
             for image in photos:
                 TicketPhoto.objects.create(
                     ticket=ticket,
@@ -124,6 +107,25 @@ class MaintenanceTicketCreateView(APIView):
                     uploaded_by=primary_membership,
                     is_followup=False,
                 )
+            return ticket
+
+        try:
+            ticket, created = idempotent_create(
+                MaintenanceTicket,
+                program=program,
+                client_submission_id=payload["client_submission_id"],
+                create_fn=_create_ticket,
+            )
+        except DjangoValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, "message_dict") else str(e),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not created:
+            return Response(
+                maintenance_ticket_response(ticket), status=status.HTTP_200_OK,
+            )
 
         audit_module.created(
             primary_membership,

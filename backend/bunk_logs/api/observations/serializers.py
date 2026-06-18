@@ -175,6 +175,7 @@ class ObservationCreateSerializer(serializers.Serializer):
         max_length=50, required=False, allow_blank=True, default="",
     )
     observed_at = serializers.DateTimeField(required=False, allow_null=True)
+    client_submission_id = serializers.UUIDField(required=False, allow_null=True)
 
 
 class ObservationReplyCreateSerializer(serializers.Serializer):

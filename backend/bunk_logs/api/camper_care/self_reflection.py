@@ -22,7 +22,6 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
@@ -30,7 +29,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.counselor.common import find_existing_by_client_submission_id
 from bunk_logs.api.counselor.common import invalidate_dashboard_for_viewers
 from bunk_logs.api.counselor.responses import reflection_response
 from bunk_logs.api.unit_head.common import validate_bunk_concerns_ids
@@ -39,6 +37,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 from .common import camper_care_self_template
@@ -190,13 +189,6 @@ class CamperCareSelfReflectionCreateView(APIView):
             msg = "No Camper Care self-reflection template configured."
             raise PermissionDenied(msg)
 
-        existing = find_existing_by_client_submission_id(
-            Reflection, program=ctx.program,
-            client_submission_id=payload["client_submission_id"],
-        )
-        if existing is not None:
-            return Response(reflection_response(existing), status=status.HTTP_200_OK)
-
         if payload["day_off"]:
             answers = _day_off_answers()
         else:
@@ -209,7 +201,7 @@ class CamperCareSelfReflectionCreateView(APIView):
             if not ok:
                 return err
 
-        with transaction.atomic():
+        def _create_reflection():
             reflection = Reflection(
                 organization=org,
                 program=ctx.program,
@@ -226,12 +218,23 @@ class CamperCareSelfReflectionCreateView(APIView):
                 is_complete=True,
                 client_submission_id=payload["client_submission_id"],
             )
-            try:
-                reflection.full_clean()
-            except DjangoValidationError as e:
-                body = e.message_dict if hasattr(e, "message_dict") else str(e)
-                return Response(body, status=status.HTTP_400_BAD_REQUEST)
+            reflection.full_clean()
             reflection.save()
+            return reflection
+
+        try:
+            reflection, created = idempotent_create(
+                Reflection,
+                program=ctx.program,
+                client_submission_id=payload["client_submission_id"],
+                create_fn=_create_reflection,
+            )
+        except DjangoValidationError as e:
+            body = e.message_dict if hasattr(e, "message_dict") else str(e)
+            return Response(body, status=status.HTTP_400_BAD_REQUEST)
+
+        if not created:
+            return Response(reflection_response(reflection), status=status.HTTP_200_OK)
 
         audit_module.created(
             ctx.membership,

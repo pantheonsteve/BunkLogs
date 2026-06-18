@@ -3,6 +3,7 @@ import { ErrorBoundary } from '@datadog/browser-rum-react';
 import { AuthProvider } from './auth/AuthContext';
 import { AllAuthProvider } from './context/AllAuthContext';
 import { BunkProvider } from './contexts/BunkContext';
+import SubmissionQueueProvider from './lib/submissionQueue/SubmissionQueueProvider';
 import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
 import './css/style.css';
@@ -57,9 +58,11 @@ function App() {
     <ErrorBoundary fallback={AppErrorFallback}>
       <AllAuthProvider>
         <AuthProvider>
-          <BunkProvider>
-            <Router />
-          </BunkProvider>
+          <SubmissionQueueProvider>
+            <BunkProvider>
+              <Router />
+            </BunkProvider>
+          </SubmissionQueueProvider>
         </AuthProvider>
       </AllAuthProvider>
     </ErrorBoundary>

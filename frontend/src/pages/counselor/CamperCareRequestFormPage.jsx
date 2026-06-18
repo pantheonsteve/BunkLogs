@@ -19,6 +19,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCounselorDraft } from '../../hooks/useCounselorDraft';
+import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
+import { camperCareDraftKey } from '../../utils/counselor/counselorDraftStorage';
 import {
   createCamperCareRequest,
   fetchCamperCareItemSuggestions,
@@ -95,6 +98,32 @@ export default function CamperCareRequestFormPage() {
     clientSubmissionIdRef.current = newClientSubmissionId();
   }
 
+  const { clearDraft } = useCounselorDraft({
+    draftKey: camperCareDraftKey(clientSubmissionIdRef.current),
+    getSnapshot: () => ({
+      subjectId,
+      bunkId,
+      item,
+      itemNote,
+      description,
+      clientSubmissionId: clientSubmissionIdRef.current,
+    }),
+    onRestore: (saved) => {
+      if (saved.subjectId != null && saved.subjectId !== '') {
+        setSubjectId(String(saved.subjectId));
+      }
+      if (saved.bunkId != null && saved.bunkId !== '') {
+        setBunkId(String(saved.bunkId));
+      }
+      if (saved.item) setItem(saved.item);
+      if (saved.itemNote) setItemNote(saved.itemNote);
+      if (saved.description) setDescription(saved.description);
+      if (saved.clientSubmissionId) {
+        clientSubmissionIdRef.current = saved.clientSubmissionId;
+      }
+    },
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError('');
@@ -145,8 +174,14 @@ export default function CamperCareRequestFormPage() {
         description: description.trim(),
         clientSubmissionId: clientSubmissionIdRef.current,
       });
+      clearDraft();
       navigate('/counselor/requests', { replace: true });
     } catch (err) {
+      if (isQueuedSubmissionError(err)) {
+        clearDraft();
+        navigate('/counselor/requests', { replace: true });
+        return;
+      }
       const status = err?.response?.status;
       if (status === 403) {
         setSubmitError(

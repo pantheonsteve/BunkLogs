@@ -16,11 +16,13 @@
  * are not actionable.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { fetchCamperReflections } from '../../api/counselor';
+import { SUBMISSION_KIND } from '../../lib/submissionQueue/queue';
+import { useSubmissionQueue } from '../../lib/submissionQueue/useSubmissionQueue';
 
-function CamperRow({ camper, bunkId, editable, dateIsToday }) {
+function CamperRow({ camper, bunkId, editable, dateIsToday, pendingSync }) {
   const submitted = !!camper.submitted;
   const submitter = camper.submitter;
   const wasMine = submitter?.is_self;
@@ -36,7 +38,11 @@ function CamperRow({ camper, bunkId, editable, dateIsToday }) {
         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
           {camper.name}
         </p>
-        {submitted ? (
+        {pendingSync ? (
+          <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5" data-testid={`camper-row-${camper.id}-syncing`}>
+            Syncing…
+          </p>
+        ) : submitted ? (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {wasMine ? 'Submitted by you' : submitterName ? `Submitted by ${submitterName}` : 'Submitted'}
           </p>
@@ -97,7 +103,7 @@ function OffCampList({ rows }) {
   );
 }
 
-function BunkCard({ bunk, editable, dateIsToday }) {
+function BunkCard({ bunk, editable, dateIsToday, pendingSubjectIds }) {
   return (
     <section
       data-testid={`bunk-card-${bunk.id}`}
@@ -133,6 +139,7 @@ function BunkCard({ bunk, editable, dateIsToday }) {
               bunkId={bunk.id}
               editable={editable}
               dateIsToday={dateIsToday}
+              pendingSync={pendingSubjectIds?.has(String(camper.id))}
             />
           ))}
         </ul>
@@ -153,6 +160,20 @@ export default function CamperReflectionListPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const { pending } = useSubmissionQueue();
+
+  const pendingSubjectIds = useMemo(() => {
+    const rosterDate = data?.date;
+    return new Set(
+      pending
+        .filter(
+          (entry) =>
+            entry.kind === SUBMISSION_KIND.CAMPER_REFLECTION
+            && (!rosterDate || entry.metadata?.date === rosterDate),
+        )
+        .map((entry) => String(entry.metadata?.subjectId)),
+    );
+  }, [pending, data?.date]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -229,6 +250,7 @@ export default function CamperReflectionListPage() {
               bunk={bunk}
               editable={data.editable}
               dateIsToday={data.editable}
+              pendingSubjectIds={pendingSubjectIds}
             />
           ))
         ) : (

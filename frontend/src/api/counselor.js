@@ -13,6 +13,10 @@
  */
 
 import api from '../api';
+import {
+  SUBMISSION_KIND,
+  submitWithQueue,
+} from '../lib/submissionQueue/queue';
 
 /**
  * Generate a UUIDv4 for `client_submission_id`.
@@ -62,6 +66,7 @@ export async function createCamperReflection({
   language = 'en',
   teamVisibility = 'team',
   clientSubmissionId,
+  date,
 }) {
   const payload = {
     subject_id: subjectId,
@@ -71,8 +76,23 @@ export async function createCamperReflection({
     team_visibility: teamVisibility,
     client_submission_id: clientSubmissionId,
   };
-  const res = await api.post('/api/v1/counselor/camper-reflections/', payload);
-  return { data: res.data, status: res.status };
+  const queuePayload = {
+    subjectId,
+    assignmentGroupId,
+    answers,
+    language,
+    teamVisibility,
+  };
+  return submitWithQueue({
+    kind: SUBMISSION_KIND.CAMPER_REFLECTION,
+    clientSubmissionId,
+    metadata: { subjectId, date, assignmentGroupId },
+    payload: queuePayload,
+    execute: async () => {
+      const res = await api.post('/api/v1/counselor/camper-reflections/', payload);
+      return { data: res.data, status: res.status };
+    },
+  });
 }
 
 /** Edit a camper reflection within today's window (Story 4). */
@@ -171,6 +191,7 @@ export async function createSelfReflection({
   answers,
   language = 'en',
   clientSubmissionId,
+  date,
 }) {
   const payload = {
     day_off: !!dayOff,
@@ -180,8 +201,16 @@ export async function createSelfReflection({
   if (!dayOff) {
     payload.answers = answers || {};
   }
-  const res = await api.post('/api/v1/counselor/self-reflection/', payload);
-  return { data: res.data, status: res.status };
+  return submitWithQueue({
+    kind: SUBMISSION_KIND.SELF_REFLECTION,
+    clientSubmissionId,
+    metadata: { date },
+    payload: { dayOff, answers, language },
+    execute: async () => {
+      const res = await api.post('/api/v1/counselor/self-reflection/', payload);
+      return { data: res.data, status: res.status };
+    },
+  });
 }
 
 /**
@@ -284,10 +313,24 @@ export async function createCamperCareRequest({
   if (bunkId !== undefined && bunkId !== null) {
     payload.bunk_id = bunkId;
   }
-  const res = await api.post(
-    '/api/v1/counselor/camper-care-requests/', payload,
-  );
-  return { data: res.data, status: res.status };
+  return submitWithQueue({
+    kind: SUBMISSION_KIND.CAMPER_CARE_REQUEST,
+    clientSubmissionId,
+    metadata: { subjectId, bunkId, item },
+    payload: {
+      subject_id: payload.subject_id,
+      bunk_id: payload.bunk_id,
+      item,
+      item_note: itemNote,
+      description,
+    },
+    execute: async () => {
+      const res = await api.post(
+        '/api/v1/counselor/camper-care-requests/', payload,
+      );
+      return { data: res.data, status: res.status };
+    },
+  });
 }
 
 /**
@@ -325,15 +368,27 @@ export async function createMaintenanceTicket({
   for (const file of photos) {
     if (file) form.append('photos', file);
   }
-  // Let the browser set the multipart boundary by NOT setting
-  // Content-Type explicitly. Passing ``Content-Type: undefined`` here
-  // unsets the JSON default baked into the axios instance defaults.
-  const res = await api.post(
-    '/api/v1/counselor/maintenance-tickets/',
-    form,
-    { headers: { 'Content-Type': undefined } },
-  );
-  return { data: res.data, status: res.status };
+  return submitWithQueue({
+    kind: SUBMISSION_KIND.MAINTENANCE_TICKET,
+    clientSubmissionId,
+    metadata: { location, category, urgency },
+    payload: {
+      location,
+      category,
+      description,
+      urgency,
+      urgentReason,
+    },
+    photoBlobs: photos,
+    execute: async () => {
+      const res = await api.post(
+        '/api/v1/counselor/maintenance-tickets/',
+        form,
+        { headers: { 'Content-Type': undefined } },
+      );
+      return { data: res.data, status: res.status };
+    },
+  });
 }
 
 /**

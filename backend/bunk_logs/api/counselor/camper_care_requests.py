@@ -7,7 +7,6 @@ Counselor-side submission for a Camper Care request. Idempotent on
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -19,9 +18,9 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import OrderItemSuggestion
+from bunk_logs.core.submission import idempotent_create
 
 from .common import co_counselor_person_ids
-from .common import find_existing_by_client_submission_id
 from .common import invalidate_dashboard_for_viewers
 from .common import resolve_submitted_from_bunk
 from .common import viewer_bunk_groups
@@ -96,13 +95,6 @@ class CamperCareRequestCreateView(APIView):
             raise PermissionDenied(msg)
         program = primary_membership.program
 
-        existing = find_existing_by_client_submission_id(
-            Order, program=program,
-            client_submission_id=payload["client_submission_id"],
-        )
-        if existing is not None:
-            return Response(order_response(existing), status=status.HTTP_200_OK)
-
         # Subject is optional but if supplied must be a camper on one of
         # the viewer's bunks (Story 7 criterion 2.i). Bunk-scoped requests
         # without a subject are allowed for "the bunk in general" needs.
@@ -125,7 +117,7 @@ class CamperCareRequestCreateView(APIView):
             bunk_id=payload.get("bunk_id"),
         )
 
-        with transaction.atomic():
+        def _create_order():
             order = Order(
                 organization=org,
                 program=program,
@@ -137,14 +129,25 @@ class CamperCareRequestCreateView(APIView):
                 description=payload.get("description", ""),
                 client_submission_id=payload["client_submission_id"],
             )
-            try:
-                order.full_clean()
-            except DjangoValidationError as e:
-                return Response(
-                    e.message_dict if hasattr(e, "message_dict") else str(e),
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            order.full_clean()
             order.save()
+            return order
+
+        try:
+            order, created = idempotent_create(
+                Order,
+                program=program,
+                client_submission_id=payload["client_submission_id"],
+                create_fn=_create_order,
+            )
+        except DjangoValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, "message_dict") else str(e),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not created:
+            return Response(order_response(order), status=status.HTTP_200_OK)
 
         audit_module.created(
             primary_membership,

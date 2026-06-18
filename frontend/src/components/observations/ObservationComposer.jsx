@@ -14,6 +14,8 @@ import {
   fetchRecipientCandidates,
   searchObservationSubjects,
 } from '../../api/observations';
+import { newClientSubmissionId } from '../../api/counselor';
+import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -59,6 +61,10 @@ export default function ObservationComposer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
+  const clientSubmissionIdRef = useRef(null);
+  if (clientSubmissionIdRef.current === null) {
+    clientSubmissionIdRef.current = newClientSubmissionId();
+  }
 
   // Subject typeahead.
   useEffect(() => {
@@ -145,10 +151,16 @@ export default function ObservationComposer({
         sensitivity,
         subjectVisible,
         observedAt: localDatetimeToIso(observedAtLocal),
+        clientSubmissionId: clientSubmissionIdRef.current,
       });
       onSent?.(data);
       onClose?.();
     } catch (err) {
+      if (isQueuedSubmissionError(err)) {
+        setError(err.message);
+        onClose?.();
+        return;
+      }
       const detail = err.response?.data;
       setError(
         (detail && (detail.detail || detail.recipient_ids || detail.subject_ids))

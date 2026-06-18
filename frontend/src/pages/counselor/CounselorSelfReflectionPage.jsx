@@ -36,6 +36,9 @@ import {
   prepareReflectionAnswersForSubmit,
   validateReflectionAnswers,
 } from '../../utils/reflection/reflectionFormValidation';
+import { useCounselorDraft } from '../../hooks/useCounselorDraft';
+import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
+import { selfReflectionDraftKey } from '../../utils/counselor/counselorDraftStorage';
 import {
   COUNSELOR_SELF_REFLECTION_AUDIENCE,
   createSelfReflection,
@@ -89,12 +92,33 @@ export default function CounselorSelfReflectionPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [todayDate, setTodayDate] = useState(null);
 
   // Stable UUID across retries for create mode (Step 7_6c idempotency).
   const clientSubmissionIdRef = useRef(null);
   if (!isEdit && clientSubmissionIdRef.current === null) {
     clientSubmissionIdRef.current = newClientSubmissionId();
   }
+
+  const draftKey = !isEdit && todayDate ? selfReflectionDraftKey(todayDate) : null;
+  const { persistDraft, clearDraft } = useCounselorDraft({
+    draftKey,
+    enabled: !isEdit && !!draftKey,
+    getSnapshot: () => ({
+      answers,
+      language,
+      dayOff,
+      clientSubmissionId: clientSubmissionIdRef.current,
+    }),
+    onRestore: (saved) => {
+      if (saved.answers) setAnswers((prev) => ({ ...prev, ...saved.answers }));
+      if (saved.language) setLanguage(saved.language);
+      if (typeof saved.dayOff === 'boolean') setDayOff(saved.dayOff);
+      if (saved.clientSubmissionId) {
+        clientSubmissionIdRef.current = saved.clientSubmissionId;
+      }
+    },
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +151,7 @@ export default function CounselorSelfReflectionPage() {
         setLanguage(reflection.language || 'en');
       } else {
         const dashboard = await fetchCounselorDashboard();
+        setTodayDate(dashboard?.today || dashboard?.selected_date || null);
         const selfSection = dashboard?.sections?.self_reflection;
         if (selfSection?.reflection_id) {
           // Already submitted today — bounce to the edit URL so the user
@@ -227,10 +252,22 @@ export default function CounselorSelfReflectionPage() {
           answers: payloadAnswers,
           language,
           clientSubmissionId: clientSubmissionIdRef.current,
+          date: todayDate,
         });
       }
+      clearDraft();
       navigate('/counselor', { replace: true });
     } catch (err) {
+      if (isQueuedSubmissionError(err)) {
+        clearDraft();
+        navigate('/counselor', { replace: true });
+        return;
+      }
+      if (err?.response?.status === 401) {
+        persistDraft();
+        setSubmitError('Session expired — your answers are saved. Please sign in again.');
+        return;
+      }
       const status = err?.response?.status;
       if (status === 403) {
         setSubmitError(flattenError(err, 'You can no longer edit this reflection.'));

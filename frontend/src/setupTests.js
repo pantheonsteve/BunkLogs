@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import 'fake-indexeddb/auto';
 import React from 'react';
 import { vi } from 'vitest';
 

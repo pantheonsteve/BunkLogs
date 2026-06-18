@@ -15,7 +15,6 @@ from __future__ import annotations
 from datetime import date as date_type
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -30,13 +29,13 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 from .common import bunk_camper_persons
 from .common import camper_reflection_template
 from .common import co_counselor_person_ids
 from .common import enforce_edit_window
-from .common import find_existing_by_client_submission_id
 from .common import invalidate_dashboard_for_viewers
 from .common import latest_camper_reflection_per_subject
 from .common import off_camp_camper_ids
@@ -214,16 +213,6 @@ class CamperReflectionListView(APIView):
             raise PermissionDenied(msg)
         program = primary_membership.program
 
-        existing = find_existing_by_client_submission_id(
-            Reflection, program=program,
-            client_submission_id=payload["client_submission_id"],
-        )
-        if existing is not None:
-            raise_flag_from_camper_reflection(
-                existing, raised_by_membership=primary_membership,
-            )
-            return Response(reflection_response(existing), status=status.HTTP_200_OK)
-
         bunk = AssignmentGroup.all_objects.filter(
             id=payload["assignment_group_id"],
             organization=org,
@@ -272,7 +261,7 @@ class CamperReflectionListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        with transaction.atomic():
+        def _create_reflection():
             reflection = Reflection(
                 organization=org,
                 program=program,
@@ -289,17 +278,31 @@ class CamperReflectionListView(APIView):
                 is_complete=True,
                 client_submission_id=payload["client_submission_id"],
             )
-            try:
-                reflection.full_clean()
-            except DjangoValidationError as e:
-                return Response(
-                    e.message_dict if hasattr(e, "message_dict") else str(e),
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            reflection.full_clean()
             reflection.save()
             raise_flag_from_camper_reflection(
                 reflection, raised_by_membership=primary_membership,
             )
+            return reflection
+
+        try:
+            reflection, created = idempotent_create(
+                Reflection,
+                program=program,
+                client_submission_id=payload["client_submission_id"],
+                create_fn=_create_reflection,
+            )
+        except DjangoValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, "message_dict") else str(e),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not created:
+            raise_flag_from_camper_reflection(
+                reflection, raised_by_membership=primary_membership,
+            )
+            return Response(reflection_response(reflection), status=status.HTTP_200_OK)
 
         audit_module.created(
             primary_membership,
