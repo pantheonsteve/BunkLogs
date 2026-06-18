@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import {
+  markConfirmed,
+  persistPending,
+  SUBMISSION_KIND,
+  getPendingEntries,
+} from '../../../lib/submissionQueue/queue';
 import CamperReflectionListPage from '../CamperReflectionListPage';
 
 const getMock = vi.fn();
@@ -70,8 +76,10 @@ function renderPage({ url = '/counselor/camper-reflections' } = {}) {
 }
 
 describe('CamperReflectionListPage', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     getMock.mockReset();
+    const entries = await getPendingEntries();
+    await Promise.all(entries.map((entry) => markConfirmed(entry.id)));
   });
 
   it('renders the bunk roster with submitted and not-submitted rows', async () => {
@@ -202,6 +210,26 @@ describe('CamperReflectionListPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('camper-roster-empty')).toBeInTheDocument(),
     );
+  });
+
+  it('shows Syncing badge when a camper reflection is pending in the queue', async () => {
+    await persistPending({
+      kind: SUBMISSION_KIND.CAMPER_REFLECTION,
+      clientSubmissionId: '33333333-3333-4333-8333-333333333333',
+      metadata: { subjectId: 2, date: '2026-07-04', assignmentGroupId: 100 },
+      payload: {
+        subjectId: 2,
+        assignmentGroupId: 100,
+        answers: { note: 'pending' },
+        language: 'en',
+        teamVisibility: 'team',
+      },
+    });
+    getMock.mockResolvedValue({ data: makeRoster() });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId('camper-row-2')).toBeInTheDocument());
+    expect(screen.getByTestId('camper-row-2')).toHaveTextContent('Syncing…');
   });
 
   it('shows the error banner on 400 invalid date', async () => {

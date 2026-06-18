@@ -27,11 +27,11 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 from .common import counselor_self_template
 from .common import enforce_edit_window
-from .common import find_existing_by_client_submission_id
 from .common import invalidate_dashboard_for_viewers
 from .common import is_day_off_answer
 from .common import viewer_or_403
@@ -205,15 +205,6 @@ class SelfReflectionCreateView(APIView):
 
         membership, program, template = _resolve_self_program_and_template(viewer, org)
 
-        existing = find_existing_by_client_submission_id(
-            Reflection, program=program,
-            client_submission_id=payload["client_submission_id"],
-        )
-        if existing is not None:
-            return Response(reflection_response(existing), status=status.HTTP_200_OK)
-
-        # ``day_off`` is the documented shortcut: minimal payload, marked
-        # complete, no further validation of the rest of the schema.
         if payload["day_off"]:
             answers = _day_off_answers()
         else:
@@ -226,7 +217,7 @@ class SelfReflectionCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        with transaction.atomic():
+        def _create_reflection():
             reflection = Reflection(
                 organization=org,
                 program=program,
@@ -243,14 +234,25 @@ class SelfReflectionCreateView(APIView):
                 is_complete=True,
                 client_submission_id=payload["client_submission_id"],
             )
-            try:
-                reflection.full_clean()
-            except DjangoValidationError as e:
-                return Response(
-                    e.message_dict if hasattr(e, "message_dict") else str(e),
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            reflection.full_clean()
             reflection.save()
+            return reflection
+
+        try:
+            reflection, created = idempotent_create(
+                Reflection,
+                program=program,
+                client_submission_id=payload["client_submission_id"],
+                create_fn=_create_reflection,
+            )
+        except DjangoValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, "message_dict") else str(e),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not created:
+            return Response(reflection_response(reflection), status=status.HTTP_200_OK)
 
         audit_module.created(
             membership,

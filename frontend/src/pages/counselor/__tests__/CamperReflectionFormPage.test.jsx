@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { getPendingEntries, markConfirmed } from '../../../lib/submissionQueue/queue';
 import CamperReflectionFormPage from '../CamperReflectionFormPage';
 
 const getMock = vi.fn();
@@ -118,6 +119,7 @@ describe('CamperReflectionFormPage', () => {
     getMock.mockReset();
     postMock.mockReset();
     patchMock.mockReset();
+    localStorage.clear();
   });
 
   describe('create mode', () => {
@@ -175,12 +177,13 @@ describe('CamperReflectionFormPage', () => {
       await waitFor(() => expect(screen.getByTestId('list-probe')).toBeInTheDocument());
     });
 
-    it('reuses the same client_submission_id on retry after a failed submit', async () => {
+    it('queues submission with stable client_submission_id on retryable server error', async () => {
+      const entries = await getPendingEntries();
+      await Promise.all(entries.map((entry) => markConfirmed(entry.id)));
+
       const user = userEvent.setup();
       arrangeCreateRoute();
-      postMock
-        .mockRejectedValueOnce({ response: { status: 500, data: { detail: 'oops' } } })
-        .mockResolvedValueOnce({ data: { id: 1000 }, status: 201 });
+      postMock.mockRejectedValue({ response: { status: 500, data: { detail: 'oops' } } });
       renderCreate();
       await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
       await user.type(screen.getByTestId('reflect-input-note'), 'retry note');
@@ -188,15 +191,35 @@ describe('CamperReflectionFormPage', () => {
       await user.click(ratingButtons[0]);
 
       await user.click(screen.getByTestId('camper-reflection-submit'));
-      await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-      expect(await screen.findByTestId('camper-reflection-submit-error')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId('list-probe')).toBeInTheDocument());
 
-      await user.click(screen.getByTestId('camper-reflection-submit'));
-      await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2));
+      const pending = await getPendingEntries();
+      expect(pending).toHaveLength(1);
+      expect(pending[0].clientSubmissionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(pending[0].metadata?.subjectId).toBe(11);
+    });
 
-      const firstUuid = postMock.mock.calls[0][1].client_submission_id;
-      const secondUuid = postMock.mock.calls[1][1].client_submission_id;
-      expect(firstUuid).toBe(secondUuid);
+    it('restores draft answers and client_submission_id after remount', async () => {
+      arrangeCreateRoute();
+      const { unmount } = renderCreate();
+      await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+
+      const draftKey = 'counselorDraft:camper:11:2026-07-04';
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          answers: { note: 'saved draft' },
+          clientSubmissionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+          updatedAt: Date.now(),
+        }),
+      );
+
+      unmount();
+      arrangeCreateRoute();
+      renderCreate();
+      await waitFor(() => expect(screen.getByTestId('reflect-input-note')).toHaveValue('saved draft'));
     });
 
     it('surfaces a 403 from the server on closed edit window', async () => {

@@ -16,6 +16,9 @@ SECRET_KEY = env("DJANGO_SECRET_KEY")
 # DATABASES
 # ------------------------------------------------------------------------------
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
+# Write endpoints use explicit transaction.atomic(); wrapping every request
+# extends lock duration during end-of-day submission bursts.
+DATABASES["default"]["ATOMIC_REQUESTS"] = False
 
 # CACHES
 # ------------------------------------------------------------------------------

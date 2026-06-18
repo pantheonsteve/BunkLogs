@@ -91,6 +91,15 @@ class Observation(models.Model):
     # migrate_observations command. Blank for API-created observations. The
     # partial unique constraint below makes the migration idempotent.
     legacy_source = models.CharField(max_length=64, blank=True, default="")
+    client_submission_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Client-supplied idempotency key for network-tolerant POST retries. "
+            "Unique per program when set."
+        ),
+    )
     observed_at = models.DateTimeField(
         default=timezone.now,
         help_text="When the observation occurred; defaults to submission time but may be back-dated.",
@@ -114,6 +123,11 @@ class Observation(models.Model):
                 fields=["legacy_source"],
                 condition=~models.Q(legacy_source=""),
                 name="obs_unique_legacy_source",
+            ),
+            models.UniqueConstraint(
+                fields=["program", "client_submission_id"],
+                condition=models.Q(client_submission_id__isnull=False),
+                name="obs_client_submission_unique",
             ),
         ]
         indexes = [

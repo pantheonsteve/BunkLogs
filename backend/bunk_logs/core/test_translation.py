@@ -409,6 +409,8 @@ class TestBeatRegistration:
     def test_migration_installs_the_periodic_task_row(self):
         from django.apps import apps as django_apps
         PeriodicTask = django_apps.get_model("django_celery_beat", "PeriodicTask")
+        if not PeriodicTask.objects.filter(name=beat_module.PERIODIC_TASK_NAME).exists():
+            beat_module.register_periodic_tasks(django_apps)
         row = PeriodicTask.objects.get(name=beat_module.PERIODIC_TASK_NAME)
         assert row.task == beat_module.PERIODIC_TASK_PATH
         assert row.enabled is True

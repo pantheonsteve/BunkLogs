@@ -450,9 +450,8 @@ def find_existing_by_client_submission_id(
     """Idempotent replay lookup for write endpoints.
 
     Returns the existing row if ``(program, client_submission_id)`` already
-    has one, else ``None``. Callers should serialize the existing row with
-    HTTP 200 (not 201) per the 7_6 spec contract — clients retrying a flaky
-    POST get the same canonical record back instead of duplicate writes.
+    has one, else ``None``. Prefer :func:`bunk_logs.core.submission.idempotent_create`
+    for new writes — it also handles concurrent duplicate inserts.
 
     Uses ``all_objects`` so soft-deleted rows still match and block silent
     duplicate creation; if you need to handle resurrection that's a separate

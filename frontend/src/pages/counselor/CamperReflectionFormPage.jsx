@@ -25,6 +25,11 @@ import {
   buildDefaultAnswers,
   validateReflectionAnswers,
 } from '../../utils/reflection/reflectionFormValidation';
+import { useCounselorDraft } from '../../hooks/useCounselorDraft';
+import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
+import {
+  camperReflectionDraftKey,
+} from '../../utils/counselor/counselorDraftStorage';
 import {
   CAMPER_REFLECTION_AUDIENCE,
   createCamperReflection,
@@ -73,6 +78,7 @@ export default function CamperReflectionFormPage() {
   const [subjectName, setSubjectName] = useState(subjectNameParam);
   const [resolvedSubjectId, setResolvedSubjectId] = useState(subjectIdParam);
   const [resolvedBunkId, setResolvedBunkId] = useState(bunkIdParam);
+  const [rosterDate, setRosterDate] = useState(null);
 
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
@@ -84,6 +90,31 @@ export default function CamperReflectionFormPage() {
   if (!isEdit && clientSubmissionIdRef.current === null) {
     clientSubmissionIdRef.current = newClientSubmissionId();
   }
+
+  const draftKey = !isEdit && resolvedSubjectId && rosterDate
+    ? camperReflectionDraftKey(resolvedSubjectId, rosterDate)
+    : null;
+
+  const { persistDraft, clearDraft } = useCounselorDraft({
+    draftKey,
+    enabled: !isEdit && !!draftKey,
+    getSnapshot: () => ({
+      answers,
+      language,
+      teamVisibility,
+      clientSubmissionId: clientSubmissionIdRef.current,
+    }),
+    onRestore: (saved) => {
+      if (saved.answers) {
+        setAnswers((prev) => ({ ...prev, ...saved.answers }));
+      }
+      if (saved.language) setLanguage(saved.language);
+      if (saved.teamVisibility) setTeamVisibility(saved.teamVisibility);
+      if (saved.clientSubmissionId) {
+        clientSubmissionIdRef.current = saved.clientSubmissionId;
+      }
+    },
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +148,7 @@ export default function CamperReflectionFormPage() {
         // the camper is on a bunk the viewer authors. Cheaper than another
         // template-by-program endpoint for this v1 flow.
         const roster = await fetchCamperReflections();
+        setRosterDate(roster.date || null);
         const templateRef = roster.template;
         if (!templateRef?.id) {
           setLoadError('No camper reflection template is configured for your program.');
@@ -207,10 +239,22 @@ export default function CamperReflectionFormPage() {
           language,
           teamVisibility: supportsPrivacy ? teamVisibility : 'team',
           clientSubmissionId: clientSubmissionIdRef.current,
+          date: rosterDate,
         });
       }
+      clearDraft();
       navigate('/counselor/camper-reflections', { replace: true });
     } catch (err) {
+      if (isQueuedSubmissionError(err)) {
+        clearDraft();
+        navigate('/counselor/camper-reflections', { replace: true });
+        return;
+      }
+      if (err?.response?.status === 401) {
+        persistDraft();
+        setSubmitError('Session expired — your answers are saved. Please sign in again.');
+        return;
+      }
       const status = err?.response?.status;
       if (status === 403) {
         setSubmitError(flattenError(err, 'You can no longer edit this reflection.'));

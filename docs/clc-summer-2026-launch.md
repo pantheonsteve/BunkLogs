@@ -8,6 +8,9 @@ Target launch: **Saturday, June 5, 2026** (staff orientation weekend).
 
 ### Infrastructure
 - [ ] Production Render service (`bunklogs-backend`) is on the latest `main` commit
+- [ ] **Scale web to 2 instances** in Render dashboard before camp opens (handles end-of-day submission burst)
+- [ ] Celery worker (`bunklogs-celery`) is running and connected to Redis
+- [ ] `WEB_CONCURRENCY=3` on the backend web service (see `render.yaml`)
 - [ ] All migrations applied cleanly — confirm via Render deploy logs, no migration errors
 - [ ] `GET https://admin.bunklogs.net/health/` returns `{"status":"healthy"}`
 - [ ] Redis and Postgres shown as `ok` in health check
@@ -30,6 +33,11 @@ Target launch: **Saturday, June 5, 2026** (staff orientation weekend).
 - [ ] `https://clc.bunklogs.net` loads the React app with no console errors
 - [ ] `/reflect` redirects to sign-in for unauthenticated users
 - [ ] After sign-in, counselors land on `/counselor-dashboard`
+- [ ] **Submission reliability QA** (staging, before prod):
+  - [ ] **Offline test:** submit a camper reflection with DevTools offline → row shows **Syncing…** on roster → go online → row confirms on server
+  - [ ] **Draft test:** fill half a self-reflection → refresh → draft restores with same content
+  - [ ] **Ambiguous failure:** throttle network to drop response after server saves → retry → single DB row (check admin)
+  - [ ] **Burst smoke test:** run `python scripts/eod_submission_load_smoke.py` against staging with a counselor JWT — expect PASS, 0 HTTP 500
 
 ---
 

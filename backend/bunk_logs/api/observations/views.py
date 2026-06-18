@@ -35,6 +35,7 @@ from rest_framework.views import APIView
 from bunk_logs.api.observations.common import ViewerContext
 from bunk_logs.api.observations.common import viewer_or_403
 from bunk_logs.core import audit as audit_trail
+from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.observation_authoring import recipients_clearing_sensitivity
@@ -278,28 +279,41 @@ class ObservationCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        obs = Observation.objects.create(
-            organization=ctx.organization,
-            program=ctx.program,
-            author=ctx.person,
-            author_role_at_write=ctx.membership.role,
-            body=data["body"],
-            context=data.get("context", ""),
-            sensitivity=sensitivity,
-            subject_visible=data.get("subject_visible", False),
-            language=ctx.person.preferred_language or "en",
-            source_content_type=data.get("source_content_type", ""),
-            source_object_id=data.get("source_object_id", ""),
-            observed_at=observed_at,
-        )
-        for sid in subject_ids:
-            ObservationSubject.objects.create(observation=obs, subject_id=sid)
-        for rid in recipient_ids:
-            ObservationRecipient.objects.create(
-                observation=obs, person_id=rid, option_key="specific_person",
-            )
+        client_submission_id = data.get("client_submission_id")
 
-        audit_trail.created(actor=ctx.membership, content=obs, content_type="observation")
+        def _create_observation():
+            obs = Observation.objects.create(
+                organization=ctx.organization,
+                program=ctx.program,
+                author=ctx.person,
+                author_role_at_write=ctx.membership.role,
+                body=data["body"],
+                context=data.get("context", ""),
+                sensitivity=sensitivity,
+                subject_visible=data.get("subject_visible", False),
+                language=ctx.person.preferred_language or "en",
+                source_content_type=data.get("source_content_type", ""),
+                source_object_id=data.get("source_object_id", ""),
+                observed_at=observed_at,
+                client_submission_id=client_submission_id,
+            )
+            for sid in subject_ids:
+                ObservationSubject.objects.create(observation=obs, subject_id=sid)
+            for rid in recipient_ids:
+                ObservationRecipient.objects.create(
+                    observation=obs, person_id=rid, option_key="specific_person",
+                )
+            return obs
+
+        obs, created = idempotent_create(
+            Observation,
+            program=ctx.program,
+            client_submission_id=client_submission_id,
+            create_fn=_create_observation,
+        )
+
+        if created:
+            audit_trail.created(actor=ctx.membership, content=obs, content_type="observation")
 
         obs = (
             Observation.all_objects.select_related("author")
@@ -310,7 +324,7 @@ class ObservationCreateView(APIView):
             ObservationThreadSerializer(
                 obs, context={"request": request, "viewer_person": ctx.person},
             ).data,
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
 

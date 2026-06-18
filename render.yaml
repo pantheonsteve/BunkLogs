@@ -15,7 +15,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.4"
       - key: WEB_CONCURRENCY
-        value: "1"
+        value: "3"
       - key: DJANGO_SETTINGS_MODULE
         value: "config.settings.production"
       - key: DJANGO_SECRET_KEY
@@ -51,6 +51,41 @@ services:
         value: "datadog-agent-fbsh"
       - key: DD_RUNTIME_METRICS_ENABLED
         value: "true"
+
+  # Celery worker for translation pipeline and other async tasks
+  - type: worker
+    name: bunklogs-celery
+    runtime: python3
+    buildCommand: "./build.sh"
+    startCommand: "ddtrace-run celery -A config worker -l info --concurrency=2"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.4"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "config.settings.production"
+      - key: DJANGO_SECRET_KEY
+        fromSecret: DJANGO_SECRET_KEY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bunklogs-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bunklogs-redis
+          property: connectionString
+      - key: DD_ENV
+        value: prod
+      - key: DD_SERVICE
+        value: bunklogs-celery
+      - key: DD_VERSION
+        value: "1.0"
+      - key: DD_TRACE_ENABLED
+        value: "true"
+      - key: DD_LOGS_INJECTION
+        value: "true"
+      - key: DD_AGENT_HOST
+        value: "datadog-agent-fbsh"
 
   # Cron job for daily email reports
   - type: cron

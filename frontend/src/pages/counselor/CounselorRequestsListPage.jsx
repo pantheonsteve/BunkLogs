@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchCounselorRequests } from '../../api/counselor';
+import { listPendingRequestEntries } from '../../lib/submissionQueue/queue';
 
 function TypeBadge({ type }) {
   if (type === 'camper_care') {
@@ -87,6 +88,28 @@ function formatRelative(iso) {
   return `${diffD}d ago`;
 }
 
+function PendingRequestRow({ entry }) {
+  const title = entry.kind === 'camper_care_request'
+    ? entry.metadata?.item || 'Camper care request'
+    : entry.metadata?.location || 'Maintenance request';
+  return (
+    <li
+      data-testid={`pending-request-${entry.id}`}
+      className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-b-0 flex flex-col gap-1"
+    >
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+          Pending sync
+        </span>
+      </div>
+      <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Saved on this device — will send when connected
+      </p>
+    </li>
+  );
+}
+
 function RequestRow({ row }) {
   const isCamperCare = row.type === 'camper_care';
   const title = isCamperCare
@@ -135,6 +158,7 @@ export default function CounselorRequestsListPage() {
   const statusParam = (params.get('status') === 'all' ? 'all' : 'open');
 
   const [rows, setRows] = useState(null);
+  const [pendingRows, setPendingRows] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -142,8 +166,12 @@ export default function CounselorRequestsListPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchCounselorRequests({ status: filterStatus });
+      const [data, pending] = await Promise.all([
+        fetchCounselorRequests({ status: filterStatus }),
+        listPendingRequestEntries(),
+      ]);
       setRows(data?.requests || []);
+      setPendingRows(pending);
     } catch (err) {
       const detail = err?.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : 'Could not load requests.');
@@ -251,9 +279,12 @@ export default function CounselorRequestsListPage() {
           </div>
         ) : (
           <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 shadow-sm">
-            {rows && rows.length ? (
+            {pendingRows.length || (rows && rows.length) ? (
               <ul>
-                {rows.map((row) => (
+                {pendingRows.map((entry) => (
+                  <PendingRequestRow key={entry.id} entry={entry} />
+                ))}
+                {rows?.map((row) => (
                   <RequestRow key={`${row.type}-${row.id}`} row={row} />
                 ))}
               </ul>

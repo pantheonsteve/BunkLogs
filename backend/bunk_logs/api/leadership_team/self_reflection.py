@@ -31,13 +31,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.counselor.common import find_existing_by_client_submission_id
 from bunk_logs.api.counselor.responses import reflection_response
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 from .common import leadership_team_self_template
@@ -87,13 +87,6 @@ class LeadershipTeamSelfReflectionCreateView(APIView):
             msg = "No Leadership Team self-reflection template configured."
             raise PermissionDenied(msg)
 
-        existing = find_existing_by_client_submission_id(
-            Reflection, program=ctx.program,
-            client_submission_id=payload["client_submission_id"],
-        )
-        if existing is not None:
-            return Response(reflection_response(existing), status=status.HTTP_200_OK)
-
         period_start, period_end = resolve_period(
             template, anchor=today, program=ctx.program,
         )
@@ -110,7 +103,7 @@ class LeadershipTeamSelfReflectionCreateView(APIView):
             else Reflection.TeamVisibility.TEAM
         )
 
-        with transaction.atomic():
+        def _create_reflection():
             reflection = Reflection(
                 organization=org,
                 program=ctx.program,
@@ -128,12 +121,23 @@ class LeadershipTeamSelfReflectionCreateView(APIView):
                 is_complete=True,
                 client_submission_id=payload["client_submission_id"],
             )
-            try:
-                reflection.full_clean()
-            except DjangoValidationError as exc:
-                body = exc.message_dict if hasattr(exc, "message_dict") else str(exc)
-                return Response(body, status=status.HTTP_400_BAD_REQUEST)
+            reflection.full_clean()
             reflection.save()
+            return reflection
+
+        try:
+            reflection, created = idempotent_create(
+                Reflection,
+                program=ctx.program,
+                client_submission_id=payload["client_submission_id"],
+                create_fn=_create_reflection,
+            )
+        except DjangoValidationError as exc:
+            body = exc.message_dict if hasattr(exc, "message_dict") else str(exc)
+            return Response(body, status=status.HTTP_400_BAD_REQUEST)
+
+        if not created:
+            return Response(reflection_response(reflection), status=status.HTTP_200_OK)
 
         audit_module.created(
             ctx.membership, reflection,

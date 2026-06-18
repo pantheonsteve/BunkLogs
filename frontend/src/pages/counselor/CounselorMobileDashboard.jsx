@@ -20,6 +20,12 @@ import {
   HeartHandshake,
 } from 'lucide-react';
 import { fetchCounselorDashboard } from '../../api/counselor';
+import { SUBMISSION_KIND } from '../../lib/submissionQueue/queue';
+import { useSubmissionQueue } from '../../lib/submissionQueue/useSubmissionQueue';
+import {
+  loadCounselorDraft,
+  selfReflectionDraftKey,
+} from '../../utils/counselor/counselorDraftStorage';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -33,6 +39,16 @@ const STATE_BADGE = {
     label: 'In progress',
     className:
       'border border-amber-200 dark:border-amber-900 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  },
+  syncing: {
+    label: 'Syncing',
+    className:
+      'border border-blue-200 dark:border-blue-900 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
+  },
+  draft_saved: {
+    label: 'Draft saved',
+    className:
+      'border border-violet-200 dark:border-violet-900 bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200',
   },
   none: {
     label: 'Not started',
@@ -175,10 +191,19 @@ function BunkTile({ bunk }) {
   );
 }
 
-function SelfReflectionCard({ section, isToday, selectedDateLabel }) {
+function SelfReflectionCard({
+  section,
+  isToday,
+  selectedDateLabel,
+  hasDraft,
+  hasPendingSync,
+}) {
   const { state, submitted, is_day_off: isDayOff, template, reflection_id: reflectionId } =
     section || {};
-  const badge = STATE_BADGE[state === 'complete' ? 'complete' : 'none'];
+  let badgeKey = state === 'complete' ? 'complete' : 'none';
+  if (hasPendingSync && state !== 'complete') badgeKey = 'syncing';
+  else if (hasDraft && state !== 'complete') badgeKey = 'draft_saved';
+  const badge = STATE_BADGE[badgeKey] || STATE_BADGE.none;
 
   let summary;
   let actionLabel;
@@ -201,6 +226,22 @@ function SelfReflectionCard({ section, isToday, selectedDateLabel }) {
     actionTo = reflectionId
       ? `/counselor/self-reflection/${reflectionId}/edit`
       : '/counselor/self-reflection';
+  } else if (hasPendingSync) {
+    summary = (
+      <p>
+        Your self-reflection is saved on this device and will sync when connected.
+      </p>
+    );
+    actionLabel = 'Open self-reflection';
+    actionTo = '/counselor/self-reflection';
+  } else if (hasDraft) {
+    summary = (
+      <p>
+        Draft saved for {isToday ? 'today' : selectedDateLabel}. You can finish and submit when ready.
+      </p>
+    );
+    actionLabel = 'Resume self-reflection';
+    actionTo = '/counselor/self-reflection';
   } else {
     summary = (
       <p>
@@ -277,6 +318,7 @@ function QuickActionButton({ to, icon: Icon, label, sublabel, testid, badge }) {
 export default function CounselorMobileDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const dateParam = searchParams.get('date') || '';
+  const { pending } = useSubmissionQueue();
 
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -376,6 +418,16 @@ export default function CounselorMobileDashboard() {
   const selfSection = sections?.self_reflection;
   const requestsSection = sections?.requests;
   const openCount = requestsSection?.open_count ?? 0;
+  const selfDraftDate = selectedDateIso || data?.today || '';
+  const hasSelfDraft = !!(
+    selfDraftDate
+    && loadCounselorDraft(selfReflectionDraftKey(selfDraftDate))?.answers
+  );
+  const hasSelfPendingSync = pending.some(
+    (entry) =>
+      entry.kind === SUBMISSION_KIND.SELF_REFLECTION
+      && entry.metadata?.date === selfDraftDate,
+  );
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[80rem] mx-auto space-y-6">
@@ -501,6 +553,8 @@ export default function CounselorMobileDashboard() {
         section={selfSection}
         isToday={isToday}
         selectedDateLabel={selectedDateLabel}
+        hasDraft={hasSelfDraft}
+        hasPendingSync={hasSelfPendingSync}
       />
 
       <section data-testid="counselor-work-links" className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -21,6 +21,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCounselorDraft } from '../../hooks/useCounselorDraft';
+import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
+import { maintenanceDraftKey } from '../../utils/counselor/counselorDraftStorage';
 import {
   MAINTENANCE_CATEGORIES,
   MAINTENANCE_URGENCY_CHOICES,
@@ -89,6 +92,28 @@ export default function MaintenanceTicketFormPage() {
   }
   const fileInputRef = useRef(null);
 
+  const { clearDraft } = useCounselorDraft({
+    draftKey: maintenanceDraftKey(clientSubmissionIdRef.current),
+    getSnapshot: () => ({
+      location,
+      category,
+      description,
+      urgency,
+      urgentReason,
+      clientSubmissionId: clientSubmissionIdRef.current,
+    }),
+    onRestore: (saved) => {
+      if (saved.location) setLocation(saved.location);
+      if (saved.category) setCategory(saved.category);
+      if (saved.description) setDescription(saved.description);
+      if (saved.urgency) setUrgency(saved.urgency);
+      if (saved.urgentReason) setUrgentReason(saved.urgentReason);
+      if (saved.clientSubmissionId) {
+        clientSubmissionIdRef.current = saved.clientSubmissionId;
+      }
+    },
+  });
+
   const handlePhotosChosen = (e) => {
     const next = Array.from(e.target.files || []);
     if (next.length === 0) return;
@@ -126,8 +151,14 @@ export default function MaintenanceTicketFormPage() {
         photos,
         clientSubmissionId: clientSubmissionIdRef.current,
       });
+      clearDraft();
       navigate('/counselor/requests', { replace: true });
     } catch (err) {
+      if (isQueuedSubmissionError(err)) {
+        clearDraft();
+        navigate('/counselor/requests', { replace: true });
+        return;
+      }
       const status = err?.response?.status;
       if (status === 400) {
         const body = err?.response?.data;
