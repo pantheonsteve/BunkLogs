@@ -1,3 +1,5 @@
+import os
+
 import requests
 from allauth.socialaccount.helpers import complete_social_login
 from allauth.socialaccount.helpers import render_authentication_error
@@ -34,7 +36,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
-from django.core.cache import cache
 from django.db import connections
 
 
@@ -66,16 +67,25 @@ def health_check(request):
         health_status["checks"]["database"] = f"error: {e!s}"
         is_healthy = False
 
-    # Check cache connectivity (if configured)
-    try:
-        cache.set("health_check", "ok", 30)
-        if cache.get("health_check") == "ok":
-            health_status["checks"]["cache"] = "ok"
-        else:
-            health_status["checks"]["cache"] = "warning: cache not working"
-    except Exception as e:
-        health_status["checks"]["cache"] = f"error: {e!s}"
-        # Don't mark as unhealthy for cache issues
+    # Check Redis directly — django-redis IGNORE_EXCEPTIONS swallows cache API errors.
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    if not redis_url:
+        health_status["checks"]["cache"] = "warning: REDIS_URL not configured"
+    else:
+        try:
+            from django_redis import get_redis_connection
+
+            conn = get_redis_connection("default")
+            conn.ping()
+            conn.set("health_check", "ok", ex=30)
+            value = conn.get("health_check")
+            if value in (b"ok", "ok"):
+                health_status["checks"]["cache"] = "ok"
+            else:
+                health_status["checks"]["cache"] = f"warning: unexpected cache value {value!r}"
+        except Exception as e:
+            health_status["checks"]["cache"] = f"error: {e!s}"
+            # Don't mark as unhealthy for cache issues
 
     if not is_healthy:
         health_status["status"] = "unhealthy"

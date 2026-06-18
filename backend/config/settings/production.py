@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 import os
 
 from .base import *
@@ -6,6 +5,7 @@ from .base import DATABASES
 from .base import INSTALLED_APPS
 from .base import REDIS_URL
 from .base import SPECTACULAR_SETTINGS
+from .base import build_redis_cache_options
 from .base import env
 
 # GENERAL
@@ -26,12 +26,7 @@ CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
         "LOCATION": REDIS_URL,
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            # Mimicking memcache behavior.
-            # https://github.com/jazzband/django-redis#memcached-exceptions-behavior
-            "IGNORE_EXCEPTIONS": True,
-        },
+        "OPTIONS": build_redis_cache_options(ignore_exceptions=True),
     },
 }
 
