@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from typing import Literal
 
-from rest_framework.exceptions import PermissionDenied
-
 from django.db.models import Q
+from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership

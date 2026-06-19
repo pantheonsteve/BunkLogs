@@ -692,6 +692,8 @@ def test_dashboard_bunk_requests_lists_viewer_open_requests(
     assert len(viewer_requests) == 2
     types = {row["type"] for row in viewer_requests}
     assert types == {"camper_care", "maintenance"}
+    maint_row = next(r for r in viewer_requests if r["type"] == "maintenance")
+    assert maint_row["id"] == str(ticket.id)
     assert resp.data["sections"]["requests"]["open_count"] == 2
 
 

@@ -221,8 +221,8 @@ def orders_base_queryset(ctx: OrdersViewerContext):
 
 def _unit_head_orders_q(membership: Membership, *, today: date | None) -> Q:
     """Orders tied to bunks a Unit Head supervises."""
-    from bunk_logs.api.unit_head.common import supervised_bunk_ids
     from bunk_logs.api.unit_head.bunk_dashboard import _counselor_membership_ids_for_bunk
+    from bunk_logs.api.unit_head.common import supervised_bunk_ids
 
     bunk_ids = supervised_bunk_ids(membership, today=today)
     if not bunk_ids:
