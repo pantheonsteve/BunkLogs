@@ -4,11 +4,11 @@
 # local podman Postgres, then immediately scrub PII via the Django command.
 #
 # Pipeline:
-#   1. pg_dump (read-only role)  ->  /tmp/<dump>.sql on host
+#   1. pg_dump (read-only role)  ->  /tmp/<dump>.dump on host (custom format)
 #   2. drop + recreate the local DB inside the podman postgres container
-#   3. psql -f <dump>            ->  local DB
+#   3. pg_restore <dump>         ->  local DB
 #   4. python manage.py migrate  (in the django container)
-#   5. python manage.py scrub_pii --confirm  (in the django container)
+#   5. python manage.py scrub_pii --confirm  (skipped with --no-scrub)
 #
 # Safety rails:
 #   - Refuses to run unless PROD_READONLY_DATABASE_URL is set (sourced from
@@ -17,13 +17,14 @@
 #     (prevents pointing both ends at the same DB by accident).
 #   - The local restore target is hard-coded; you cannot point this script
 #     at a remote DB.
-#   - Scrub step is mandatory. If it fails, the script exits non-zero and
-#     leaves you in a known-bad state (loud, not silent).
+#   - Scrub step runs by default. Pass --no-scrub for a raw prod copy (PII
+#     intact); requires typing 'unscrubbed' to confirm.
 #
 # Usage:
 #   ./scripts/sync-prod-db.sh
-#   ./scripts/sync-prod-db.sh --keep-dump      # don't delete the .sql file
+#   ./scripts/sync-prod-db.sh --keep-dump
 #   ./scripts/sync-prod-db.sh --keep-superuser-emails
+#   ./scripts/sync-prod-db.sh --no-scrub   # full prod PII for troubleshooting
 #
 
 set -euo pipefail
@@ -43,6 +44,7 @@ DJANGO_CONTAINER="${DJANGO_CONTAINER:-bunk_logs_local_django}"
 # --- args ------------------------------------------------------------------
 
 KEEP_DUMP=0
+NO_SCRUB=0
 SCRUB_EXTRA_ARGS=()
 for arg in "$@"; do
     case "$arg" in
@@ -52,8 +54,11 @@ for arg in "$@"; do
         --keep-superuser-emails)
             SCRUB_EXTRA_ARGS+=("--keep-superuser-emails")
             ;;
+        --no-scrub)
+            NO_SCRUB=1
+            ;;
         -h|--help)
-            sed -n '2,30p' "$0"
+            sed -n '2,35p' "$0"
             exit 0
             ;;
         *)
@@ -85,6 +90,23 @@ compose_cmd() {
     fi
 }
 
+# Render (and other remote hosts) may drop idle SSL sessions during long COPY
+# streams. libpq keepalive params help; custom-format dumps compress payload.
+prod_url_with_keepalives() {
+    local url="$1"
+    case "$url" in
+        *keepalives=*)
+            printf '%s' "$url"
+            ;;
+        *\?*)
+            printf '%s&keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=5' "$url"
+            ;;
+        *)
+            printf '%s?keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=5' "$url"
+            ;;
+    esac
+}
+
 # --- preflight -------------------------------------------------------------
 
 [[ -f "$ENV_FILE" ]] || die "missing ${ENV_FILE}. Copy .prod-readonly.example and fill it in."
@@ -104,6 +126,15 @@ case "$prod_host" in
 esac
 info "prod host: $prod_host"
 info "local target: container=$PG_CONTAINER db=$LOCAL_DB_NAME user=$LOCAL_PG_USER"
+
+if [[ "$NO_SCRUB" -eq 1 ]]; then
+    warn "RAW SYNC: scrub_pii will be SKIPPED. Real emails, names, and prod passwords will remain."
+    warn "Only use on an encrypted machine. Re-run without --no-scrub when done troubleshooting."
+    printf "Type 'unscrubbed' to continue: "
+    read -r no_scrub_confirm
+    [[ "$no_scrub_confirm" == "unscrubbed" ]] \
+        || die "cancelled (--no-scrub requires typing 'unscrubbed')"
+fi
 
 # Prefer the pg16 client (production server is pg16; pg_dump must be >= server).
 for pg_dir in \
@@ -147,16 +178,31 @@ ok "local postgres ready"
 # --- dump prod -------------------------------------------------------------
 
 ts="$(date +%Y%m%d_%H%M%S)"
-dump_file="/tmp/bunk_logs_prod_${ts}.sql"
-info "dumping prod -> ${dump_file}"
-# --no-owner / --no-privileges keep the dump portable across roles.
-# --clean / --if-exists make the restore idempotent.
-pg_dump \
-    --no-owner --no-privileges \
-    --clean --if-exists \
-    --format=plain \
-    "$PROD_READONLY_DATABASE_URL" \
-    > "$dump_file"
+dump_file="/tmp/bunk_logs_prod_${ts}.dump"
+prod_url="$(prod_url_with_keepalives "$PROD_READONLY_DATABASE_URL")"
+max_dump_attempts=3
+dump_attempt=1
+
+while true; do
+    info "dumping prod -> ${dump_file} (attempt ${dump_attempt}/${max_dump_attempts})"
+    # Custom format + compression is smaller over the wire and more reliable
+    # than plain SQL for large JSON-heavy tables (e.g. core_reflection).
+    if pg_dump \
+        --no-owner --no-privileges \
+        --format=custom --compress=6 \
+        --file="$dump_file" \
+        "$prod_url"; then
+        break
+    fi
+    rm -f "$dump_file"
+    if [[ "$dump_attempt" -ge "$max_dump_attempts" ]]; then
+        die "pg_dump failed after ${max_dump_attempts} attempts (SSL timeout on large tables is common -- retry, or check Render IP allowlist)"
+    fi
+    warn "pg_dump failed; retrying in 15s..."
+    dump_attempt=$((dump_attempt + 1))
+    sleep 15
+done
+
 size=$(du -h "$dump_file" | awk '{print $1}')
 ok "dump complete (${size})"
 
@@ -172,11 +218,14 @@ $CMP -f "$COMPOSE_FILE" exec -T postgres dropdb -U "$LOCAL_PG_USER" --if-exists 
 $CMP -f "$COMPOSE_FILE" exec -T postgres createdb -U "$LOCAL_PG_USER" "$LOCAL_DB_NAME"
 
 info "copying dump into postgres container..."
-podman cp "$dump_file" "${PG_CONTAINER}:/tmp/restore.sql"
+podman cp "$dump_file" "${PG_CONTAINER}:/tmp/restore.dump"
 
 info "restoring into local DB..."
-$CMP -f "$COMPOSE_FILE" exec -T postgres psql -U "$LOCAL_PG_USER" -d "$LOCAL_DB_NAME" \
-    -v ON_ERROR_STOP=1 -q -f /tmp/restore.sql >/dev/null
+$CMP -f "$COMPOSE_FILE" exec -T postgres pg_restore \
+    --no-owner --no-privileges \
+    --dbname="$LOCAL_DB_NAME" \
+    --username="$LOCAL_PG_USER" \
+    /tmp/restore.dump
 
 ok "restore complete"
 
@@ -185,17 +234,24 @@ ok "restore complete"
 info "running 'manage.py migrate' (handles any branch-vs-prod schema drift)..."
 $CMP -f "$COMPOSE_FILE" exec -T django python manage.py migrate --noinput
 
-info "running 'manage.py scrub_pii --confirm'..."
-# Guard the array expansion: under `set -u`, an empty array triggers an
-# "unbound variable" error on bash 3.2 (macOS default). The `+` form
-# expands to nothing when the array is empty.
-$CMP -f "$COMPOSE_FILE" exec -T django \
-    python manage.py scrub_pii --confirm "${SCRUB_EXTRA_ARGS[@]+"${SCRUB_EXTRA_ARGS[@]}"}"
+if [[ "$NO_SCRUB" -eq 1 ]]; then
+    warn "Skipping scrub_pii: local DB contains UNSCRUBBED production PII."
+    warn "Use production passwords to sign in. Delete the dump/DB when done troubleshooting."
+else
+    info "running 'manage.py scrub_pii --confirm'..."
+    # Guard the array expansion: under `set -u`, an empty array triggers an
+    # "unbound variable" error on bash 3.2 (macOS default). The `+` form
+    # expands to nothing when the array is empty.
+    $CMP -f "$COMPOSE_FILE" exec -T django \
+        python manage.py scrub_pii --confirm "${SCRUB_EXTRA_ARGS[@]+"${SCRUB_EXTRA_ARGS[@]}"}"
+fi
 
-info "post-sync row counts (scrubbed):"
+info "post-sync row counts:"
 $CMP -f "$COMPOSE_FILE" exec -T django python manage.py shell -c "
 from bunk_logs.core.models import Person, Reflection
 from bunk_logs.notes.models import Observation
+from bunk_logs.users.models import User
+print(f'  users={User.objects.count()}')
 print(f'  persons={Person.all_objects.count()}')
 print(f'  observations={Observation.all_objects.count()}')
 print(f'  reflections={Reflection.all_objects.count()}')
@@ -208,8 +264,12 @@ if [[ "$KEEP_DUMP" -eq 1 ]]; then
     warn "this file contains UNSCRUBBED production PII -- delete it when done."
 else
     rm -f "$dump_file"
-    $CMP -f "$COMPOSE_FILE" exec -T postgres rm -f /tmp/restore.sql
+    $CMP -f "$COMPOSE_FILE" exec -T postgres rm -f /tmp/restore.dump
     ok "raw dump removed from host and container"
 fi
 
-ok "done. Local DB '${LOCAL_DB_NAME}' contains scrubbed production data."
+if [[ "$NO_SCRUB" -eq 1 ]]; then
+    ok "done. Local DB '${LOCAL_DB_NAME}' contains UNSCRUBBED production data."
+else
+    ok "done. Local DB '${LOCAL_DB_NAME}' contains scrubbed production data."
+fi

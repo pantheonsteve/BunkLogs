@@ -195,7 +195,7 @@ export default function ReflectionFormPage() {
     setSubmitting(true);
     try {
       const payload = {
-        program_slug: programSlug,
+        program_slug: programParam || programSlug,
         template: meta.id,
         period_start: periodStart,
         period_end: periodEnd,
@@ -211,6 +211,10 @@ export default function ReflectionFormPage() {
 
       const { data } = await api.post('/api/v1/reflections/', payload);
       if (draftKey) clearReflectionDraft(draftKey);
+      if (isPrefilled) {
+        navigate('/tasks', { replace: true });
+        return;
+      }
       navigate('/reflect/summary', {
         replace: true,
         state: {
@@ -222,7 +226,7 @@ export default function ReflectionFormPage() {
           language,
           schema,
           answers: data.answers || answers,
-          returnTo: isPrefilled ? '/tasks' : null,
+          returnTo: null,
           teamVisibility: meta?.supports_privacy ? teamVisibility : 'team',
         },
       });

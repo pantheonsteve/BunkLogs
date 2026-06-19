@@ -156,6 +156,135 @@ def _localize_schema(schema: dict, lang: str) -> dict:
     return out
 
 
+def _roster_roles_for_template(template: ReflectionTemplate) -> tuple[str, ...]:
+    """Which ``AssignmentGroupMembership.role_in_group`` values may submit via a group."""
+    if template.subject_mode == "self":
+        return ("author", "subject")
+    return ("author",)
+
+
+def _sort_self_templates(templates: list[ReflectionTemplate]) -> list[ReflectionTemplate]:
+    return sorted(
+        templates,
+        key=lambda t: (
+            0 if t.organization_id else 1,
+            0 if (t.cadence or "daily") == "daily" else 1,
+            t.name,
+        ),
+    )
+
+
+def _self_templates_from_assignments(
+    viewer: Person,
+    organization,
+    program: Program,
+    as_of: date,
+) -> list[ReflectionTemplate]:
+    """Self templates from active required assignments on ``program``."""
+    templates: list[ReflectionTemplate] = []
+    for assignment in list_required_assignments_for(viewer, organization, program, as_of):
+        if assignment.template.subject_mode == "self":
+            templates.append(assignment.template)
+    return _sort_self_templates(templates)
+
+
+def _legacy_self_template_for_program(
+    viewer: Person,
+    program: Program,
+) -> ReflectionTemplate | None:
+    """Pre-7_21 fallback: newest active template matching membership role."""
+    membership = (
+        Membership.objects.filter(person=viewer, program=program, is_active=True)
+        .order_by("-created_at")
+        .first()
+    )
+    if membership is None:
+        return None
+    return (
+        ReflectionTemplate.objects.filter(role=membership.role, is_active=True)
+        .filter(Q(program_type=program.program_type) | Q(program_type__isnull=True))
+        .annotate(
+            _org_priority=Case(
+                When(organization__isnull=True, then=1),
+                default=0,
+                output_field=IntegerField(),
+            ),
+        )
+        .order_by("_org_priority", "-version")
+        .first()
+    )
+
+
+def _resolve_self_summary_template(
+    viewer: Person,
+    organization,
+    program: Program,
+    as_of: date,
+) -> ReflectionTemplate | None:
+    """Self-reflection template for ``my-summary`` — assignment-aware (Step 7_21)."""
+    assigned = _self_templates_from_assignments(viewer, organization, program, as_of)
+    if assigned:
+        return assigned[0]
+    return _legacy_self_template_for_program(viewer, program)
+
+
+def _my_summary_scope(
+    viewer: Person,
+    organization,
+    today: date,
+    program_slug: str | None = None,
+) -> tuple[Program | None, ReflectionTemplate | None]:
+    """Pick (program, template) for the personal history view.
+
+    When no ``program`` query param is given, prefer the program/template of the
+    viewer's most recent self-reflection so a submission from /tasks shows up
+    immediately even if another membership was created more recently.
+    """
+    memberships_qs = Membership.objects.filter(
+        person=viewer, is_active=True,
+    ).select_related("program")
+    if program_slug:
+        memberships_qs = memberships_qs.filter(program__slug=program_slug)
+    memberships = list(memberships_qs.order_by("-created_at"))
+    if not memberships:
+        return None, None
+
+    if program_slug:
+        prog = memberships[0].program
+        tpl = _resolve_self_summary_template(viewer, organization, prog, today)
+        return prog, tpl
+
+    membership_program_ids = {m.program_id for m in memberships}
+    latest_self = (
+        Reflection.all_objects.filter(
+            subject=viewer,
+            author=viewer,
+            organization=organization,
+            template__subject_mode="self",
+        )
+        .select_related("template", "program")
+        .order_by("-submitted_at")
+        .first()
+    )
+    if latest_self and latest_self.program_id in membership_program_ids:
+        prog = latest_self.program
+        assigned = _self_templates_from_assignments(viewer, organization, prog, today)
+        assigned_ids = {t.id for t in assigned}
+        if not assigned or latest_self.template_id in assigned_ids:
+            return prog, latest_self.template
+        return prog, assigned[0]
+
+    for membership in memberships:
+        assigned = _self_templates_from_assignments(
+            viewer, organization, membership.program, today,
+        )
+        if assigned:
+            return membership.program, assigned[0]
+
+    prog = memberships[0].program
+    return prog, _legacy_self_template_for_program(viewer, prog)
+
+
 def _current_period(today: date, cadence: str) -> tuple[date, date]:
     """Return (period_start, period_end) for the current period based on cadence."""
     if cadence == "daily":
@@ -647,16 +776,16 @@ class ReflectionSerializer(serializers.ModelSerializer):
         provided_sg = validated_data.pop("subject_group", None)
 
         if provided_ag is not None:
-            # Roster-mode: verify viewer is an author in the provided group
-            is_author = AssignmentGroupMembership.all_objects.filter(
+            roster_roles = _roster_roles_for_template(template)
+            in_group = AssignmentGroupMembership.all_objects.filter(
                 group=provided_ag,
                 person=viewer,
-                role_in_group="author",
+                role_in_group__in=roster_roles,
                 is_active=True,
             ).exists()
-            if not is_author and not _has_tenant_admin(viewer) and not _privileged_reflection_actor(request):
+            if not in_group and not _has_tenant_admin(viewer) and not _privileged_reflection_actor(request):
                 raise serializers.ValidationError(
-                    {"assignment_group": "You are not an author in this group."},
+                    {"assignment_group": "You are not a member of this group."},
                 )
         else:
             _may_use_template(request, viewer, program, template)
@@ -982,38 +1111,28 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         viewer = _person_for_request(request)
         if viewer is None:
             return Response({"detail": "Person profile required."}, status=status.HTTP_403_FORBIDDEN)
+        org = getattr(request, "organization", None)
+        if org is None:
+            return Response({"detail": "Organization context required."}, status=status.HTTP_403_FORBIDDEN)
 
         program_slug = (request.query_params.get("program") or "").strip()
-        memberships = Membership.objects.filter(person=viewer, is_active=True).select_related("program")
-        if program_slug:
-            memberships = memberships.filter(program__slug=program_slug)
-        m = memberships.order_by("-created_at").first()
-        if m is None:
-            return Response({"detail": "No active membership found."}, status=status.HTTP_404_NOT_FOUND)
-
-        prog = m.program
-        tpl = (
-            ReflectionTemplate.objects.filter(role=m.role, is_active=True)
-            .filter(Q(program_type=prog.program_type) | Q(program_type__isnull=True))
-            .annotate(
-                _org_priority=Case(
-                    When(organization__isnull=True, then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                ),
-            )
-            .order_by("_org_priority", "-version")
-            .first()
+        today = date.today()
+        prog, tpl = _my_summary_scope(
+            viewer,
+            org,
+            today,
+            program_slug or None,
         )
+        if prog is None:
+            return Response({"detail": "No active membership found."}, status=status.HTTP_404_NOT_FOUND)
         if tpl is None:
             return Response({"detail": "No template for this role."}, status=status.HTTP_404_NOT_FOUND)
-
-        today = date.today()
         periods = _build_periods(today, tpl.cadence)
         cutoff = periods[-1][0] if periods else today
 
         reflections_raw = list(
-            Reflection.objects.filter(
+            Reflection.all_objects.filter(
+                organization=org,
                 subject=viewer,
                 template=tpl,
                 program=prog,
@@ -1046,8 +1165,12 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             else:
                 break
 
-        total_completed = Reflection.objects.filter(
-            subject=viewer, template=tpl, program=prog, is_complete=True,
+        total_completed = Reflection.all_objects.filter(
+            organization=org,
+            subject=viewer,
+            template=tpl,
+            program=prog,
+            is_complete=True,
         ).count()
 
         return Response({

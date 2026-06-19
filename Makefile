@@ -41,7 +41,7 @@ help:
 	@echo "  make lint            Lint backend + frontend"
 	@echo ""
 	@echo "Database:"
-	@echo "  make sync-prod-db    Sync local DB from production (see sync-prod-db.sh)"
+	@echo "  make sync-prod-db    Sync local DB from production (ARGS='--no-scrub' for raw PII)"
 	@echo "  make reset-db        Drop local DB volume and re-run migrations"
 
 up:
@@ -132,7 +132,7 @@ lint-frontend:
 	@echo "Frontend lint is not configured (no eslint config present)"
 
 sync-prod-db:
-	./scripts/sync-prod-db.sh
+	./scripts/sync-prod-db.sh $(ARGS)
 
 reset-db:
 	$(COMPOSE) down -v

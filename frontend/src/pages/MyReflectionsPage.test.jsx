@@ -26,7 +26,14 @@ const SUMMARY = {
   template: { name: 'Counselor weekly', cadence: 'weekly' },
   streak: 2,
   total_completed: 5,
-  current_period: null,
+  current_period: {
+    period_start: '2026-06-08',
+    period_end: '2026-06-14',
+    submitted: true,
+    submitted_at: '2026-06-12T10:00:00Z',
+    reflection_id: 90,
+    team_visibility: 'team',
+  },
   history: [
     {
       period_start: '2026-06-08',
@@ -70,5 +77,18 @@ describe('MyReflectionsPage', () => {
     expect(within(items[0]).getByTestId('privacy-chip')).toBeInTheDocument();
     expect(within(items[1]).queryByTestId('privacy-chip')).toBeNull();
     expect(within(items[2]).queryByTestId('privacy-chip')).toBeNull();
+  });
+
+  it('links submitted periods to the reflection detail page', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('View submission →')).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: /View submission/i })).toHaveAttribute(
+      'href',
+      '/reflections/90?returnTo=/my-reflections',
+    );
+    expect(screen.getByRole('link', { name: /Jun 8/i })).toHaveAttribute(
+      'href',
+      '/reflections/91?returnTo=/my-reflections',
+    );
   });
 });
