@@ -1236,8 +1236,10 @@ class OrderableContent(models.Model):
             reason=reason,
         )
         actor_membership = _resolve_actor_membership(actor)
-        if actor_membership is not None and self.program_id and (
-            actor_membership.program_id != self.program_id
+        if not _actor_program_allowed(
+            actor_membership,
+            program_id=self.program_id,
+            organization_id=self.organization_id,
         ):
             raise ValidationError(
                 {"actor": "Actor must be a Membership in the same Program."},
@@ -1388,6 +1390,18 @@ def _resolve_actor_membership(actor):
     if membership is not None:
         return membership
     return None
+
+
+def _actor_program_allowed(actor_membership, *, program_id, organization_id) -> bool:
+    """Whether ``actor_membership`` may act on content in ``program_id``."""
+    if actor_membership is None or not program_id:
+        return True
+    if actor_membership.program_id == program_id:
+        return True
+    return (
+        actor_membership.role == "admin"
+        and actor_membership.program.organization_id == organization_id
+    )
 
 
 class Order(OrderableContent):

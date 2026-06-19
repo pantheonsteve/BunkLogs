@@ -27,6 +27,7 @@ import {
   fetchNoteAudience,
   uploadTicketPhoto,
 } from '../../api/maintenance';
+import { uploadMaintenanceTicketPhoto } from '../../api/counselor';
 import AuditTrail from '../../components/AuditTrail';
 import AdminViewingBanner from '../../components/admin/AdminViewingBanner';
 import { useAuth } from '../../auth/AuthContext';
@@ -267,7 +268,7 @@ function NoteForm({ ticketId, onNoteAdded }) {
   );
 }
 
-function PhotoUploadForm({ ticketId, onPhotoAdded }) {
+function PhotoUploadForm({ ticketId, onPhotoAdded, uploadPhoto }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -287,7 +288,9 @@ function PhotoUploadForm({ ticketId, onPhotoAdded }) {
     if (!file) { setError('Choose a photo first.'); return; }
     setUploading(true);
     try {
-      const photo = await uploadTicketPhoto(ticketId, file);
+      const photo = uploadPhoto
+        ? await uploadPhoto(ticketId, file)
+        : await uploadTicketPhoto(ticketId, file);
       onPhotoAdded(photo);
       setFile(null);
       setPreview(null);
@@ -449,6 +452,7 @@ export default function TicketDetail() {
   const activityRef = useRef(null);
 
   const fromFilter = searchParams.get('from') || 'open';
+  const fromCounselor = fromFilter === 'counselor';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -515,6 +519,8 @@ export default function TicketDetail() {
   const { ticket, photos = [], activity = [] } = data || {};
   const isReadOnly = data?.scope && data.scope !== 'team';
   const isOpen = ticket && ['new', 'in_progress'].includes(ticket.status);
+  const isCounselorSubmitter = fromCounselor && ticket?.is_mine;
+  const showSubmitterActions = isCounselorSubmitter && isOpen;
   // After a closing transition the ticket leaves the "open" queue — send the
   // user to "closed" so they can still find it.
   const backFilter = (ticket && ['fulfilled', 'unable_to_fulfill'].includes(ticket.status))
@@ -527,11 +533,11 @@ export default function TicketDetail() {
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate(`/maintenance?filter=${backFilter}`)}
+          onClick={() => navigate(fromCounselor ? '/counselor' : `/maintenance?filter=${backFilter}`)}
           className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
           data-testid="back-button"
         >
-          ← Queue
+          {fromCounselor ? '← Dashboard' : '← Queue'}
         </button>
         {ticket && (
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_BADGE[ticket.status] || ''}`}>
@@ -627,13 +633,25 @@ export default function TicketDetail() {
               </div>
             )}
 
-            {/* Follow-up photo upload */}
-            {isOpen && !isReadOnly && (
+            {/* Follow-up photo upload for counselors on their own tickets */}
+            {showSubmitterActions ? (
+              <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Add follow-up photo</h3>
+                <PhotoUploadForm
+                  ticketId={ticketId}
+                  onPhotoAdded={handlePhotoAdded}
+                  uploadPhoto={(id, file) => uploadMaintenanceTicketPhoto(id, { image: file })}
+                />
+              </div>
+            ) : null}
+
+            {/* Maintenance team photo upload */}
+            {isOpen && !isReadOnly && !showSubmitterActions ? (
               <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Add photo</h3>
                 <PhotoUploadForm ticketId={ticketId} onPhotoAdded={handlePhotoAdded} />
               </div>
-            )}
+            ) : null}
           </section>
 
           {!isReadOnly && (
@@ -649,14 +667,23 @@ export default function TicketDetail() {
         </div>
       )}
 
-      {/* Actions pinned to bottom */}
-      {ticket && !isReadOnly && (
+      {/* Submitter actions (counselor self-close) */}
+      {ticket && showSubmitterActions && ticket.available_transitions?.length > 0 ? (
         <TransitionActions
           ticket={ticket}
           onTransition={(toState) => setModal(toState)}
           onUndo={handleUndo}
         />
-      )}
+      ) : null}
+
+      {/* Maintenance team actions */}
+      {ticket && !isReadOnly && !showSubmitterActions ? (
+        <TransitionActions
+          ticket={ticket}
+          onTransition={(toState) => setModal(toState)}
+          onUndo={handleUndo}
+        />
+      ) : null}
 
       {modal && (
         <TransitionModal

@@ -177,7 +177,7 @@ def test_requests_lists_maintenance_ticket(
 
 
 @pytest.mark.django_db
-def test_requests_includes_co_counselor_request(
+def test_requests_excludes_co_counselor_request(
     org, program, counselor_user, counselor_person, counselor_membership,
     bunk, counselor_as_author, co_person, co_membership, co_as_author, camper,
 ):
@@ -192,10 +192,7 @@ def test_requests_includes_co_counselor_request(
     c = _client(counselor_user, org)
     with organization_context(org):
         resp = c.get("/api/v1/counselor/requests/")
-    assert len(resp.data["requests"]) == 1
-    row = resp.data["requests"][0]
-    assert row["submitter"]["is_self"] is False
-    assert row["submitter"]["name"] == "Jordan P."
+    assert resp.data["requests"] == []
 
 
 @pytest.mark.django_db
@@ -311,3 +308,115 @@ def test_requests_does_not_leak_other_org(
     with organization_context(org):
         resp = c.get("/api/v1/counselor/requests/")
     assert resp.data["requests"] == []
+
+
+@pytest.mark.django_db
+def test_camper_care_request_detail_returns_order_and_activity(
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    bunk,
+    counselor_as_author,
+    camper,
+):
+    order = Order.all_objects.create(
+        organization=org,
+        program=program,
+        subject=camper,
+        submitted_by=counselor_membership,
+        item="Bug spray",
+        item_note="SPF 50",
+        description="Running low",
+        status="new",
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/counselor/requests/camper-care/{order.id}/")
+    assert resp.status_code == 200
+    assert resp.data["scope"] == "viewer"
+    assert resp.data["order"]["item"] == "Bug spray"
+    assert resp.data["order"]["editable"] is True
+    assert resp.data["order"]["subject"]["name"]
+
+
+@pytest.mark.django_db
+def test_camper_care_request_patch_updates_open_request(
+    org,
+    program,
+    counselor_user,
+    counselor_membership,
+    bunk,
+    counselor_as_author,
+    camper,
+):
+    order = Order.all_objects.create(
+        organization=org,
+        program=program,
+        subject=camper,
+        submitted_by=counselor_membership,
+        item="Bug spray",
+        status="new",
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.patch(
+            f"/api/v1/counselor/requests/camper-care/{order.id}/",
+            {"item": "Sunscreen", "item_note": "SPF 50"},
+            format="json",
+        )
+    assert resp.status_code == 200
+    assert resp.data["order"]["item"] == "Sunscreen"
+    assert resp.data["order"]["item_note"] == "SPF 50"
+    order.refresh_from_db()
+    assert order.item == "Sunscreen"
+
+
+@pytest.mark.django_db
+def test_camper_care_request_patch_forbidden_when_in_progress(
+    org,
+    program,
+    counselor_user,
+    counselor_membership,
+    camper,
+):
+    order = Order.all_objects.create(
+        organization=org,
+        program=program,
+        subject=camper,
+        submitted_by=counselor_membership,
+        item="Bug spray",
+        status="in_progress",
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.patch(
+            f"/api/v1/counselor/requests/camper-care/{order.id}/",
+            {"item": "Sunscreen"},
+            format="json",
+        )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_camper_care_request_detail_404_for_other_counselor(
+    org,
+    program,
+    counselor_user,
+    counselor_membership,
+    co_membership,
+    camper,
+):
+    order = Order.all_objects.create(
+        organization=org,
+        program=program,
+        subject=camper,
+        submitted_by=co_membership,
+        item="Hidden",
+        status="new",
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/counselor/requests/camper-care/{order.id}/")
+    assert resp.status_code == 404

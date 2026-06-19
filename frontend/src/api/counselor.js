@@ -272,6 +272,35 @@ export async function fetchCounselorRequests({ status = 'open' } = {}) {
   return data;
 }
 
+/** Read-only camper-care request detail for a request the viewer submitted. */
+export async function fetchCamperCareRequestDetail(orderId) {
+  const { data } = await api.get(
+    `/api/v1/counselor/requests/camper-care/${orderId}/`,
+  );
+  return data;
+}
+
+/** Update an open camper-care request the viewer submitted (status must be New). */
+export async function patchCamperCareRequest(orderId, {
+  subjectId,
+  bunkId,
+  item,
+  itemNote,
+  description,
+} = {}) {
+  const payload = {};
+  if (subjectId !== undefined) payload.subject_id = subjectId;
+  if (bunkId !== undefined) payload.bunk_id = bunkId;
+  if (item !== undefined) payload.item = item;
+  if (itemNote !== undefined) payload.item_note = itemNote;
+  if (description !== undefined) payload.description = description;
+  const { data } = await api.patch(
+    `/api/v1/counselor/requests/camper-care/${orderId}/`,
+    payload,
+  );
+  return data;
+}
+
 /**
  * Fetch the curated camper-care item suggestion list for the viewer's
  * program (Story 7 criterion 2.ii). Used as autocomplete options on the

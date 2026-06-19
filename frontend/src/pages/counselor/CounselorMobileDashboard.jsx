@@ -74,6 +74,141 @@ function titleCaseRole(role) {
   return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function formatRelative(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMin = Math.round((now - d) / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffH = Math.round(diffMin / 60);
+  if (diffH < 24) return `${diffH}h ago`;
+  return `${Math.round(diffH / 24)}d ago`;
+}
+
+function requestDetailPath(request) {
+  if (request.type === 'camper_care') {
+    return `/counselor/requests/camper-care/${request.id}`;
+  }
+  return `/counselor/requests/maintenance/${request.id}?from=counselor`;
+}
+
+const REQUEST_STATUS_BADGE = {
+  new: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+  in_progress: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+  fulfilled: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+  unable_to_fulfill: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
+};
+
+function RequestTypeBadge({ type }) {
+  if (type === 'camper_care') {
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
+        Care
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200">
+      Maint.
+    </span>
+  );
+}
+
+function RequestRowLink({ request }) {
+  return (
+    <Link
+      to={requestDetailPath(request)}
+      data-testid={`counselor-request-${request.type}-${request.id}`}
+      className="block rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2.5 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <RequestTypeBadge type={request.type} />
+            <span
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                REQUEST_STATUS_BADGE[request.status] || REQUEST_STATUS_BADGE.unable_to_fulfill
+              }`}
+            >
+              {request.status_label || request.status}
+            </span>
+          </div>
+          <p className="text-sm font-medium text-gray-900 dark:text-white mt-1 truncate">
+            {request.title}
+          </p>
+          {request.subtitle ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+              {request.subtitle}
+            </p>
+          ) : null}
+        </div>
+        {request.submitted_at ? (
+          <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
+            {formatRelative(request.submitted_at)}
+          </span>
+        ) : null}
+      </div>
+    </Link>
+  );
+}
+
+function MyRequestsWidget({ viewerRequests = [], openCount }) {
+  const groups = new Map();
+  for (const request of viewerRequests) {
+    const key = request.bunk_name || 'Camp-wide';
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(request);
+  }
+
+  const totalRequests = viewerRequests.length;
+
+  return (
+    <section
+      data-testid="counselor-requests-widget"
+      className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden flex flex-col"
+    >
+      <div className="h-1.5 bg-gradient-to-r from-purple-500 via-orange-400 to-amber-500" aria-hidden="true" />
+      <div className="p-5 flex flex-col gap-4 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My requests</h2>
+          {openCount > 0 ? (
+            <span className="shrink-0 text-xs font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 px-2 py-0.5">
+              {openCount} open
+            </span>
+          ) : null}
+        </div>
+
+        {totalRequests === 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            No open requests. Use Camper care or Maintenance above to file one.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {[...groups.entries()].map(([groupName, requests]) => (
+              <div
+                key={groupName}
+                data-testid={`counselor-requests-group-${groupName.replace(/\s+/g, '-').toLowerCase()}`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                  {groupName}
+                </p>
+                <div className="space-y-2">
+                  {requests.map((request) => (
+                    <RequestRowLink key={`${request.type}-${request.id}`} request={request} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AssignmentRow({ assignment }) {
   const badge = STATE_BADGE[assignment.state] || STATE_BADGE.none;
   return (
@@ -257,10 +392,12 @@ function SelfReflectionCard({
     <section
       data-testid="counselor-section-self"
       data-state={state}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm"
+      className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden flex flex-col h-full"
     >
+      <div className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-400 to-violet-500" aria-hidden="true" />
+      <div className="p-5 flex flex-col flex-1">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           My self-reflection
         </h2>
         {template !== null ? (
@@ -272,7 +409,7 @@ function SelfReflectionCard({
           </span>
         ) : null}
       </div>
-      <div className="text-sm text-gray-700 dark:text-gray-300">{summary}</div>
+      <div className="text-sm text-gray-700 dark:text-gray-300 flex-1">{summary}</div>
       {actionTo && template !== null ? (
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Link
@@ -290,6 +427,7 @@ function SelfReflectionCard({
           </Link>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }
@@ -318,6 +456,7 @@ function QuickActionButton({ to, icon: Icon, label, sublabel, testid, badge }) {
 export default function CounselorMobileDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const dateParam = searchParams.get('date') || '';
+  const skipCache = searchParams.get('nocache') === '1';
   const { pending } = useSubmissionQueue();
 
   const [data, setData] = useState(null);
@@ -335,7 +474,7 @@ export default function CounselorMobileDashboard() {
       setError('');
       try {
         const payload = await fetchCounselorDashboard({
-          noCache: background,
+          noCache: background || skipCache,
           date: dateParam || undefined,
         });
         setData(payload);
@@ -355,7 +494,7 @@ export default function CounselorMobileDashboard() {
         }
       }
     },
-    [dateParam],
+    [dateParam, skipCache],
   );
 
   useEffect(() => {
@@ -414,7 +553,7 @@ export default function CounselorMobileDashboard() {
 
   if (!data) return null;
 
-  const { viewer, all_set: allSet, sections, program, bunks = [] } = data;
+  const { viewer, all_set: allSet, sections, program, bunks = [], viewer_requests: viewerRequests = [] } = data;
   const selfSection = sections?.self_reflection;
   const requestsSection = sections?.requests;
   const openCount = requestsSection?.open_count ?? 0;
@@ -474,7 +613,7 @@ export default function CounselorMobileDashboard() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           Requests & observations
         </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <QuickActionButton
             to="/counselor/requests/camper-care/new"
             icon={HeartHandshake}
@@ -488,14 +627,6 @@ export default function CounselorMobileDashboard() {
             label="Maintenance"
             sublabel="Report an issue"
             testid="counselor-action-maintenance"
-          />
-          <QuickActionButton
-            to="/counselor/requests"
-            icon={ClipboardList}
-            label="My requests"
-            sublabel={openCount ? `${openCount} open` : 'View progress'}
-            testid="counselor-action-requests"
-            badge={openCount > 0 ? openCount : null}
           />
           <QuickActionButton
             to="/observations"
@@ -528,35 +659,6 @@ export default function CounselorMobileDashboard() {
         </div>
       ) : null}
 
-      <section data-testid="counselor-bunks-section">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My bunks</h2>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {bunks.length} bunk{bunks.length === 1 ? '' : 's'}
-          </span>
-        </div>
-        {bunks.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 px-4 py-6 text-center">
-            You&apos;re not assigned as an author on any bunk yet. Once your camp
-            assigns you to a group, it will appear here.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-            {bunks.map((bunk) => (
-              <BunkTile key={bunk.id} bunk={bunk} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <SelfReflectionCard
-        section={selfSection}
-        isToday={isToday}
-        selectedDateLabel={selectedDateLabel}
-        hasDraft={hasSelfDraft}
-        hasPendingSync={hasSelfPendingSync}
-      />
-
       <section data-testid="counselor-work-links" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Link
           to="/tasks"
@@ -581,6 +683,41 @@ export default function CounselorMobileDashboard() {
           </div>
         </Link>
       </section>
+
+      <section data-testid="counselor-bunks-section">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My bunks</h2>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {bunks.length} bunk{bunks.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        {bunks.length === 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 px-4 py-6 text-center">
+            You&apos;re not assigned as an author on any bunk yet. Once your camp
+            assigns you to a group, it will appear here.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+            {bunks.map((bunk) => (
+              <BunkTile key={bunk.id} bunk={bunk} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-stretch"
+        data-testid="counselor-requests-self-row"
+      >
+        <MyRequestsWidget viewerRequests={viewerRequests} openCount={openCount} />
+        <SelfReflectionCard
+          section={selfSection}
+          isToday={isToday}
+          selectedDateLabel={selectedDateLabel}
+          hasDraft={hasSelfDraft}
+          hasPendingSync={hasSelfPendingSync}
+        />
+      </div>
     </div>
   );
 }

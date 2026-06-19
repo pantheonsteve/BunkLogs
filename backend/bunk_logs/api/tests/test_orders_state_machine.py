@@ -83,6 +83,18 @@ def counselor_user(org, program):
 
 
 @pytest.fixture
+def admin_user(org, program):
+    user = User.objects.create_user(email="admin@iso.com", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="A", last_name="D", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="admin", is_active=True,
+    )
+    return user
+
+
+@pytest.fixture
 def order(org, program):
     with organization_context(org):
         return Order.objects.create(organization=org, program=program)
@@ -311,3 +323,61 @@ class TestMaintenanceTicketEndpoints:
             )
         assert r.status_code == 200, r.content
         assert len(r.json()["transitioned"]) == 2
+
+    def test_admin_can_transition_ticket_in_other_program(
+        self, api, org, program, admin_user,
+    ):
+        other_program = Program.all_objects.create(
+            organization=org,
+            name="API SM Org Other",
+            slug="api-sm-other",
+            program_type="summer_camp",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 8, 15),
+        )
+        with organization_context(org):
+            other_ticket = MaintenanceTicket.objects.create(
+                organization=org,
+                program=other_program,
+                urgency="normal",
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.post(
+                f"/api/v1/maintenance/{other_ticket.id}/transition/",
+                {"to_state": StateMachine.IN_PROGRESS},
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        other_ticket.refresh_from_db()
+        assert other_ticket.status == StateMachine.IN_PROGRESS
+
+    def test_admin_can_transition_ticket_in_other_program(
+        self, api, org, program, admin_user,
+    ):
+        other_program = Program.all_objects.create(
+            organization=org,
+            name="API SM Org Other",
+            slug="api-sm-other",
+            program_type="summer_camp",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 8, 15),
+        )
+        with organization_context(org):
+            other_ticket = MaintenanceTicket.objects.create(
+                organization=org,
+                program=other_program,
+                urgency="normal",
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.post(
+                f"/api/v1/maintenance/{other_ticket.id}/transition/",
+                {"to_state": StateMachine.IN_PROGRESS},
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        other_ticket.refresh_from_db()
+        assert other_ticket.status == StateMachine.IN_PROGRESS

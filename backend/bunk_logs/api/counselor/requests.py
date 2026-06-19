@@ -1,29 +1,36 @@
-"""``GET /api/v1/counselor/requests/`` — Stories 7, 8 combined requests list.
+"""Counselor request list and camper-care detail/update endpoints.
 
-Returns the viewer's + their co-counselors' submitted requests on the
-viewer's bunks (decision C4). Combines camper-care Orders and Maintenance
-tickets into a single list with a ``type`` discriminator, sorted by
-``submitted_at`` desc so the freshest activity sits on top.
-
-Default returns OPEN requests (NEW + IN_PROGRESS). Pass ``?status=all`` to
-include closed states for the request history pane.
+``GET /api/v1/counselor/requests/`` returns the viewer's submitted requests.
+``GET/PATCH /api/v1/counselor/requests/camper-care/<id>/`` loads or edits an
+open camper-care request the viewer filed (PATCH allowed while status is New).
 """
 
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework import status
+from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core import audit as audit_module
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
 from bunk_logs.core.state_machine import OrderStateMachine
 
-from .common import co_counselor_person_ids
+from .bunk_requests import order_detail_for_viewer
+from .bunk_requests import order_editable_for_viewer
+from .bunk_requests import viewer_membership_ids
+from .common import invalidate_dashboard_for_viewers
 from .common import person_display_name
+from .common import resolve_submitted_from_bunk
 from .common import viewer_bunk_groups
 from .common import viewer_or_403
+from .serializers import CamperCareRequestUpdateSerializer
 
 OPEN_STATUSES: tuple[str, ...] = (OrderStateMachine.NEW, OrderStateMachine.IN_PROGRESS)
 
@@ -48,13 +55,9 @@ class CounselorRequestsListView(APIView):
             return Response({"requests": []})
         program = primary_membership.program
 
-        bunks = viewer_bunk_groups(viewer)
-        co_ids = co_counselor_person_ids(viewer, bunks)
-        eligible_person_ids = list(co_ids | {viewer.id})
-
         membership_id_to_person_id: dict[int, int] = dict(
             Membership.all_objects.filter(
-                person_id__in=eligible_person_ids,
+                person=viewer,
                 program=program,
             ).values_list("id", "person_id"),
         )
@@ -142,3 +145,106 @@ class CounselorRequestsListView(APIView):
         # Newest first across the combined list.
         results.sort(key=lambda r: r["submitted_at"] or "", reverse=True)
         return Response({"requests": results})
+
+
+class CamperCareRequestDetailView(APIView):
+    """``GET/PATCH /api/v1/counselor/requests/camper-care/<id>/``."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _order_for_viewer(self, request, order_id):
+        ctx = viewer_or_403(request)
+        membership_ids = viewer_membership_ids(ctx.person, ctx.organization)
+        if not membership_ids:
+            msg = "Request not found."
+            raise NotFound(msg)
+        order = (
+            Order.all_objects.filter(
+                pk=order_id,
+                organization=ctx.organization,
+                submitted_by_id__in=membership_ids,
+            )
+            .select_related("subject")
+            .first()
+        )
+        if order is None:
+            msg = "Request not found."
+            raise NotFound(msg)
+        return ctx, order
+
+    def get(self, request, order_id, *args, **kwargs):
+        _, order = self._order_for_viewer(request, order_id)
+        return Response(order_detail_for_viewer(order=order))
+
+    def patch(self, request, order_id, *args, **kwargs):
+        ctx, order = self._order_for_viewer(request, order_id)
+        if not order_editable_for_viewer(order=order):
+            msg = "This request can no longer be edited."
+            raise PermissionDenied(msg)
+
+        serializer = CamperCareRequestUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        viewer = ctx.person
+
+        before = {
+            "item": order.item,
+            "item_note": order.item_note,
+            "description": order.description,
+            "subject_id": order.subject_id,
+        }
+
+        if "subject_id" in payload:
+            subject_id = payload["subject_id"]
+            if subject_id is not None:
+                bunks = viewer_bunk_groups(viewer)
+                allowed_camper_ids = set(
+                    AssignmentGroupMembership.all_objects.filter(
+                        group__in=bunks, role_in_group="subject", is_active=True,
+                    ).values_list("person_id", flat=True),
+                )
+                if subject_id not in allowed_camper_ids:
+                    raise PermissionDenied(
+                        {"subject_id": "Camper is not on any of your bunks."},
+                    )
+            order.subject_id = subject_id
+
+        if "item" in payload:
+            order.item = payload["item"]
+        if "item_note" in payload:
+            order.item_note = payload["item_note"]
+        if "description" in payload:
+            order.description = payload["description"]
+
+        if "subject_id" in payload or "bunk_id" in payload:
+            order.submitted_from_bunk = resolve_submitted_from_bunk(
+                viewer=viewer,
+                subject_id=order.subject_id,
+                bunk_id=payload.get("bunk_id"),
+            )
+
+        try:
+            order.full_clean()
+            order.save()
+        except DjangoValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, "message_dict") else str(e),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        audit_module.edited(
+            order.submitted_by,
+            order,
+            before,
+            {
+                "item": order.item,
+                "item_note": order.item_note,
+                "description": order.description,
+                "subject_id": order.subject_id,
+            },
+            content_type="order",
+        )
+
+        invalidate_dashboard_for_viewers(ctx.organization, {viewer.id}, ctx.today)
+
+        return Response(order_detail_for_viewer(order=order))

@@ -18,15 +18,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCounselorDraft } from '../../hooks/useCounselorDraft';
 import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
 import { camperCareDraftKey } from '../../utils/counselor/counselorDraftStorage';
 import {
   createCamperCareRequest,
   fetchCamperCareItemSuggestions,
+  fetchCamperCareRequestDetail,
   fetchCamperReflections,
   newClientSubmissionId,
+  patchCamperCareRequest,
 } from '../../api/counselor';
 
 function flattenError(err, fallback) {
@@ -77,6 +79,8 @@ function flattenCamperRoster(camperReflections) {
 
 export default function CamperCareRequestFormPage() {
   const navigate = useNavigate();
+  const { orderId } = useParams();
+  const isEdit = Boolean(orderId);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -99,7 +103,7 @@ export default function CamperCareRequestFormPage() {
   }
 
   const { clearDraft } = useCounselorDraft({
-    draftKey: camperCareDraftKey(clientSubmissionIdRef.current),
+    draftKey: isEdit ? null : camperCareDraftKey(clientSubmissionIdRef.current),
     getSnapshot: () => ({
       subjectId,
       bunkId,
@@ -109,6 +113,7 @@ export default function CamperCareRequestFormPage() {
       clientSubmissionId: clientSubmissionIdRef.current,
     }),
     onRestore: (saved) => {
+      if (isEdit) return;
       if (saved.subjectId != null && saved.subjectId !== '') {
         setSubjectId(String(saved.subjectId));
       }
@@ -128,24 +133,34 @@ export default function CamperCareRequestFormPage() {
     setLoading(true);
     setLoadError('');
     try {
-      const [camperReflections, suggestionPayload] = await Promise.all([
+      const [camperReflections, suggestionPayload, existing] = await Promise.all([
         fetchCamperReflections(),
         fetchCamperCareItemSuggestions().catch((err) => {
-          // Suggestions endpoint failure is non-fatal — the form still
-          // works as free text. Log but don't block.
           // eslint-disable-next-line no-console
           console.warn('camper-care suggestions failed:', err);
           return { suggestions: [] };
         }),
+        isEdit ? fetchCamperCareRequestDetail(orderId) : Promise.resolve(null),
       ]);
       setCampers(flattenCamperRoster(camperReflections));
       setSuggestions(suggestionPayload?.suggestions || []);
+      if (isEdit) {
+        const order = existing?.order;
+        if (!order?.editable) {
+          setLoadError('This request can no longer be edited.');
+          return;
+        }
+        setSubjectId(order.subject?.id ? String(order.subject.id) : '');
+        setItem(order.item || '');
+        setItemNote(order.item_note || '');
+        setDescription(order.description || '');
+      }
     } catch (err) {
       setLoadError(flattenError(err, 'Could not load the form.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isEdit, orderId]);
 
   useEffect(() => {
     load();
@@ -166,20 +181,31 @@ export default function CamperCareRequestFormPage() {
 
     setSubmitting(true);
     try {
-      await createCamperCareRequest({
-        subjectId: subjectId ? Number(subjectId) : null,
-        bunkId: bunkId ? Number(bunkId) : null,
-        item: item.trim(),
-        itemNote: itemNote.trim(),
-        description: description.trim(),
-        clientSubmissionId: clientSubmissionIdRef.current,
-      });
-      clearDraft();
-      navigate('/counselor/requests', { replace: true });
-    } catch (err) {
-      if (isQueuedSubmissionError(err)) {
+      if (isEdit) {
+        await patchCamperCareRequest(orderId, {
+          subjectId: subjectId ? Number(subjectId) : null,
+          bunkId: bunkId ? Number(bunkId) : null,
+          item: item.trim(),
+          itemNote: itemNote.trim(),
+          description: description.trim(),
+        });
+        navigate(`/counselor/requests/camper-care/${orderId}`, { replace: true });
+      } else {
+        await createCamperCareRequest({
+          subjectId: subjectId ? Number(subjectId) : null,
+          bunkId: bunkId ? Number(bunkId) : null,
+          item: item.trim(),
+          itemNote: itemNote.trim(),
+          description: description.trim(),
+          clientSubmissionId: clientSubmissionIdRef.current,
+        });
         clearDraft();
-        navigate('/counselor/requests', { replace: true });
+        navigate('/counselor?nocache=1', { replace: true });
+      }
+    } catch (err) {
+      if (!isEdit && isQueuedSubmissionError(err)) {
+        clearDraft();
+        navigate('/counselor?nocache=1', { replace: true });
         return;
       }
       const status = err?.response?.status;
@@ -218,17 +244,18 @@ export default function CamperCareRequestFormPage() {
         <header className="mb-6">
           <button
             type="button"
-            onClick={() => navigate('/counselor')}
+            onClick={() => navigate(isEdit ? `/counselor/requests/camper-care/${orderId}` : '/counselor')}
             className="text-xs text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1"
           >
-            ← Back to dashboard
+            ← {isEdit ? 'Back to request' : 'Back to dashboard'}
           </button>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            New Camper Care request
+            {isEdit ? 'Edit Camper Care request' : 'New Camper Care request'}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Goes to the Camper Care team. They'll see who it's for and what's
-            needed; you can leave the camper blank for a bunk-wide need.
+            {isEdit
+              ? 'You can update this request while it is still New.'
+              : "Goes to the Camper Care team. They'll see who it's for and what's needed; you can leave the camper blank for a bunk-wide need."}
           </p>
         </header>
 
@@ -368,7 +395,7 @@ export default function CamperCareRequestFormPage() {
               data-testid="camper-care-submit"
               className="w-full sm:w-auto mt-4 min-h-[48px] px-6 rounded-lg bg-blue-600 text-white font-medium text-sm disabled:opacity-50"
             >
-              {submitting ? 'Sending…' : 'Send request'}
+              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Send request'}
             </button>
           </form>
         )}

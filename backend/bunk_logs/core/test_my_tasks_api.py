@@ -457,6 +457,81 @@ def test_my_tasks_cohort_self_reflection_author_in_group(
 
 
 @pytest.mark.django_db
+def test_my_tasks_cohort_self_reflection_counts_null_group_submission(
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    lt_membership,
+):
+    """Counselor self-reflections omit assignment_group; my-tasks must still match."""
+    _drop_seeded_counselor_self_template()
+    cohort = AssignmentGroup.all_objects.create(
+        organization=org,
+        program=program,
+        name="Counselors",
+        slug="counselors-cohort-submitted",
+        group_type="cohort",
+        is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=cohort,
+        person=counselor_person,
+        role_in_group="author",
+        is_active=True,
+    )
+    template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Counselor Self Daily",
+        slug="counselor-cohort-self-submitted",
+        cadence="daily",
+        subject_mode="self",
+        schema=SIMPLE_SCHEMA,
+        languages=["en"],
+        is_active=True,
+        role="counselor",
+        author_role_filter=[],
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org,
+        program=program,
+        template=template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=cohort,
+        start_date=date.today() - timedelta(days=1),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+        is_required=True,
+    )
+    today = date.today()
+    with organization_context(org):
+        Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            author=counselor_person,
+            subject=counselor_person,
+            template=template,
+            assignment_group=None,
+            period_start=today,
+            period_end=today,
+            answers={"note": "Done"},
+            language="en",
+            is_complete=True,
+        )
+        client = _authed_client(counselor_user, org)
+        resp = client.get("/api/v1/reflections/my-tasks/")
+
+    assert resp.status_code == 200
+    task = next(
+        t for t in resp.data["tasks"]
+        if t["template"]["slug"] == "counselor-cohort-self-submitted"
+    )
+    assert task["self_status"]["submitted"] is True
+    assert task["completion"]["covered"] == 1
+
+
+@pytest.mark.django_db
 def test_my_tasks_ignores_unassigned_templates(
     org, program, counselor_user, counselor_membership, self_template,
 ):

@@ -8,6 +8,9 @@ from typing import Literal
 
 from rest_framework.exceptions import PermissionDenied
 
+from django.db.models import Q
+
+from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -125,3 +128,25 @@ def resolve_queue_viewer(request) -> tuple[ViewerContext, QueueScope]:
         program=viewer_membership.program,
         today=get_today(org),
     ), "viewer"
+
+
+def is_org_admin_membership(membership: Membership) -> bool:
+    """True when ``membership`` is an active org-admin role (not maintenance)."""
+    return membership.role == "admin"
+
+
+def ticket_scope_q(ctx: ViewerContext) -> Q:
+    """Q filter for maintenance tickets visible to ``ctx``.
+
+    Maintenance staff see their program queue. Org admins see every ticket in
+    the organization (they may hold admin Memberships on older programs while
+    counselors submit to the current one). Everyone else is program-scoped.
+    """
+    if is_org_admin_membership(ctx.membership):
+        return Q(organization=ctx.organization)
+    return Q(program=ctx.program)
+
+
+def tickets_for_viewer(ctx: ViewerContext):
+    """Base queryset of tickets in scope for queue/detail/notes."""
+    return MaintenanceTicket.objects.filter(ticket_scope_q(ctx))

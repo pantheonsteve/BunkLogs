@@ -42,17 +42,33 @@ def _person_for_request(request) -> Person | None:
 def _actor_membership_for(request, *, content) -> Membership | None:
     """Return the actor's Membership in the program of ``content`` (if any).
 
-    Falls through to ``None`` for super-admins so the view can still pass
-    a ``None`` actor; callers that require a Membership should reject ``None``.
+    Org admins may act on tickets in any program; fall back to their admin
+    Membership in the request organization when they lack a row on ``content``
+    's program. Super-admins may return ``None``.
     """
     person = _person_for_request(request)
     if person is None:
         return None
-    return (
+    program_membership = (
         Membership.objects.filter(
             person=person,
             program=content.program,
             is_active=True,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if program_membership is not None:
+        return program_membership
+    org = getattr(request, "organization", None)
+    if org is None:
+        return None
+    return (
+        Membership.objects.filter(
+            person=person,
+            role="admin",
+            is_active=True,
+            program__organization=org,
         )
         .order_by("-created_at")
         .first()
@@ -65,11 +81,19 @@ def _is_fulfilling_team_member(request, *, content, fulfilling_role: str) -> boo
     person = _person_for_request(request)
     if person is None:
         return False
+    org = getattr(request, "organization", None)
+    if org is not None and Membership.objects.filter(
+        person=person,
+        role="admin",
+        is_active=True,
+        program__organization=org,
+    ).exists():
+        return True
     return Membership.objects.filter(
         person=person,
         program=content.program,
         is_active=True,
-        role__in=("admin", fulfilling_role),
+        role=fulfilling_role,
     ).exists()
 
 

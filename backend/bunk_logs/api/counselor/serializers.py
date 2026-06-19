@@ -140,6 +140,22 @@ class CamperCareRequestCreateSerializer(serializers.Serializer):
     client_submission_id = serializers.UUIDField()
 
 
+class CamperCareRequestUpdateSerializer(serializers.Serializer):
+    """Counselor PATCH body for an open camper-care request they submitted."""
+
+    subject_id = serializers.IntegerField(required=False, allow_null=True)
+    bunk_id = serializers.IntegerField(required=False, allow_null=True)
+    item = serializers.CharField(max_length=120, required=False)
+    item_note = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            msg = "At least one field must be provided."
+            raise serializers.ValidationError(msg)
+        return attrs
+
+
 # ---------------------------------------------------------------------------
 # Maintenance tickets
 # ---------------------------------------------------------------------------

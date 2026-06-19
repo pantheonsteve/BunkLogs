@@ -25,7 +25,7 @@ function renderPage() {
           path="/counselor/requests/maintenance/new"
           element={<MaintenanceTicketFormPage />}
         />
-        <Route path="/counselor/requests" element={<PathProbe />} />
+        <Route path="/counselor" element={<PathProbe />} />
         <Route path="/counselor" element={<PathProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -133,7 +133,7 @@ describe('MaintenanceTicketFormPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('path-probe')).toHaveAttribute(
         'data-pathname',
-        '/counselor/requests',
+        '/counselor',
       ),
     );
   });

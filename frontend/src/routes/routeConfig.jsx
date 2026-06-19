@@ -85,7 +85,7 @@ import CamperReflectionListPage from '../pages/counselor/CamperReflectionListPag
 import CamperReflectionFormPage from '../pages/counselor/CamperReflectionFormPage';
 import CounselorSelfReflectionPage from '../pages/counselor/CounselorSelfReflectionPage';
 import CounselorSelfReflectionHistoryPage from '../pages/counselor/CounselorSelfReflectionHistoryPage';
-import CounselorRequestsListPage from '../pages/counselor/CounselorRequestsListPage';
+import CounselorCamperCareRequestDetailPage from '../pages/counselor/CounselorCamperCareRequestDetailPage';
 import CamperCareRequestFormPage from '../pages/counselor/CamperCareRequestFormPage';
 import MaintenanceTicketFormPage from '../pages/counselor/MaintenanceTicketFormPage';
 import {
@@ -173,8 +173,11 @@ export const routeConfig = [
       { path: '/counselor/self-reflection', element: <CounselorSelfReflectionPage /> },
       { path: '/counselor/self-reflection/history', element: <CounselorSelfReflectionHistoryPage /> },
       { path: '/counselor/self-reflection/:reflectionId/edit', element: <CounselorSelfReflectionPage /> },
-      { path: '/counselor/requests', element: <CounselorRequestsListPage /> },
+      { path: '/counselor/requests', element: <Navigate to="/counselor" replace /> },
       { path: '/counselor/requests/camper-care/new', element: <CamperCareRequestFormPage /> },
+      { path: '/counselor/requests/camper-care/:orderId/edit', element: <CamperCareRequestFormPage /> },
+      { path: '/counselor/requests/camper-care/:orderId', element: <CounselorCamperCareRequestDetailPage /> },
+      { path: '/counselor/requests/maintenance/:ticketId', element: <MaintenanceTicketDetail /> },
       { path: '/counselor/requests/maintenance/new', element: <MaintenanceTicketFormPage /> },
       { path: '/unit-head', element: <UnitHeadDashboardV2 /> },
       { path: '/unit-head/bunks/:bunkId', element: <LegacyBunkDashboardRedirect /> },

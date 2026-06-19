@@ -33,6 +33,7 @@ from bunk_logs.core.models import TranslationRecord
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.permissions import is_super_admin
+from bunk_logs.core.time_utils import get_today
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 
@@ -438,9 +439,14 @@ def _tasks_from_required_assignments(
                     program=program,
                     period_start=period_start,
                     period_end=period_end,
+                    is_complete=True,
                 )
                 if group_id is not None:
-                    existing_qs = existing_qs.filter(assignment_group_id=group_id)
+                    # Counselor/legacy self-reflections are stored with no group;
+                    # cohort assignments still surface group metadata on the task row.
+                    existing_qs = existing_qs.filter(
+                        Q(assignment_group_id=group_id) | Q(assignment_group__isnull=True),
+                    )
                 else:
                     existing_qs = existing_qs.filter(assignment_group__isnull=True)
                 existing = existing_qs.order_by("-submitted_at").first()
@@ -1116,7 +1122,7 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Organization context required."}, status=status.HTTP_403_FORBIDDEN)
 
         program_slug = (request.query_params.get("program") or "").strip()
-        today = date.today()
+        today = get_today(org)
         prog, tpl = _my_summary_scope(
             viewer,
             org,
@@ -1192,7 +1198,7 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         if org is None:
             return Response({"detail": "Organization context required."}, status=status.HTTP_403_FORBIDDEN)
 
-        today = date.today()
+        today = get_today(org)
 
         viewer_memberships = list(
             Membership.objects.filter(person=viewer, is_active=True).select_related("program"),
@@ -1234,7 +1240,7 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         if org is None:
             return Response({"detail": "Organization context required."}, status=status.HTTP_403_FORBIDDEN)
 
-        today = date.today()
+        today = get_today(org)
         is_admin = _has_tenant_admin(viewer) or _privileged_reflection_actor(request)
 
         if is_admin:

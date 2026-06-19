@@ -612,7 +612,7 @@ def test_dashboard_all_set_false_with_open_requests_only(
 
 
 @pytest.mark.django_db
-def test_dashboard_requests_includes_co_counselor(
+def test_dashboard_requests_excludes_co_counselor(
     org,
     program,
     counselor_user,
@@ -646,8 +646,53 @@ def test_dashboard_requests_includes_co_counselor(
     with organization_context(org):
         resp = c.get("/api/v1/counselor/dashboard/?nocache=1")
     section = resp.data["sections"]["requests"]
-    assert section["open_count"] == 2
-    assert section["by_type"] == {"camper_care": 1, "maintenance": 1}
+    assert section["open_count"] == 0
+    assert section["by_type"] == {"camper_care": 0, "maintenance": 0}
+    assert resp.data["bunks"][0]["requests"] == []
+
+
+@pytest.mark.django_db
+def test_dashboard_bunk_requests_lists_viewer_open_requests(
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    bunk,
+    counselor_as_author,
+    campers,
+):
+    order = Order.all_objects.create(
+        organization=org,
+        program=program,
+        subject=campers[0],
+        submitted_by=counselor_membership,
+        item="Sunscreen",
+        status="new",
+    )
+    ticket = MaintenanceTicket.all_objects.create(
+        organization=org,
+        program=program,
+        submitted_by=counselor_membership,
+        location="Bunk bathroom",
+        category=MaintenanceTicket.Category.LEAK,
+        description="Dripping faucet",
+        urgency="normal",
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/counselor/dashboard/?nocache=1")
+    bunk_payload = resp.data["bunks"][0]
+    assert len(bunk_payload["requests"]) == 1
+    assert bunk_payload["requests"][0]["type"] == "camper_care"
+    order_row = bunk_payload["requests"][0]
+    assert order_row["id"] == str(order.id)
+    assert order_row["title"] == "Sunscreen"
+    viewer_requests = resp.data["viewer_requests"]
+    assert len(viewer_requests) == 2
+    types = {row["type"] for row in viewer_requests}
+    assert types == {"camper_care", "maintenance"}
+    assert resp.data["sections"]["requests"]["open_count"] == 2
 
 
 @pytest.mark.django_db
