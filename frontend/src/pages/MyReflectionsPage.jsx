@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
@@ -41,21 +41,29 @@ function PeriodLabel({ start, end, cadence }) {
 }
 
 export default function MyReflectionsPage() {
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const loadSummary = useCallback(() => {
+    setLoading(true);
+    setError(null);
     api
       .get('/api/v1/reflections/my-summary/')
       .then((r) => setSummary(r.data))
       .catch((err) => {
         const msg = err.response?.data?.detail || 'Failed to load your reflection history.';
         setError(msg);
+        setSummary(null);
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary, location.key]);
 
   const cadence = summary?.template?.cadence;
 
@@ -135,6 +143,14 @@ export default function MyReflectionsPage() {
                       Submitted {formatDateTime(summary.current_period.submitted_at)}
                     </p>
                   )}
+                  {summary.current_period.submitted && summary.current_period.reflection_id && (
+                    <Link
+                      to={`/reflections/${summary.current_period.reflection_id}?returnTo=/my-reflections`}
+                      className="mt-3 inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                    >
+                      View submission →
+                    </Link>
+                  )}
                   {!summary.current_period.submitted && (
                     <Link
                       to="/reflect"
@@ -160,11 +176,24 @@ export default function MyReflectionsPage() {
                       className="flex items-center justify-between px-5 py-3"
                     >
                       <span className="text-sm text-gray-700 dark:text-gray-300">
-                        <PeriodLabel
-                          start={entry.period_start}
-                          end={entry.period_end}
-                          cadence={cadence}
-                        />
+                        {entry.reflection_id ? (
+                          <Link
+                            to={`/reflections/${entry.reflection_id}?returnTo=/my-reflections`}
+                            className="font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                          >
+                            <PeriodLabel
+                              start={entry.period_start}
+                              end={entry.period_end}
+                              cadence={cadence}
+                            />
+                          </Link>
+                        ) : (
+                          <PeriodLabel
+                            start={entry.period_start}
+                            end={entry.period_end}
+                            cadence={cadence}
+                          />
+                        )}
                       </span>
                       <div className="flex items-center gap-3">
                         {entry.submitted_at && (

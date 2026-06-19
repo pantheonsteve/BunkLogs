@@ -85,6 +85,7 @@ function renderPage(search = '') {
       <Routes>
         <Route path="/reflect" element={<ReflectionFormPage />} />
         <Route path="/reflect/summary" element={<SummaryProbe />} />
+        <Route path="/tasks" element={<div data-testid="tasks-page">Tasks</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -92,6 +93,7 @@ function renderPage(search = '') {
 
 describe('ReflectionFormPage', () => {
   beforeEach(() => {
+    localStorage.clear();
     getMock.mockReset();
     postMock.mockReset();
     getMock.mockResolvedValue({ data: { ...templatePayload } });
@@ -157,6 +159,20 @@ describe('ReflectionFormPage', () => {
     expect(body.template).toBe(9);
     expect(body.answers.note).toBe('ok');
     await waitFor(() => expect(screen.getByTestId('summary')).toBeInTheDocument());
+  });
+
+  it('returns to /tasks after submit when opened from tasks (prefilled params)', async () => {
+    const user = userEvent.setup();
+    postMock.mockResolvedValue({ data: { id: 200, answers: { note: 'ok' } } });
+    renderPage('?template=9&program=prog-a&period_start=2026-06-01&period_end=2026-06-01');
+    await waitFor(() => expect(screen.getByText('Note?')).toBeInTheDocument());
+    await user.type(screen.getByTestId('reflect-input-note'), 'ok');
+    const effortButtons = screen.getAllByRole('button', { name: '2' });
+    await user.click(effortButtons[0]);
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId('tasks-page')).toBeInTheDocument());
+    expect(screen.queryByTestId('summary')).not.toBeInTheDocument();
   });
 
   it('defaults team_visibility to team in the submit payload', async () => {

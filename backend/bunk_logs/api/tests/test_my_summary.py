@@ -66,6 +66,9 @@ def counselor_user(org, program, daily_template):
     u = User.objects.create_user(email="counselor-ms@example.test", password="pw")
     p = Person.all_objects.create(organization=org, first_name="C", last_name="MS", user=u)
     Membership.all_objects.create(program=program, person=p, role="counselor", is_active=True)
+    from bunk_logs.api.tests.conftest import make_active_assignment
+
+    make_active_assignment(template=daily_template, program=program, target_role="counselor")
     return u, p
 
 
@@ -74,6 +77,9 @@ def unit_head_user(org, program, weekly_template):
     u = User.objects.create_user(email="uh-ms@example.test", password="pw")
     p = Person.all_objects.create(organization=org, first_name="UH", last_name="MS", user=u)
     Membership.all_objects.create(program=program, person=p, role="unit_head", is_active=True)
+    from bunk_logs.api.tests.conftest import make_active_assignment
+
+    make_active_assignment(template=weekly_template, program=program, target_role="unit_head")
     return u, p
 
 
@@ -278,3 +284,103 @@ def test_program_filter_respected(api, org, program, counselor_user, daily_templ
     # Non-existent program slug returns 404
     r2 = api.get("/api/v1/reflections/my-summary/", {"program": "no-such"}, **ORG_HDR)
     assert r2.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Assignment-aware template resolution (Step 7_21)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_my_summary_uses_assigned_self_template_not_role_fallback(
+    api, org, program, counselor_user, daily_template,
+):
+    """When multiple counselor templates exist, my-summary follows TemplateAssignment."""
+    from bunk_logs.api.tests.conftest import make_active_assignment
+    from bunk_logs.core.models import TemplateAssignment
+
+    user, person = counselor_user
+    # Legacy role lookup would pick this decoy (higher version, same role).
+    ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Decoy bunk log",
+        slug="decoy-bunk-log-ms",
+        cadence="daily",
+        role="counselor",
+        version=99,
+        subject_mode="single_subject",
+        schema={"fields": [{"key": "note", "type": "text", "prompts": {"en": "Note"}}]},
+        is_active=True,
+    )
+    assigned_tpl = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Staff self log",
+        slug="staff-self-log-ms",
+        cadence="daily",
+        role="counselor",
+        subject_mode="self",
+        schema={"fields": [{"key": "note", "type": "text", "prompts": {"en": "Note"}}]},
+        is_active=True,
+    )
+    TemplateAssignment.all_objects.filter(program=program, template=daily_template).delete()
+    TemplateAssignment.all_objects.filter(
+        program=program,
+        template__slug="counselor-self-reflection",
+        template__organization__isnull=True,
+    ).delete()
+    make_active_assignment(template=assigned_tpl, program=program, target_role="counselor")
+    today = date.today()
+    _make_reflection(org, program, person, assigned_tpl, today)
+
+    api.force_authenticate(user=user)
+    r = api.get("/api/v1/reflections/my-summary/", **ORG_HDR)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["template"]["slug"] == "staff-self-log-ms"
+    assert body["current_period"]["submitted"] is True
+    assert body["total_completed"] == 1
+
+
+@pytest.mark.django_db
+def test_my_summary_prefers_latest_self_reflection_program(
+    api, org, program, counselor_user, daily_template,
+):
+    """When memberships span programs, scope follows the latest self-reflection."""
+    from bunk_logs.api.tests.conftest import make_active_assignment
+    from bunk_logs.core.models import TemplateAssignment
+
+    user, person = counselor_user
+    pre_camp = Program.all_objects.create(
+        organization=org,
+        name="MS Org Pre Camp",
+        slug="pre-camp-ms",
+        program_type="summer_camp",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 20),
+    )
+    # Newer membership on a program without assignments — would win naive -created_at sort.
+    Membership.all_objects.create(
+        program=pre_camp, person=person, role="counselor", is_active=True,
+    )
+    assigned_tpl = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Assigned self",
+        slug="assigned-self-ms",
+        cadence="daily",
+        role="counselor",
+        subject_mode="self",
+        schema={"fields": [{"key": "note", "type": "text", "prompts": {"en": "Note"}}]},
+        is_active=True,
+    )
+    TemplateAssignment.all_objects.filter(program=program, template=daily_template).delete()
+    make_active_assignment(template=assigned_tpl, program=program, target_role="counselor")
+    today = date.today()
+    _make_reflection(org, program, person, assigned_tpl, today)
+
+    api.force_authenticate(user=user)
+    r = api.get("/api/v1/reflections/my-summary/", **ORG_HDR)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["program"] == program.slug
+    assert body["template"]["slug"] == "assigned-self-ms"
+    assert body["current_period"]["submitted"] is True

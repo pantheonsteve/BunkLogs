@@ -106,10 +106,13 @@ def org_admin_user(org_a, program_a):
 
 
 @pytest.fixture
-def counselor_user(org_a, program_a):
+def counselor_user(org_a, program_a, counselor_template):
     u = User.objects.create_user(email="cns@example.com", password="pw")
     p = Person.all_objects.create(organization=org_a, first_name="C", last_name="One", user=u)
     Membership.all_objects.create(program=program_a, person=p, role="counselor", is_active=True)
+    from bunk_logs.api.tests.conftest import make_active_assignment
+
+    make_active_assignment(template=counselor_template, program=program_a, target_role="counselor")
     return u, p
 
 

@@ -107,12 +107,30 @@ What happens, in order:
    values; resets every non-superuser password to `devpass123`
 6. raw dump removed from host and from the container's `/tmp`
 
-Useful flags (forward to the script):
+Useful flags (forward via `ARGS=` or `./scripts/sync-prod-db.sh`):
 
 ```bash
-./backend/dev.sh sync-prod --keep-dump                 # keep the .sql for debugging
-./backend/dev.sh sync-prod --keep-superuser-emails     # so you can sign in as yourself
+make sync-prod-db ARGS="--keep-superuser-emails"   # scrub, but keep superuser emails
+./scripts/sync-prod-db.sh --keep-dump              # keep the .dump for debugging
+./scripts/sync-prod-db.sh --no-scrub              # raw prod copy (real emails/passwords; type 'unscrubbed' to confirm)
 ```
+
+### Raw prod copy (troubleshooting only)
+
+By default every sync runs `scrub_pii`, which replaces user emails with
+`user{id}@example.test` and resets passwords to `devpass123`. To debug
+issues that depend on real identities (email delivery, specific user
+accounts, OAuth linkage), pull an **unscrubbed** copy:
+
+```bash
+make sync-prod-db ARGS="--no-scrub"
+# or: ./backend/dev.sh sync-prod --no-scrub
+```
+
+You will be prompted to type `unscrubbed`. Sign in with each user's
+**production password** (hashes are copied verbatim). When finished,
+either re-sync without `--no-scrub` or run `./backend/dev.sh scrub-pii`
+to anonymize the current local DB.
 
 ### Re-scrub the current local DB
 
@@ -214,6 +232,10 @@ upstream:
   was created and that Render's external connections are allowed for
   your IP. The Render dashboard shows the external host in the DB
   page.
+- **`SSL connection has been closed unexpectedly` during COPY** -- the
+  sync script uses compressed custom-format dumps, TCP keepalives, and
+  automatic retries. If it still fails, wait a minute and rerun; check
+  your network/VPN isn't dropping long-lived connections.
 - **`scrub_pii` aborts with "DB host not in local allowlist"** -- you
   ran the command outside the podman django container, or `DATABASE_URL`
   in your `.django` env points somewhere unexpected. Always invoke via
@@ -223,9 +245,11 @@ upstream:
   sync, the script prints post-scrub counts for `persons`, `observations`,
   and `reflections`. Re-grant `SELECT` on new tables to `bunklogs_readonly` if
   `pg_dump` fails after a schema migration (see [One-time setup](#one-time-setup)).
-- **Local sign-in fails after scrub** -- you're a superuser? rerun with
-  `--keep-superuser-emails`. You're not? Use `user{your_pk}@example.test`
-  / `devpass123`. Find your pk in Django admin or via shell.
+- **Local sign-in fails after scrub** -- scrubbed syncs reset all passwords
+  to `devpass123` and replace non-superuser emails with
+  `user{id}@example.test`. For real emails/passwords, re-sync with
+  `--no-scrub` (troubleshooting only). Superusers keep their email when
+  you pass `--keep-superuser-emails` during a scrubbed sync.
 - **OAuth (Google) sign-in fails after scrub** -- expected:
   `socialaccount_socialaccount` is truncated. Either re-link via the
   signup flow, or sign in with email + `devpass123`.
