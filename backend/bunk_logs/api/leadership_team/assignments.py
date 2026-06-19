@@ -281,9 +281,11 @@ class LeadershipTeamAssignmentListCreateView(APIView):
                 msg = "assignment_group is required when target_type='assignment_group'."
                 raise ValidationError(msg)
             try:
-                group = AssignmentGroup.objects.get(
-                    pk=assignment_group_id, program=ctx.program,
-                )
+                # Org-scoped, not program-scoped: admins create groups in the
+                # program selected in Admin Hub while assignment_viewer_or_403
+                # resolves ctx.program from the viewer's membership, which may
+                # differ. The assignment inherits the group's program below.
+                group = AssignmentGroup.objects.get(pk=assignment_group_id)
             except AssignmentGroup.DoesNotExist as exc:
                 msg = "AssignmentGroup not found."
                 raise NotFound(msg) from exc
@@ -350,10 +352,12 @@ class LeadershipTeamAssignmentListCreateView(APIView):
                 status=drf_status.HTTP_200_OK,
             )
 
+        assignment_program = group.program if group is not None else ctx.program
+
         with transaction.atomic():
             new_assignment = TemplateAssignment.all_objects.create(
                 organization=ctx.organization,
-                program=ctx.program,
+                program=assignment_program,
                 template=template,
                 target_type=target_type,
                 target_payload=target_payload,
