@@ -162,6 +162,10 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
   const [groupResults, setGroupResults] = useState({});
 
   const grouped = useMemo(() => groupByGroupType(groups), [groups]);
+  const multiProgram = useMemo(
+    () => new Set(groups.map((g) => g.program).filter(Boolean)).size > 1,
+    [groups],
+  );
   const visibleGrouped = useMemo(
     () => (groupTypeFilter ? grouped.filter(([gt]) => gt === groupTypeFilter) : grouped),
     [grouped, groupTypeFilter],
@@ -682,7 +686,10 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                               onChange={() => toggleGroup(g.id)}
                               data-testid={`lt-assignment-group-${g.id}`}
                             />
-                            <span className="truncate">{g.name}</span>
+                            <span className="truncate">
+                              {g.name}
+                              {multiProgram && g.program_name ? ` · ${g.program_name}` : ''}
+                            </span>
                             {outcome?.status === 'ok' && (
                               <span className="text-xs text-green-700 dark:text-green-300">✓</span>
                             )}

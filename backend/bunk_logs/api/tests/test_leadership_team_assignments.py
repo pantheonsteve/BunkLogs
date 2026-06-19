@@ -309,6 +309,45 @@ def test_post_assignment_group_as_lt(
 
 
 @pytest.mark.django_db
+def test_post_assignment_group_cohort_other_program(
+    org, program, lt_membership, lt_user, published_template,
+):
+    """Any group type in another program than the viewer's membership still works."""
+    other_program = Program.all_objects.create(
+        organization=org,
+        name="Assignments Camp Other Session",
+        slug="other-session",
+        program_type="summer_camp",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 8, 31),
+    )
+    cohort = AssignmentGroup.all_objects.create(
+        organization=org,
+        program=other_program,
+        name="Counselors",
+        slug="counselors",
+        group_type="cohort",
+    )
+    c = _client(lt_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": published_template.id,
+                "target_type": "assignment_group",
+                "assignment_group": cohort.id,
+                "target_payload": {},
+                "start_date": "2026-06-01",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+    assignment = TemplateAssignment.all_objects.get(pk=resp.json()["id"])
+    assert assignment.assignment_group_id == cohort.id
+    assert assignment.program_id == other_program.id
+
+
+@pytest.mark.django_db
 def test_post_assignment_group_as_admin(
     org, program, admin_membership, admin_user, bunk, published_template,
 ):

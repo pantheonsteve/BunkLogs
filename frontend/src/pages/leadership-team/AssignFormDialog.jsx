@@ -119,6 +119,11 @@ function GroupPicker({ orgSlug, value, onChange, scoredCamperError }) {
     [groups],
   );
 
+  const multiProgram = useMemo(
+    () => new Set(groups.map((g) => g.program).filter(Boolean)).size > 1,
+    [groups],
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex gap-2 flex-wrap">
@@ -173,6 +178,7 @@ function GroupPicker({ orgSlug, value, onChange, scoredCamperError }) {
             <option key={g.id} value={g.id}>
               {g.name}
               {g.group_type ? ` (${GROUP_TYPE_LABELS[g.group_type] ?? g.group_type})` : ''}
+              {multiProgram && g.program_name ? ` · ${g.program_name}` : ''}
             </option>
           ))}
         </select>
