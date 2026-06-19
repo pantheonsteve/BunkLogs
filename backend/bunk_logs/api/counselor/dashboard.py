@@ -10,10 +10,11 @@ State computation:
   submitted reflection for the selected date's period.
 - ``self_reflection``: viewer's own self-reflection for the selected period,
   with ``day_off`` treated as "complete" (Story 5 criterion 3).
-- ``requests``: open Orders + MaintenanceTickets the viewer or any
-  co-counselor submitted on the viewer's bunks (decision C4).
+- ``requests``: open Orders + MaintenanceTickets the viewer submitted on
+  their bunks (aggregated count for quick-action badges).
 - ``bunks``: one tile per bunk the viewer authors, each listing active
-  form assignments with due/remaining copy and deep-link hints.
+  form assignments with due/remaining copy, deep-link hints, and open
+  requests filed for that bunk.
 
 All-set (Story 9 criterion 1) is true iff both camper-reflections and
 self-reflection sections are "complete". The Requests section is reactive,
@@ -35,9 +36,7 @@ from rest_framework.views import APIView
 from bunk_logs.core.assignment_resolution import active_assignments_for
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
-from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
@@ -47,9 +46,10 @@ from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_org_timezone
 from bunk_logs.core.time_utils import get_rollover_hour
 
+from .bunk_requests import bunk_requests_for_viewer
+from .bunk_requests import viewer_open_requests
 from .common import bunk_camper_persons
 from .common import camper_reflection_template
-from .common import co_counselor_person_ids
 from .common import counselor_self_template
 from .common import dashboard_cache_key as _cache_key
 from .common import is_day_off_answer
@@ -174,8 +174,17 @@ class CounselorDashboardView(APIView):
 
         camper_section = self._camper_section(org, program, viewer, bunks, target_date)
         self_section = self._self_section(viewer, org, program, target_date)
-        requests_section = self._requests_section(org, program, viewer, bunks)
-        bunk_tiles = self._bunks_section(org, program, viewer, bunks, target_date, org_today)
+        requests_section = self._requests_section(
+            org, program, viewer, primary_membership, bunks,
+        )
+        bunk_tiles = self._bunks_section(
+            org, program, viewer, primary_membership, bunks, target_date, org_today,
+        )
+        viewer_requests = viewer_open_requests(
+            organization=org,
+            viewer=viewer,
+            bunks=bunks,
+        )
 
         all_set = (
             camper_section["state"] == "complete"
@@ -201,6 +210,7 @@ class CounselorDashboardView(APIView):
             },
             "all_set": all_set,
             "bunks": bunk_tiles,
+            "viewer_requests": viewer_requests,
             "sections": {
                 "camper_reflections": camper_section,
                 "self_reflection": self_section,
@@ -232,6 +242,7 @@ class CounselorDashboardView(APIView):
             "program": None,
             "all_set": False,
             "bunks": [],
+            "viewer_requests": [],
             "sections": {
                 "camper_reflections": {
                     "state": "complete",
@@ -318,6 +329,7 @@ class CounselorDashboardView(APIView):
         org,
         program: Program,
         viewer: Person,
+        membership: Membership,
         bunks,
         target_date: date_type,
         org_today: date_type,
@@ -406,6 +418,13 @@ class CounselorDashboardView(APIView):
                 "co_counselor_names": co_names_by_bunk.get(bunk.id, []),
                 "assignments": assignments_out,
                 "dashboard_path": f"/dashboards/group/{bunk.id}?date={target_date.isoformat()}",
+                "requests": bunk_requests_for_viewer(
+                    organization=org,
+                    program=program,
+                    bunk=bunk,
+                    viewer=viewer,
+                    membership=membership,
+                ),
             })
         return tiles
 
@@ -500,37 +519,18 @@ class CounselorDashboardView(APIView):
             },
         }
 
-    def _requests_section(self, org, program, viewer: Person, bunks) -> dict:
-        co_ids = co_counselor_person_ids(viewer, bunks)
-        eligible_person_ids = list(co_ids | {viewer.id})
-
-        eligible_membership_ids = list(
-            Membership.all_objects.filter(
-                person_id__in=eligible_person_ids,
-                program=program,
-            ).values_list("id", flat=True),
+    def _requests_section(
+        self, org, program, viewer: Person, membership: Membership, bunks,
+    ) -> dict:
+        del program, membership
+        rows = viewer_open_requests(
+            organization=org,
+            viewer=viewer,
+            bunks=bunks,
         )
-        if not eligible_membership_ids:
-            return {
-                "state": "none",
-                "open_count": 0,
-                "by_type": {"camper_care": 0, "maintenance": 0},
-            }
-
-        camper_care_count = Order.all_objects.filter(
-            organization=org,
-            program=program,
-            submitted_by_id__in=eligible_membership_ids,
-            status__in=OPEN_STATUSES,
-        ).count()
-        maintenance_count = MaintenanceTicket.all_objects.filter(
-            organization=org,
-            program=program,
-            submitted_by_id__in=eligible_membership_ids,
-            status__in=OPEN_STATUSES,
-        ).count()
-
-        total = camper_care_count + maintenance_count
+        camper_care_count = sum(1 for r in rows if r["type"] == "camper_care")
+        maintenance_count = sum(1 for r in rows if r["type"] == "maintenance")
+        total = len(rows)
         return {
             "state": "in_progress" if total else "none",
             "open_count": total,

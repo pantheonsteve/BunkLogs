@@ -152,11 +152,11 @@ export default function MaintenanceTicketFormPage() {
         clientSubmissionId: clientSubmissionIdRef.current,
       });
       clearDraft();
-      navigate('/counselor/requests', { replace: true });
+      navigate('/counselor?nocache=1', { replace: true });
     } catch (err) {
       if (isQueuedSubmissionError(err)) {
         clearDraft();
-        navigate('/counselor/requests', { replace: true });
+        navigate('/counselor?nocache=1', { replace: true });
         return;
       }
       const status = err?.response?.status;

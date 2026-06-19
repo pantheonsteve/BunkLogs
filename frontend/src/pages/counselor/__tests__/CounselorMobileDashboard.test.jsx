@@ -48,6 +48,41 @@ function makePayload(overrides = {}) {
             action_path: '/counselor/camper-reflections',
           },
         ],
+        requests: [
+          {
+            type: 'camper_care',
+            id: 'order-1',
+            status: 'new',
+            status_label: 'New',
+            title: 'Toothbrush',
+            subtitle: 'For Alex K.',
+            submitted_at: '2026-07-04T10:00:00Z',
+          },
+        ],
+      },
+    ],
+    viewer_requests: [
+      {
+        type: 'camper_care',
+        id: 'order-1',
+        status: 'new',
+        status_label: 'New',
+        title: 'Toothbrush',
+        subtitle: 'For Alex K.',
+        bunk_id: 100,
+        bunk_name: 'Bunk Birch',
+        submitted_at: '2026-07-04T10:00:00Z',
+      },
+      {
+        type: 'maintenance',
+        id: 'ticket-1',
+        status: 'in_progress',
+        status_label: 'In Progress',
+        title: 'Bunk Birch bathroom',
+        subtitle: 'Leak',
+        bunk_id: null,
+        bunk_name: null,
+        submitted_at: '2026-07-04T09:00:00Z',
       },
     ],
     sections: {
@@ -98,15 +133,15 @@ describe('CounselorMobileDashboard', () => {
     await waitFor(() => expect(screen.getByText('Mira Sandberg')).toBeInTheDocument());
 
     expect(screen.getByTestId('counselor-bunk-tile-100')).toBeInTheDocument();
-    expect(screen.getByText('Bunk Birch')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-bunk-tile-100')).toHaveTextContent('Bunk Birch');
     expect(screen.getByText(/2 responses needed today/i)).toBeInTheDocument();
     expect(screen.getByTestId('counselor-section-self')).toBeInTheDocument();
     expect(screen.getByTestId('counselor-action-tasks')).toBeInTheDocument();
     expect(screen.getByTestId('counselor-action-my-reflections')).toBeInTheDocument();
     expect(screen.getByTestId('counselor-action-camper-care')).toBeInTheDocument();
     expect(screen.getByTestId('counselor-action-maintenance')).toBeInTheDocument();
-    expect(screen.getByTestId('counselor-action-requests')).toBeInTheDocument();
     expect(screen.getByTestId('counselor-action-observation')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-requests-widget')).toBeInTheDocument();
   });
 
   it('passes the date query param to the dashboard API', async () => {
@@ -196,11 +231,21 @@ describe('CounselorMobileDashboard', () => {
     );
   });
 
-  it('shows open-request badge on the requests quick action', async () => {
+  it('shows open requests in the My requests widget grouped by bunk', async () => {
     getMock.mockResolvedValue({ data: makePayload() });
     renderPage();
-    await waitFor(() => expect(screen.getByTestId('counselor-action-requests')).toBeInTheDocument());
-    expect(screen.getByTestId('counselor-action-requests')).toHaveTextContent('2');
+    await waitFor(() => expect(screen.getByTestId('counselor-requests-widget')).toBeInTheDocument());
+    expect(screen.getByTestId('counselor-requests-widget')).toHaveTextContent('2 open');
+    expect(screen.getByTestId('counselor-requests-group-bunk-birch')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-requests-group-camp-wide')).toBeInTheDocument();
+    expect(screen.getByTestId('counselor-request-camper_care-order-1')).toHaveAttribute(
+      'href',
+      '/counselor/requests/camper-care/order-1',
+    );
+    expect(screen.getByTestId('counselor-request-maintenance-ticket-1')).toHaveAttribute(
+      'href',
+      '/counselor/requests/maintenance/ticket-1?from=counselor',
+    );
   });
 
   it('renders empty bunk state when counselor has no bunks', async () => {

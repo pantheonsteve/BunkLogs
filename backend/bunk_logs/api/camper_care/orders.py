@@ -36,7 +36,8 @@ from bunk_logs.core.models import OrderActivityEvent
 from .common import bunk_camper_ids
 from .common import caseload_bunks
 from .common import caseload_camper_ids
-from .common import orders_viewer_or_403
+from .common import orders_base_queryset
+from .common import resolve_orders_viewer
 
 ACTIVE_STATUSES: tuple[str, ...] = (Order.Status.NEW, Order.Status.IN_PROGRESS)
 CLOSED_STATUSES: tuple[str, ...] = (Order.Status.FULFILLED, Order.Status.UNABLE_TO_FULFILL)
@@ -58,13 +59,17 @@ class CamperCareOrdersListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        ctx = orders_viewer_or_403(request)
+        ctx = resolve_orders_viewer(request)
         filt = (request.query_params.get("filter") or "all").lower()
         if filt not in FILTER_CHOICES:
             msg = f"Unknown filter {filt!r}."
             raise ValidationError({"filter": msg})
+        if ctx.scope != "team" and filt != "all":
+            raise ValidationError(
+                {"filter": "Only the 'all' filter is available for your role."},
+            )
 
-        qs = Order.objects.filter(program=ctx.program).select_related(
+        qs = orders_base_queryset(ctx).select_related(
             "subject", "submitted_by__person", "submitted_from_bunk",
         )
         if filt == "my_caseload":
@@ -78,10 +83,10 @@ class CamperCareOrdersListView(APIView):
                 bunk_pk = int(bunk_id)
             except ValueError as e:
                 raise ValidationError({"bunk_id": "Must be an integer."}) from e
-            owned = {b.id for b in caseload_bunks(ctx.membership)}
-            if bunk_pk not in owned:
+            allowed_bunk_ids = _allowed_bunk_ids(ctx)
+            if bunk_pk not in allowed_bunk_ids:
                 raise ValidationError(
-                    {"bunk_id": "Bunk is not on your caseload."},
+                    {"bunk_id": "Bunk is outside your orders scope."},
                 )
             from bunk_logs.core.models import AssignmentGroup
             bunk = AssignmentGroup.all_objects.filter(pk=bunk_pk).first()
@@ -98,20 +103,31 @@ class CamperCareOrdersListView(APIView):
         resolved_until = _parse_optional_date(request.query_params.get("resolved_until"))
 
         rows = list(qs.order_by("-created_at"))
+        org_wide = ctx.scope == "team" and ctx.membership.role == "admin"
         subject_ids = {o.subject_id for o in rows if o.subject_id}
         submitter_person_ids = {
             o.submitted_by.person_id
             for o in rows
             if o.submitted_by_id and o.submitted_by.person_id
         }
-        bunk_by_subject = _bunk_by_subject_ids(
-            subject_ids=subject_ids,
-            program_id=ctx.program.id,
-        )
-        bunk_by_submitter = _bunk_by_author_person_ids(
-            person_ids=submitter_person_ids,
-            program_id=ctx.program.id,
-        )
+        if org_wide:
+            bunk_by_subject = _bunk_by_subject_ids_org(
+                subject_ids=subject_ids,
+                organization_id=ctx.organization.id,
+            )
+            bunk_by_submitter = _bunk_by_author_person_ids_org(
+                person_ids=submitter_person_ids,
+                organization_id=ctx.organization.id,
+            )
+        else:
+            bunk_by_subject = _bunk_by_subject_ids(
+                subject_ids=subject_ids,
+                program_id=ctx.program.id,
+            )
+            bunk_by_submitter = _bunk_by_author_person_ids(
+                person_ids=submitter_person_ids,
+                program_id=ctx.program.id,
+            )
         new_items: list[dict] = []
         in_progress: list[dict] = []
         resolved: list[dict] = []
@@ -120,6 +136,7 @@ class CamperCareOrdersListView(APIView):
                 o,
                 bunk_by_subject=bunk_by_subject,
                 bunk_by_submitter=bunk_by_submitter,
+                scope=ctx.scope,
             )
             if o.status == Order.Status.NEW:
                 new_items.append(payload)
@@ -142,6 +159,7 @@ class CamperCareOrdersListView(APIView):
                 "in_progress": len(in_progress),
                 "resolved": len(resolved),
             },
+            "scope": ctx.scope,
         })
 
 
@@ -166,6 +184,26 @@ class CamperCareOrderBulkTransitionView(OrderBulkTransitionView):
 # ---------------------------------------------------------------------------
 
 
+def _allowed_bunk_ids(ctx) -> set[int]:
+    """Bunk IDs the viewer may use with ``filter=by_bunk``."""
+    if ctx.scope == "team" and ctx.membership.role == "admin":
+        from bunk_logs.core.models import AssignmentGroup
+        return set(
+            AssignmentGroup.all_objects.filter(
+                organization=ctx.organization,
+                group_type="bunk",
+                is_active=True,
+            ).values_list("id", flat=True),
+        )
+    if ctx.scope == "team":
+        return {b.id for b in caseload_bunks(ctx.membership)}
+    if ctx.scope == "unit":
+        from bunk_logs.api.unit_head.common import supervised_bunk_ids
+        return supervised_bunk_ids(ctx.membership, today=ctx.today)
+    from bunk_logs.api.counselor.common import viewer_bunk_groups
+    return {b.id for b in viewer_bunk_groups(ctx.person)}
+
+
 def _parse_optional_date(raw: str | None):
     if not raw:
         return None
@@ -185,11 +223,27 @@ def _bunk_by_subject_ids(*, subject_ids: set[int], program_id: int) -> dict[int,
     )
 
 
+def _bunk_by_subject_ids_org(*, subject_ids: set[int], organization_id: int) -> dict[int, dict]:
+    return _bunk_lookup_org(
+        person_ids=subject_ids,
+        organization_id=organization_id,
+        role_in_group="subject",
+    )
+
+
 def _bunk_by_author_person_ids(*, person_ids: set[int], program_id: int) -> dict[int, dict]:
     """Active author bunk per counselor Person in ``program_id``."""
     return _bunk_lookup(
         person_ids=person_ids,
         program_id=program_id,
+        role_in_group="author",
+    )
+
+
+def _bunk_by_author_person_ids_org(*, person_ids: set[int], organization_id: int) -> dict[int, dict]:
+    return _bunk_lookup_org(
+        person_ids=person_ids,
+        organization_id=organization_id,
         role_in_group="author",
     )
 
@@ -209,6 +263,34 @@ def _bunk_lookup(
         group__group_type="bunk",
         group__is_active=True,
         group__program_id=program_id,
+    ).values("person_id", "group_id", "group__name")
+    out: dict[int, dict] = {}
+    for row in rows:
+        person_id = row["person_id"]
+        if person_id in out:
+            continue
+        out[person_id] = {
+            "id": row["group_id"],
+            "name": row["group__name"] or "",
+        }
+    return out
+
+
+def _bunk_lookup_org(
+    *,
+    person_ids: set[int],
+    organization_id: int,
+    role_in_group: str,
+) -> dict[int, dict]:
+    if not person_ids:
+        return {}
+    rows = AssignmentGroupMembership.objects.filter(
+        person_id__in=person_ids,
+        role_in_group=role_in_group,
+        is_active=True,
+        group__group_type="bunk",
+        group__is_active=True,
+        group__organization_id=organization_id,
     ).values("person_id", "group_id", "group__name")
     out: dict[int, dict] = {}
     for row in rows:
@@ -251,6 +333,7 @@ def _order_payload(
     *,
     bunk_by_subject: dict[int, dict] | None = None,
     bunk_by_submitter: dict[int, dict] | None = None,
+    scope: str = "team",
 ) -> dict:
     submitter = order.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
@@ -271,8 +354,12 @@ def _order_payload(
     return {
         "id": str(order.id),
         "status": order.status,
-        "available_transitions": order.available_transitions(),
-        "is_within_correction_window": order.can_correct_last_transition(),
+        "available_transitions": (
+            order.available_transitions() if scope == "team" else []
+        ),
+        "is_within_correction_window": (
+            order.can_correct_last_transition() if scope == "team" else False
+        ),
         "subject": _camper_brief(order.subject),
         "bunk": bunk,
         "item": order.item,

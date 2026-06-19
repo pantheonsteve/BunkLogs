@@ -27,7 +27,7 @@ function renderPage() {
           path="/counselor/requests/camper-care/new"
           element={<CamperCareRequestFormPage />}
         />
-        <Route path="/counselor/requests" element={<PathProbe />} />
+        <Route path="/counselor" element={<PathProbe />} />
         <Route path="/counselor" element={<PathProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -193,7 +193,7 @@ describe('CamperCareRequestFormPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('path-probe')).toHaveAttribute(
         'data-pathname',
-        '/counselor/requests',
+        '/counselor',
       ),
     );
   });

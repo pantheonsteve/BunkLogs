@@ -15,8 +15,12 @@ by program rather than by supervised bunks.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import reduce
+from operator import or_
 from typing import TYPE_CHECKING
+from typing import Literal
 
+from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.api.counselor.common import enforce_edit_window  # noqa: F401 (re-export)
@@ -27,6 +31,7 @@ from bunk_logs.core.managers import _caseload_bunk_ids_for_membership
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
@@ -48,6 +53,8 @@ CC_SELF_TEMPLATE_SLUGS = (
 
 __all__ = [
     "CC_SELF_TEMPLATE_SLUGS",
+    "OrdersScope",
+    "OrdersViewerContext",
     "ViewerContext",
     "camper_care_self_template",
     "caseload_bunk_ids",
@@ -55,9 +62,13 @@ __all__ = [
     "caseload_bunks_with_unit",
     "caseload_camper_ids",
     "caseload_campers",
+    "orders_base_queryset",
     "orders_viewer_or_403",
+    "resolve_orders_viewer",
     "viewer_or_403",
 ]
+
+OrdersScope = Literal["team", "unit", "viewer"]
 
 
 @dataclass(frozen=True)
@@ -69,6 +80,13 @@ class ViewerContext:
     membership: Membership
     program: Program
     today: date
+
+
+@dataclass(frozen=True)
+class OrdersViewerContext(ViewerContext):
+    """Viewer context plus the orders-workspace visibility scope."""
+
+    scope: OrdersScope
 
 
 def viewer_or_403(request) -> ViewerContext:
@@ -111,13 +129,14 @@ def viewer_or_403(request) -> ViewerContext:
     )
 
 
-def orders_viewer_or_403(request) -> ViewerContext:
-    """Resolve viewer for camper-care orders endpoints.
+def resolve_orders_viewer(request) -> OrdersViewerContext:
+    """Resolve viewer + scope for the Camper Care orders workspace.
 
-    Accepts active ``camper_care`` or ``admin`` membership in the request
-    organization. The orders workspace stays program-scoped (CC7); admins
-    see the full team queue. Super admins may use any active membership
-    in the org, mirroring the maintenance queue gate.
+    * ``team`` — Camper Care staff and org admins see the full queue and
+      may transition orders. Admins are org-wide; Camper Care is program-wide.
+    * ``unit`` — Unit Heads see orders for campers / counselors on bunks they
+      supervise (read-only).
+    * ``viewer`` — Counselors see only orders they submitted (read-only).
     """
     org = getattr(request, "organization", None)
     if org is None:
@@ -131,27 +150,96 @@ def orders_viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
 
-    qs = Membership.objects.filter(
+    memberships = Membership.objects.filter(
         person=person, is_active=True, program__organization=org,
     ).select_related("program", "program__organization")
-    if not is_super_admin(request.user):
-        qs = qs.filter(role__in=("camper_care", "admin"))
 
-    membership = qs.filter(role="camper_care").order_by("-created_at").first()
-    if membership is None:
-        membership = qs.filter(role="admin").order_by("-created_at").first()
-    if membership is None:
-        membership = qs.order_by("-created_at").first()
-    if membership is None:
-        msg = "Camper Care or Admin role required."
-        raise PermissionDenied(msg)
-    return ViewerContext(
-        person=person,
-        organization=org,
-        membership=membership,
-        program=membership.program,
-        today=get_today(org),
+    team_qs = memberships
+    if not is_super_admin(request.user):
+        team_qs = memberships.filter(role__in=("camper_care", "admin"))
+    team_membership = team_qs.filter(role="camper_care").order_by("-created_at").first()
+    if team_membership is None:
+        team_membership = team_qs.filter(role="admin").order_by("-created_at").first()
+    if team_membership is None and is_super_admin(request.user):
+        team_membership = memberships.order_by("-created_at").first()
+    if team_membership is not None:
+        return OrdersViewerContext(
+            person=person,
+            organization=org,
+            membership=team_membership,
+            program=team_membership.program,
+            today=get_today(org),
+            scope="team",
+        )
+
+    uh_membership = memberships.filter(role="unit_head").order_by("-created_at").first()
+    if uh_membership is not None:
+        return OrdersViewerContext(
+            person=person,
+            organization=org,
+            membership=uh_membership,
+            program=uh_membership.program,
+            today=get_today(org),
+            scope="unit",
+        )
+
+    counselor_membership = memberships.filter(role="counselor").order_by("-created_at").first()
+    if counselor_membership is not None:
+        return OrdersViewerContext(
+            person=person,
+            organization=org,
+            membership=counselor_membership,
+            program=counselor_membership.program,
+            today=get_today(org),
+            scope="viewer",
+        )
+
+    msg = "Active membership required."
+    raise PermissionDenied(msg)
+
+
+def orders_viewer_or_403(request) -> OrdersViewerContext:
+    """Backward-compatible alias for :func:`resolve_orders_viewer`."""
+    return resolve_orders_viewer(request)
+
+
+def orders_base_queryset(ctx: OrdersViewerContext):
+    """Base queryset of orders visible in the workspace for ``ctx``."""
+    if ctx.scope == "team":
+        if ctx.membership.role == "admin":
+            return Order.objects.filter(organization=ctx.organization)
+        return Order.objects.filter(program=ctx.program)
+    if ctx.scope == "unit":
+        return Order.objects.filter(program=ctx.program).filter(
+            _unit_head_orders_q(ctx.membership, today=ctx.today),
+        )
+    return Order.objects.filter(
+        program=ctx.program,
+        submitted_by=ctx.membership,
     )
+
+
+def _unit_head_orders_q(membership: Membership, *, today: date | None) -> Q:
+    """Orders tied to bunks a Unit Head supervises."""
+    from bunk_logs.api.unit_head.bunk_dashboard import _counselor_membership_ids_for_bunk
+    from bunk_logs.api.unit_head.common import supervised_bunk_ids
+
+    bunk_ids = supervised_bunk_ids(membership, today=today)
+    if not bunk_ids:
+        return Q(pk__in=[])
+
+    camper_ids: set[int] = set()
+    counselor_membership_ids: set[int] = set()
+    for bunk in AssignmentGroup.all_objects.filter(pk__in=bunk_ids, is_active=True):
+        camper_ids.update(bunk_camper_ids(bunk))
+        counselor_membership_ids.update(_counselor_membership_ids_for_bunk(bunk))
+
+    parts: list[Q] = [Q(submitted_from_bunk_id__in=bunk_ids)]
+    if camper_ids:
+        parts.append(Q(subject_id__in=camper_ids))
+    if counselor_membership_ids:
+        parts.append(Q(submitted_by_id__in=counselor_membership_ids))
+    return reduce(or_, parts)
 
 
 # ---------------------------------------------------------------------------

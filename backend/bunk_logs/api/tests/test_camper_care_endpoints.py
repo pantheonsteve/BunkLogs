@@ -690,6 +690,115 @@ class TestCamperCareOrdersTeamShared:
         assert r.status_code == 200, r.content
         assert len(r.json()["transitioned"]) == 3
 
+    def test_admin_sees_orders_from_other_program(
+        self, api, org, program, admin_person_user, admin_membership, camper,
+    ):
+        other_program = Program.all_objects.create(
+            organization=org,
+            name="CC Org Other Session",
+            slug="cc-other-session",
+            program_type="summer_camp",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 8, 15),
+        )
+        Order.all_objects.create(
+            organization=org,
+            program=other_program,
+            subject=camper,
+            item="Soap",
+        )
+        _, user = admin_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/orders/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        assert len(r.json()["new"]) == 1
+        assert r.json()["scope"] == "team"
+
+    def test_counselor_sees_only_own_orders(
+        self, api, org, program, counselor_person_user, counselor_membership,
+        cc_person_user, camper,
+    ):
+        cc_person, cc_user = cc_person_user
+        cc_mem = _make_membership(program, cc_person, "camper_care")
+        Order.all_objects.create(
+            organization=org,
+            program=program,
+            subject=camper,
+            submitted_by=counselor_membership,
+            item="Mine",
+        )
+        Order.all_objects.create(
+            organization=org,
+            program=program,
+            subject=camper,
+            submitted_by=cc_mem,
+            item="Not mine",
+        )
+        _, user = counselor_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/orders/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        items = r.json()["new"]
+        assert len(items) == 1
+        assert items[0]["item"] == "Mine"
+        assert items[0]["available_transitions"] == []
+        assert r.json()["scope"] == "viewer"
+
+    def test_unit_head_sees_orders_for_supervised_bunk(
+        self, api, org, program, uh_person_user, uh_membership,
+        counselor_person_user, counselor_membership, bunk, camper, camper_in_bunk,
+    ):
+        counselor_person, _ = counselor_person_user
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor_person, role_in_group="author", is_active=True,
+        )
+        Supervision.all_objects.create(
+            supervisor_membership=uh_membership,
+            target_type="membership",
+            target_membership=counselor_membership,
+            start_date=date(2026, 1, 1),
+        )
+        other_bunk = AssignmentGroup.all_objects.create(
+            organization=org, program=program,
+            name="Far Bunk", slug="far-bunk", group_type="bunk", is_active=True,
+        )
+        other_counselor_person, other_counselor_user = _make_person(
+            org, first="Other", last="Counselor", email="other-co@cc.test",
+        )
+        other_counselor_membership = _make_membership(
+            program, other_counselor_person, "counselor",
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=other_bunk,
+            person=other_counselor_person,
+            role_in_group="author",
+            is_active=True,
+        )
+        Order.all_objects.create(
+            organization=org,
+            program=program,
+            subject=camper,
+            submitted_by=counselor_membership,
+            item="Unit order",
+        )
+        Order.all_objects.create(
+            organization=org,
+            program=program,
+            submitted_by=other_counselor_membership,
+            item="Outside unit",
+        )
+        _, user = uh_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get("/api/v1/camper-care/orders/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        items = r.json()["new"]
+        assert len(items) == 1
+        assert items[0]["item"] == "Unit order"
+        assert r.json()["scope"] == "unit"
+
 
 # ---------------------------------------------------------------------------
 # Bunk + Camper drill-down (Step 7_8c) — Story 18 c.9 + Story 21 in-context

@@ -356,6 +356,11 @@ urlpatterns = [
         counselor_requests.CounselorRequestsListView.as_view(),
         name="counselor-requests",
     ),
+    path(
+        "counselor/requests/camper-care/<uuid:order_id>/",
+        counselor_requests.CamperCareRequestDetailView.as_view(),
+        name="counselor-camper-care-request-detail",
+    ),
 
     # Counselor flow write endpoints (Step 7_6c)
     path(

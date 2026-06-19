@@ -74,6 +74,7 @@ const samplePayload = {
   ],
   resolved: [],
   counts: { new: 1, in_progress: 2, resolved: 0 },
+  scope: 'team',
 };
 
 describe('CamperCareOrders', () => {

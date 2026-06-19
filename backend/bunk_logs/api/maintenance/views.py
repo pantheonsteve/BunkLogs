@@ -33,10 +33,12 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.counselor.serializers import MaintenanceTicketPhotoUploadSerializer
 from bunk_logs.core.models import MaintenanceTicket
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import TicketPhoto
 
 from .common import resolve_queue_viewer
+from .common import tickets_for_viewer
 from .common import viewer_or_403
 
 logger = logging.getLogger(__name__)
@@ -84,11 +86,12 @@ class MaintenanceQueueView(APIView):
         if filt not in VALID_FILTERS:
             raise ValidationError({"filter": f"Must be one of: {', '.join(sorted(VALID_FILTERS))}."})
 
-        # Maintenance team sees the full program queue; other members default to
-        # their own open tickets but can switch to the camp-wide open view.
-        base = MaintenanceTicket.objects.select_related(
+        # Maintenance team sees the full program queue; org admins see the full
+        # org queue; other members default to their own open tickets but can
+        # switch to the camp-wide open view.
+        base = tickets_for_viewer(ctx).select_related(
             "submitted_by__person", "last_transition_by__person",
-        ).filter(program=ctx.program)
+        )
 
         qs = base
         if filt == "mine":
@@ -259,8 +262,8 @@ class MaintenanceTicketDetailView(APIView):
         # Any active member can open a ticket to follow its progress; ``viewer``
         # scope is read-only (no actions) and can't see team-only notes.
         ctx, scope = resolve_queue_viewer(request)
-        ticket = MaintenanceTicket.objects.filter(
-            pk=ticket_id, program=ctx.program,
+        ticket = tickets_for_viewer(ctx).filter(
+            pk=ticket_id,
         ).select_related("submitted_by__person", "last_transition_by__person").first()
         if ticket is None:
             msg = "Ticket not found."
@@ -283,11 +286,19 @@ class MaintenanceTicketDetailView(APIView):
             # progress (state changes, corrections, submitter-visible notes) stays.
             activity = [e for e in activity if not _is_team_only_note(e)]
 
+        viewer_membership_ids = set(
+            Membership.objects.filter(
+                person=ctx.person,
+                is_active=True,
+                program__organization=ctx.organization,
+            ).values_list("id", flat=True),
+        )
+
         return Response({
             "ticket": _ticket_detail_payload(
                 ticket,
                 scope=scope,
-                viewer_membership_id=ctx.membership.id,
+                viewer_membership_ids=viewer_membership_ids,
             ),
             "photos": [_photo_payload(p) for p in photos],
             "activity": [_activity_event_payload(e) for e in activity],
@@ -307,9 +318,16 @@ def _ticket_detail_payload(
     *,
     scope: str = "team",
     viewer_membership_id=None,
+    viewer_membership_ids=None,
 ) -> dict:
     submitter = ticket.submitted_by
     submitter_person = getattr(submitter, "person", None) if submitter else None
+    membership_ids = viewer_membership_ids or set()
+    if viewer_membership_id is not None:
+        membership_ids = membership_ids | {viewer_membership_id}
+    is_mine = bool(
+        ticket.submitted_by_id and ticket.submitted_by_id in membership_ids,
+    )
     return {
         "id": str(ticket.id),
         "status": ticket.status,
@@ -324,17 +342,13 @@ def _ticket_detail_payload(
             if submitter_person else None
         ),
         "submitted_by_membership_id": str(ticket.submitted_by_id) if ticket.submitted_by_id else None,
-        "is_mine": bool(
-            viewer_membership_id
-            and ticket.submitted_by_id == viewer_membership_id,
-        ),
+        "is_mine": is_mine,
         "available_transitions": (
             ticket.available_transitions()
             if scope == "team"
             else (
                 _submitter_close_transitions(ticket.status)
-                if viewer_membership_id
-                and ticket.submitted_by_id == viewer_membership_id
+                if is_mine
                 else []
             )
         ),
@@ -405,7 +419,7 @@ class MaintenanceNoteCreateView(APIView):
 
     def post(self, request, ticket_id, *args, **kwargs):
         ctx = viewer_or_403(request)
-        ticket = _get_ticket_or_404(ticket_id, ctx.program)
+        ticket = _get_ticket_or_404(ticket_id, ctx)
 
         if ticket.status in STATUS_CLOSED:
             return Response(
@@ -447,7 +461,7 @@ class MaintenanceNoteDetailView(APIView):
 
     def patch(self, request, ticket_id, note_id, *args, **kwargs):
         ctx = viewer_or_403(request)
-        _get_ticket_or_404(ticket_id, ctx.program)
+        _get_ticket_or_404(ticket_id, ctx)
 
         event = OrderActivityEvent.objects.filter(
             pk=note_id,
@@ -526,7 +540,7 @@ class MaintenanceTicketPhotoCreateView(APIView):
 
     def post(self, request, ticket_id, *args, **kwargs):
         ctx = viewer_or_403(request)
-        ticket = _get_ticket_or_404(ticket_id, ctx.program)
+        ticket = _get_ticket_or_404(ticket_id, ctx)
 
         serializer = MaintenanceTicketPhotoUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -547,10 +561,8 @@ class MaintenanceTicketPhotoCreateView(APIView):
 # ---------------------------------------------------------------------------
 
 
-def _get_ticket_or_404(ticket_id, program) -> MaintenanceTicket:
-    ticket = MaintenanceTicket.objects.filter(
-        pk=ticket_id, program=program,
-    ).first()
+def _get_ticket_or_404(ticket_id, ctx) -> MaintenanceTicket:
+    ticket = tickets_for_viewer(ctx).filter(pk=ticket_id).first()
     if ticket is None:
         msg = "Ticket not found."
         raise NotFound(msg)

@@ -100,6 +100,18 @@ def urgent_ticket(org, program):
 
 
 @pytest.fixture
+def admin_user(org, program):
+    user = User.objects.create_user(email="admin@mq.com", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="Org", last_name="Admin", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="admin", is_active=True,
+    )
+    return user
+
+
+@pytest.fixture
 def api():
     return APIClient()
 
@@ -161,6 +173,65 @@ class TestMaintenanceQueue:
         api.force_authenticate(user=maint_user)
         r = api.get("/api/v1/maintenance/queue/?filter=bogus", **_hdr(org.slug))
         assert r.status_code == 400
+
+    def test_admin_sees_tickets_from_other_program(
+        self, api, org, admin_user, counselor_membership,
+    ):
+        """Org admins see the full org queue, not only their own program."""
+        other_program = Program.all_objects.create(
+            organization=org,
+            name="MQ Org Other Session",
+            slug="mq-other-session",
+            program_type="summer_camp",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 8, 15),
+        )
+        with organization_context(org):
+            other_ticket = MaintenanceTicket.objects.create(
+                organization=org,
+                program=other_program,
+                location="New bunk",
+                category=MaintenanceTicket.Category.PLUMBING,
+                description="Leak in current session",
+                urgency=MaintenanceTicket.Urgency.NORMAL,
+                submitted_by=counselor_membership,
+            )
+        api.force_authenticate(user=admin_user)
+        r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        ids = [t["id"] for t in r.json()["tickets"]]
+        assert str(other_ticket.id) in ids
+        assert r.json()["scope"] == "team"
+
+    def test_admin_can_open_ticket_detail_from_other_program(
+        self, api, org, admin_user, counselor_membership,
+    ):
+        other_program = Program.all_objects.create(
+            organization=org,
+            name="MQ Org Detail Session",
+            slug="mq-detail-session",
+            program_type="summer_camp",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 8, 15),
+        )
+        with organization_context(org):
+            other_ticket = MaintenanceTicket.objects.create(
+                organization=org,
+                program=other_program,
+                location="Shower house",
+                category=MaintenanceTicket.Category.LEAK,
+                description="Dripping faucet",
+                urgency=MaintenanceTicket.Urgency.NORMAL,
+                submitted_by=counselor_membership,
+            )
+        api.force_authenticate(user=admin_user)
+        r = api.get(
+            f"/api/v1/maintenance/tickets/{other_ticket.id}/",
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 200, r.content
+        assert r.json()["ticket"]["id"] == str(other_ticket.id)
+        assert r.json()["scope"] == "team"
 
 
 # ---------------------------------------------------------------------------

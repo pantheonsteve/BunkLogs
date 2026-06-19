@@ -249,7 +249,8 @@ function TransitionModal({ order, toState, onClose, onSubmitted }) {
   );
 }
 
-function FilterBar({ filter, bunkId, item, onChange }) {
+function FilterBar({ filter, bunkId, item, onChange, showAdvancedFilters }) {
+  if (!showAdvancedFilters) return null;
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 shadow-sm" data-testid="cc-orders-filter">
       <div className="flex flex-wrap items-center gap-2">
@@ -382,10 +383,17 @@ export default function CamperCareOrders() {
   const inProgress = data?.in_progress ?? [];
   const resolved = data?.resolved ?? [];
   const counts = data?.counts ?? { new: 0, in_progress: 0, resolved: 0 };
+  const canManage = data?.scope === 'team';
+
+  const scopeSubtitle = {
+    team: 'All Camper Care orders for your program.',
+    unit: 'Orders for campers and counselors in your supervised bunks.',
+    viewer: 'Orders you submitted.',
+  };
 
   const eligibleSelected = useMemo(
-    () => inProgress.filter((o) => selected.has(o.id)),
-    [inProgress, selected],
+    () => (canManage ? inProgress.filter((o) => selected.has(o.id)) : []),
+    [canManage, inProgress, selected],
   );
 
   if (loading && !data) {
@@ -415,7 +423,7 @@ export default function CamperCareOrders() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Orders</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          All Camper Care orders for your program.
+          {scopeSubtitle[data?.scope] || scopeSubtitle.team}
         </p>
       </header>
 
@@ -423,6 +431,7 @@ export default function CamperCareOrders() {
         filter={filter}
         bunkId={bunkId}
         item={item}
+        showAdvancedFilters={canManage}
         onChange={handleFilterChange}
       />
 
@@ -469,17 +478,17 @@ export default function CamperCareOrders() {
           <>
             <ul className="space-y-2">
               {inProgress.map((o) => (
-                <OrderRow
-                  key={o.id}
-                  order={o}
-                  selectable
-                  selected={selected.has(o.id)}
-                  onSelectToggle={handleSelectToggle}
-                  onTransition={handleTransition}
-                />
-              ))}
-            </ul>
-            {eligibleSelected.length > 0 && (
+              <OrderRow
+                key={o.id}
+                order={o}
+                selectable={canManage}
+                selected={selected.has(o.id)}
+                onSelectToggle={handleSelectToggle}
+                onTransition={handleTransition}
+              />
+            ))}
+          </ul>
+          {canManage && eligibleSelected.length > 0 && (
               <div
                 className="mt-3 rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 px-4 py-3 shadow-sm"
                 data-testid="cc-orders-bulk-bar"
