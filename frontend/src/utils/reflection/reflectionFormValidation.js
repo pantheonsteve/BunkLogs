@@ -15,11 +15,34 @@ const FIELD_TYPES = new Set([
 
 const META_FIELD_TYPES = new Set(['section_header', 'instructions']);
 
+/** Schema field rendered as a top-level quick-action toggle, not a normal field. */
+export const DAY_OFF_FIELD_KEY = 'day_off';
+
+export function schemaHasDayOffField(schema) {
+  return Array.isArray(schema?.fields)
+    && schema.fields.some((f) => f?.key === DAY_OFF_FIELD_KEY);
+}
+
+export function withoutDayOffField(schema) {
+  if (!schema?.fields) return schema;
+  return {
+    ...schema,
+    fields: schema.fields.filter((f) => f?.key !== DAY_OFF_FIELD_KEY),
+  };
+}
+
+export function dayOffFieldLabel(schema, language = 'en', fallback = 'Day off today?') {
+  const field = schema?.fields?.find((f) => f?.key === DAY_OFF_FIELD_KEY);
+  if (!field?.prompts) return fallback;
+  return field.prompts[language] || field.prompts.en || fallback;
+}
+
 /**
  * Client-side validation aligned with backend validate_reflection_answers.
  * @returns {{ ok: boolean, errors: Record<string, string> }}
  */
-export function validateReflectionAnswers(schema, answers) {
+export function validateReflectionAnswers(schema, answers, options = {}) {
+  const omitKeys = new Set(options.omitKeys ?? []);
   const errors = {};
   if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
     return { ok: false, errors: { form: 'Answers must be an object.' } };
@@ -38,6 +61,10 @@ export function validateReflectionAnswers(schema, answers) {
     const key = field.key;
     const ftype = field.type;
     const required = field.required !== false;
+
+    if (omitKeys.has(key)) {
+      continue;
+    }
 
     if (typeof key !== 'string' || !key.trim()) {
       errors[`field_${i}`] = 'Invalid field key.';
@@ -218,12 +245,19 @@ export function buildDefaultAnswers(schema) {
  */
 export function prepareReflectionAnswersForSubmit(schema, answers, options = {}) {
   const omitKeys = options.omitKeys ?? [];
+  const dayOff = options.dayOff;
   if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
     return answers;
+  }
+  if (dayOff === true && schemaHasDayOffField(schema)) {
+    return { [DAY_OFF_FIELD_KEY]: true };
   }
   const next = { ...answers };
   for (const key of omitKeys) {
     delete next[key];
+  }
+  if (dayOff === false && schemaHasDayOffField(schema) && !(DAY_OFF_FIELD_KEY in next)) {
+    next[DAY_OFF_FIELD_KEY] = 'no';
   }
   const fields = schema?.fields;
   if (!Array.isArray(fields)) return next;

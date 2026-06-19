@@ -14,12 +14,12 @@ import ReflectionField from '../../components/templates/ReflectionField';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
+  withoutDayOffField,
+  DAY_OFF_FIELD_KEY,
 } from '../../utils/reflection/reflectionFormValidation';
 import { fetchReflection, fetchTemplateById, newClientSubmissionId } from '../../api/counselor';
 import { fetchTemplate, submitReflection, updateReflection } from '../../api/kitchenStaff';
 import { useAuth } from '../../auth/AuthContext';
-
-const DAY_OFF_FIELD_KEY = 'day_off';
 
 const LANGUAGE_NAMES = { en: 'English', es: 'Spanish', he: 'Hebrew' };
 
@@ -123,7 +123,8 @@ export default function KitchenStaffReflectionForm() {
     setFieldErrors({});
 
     if (!isDayOff && template?.schema) {
-      const { ok, errors } = validateReflectionAnswers(template.schema, answers);
+      const visibleSchema = withoutDayOffField(template.schema);
+      const { ok, errors } = validateReflectionAnswers(visibleSchema, answers);
       if (!ok) {
         setFieldErrors(errors);
         return;

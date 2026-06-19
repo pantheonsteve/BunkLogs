@@ -2,136 +2,96 @@ import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 
+function normalizeHtml(html) {
+  if (html == null || html === '') return '';
+  return String(html);
+}
+
+function htmlMatches(a, b) {
+  return normalizeHtml(a) === normalizeHtml(b);
+}
+
 const Wysiwyg = forwardRef(({ onChange, value, readOnly = false, showToolbar = true }, ref) => {
-    const editorRef = useRef(null);
-    const quillRef = useRef(null);
+  const editorRef = useRef(null);
+  const quillRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-    // Expose quill instance to parent
-    useImperativeHandle(ref, () => ({
-        getQuill: () => quillRef.current,
-        setContent: (content) => {
-            if (quillRef.current) {
-                try {
-                    if (!content || content.trim() === '') {
-                        quillRef.current.setText('');
-                    } else if (content.includes('<') && content.includes('>')) {
-                        // HTML content - use dangerouslyPasteHTML for better reliability
-                        quillRef.current.root.innerHTML = content;
-                    } else {
-                        console.log('Setting plain text via setContent');
-                        // Plain text
-                        quillRef.current.setText(content);
-                    }
-                    console.log('Content after setContent:', quillRef.current.root.innerHTML);
-                } catch (error) {
-                    console.error('Error setting Wysiwyg content:', error);
-                    quillRef.current.setText(content || '');
-                }
-            } else {
-                console.warn('Quill instance not ready for setContent');
-            }
+  useImperativeHandle(ref, () => ({
+    getQuill: () => quillRef.current,
+    setContent: (content) => {
+      if (!quillRef.current) return;
+      try {
+        if (!content || String(content).trim() === '') {
+          quillRef.current.setText('');
+        } else if (content.includes('<') && content.includes('>')) {
+          quillRef.current.root.innerHTML = content;
+        } else {
+          quillRef.current.setText(content);
         }
-    }));
+      } catch {
+        quillRef.current.setText(content || '');
+      }
+    },
+  }));
 
-    useEffect(() => {
-        if (editorRef.current && !quillRef.current) {
-            const toolbarOptions = [
-                [{ 'header': [1, 2, false] }],
-                ['bold', 'italic', 'underline'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                [{ 'align': [] }],
-                ['link'],
-                ['clean']
-            ];
+  useEffect(() => {
+    if (!editorRef.current || quillRef.current) return;
 
-            quillRef.current = new Quill(editorRef.current, {
-                modules: {
-                    toolbar: showToolbar ? toolbarOptions : false
-                },
-                theme: 'snow',
-                readOnly: readOnly
-            });
+    const toolbarOptions = [
+      [{ header: [1, 2, false] }],
+      ['bold', 'italic', 'underline'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      [{ align: [] }],
+      ['link'],
+      ['clean'],
+    ];
 
-            quillRef.current.on('text-change', function(delta, oldDelta, source) {
-                if (source === 'user') {
-                    const content = quillRef.current.root.innerHTML;
-                    console.log('WYSIWYG content changed:', content);
-                    if (onChange) {
-                        onChange(content);
-                    }
-                }
-            });
+    quillRef.current = new Quill(editorRef.current, {
+      modules: {
+        toolbar: showToolbar ? toolbarOptions : false,
+      },
+      theme: 'snow',
+      readOnly,
+    });
 
-            // Set initial content if provided
-            if (value) {
-                console.log('=== Wysiwyg: Setting initial content ===');
-                console.log('Initial value:', value);
-                setTimeout(() => {
-                    if (quillRef.current) {
-                        try {
-                            console.log('=== Wysiwyg: Applying initial content ===');
-                            if (value.includes('<') && value.includes('>')) {
-                                console.log('Setting as HTML content');
-                                // Use direct innerHTML assignment for better HTML preservation
-                                quillRef.current.root.innerHTML = value;
-                            } else {
-                                console.log('Setting as plain text');
-                                quillRef.current.setText(value);
-                            }
-                            console.log('Content after setting:', quillRef.current.root.innerHTML);
-                        } catch (error) {
-                            console.error('Error setting initial content:', error);
-                            quillRef.current.setText(value);
-                        }
-                    }
-                }, 100);
-            }
-        }
+    quillRef.current.on('text-change', (_delta, _oldDelta, source) => {
+      if (source !== 'user' || !quillRef.current) return;
+      const content = quillRef.current.root.innerHTML;
+      onChangeRef.current?.(content);
+    });
+  }, [readOnly, showToolbar]);
 
-        // Update readonly state
-        if (quillRef.current) {
-            quillRef.current.enable(!readOnly);
-        }
-    }, [onChange, readOnly, showToolbar, value]); // Added value to dependencies
+  useEffect(() => {
+    if (!quillRef.current) return;
+    quillRef.current.enable(!readOnly);
+  }, [readOnly]);
 
-    // Update content when value prop changes
-    useEffect(() => {
-        console.log('WYSIWYG useEffect triggered, value:', value);
-        if (quillRef.current && value !== undefined) {
-            const currentContent = quillRef.current.root.innerHTML;
-            console.log('Current content vs new value:', { currentContent, newValue: value });
-            if (currentContent !== value) {
-                try {
-                    console.log('Setting new content in Wysiwyg...');
-                    quillRef.current.disable(); // Prevent triggering onChange
-                    if (!value || value.trim() === '') {
-                        quillRef.current.setText('');
-                        console.log('Set empty text');
-                    } else if (value.includes('<') && value.includes('>')) {
-                        // Use direct innerHTML assignment for better HTML preservation
-                        quillRef.current.root.innerHTML = value;
-                        console.log('Set HTML content:', value);
-                    } else {
-                        quillRef.current.setText(value);
-                        console.log('Set plain text:', value);
-                    }
-                } catch (error) {
-                    console.error('Error updating content:', error);
-                    quillRef.current.setText(value || '');
-                } finally {
-                    if (!readOnly) {
-                        quillRef.current.enable(); // Re-enable
-                    }
-                }
-            }
-        }
-    }, [value, readOnly]); // Added readOnly to dependencies
+  useEffect(() => {
+    if (!quillRef.current || value === undefined) return;
+    if (quillRef.current.hasFocus()) return;
 
-    return (
-        <div>
-            <div ref={editorRef} style={{ height: '300px' }}></div>
-        </div>
-    );
+    const currentContent = quillRef.current.root.innerHTML;
+    if (htmlMatches(currentContent, value)) return;
+
+    try {
+      if (!value || String(value).trim() === '') {
+        quillRef.current.setText('');
+      } else if (value.includes('<') && value.includes('>')) {
+        quillRef.current.root.innerHTML = value;
+      } else {
+        quillRef.current.setText(value);
+      }
+    } catch {
+      quillRef.current.setText(value || '');
+    }
+  }, [value]);
+
+  return (
+    <div>
+      <div ref={editorRef} style={{ height: '300px' }} />
+    </div>
+  );
 });
 
 export default Wysiwyg;

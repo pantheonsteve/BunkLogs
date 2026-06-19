@@ -292,6 +292,40 @@ describe('ReflectionFormPage', () => {
     expect(screen.getByRole('checkbox')).toBeInTheDocument();
   });
 
+  it('renders day-off quick action and submits after toggling off', async () => {
+    const user = userEvent.setup();
+    getMock.mockResolvedValue({
+      data: {
+        ...templatePayload,
+        schema: {
+          fields: [
+            {
+              key: 'day_off',
+              type: 'yes_no',
+              required: true,
+              prompts: { en: 'Are you on camp today?' },
+            },
+            { key: 'note', type: 'text', required: true, prompts: { en: 'Note?' } },
+          ],
+        },
+      },
+    });
+    postMock.mockResolvedValue({ data: { id: 200, answers: { note: 'filled', day_off: 'no' } } });
+    renderPage('?program=prog-a&template=9&period_start=2026-06-01&period_end=2026-06-01');
+    await waitFor(() => expect(screen.getByTestId('reflect-day-off-toggle')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('reflect-day-off-toggle'));
+    expect(screen.queryByTestId('reflect-input-note')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('reflect-day-off-toggle'));
+    expect(screen.getByTestId('reflect-input-note')).toBeInTheDocument();
+
+    await user.type(screen.getByTestId('reflect-input-note'), 'filled');
+    await user.click(screen.getByRole('button', { name: /Submit reflection/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    expect(postMock.mock.calls[0][1].answers).toEqual({ note: 'filled', day_off: 'no' });
+  });
+
   it('save-and-resume: draft persists in localStorage and reloads on mount', async () => {
     const user = userEvent.setup();
     getMock.mockResolvedValue({ data: { ...templatePayload } });

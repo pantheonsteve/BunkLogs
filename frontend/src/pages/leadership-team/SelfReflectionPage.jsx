@@ -13,6 +13,8 @@ import ReflectionField from '../../components/templates/ReflectionField';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
+  withoutDayOffField,
+  DAY_OFF_FIELD_KEY,
 } from '../../utils/reflection/reflectionFormValidation';
 import {
   fetchReflection,
@@ -25,8 +27,6 @@ import {
   updateSelfReflection,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
-
-const DAY_OFF_FIELD_KEY = 'day_off';
 
 function flattenError(err, fallback) {
   const body = err?.response?.data;
@@ -103,7 +103,8 @@ export default function LeadershipTeamSelfReflectionPage() {
     setError('');
     if (!template) return;
     if (!isDayOff) {
-      const { ok, errors } = validateReflectionAnswers(template.schema, answers);
+      const visibleSchema = withoutDayOffField(template.schema);
+      const { ok, errors } = validateReflectionAnswers(visibleSchema, answers);
       if (!ok) {
         setFieldErrors(errors);
         return;

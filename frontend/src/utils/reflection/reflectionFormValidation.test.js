@@ -167,6 +167,49 @@ describe('prepareReflectionAnswersForSubmit', () => {
     );
     expect(out).toEqual({ note: 'hello' });
   });
+
+  it('sends day-off shortcut payload when dayOff is true', () => {
+    const schema = {
+      fields: [
+        { key: 'day_off', type: 'yes_no', required: true, prompts: { en: 'Off?' } },
+        { key: 'note', type: 'textarea', required: true, prompts: { en: 'N' } },
+      ],
+    };
+    const out = prepareReflectionAnswersForSubmit(
+      schema,
+      { note: 'ignored' },
+      { dayOff: true, omitKeys: ['day_off'] },
+    );
+    expect(out).toEqual({ day_off: true });
+  });
+
+  it('adds day_off=no when submitting a normal payload', () => {
+    const schema = {
+      fields: [
+        { key: 'day_off', type: 'yes_no', required: true, prompts: { en: 'Off?' } },
+        { key: 'note', type: 'textarea', required: false, prompts: { en: 'N' } },
+      ],
+    };
+    const out = prepareReflectionAnswersForSubmit(
+      schema,
+      { note: 'hello' },
+      { dayOff: false, omitKeys: ['day_off'] },
+    );
+    expect(out).toEqual({ note: 'hello', day_off: 'no' });
+  });
+});
+
+describe('validateReflectionAnswers omitKeys', () => {
+  it('skips omitted fields such as day_off quick actions', () => {
+    const schema = {
+      fields: [
+        { key: 'day_off', type: 'yes_no', required: true, prompts: { en: 'Off?' } },
+        { key: 'note', type: 'text', required: true, prompts: { en: 'Note' } },
+      ],
+    };
+    const r = validateReflectionAnswers(schema, { note: 'ok' }, { omitKeys: ['day_off'] });
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe('buildDefaultAnswers — extended field types', () => {
