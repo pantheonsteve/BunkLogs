@@ -74,8 +74,10 @@ describe('AdminAssignments', () => {
   it('lists programs in the dropdown with active and ended labels', async () => {
     render(<AdminAssignments />);
     const select = await screen.findByTestId('assignment-program-select');
-    expect(select).toHaveTextContent('Summer 2026 (Active)');
-    expect(select).toHaveTextContent('Summer 2025 (Ended)');
+    await waitFor(() => {
+      expect(select).toHaveTextContent('Summer 2026 (Active)');
+      expect(select).toHaveTextContent('Summer 2025 (Ended)');
+    });
   });
 
   it('passes filter params when listing assignments', async () => {
