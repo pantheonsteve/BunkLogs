@@ -5,6 +5,11 @@ import ReflectionField from '../components/templates/ReflectionField';
 import {
   validateReflectionAnswers,
   buildDefaultAnswers,
+  prepareReflectionAnswersForSubmit,
+  schemaHasDayOffField,
+  withoutDayOffField,
+  dayOffFieldLabel,
+  DAY_OFF_FIELD_KEY,
 } from '../utils/reflection/reflectionFormValidation';
 import {
   reflectionDraftKey,
@@ -48,6 +53,17 @@ export default function ReflectionFormPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [dayOff, setDayOff] = useState(false);
+
+  const hasDayOffQuickAction = useMemo(() => schemaHasDayOffField(schema), [schema]);
+  const visibleSchema = useMemo(
+    () => (hasDayOffQuickAction && schema ? withoutDayOffField(schema) : schema),
+    [hasDayOffQuickAction, schema],
+  );
+  const dayOffLabel = useMemo(
+    () => dayOffFieldLabel(schema, language),
+    [schema, language],
+  );
 
   const draftKey = useMemo(() => {
     const subjectKey = subjectParam ? `_s${subjectParam}` : '';
@@ -163,9 +179,18 @@ export default function ReflectionFormPage() {
       return;
     }
 
-    const { ok, errors } = validateReflectionAnswers(schema, answers);
-    setFieldErrors(errors);
-    if (!ok) return;
+    if (!dayOff) {
+      const { ok, errors } = validateReflectionAnswers(visibleSchema, answers);
+      setFieldErrors(errors);
+      if (!ok) return;
+    } else {
+      setFieldErrors({});
+    }
+
+    const payloadAnswers = prepareReflectionAnswersForSubmit(schema, answers, {
+      dayOff,
+      omitKeys: hasDayOffQuickAction ? [DAY_OFF_FIELD_KEY] : [],
+    });
 
     setSubmitting(true);
     try {
@@ -174,7 +199,7 @@ export default function ReflectionFormPage() {
         template: meta.id,
         period_start: periodStart,
         period_end: periodEnd,
-        answers,
+        answers: payloadAnswers,
         language,
       };
       if (meta?.supports_privacy) {
@@ -338,7 +363,36 @@ export default function ReflectionFormPage() {
             </fieldset>
             ) : null}
 
-            {(schema?.fields || []).map((field) => renderField(field))}
+            {hasDayOffQuickAction ? (
+              <fieldset
+                className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-3"
+                data-testid="reflect-day-off-fieldset"
+              >
+                <legend className="text-xs font-medium text-gray-600 dark:text-gray-400 px-1">
+                  Quick action
+                </legend>
+                <label className="flex items-center gap-3 cursor-pointer mt-1">
+                  <input
+                    type="checkbox"
+                    data-testid="reflect-day-off-toggle"
+                    checked={dayOff}
+                    onChange={(e) => {
+                      setDayOff(e.target.checked);
+                      if (e.target.checked) setFieldErrors({});
+                    }}
+                    className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-600"
+                  />
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                    {dayOffLabel}
+                  </span>
+                </label>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Counts as complete for the period. You can switch back before submitting.
+                </p>
+              </fieldset>
+            ) : null}
+
+            {!dayOff && (visibleSchema?.fields || []).map((field) => renderField(field))}
 
             {submitError ? (
               <p className="text-red-600 text-sm" role="alert">
@@ -351,7 +405,7 @@ export default function ReflectionFormPage() {
               disabled={submitting}
               className="w-full sm:w-auto mt-4 min-h-[48px] px-6 rounded-lg bg-blue-600 text-white font-medium text-sm disabled:opacity-50"
             >
-              {submitting ? 'Submitting…' : 'Submit reflection'}
+              {submitting ? 'Submitting…' : dayOff ? 'Mark day off' : 'Submit reflection'}
             </button>
           </form>
         )}

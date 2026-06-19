@@ -224,6 +224,7 @@ export default function UnitHeadSelfReflectionPage() {
       const payloadAnswers = (() => {
         if (dayOff) return undefined;
         const next = prepareReflectionAnswersForSubmit(schema, answers, {
+          dayOff: false,
           omitKeys: [DAY_OFF_FIELD_KEY],
         });
         const raw = next[BUNK_CONCERNS_FIELD_KEY];

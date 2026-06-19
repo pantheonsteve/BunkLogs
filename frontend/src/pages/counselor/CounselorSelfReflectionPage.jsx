@@ -238,6 +238,7 @@ export default function CounselorSelfReflectionPage() {
       const payloadAnswers = dayOff
         ? undefined
         : prepareReflectionAnswersForSubmit(schema, answers, {
+            dayOff: false,
             omitKeys: [DAY_OFF_FIELD_KEY],
           });
       if (isEdit) {

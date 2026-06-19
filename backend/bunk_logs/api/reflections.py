@@ -290,27 +290,44 @@ def _tasks_from_required_assignments(
             prog_slug = program.slug
 
             if tpl.subject_mode == "self":
-                dedupe_key = (tpl.id, None, period_start, program.id)
+                group = None
+                if assignment.target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
+                    group = assignment.assignment_group
+                    if group is None or not group.is_active:
+                        continue
+
+                group_id = group.id if group else None
+                dedupe_key = (tpl.id, group_id, period_start, program.id)
                 if dedupe_key in seen_keys:
                     continue
                 seen_keys.add(dedupe_key)
 
-                existing = (
-                    Reflection.all_objects.filter(
-                        author=viewer,
-                        subject=viewer,
-                        template=tpl,
-                        program=program,
-                        period_start=period_start,
-                        period_end=period_end,
-                    )
-                    .order_by("-submitted_at")
-                    .first()
+                existing_qs = Reflection.all_objects.filter(
+                    author=viewer,
+                    subject=viewer,
+                    template=tpl,
+                    program=program,
+                    period_start=period_start,
+                    period_end=period_end,
                 )
+                if group_id is not None:
+                    existing_qs = existing_qs.filter(assignment_group_id=group_id)
+                else:
+                    existing_qs = existing_qs.filter(assignment_group__isnull=True)
+                existing = existing_qs.order_by("-submitted_at").first()
+
+                assignment_group_payload = None
+                if group is not None:
+                    assignment_group_payload = {
+                        "id": group.id,
+                        "name": group.name,
+                        "group_type": group.group_type,
+                    }
+
                 tasks.append({
-                    "id": _task_id(tpl.id, None, period_start),
+                    "id": _task_id(tpl.id, group_id, period_start),
                     "template": ReflectionTemplateSummarySerializer(tpl).data,
-                    "assignment_group": None,
+                    "assignment_group": assignment_group_payload,
                     "subject_mode": "self",
                     "period": {"start": period_start.isoformat(), "end": period_end.isoformat()},
                     "program_slug": prog_slug,

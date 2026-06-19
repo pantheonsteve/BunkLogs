@@ -206,7 +206,7 @@ describe('CounselorSelfReflectionPage', () => {
 
       const body = postMock.mock.calls[0][1];
       expect(body.day_off).toBe(false);
-      expect(body.answers).not.toHaveProperty('day_off');
+      expect(body.answers.day_off).toBe('no');
       expect(body.answers.overall_day).toBe(4);
       expect(body.answers.wins).toEqual(expect.arrayContaining(['lunchtime activity']));
     });
