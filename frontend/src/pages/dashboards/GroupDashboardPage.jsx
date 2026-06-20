@@ -193,11 +193,11 @@ export default function GroupDashboardPage() {
   };
 
   const rosterSection = (
-    <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[80rem] mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 pb-8 w-full max-w-[80rem] mx-auto">
       <GroupRoster
         roster={data?.roster}
         collapsible
-        defaultExpanded
+        defaultExpanded={false}
       />
     </div>
   );
@@ -226,14 +226,14 @@ export default function GroupDashboardPage() {
           showOrders={false}
           showNotes={false}
         />
-        {rosterSection}
         {templatesSection}
-        <div className="px-4 sm:px-6 lg:px-8 pb-8 w-full max-w-[80rem] mx-auto space-y-5">
+        <div className="px-4 sm:px-6 lg:px-8 w-full max-w-[80rem] mx-auto space-y-5">
           <BunkDashboardOrdersAndNotes
             data={data}
             profileLinkContext={profileLinkContext}
           />
         </div>
+        {rosterSection}
       </>
     );
   }
@@ -241,8 +241,8 @@ export default function GroupDashboardPage() {
   return (
     <>
       <Dash {...sharedProps} />
-      {rosterSection}
       {templatesSection}
+      {rosterSection}
     </>
   );
 }
