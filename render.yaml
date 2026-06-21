@@ -51,6 +51,9 @@ services:
         value: "datadog-agent-fbsh"
       - key: DD_RUNTIME_METRICS_ENABLED
         value: "true"
+      # Propagate trace context when API handlers enqueue Celery tasks.
+      - key: DD_CELERY_DISTRIBUTED_TRACING
+        value: "true"
 
   - type: web
     name: BunkLogs-frontend
@@ -110,6 +113,11 @@ services:
         value: "true"
       - key: DD_AGENT_HOST
         value: "datadog-agent-fbsh"
+      - key: DD_RUNTIME_METRICS_ENABLED
+        value: "true"
+      # Continue traces from the web API into background task spans.
+      - key: DD_CELERY_DISTRIBUTED_TRACING
+        value: "true"
 
   # Cron job for daily email reports
   - type: cron

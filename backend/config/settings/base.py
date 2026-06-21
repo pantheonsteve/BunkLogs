@@ -668,4 +668,6 @@ DD_DOGSTATSD_PORT = env.int("DD_DOGSTATSD_PORT", default=8125)
 # Tracing is opt-in so local dev doesn't require a running agent.
 DD_TRACE_ENABLED = env.bool("DD_TRACE_ENABLED", default=False)
 DD_LOGS_INJECTION = env.bool("DD_LOGS_INJECTION", default=False)
+# Link API request traces to Celery task spans (set on web + worker in production).
+DD_CELERY_DISTRIBUTED_TRACING = env.bool("DD_CELERY_DISTRIBUTED_TRACING", default=False)
 
