@@ -1,5 +1,12 @@
 import os
 
+try:
+    from ddtrace import patch_all
+
+    patch_all()
+except ImportError:
+    pass
+
 from celery import Celery
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
