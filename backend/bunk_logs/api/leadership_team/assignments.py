@@ -60,21 +60,54 @@ __all__ = ["resolve_members"]
 # ---------------------------------------------------------------------------
 
 
-def _serialize(assignment: TemplateAssignment) -> dict[str, Any]:
+def _reflection_count_for(assignment: TemplateAssignment) -> int:
+    """Reflections submitted under this assignment's template/program window."""
+    qs = Reflection.all_objects.filter(
+        template_id=assignment.template_id,
+        program_id=assignment.program_id,
+        period_start__gte=assignment.start_date,
+    )
+    if assignment.end_date:
+        qs = qs.filter(period_end__lte=assignment.end_date)
+    if (
+        assignment.target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP
+        and assignment.assignment_group_id
+    ):
+        qs = qs.filter(assignment_group_id=assignment.assignment_group_id)
+    return qs.count()
+
+
+def _serialize(
+    assignment: TemplateAssignment,
+    *,
+    reflection_count: int | None = None,
+) -> dict[str, Any]:
     # ``assignment_group_name`` is included so the LT UI can render a
     # human-readable label ("Bunk Birch") for assignment-group rows
     # without an extra round-trip. Falls back to None when not set.
     group_name = None
+    group_type = None
     if assignment.assignment_group_id and assignment.assignment_group:
         group_name = assignment.assignment_group.name
-    return {
+        group_type = assignment.assignment_group.group_type
+    program_name = None
+    if assignment.program_id and assignment.program:
+        program_name = assignment.program.name
+    template_cadence = None
+    if assignment.template_id and assignment.template:
+        template_cadence = assignment.template.cadence
+    effective_cadence = assignment.cadence_override or template_cadence
+    data: dict[str, Any] = {
         "id": assignment.id,
         "template": assignment.template_id,
         "template_slug": assignment.template.slug if assignment.template_id else None,
+        "program": assignment.program_id,
+        "program_name": program_name,
         "target_type": assignment.target_type,
         "target_payload": assignment.target_payload or {},
         "assignment_group": assignment.assignment_group_id,
         "assignment_group_name": group_name,
+        "assignment_group_type": group_type,
         "is_required": assignment.is_required,
         "title": assignment.title or "",
         "display_title": assignment.title or (
@@ -83,10 +116,15 @@ def _serialize(assignment: TemplateAssignment) -> dict[str, Any]:
         "start_date": assignment.start_date.isoformat(),
         "end_date": assignment.end_date.isoformat() if assignment.end_date else None,
         "cadence_override": assignment.cadence_override,
+        "template_cadence": template_cadence,
+        "effective_cadence": effective_cadence,
         "status": assignment.status,
         "replaces": assignment.replaces_id,
         "created_at": assignment.created_at.isoformat(),
     }
+    if reflection_count is not None:
+        data["reflection_count"] = reflection_count
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -232,13 +270,22 @@ class LeadershipTeamAssignmentListCreateView(APIView):
         qs = (
             TemplateAssignment.objects
             .filter(organization=ctx.organization)
-            .select_related("template", "assignment_group")
+            .select_related("template", "assignment_group", "program")
             .order_by("-start_date", "-created_at")
         )
         template_id = (request.query_params.get("template") or "").strip()
         if template_id.isdigit():
             qs = qs.filter(template_id=int(template_id))
-        return Response({"assignments": [_serialize(a) for a in qs[:200]]})
+        assignments = list(qs[:200])
+        reflection_counts = {
+            a.pk: _reflection_count_for(a) for a in assignments
+        }
+        return Response({
+            "assignments": [
+                _serialize(a, reflection_count=reflection_counts.get(a.pk, 0))
+                for a in assignments
+            ],
+        })
 
     def post(self, request, *args, **kwargs):
         ctx = assignment_viewer_or_403(request)

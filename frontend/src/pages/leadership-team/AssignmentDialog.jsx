@@ -112,27 +112,6 @@ function describeAssignment(a) {
   return a.target_type || 'Assignment';
 }
 
-function groupByGroupType(groups) {
-  const buckets = new Map();
-  for (const g of groups) {
-    const key = g.group_type || 'other';
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key).push(g);
-  }
-  const ordered = [];
-  for (const key of GROUP_TYPE_ORDER) {
-    if (buckets.has(key)) {
-      ordered.push([key, buckets.get(key)]);
-      buckets.delete(key);
-    }
-  }
-  for (const [key, list] of buckets) ordered.push([key, list]);
-  for (const [, list] of ordered) {
-    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }
-  return ordered;
-}
-
 export default function AssignmentDialog({ template, onClose, onCreated }) {
   const { orgSlug } = useAuth();
   const [targetType, setTargetType] = useState('role');
@@ -155,21 +134,70 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [groupsError, setGroupsError] = useState('');
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set());
-  // Narrows the group list to a single type (bunk / unit / etc.) when set.
+  const [programFilter, setProgramFilter] = useState('');
   const [groupTypeFilter, setGroupTypeFilter] = useState('');
   // Per-group submission outcomes for the assignment_group flow.
   // { [groupId]: { status: 'ok' | 'conflict' | 'error', detail?, assignment? } }
   const [groupResults, setGroupResults] = useState({});
 
-  const grouped = useMemo(() => groupByGroupType(groups), [groups]);
-  const multiProgram = useMemo(
-    () => new Set(groups.map((g) => g.program).filter(Boolean)).size > 1,
-    [groups],
-  );
-  const visibleGrouped = useMemo(
-    () => (groupTypeFilter ? grouped.filter(([gt]) => gt === groupTypeFilter) : grouped),
-    [grouped, groupTypeFilter],
-  );
+  const programOptions = useMemo(() => {
+    const byId = new Map();
+    for (const g of groups) {
+      if (g.program != null && !byId.has(g.program)) {
+        byId.set(g.program, g.program_name ?? `Program #${g.program}`);
+      }
+    }
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [groups]);
+
+  const allowedGroupTypes = useMemo(() => {
+    const fromTemplate = Array.isArray(template?.assignment_group_types)
+      ? template.assignment_group_types.filter(Boolean)
+      : [];
+    return fromTemplate.length > 0 ? new Set(fromTemplate) : null;
+  }, [template?.assignment_group_types]);
+
+  const typeOptions = useMemo(() => {
+    if (!programFilter) return [];
+    const types = new Set(
+      groups
+        .filter((g) => String(g.program) === programFilter)
+        .map((g) => g.group_type)
+        .filter(Boolean),
+    );
+    const ordered = GROUP_TYPE_ORDER.filter((gt) => types.has(gt));
+    for (const gt of types) {
+      if (!ordered.includes(gt)) ordered.push(gt);
+    }
+    if (allowedGroupTypes) {
+      return ordered.filter((gt) => allowedGroupTypes.has(gt));
+    }
+    return ordered;
+  }, [groups, programFilter, allowedGroupTypes]);
+
+  const visibleGroups = useMemo(() => {
+    if (!programFilter || !groupTypeFilter) return [];
+    return groups
+      .filter(
+        (g) => String(g.program) === programFilter && g.group_type === groupTypeFilter,
+      )
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [groups, programFilter, groupTypeFilter]);
+
+  const filtersReady = Boolean(programFilter && groupTypeFilter);
+  const allVisibleSelected = visibleGroups.length > 0
+    && visibleGroups.every((g) => selectedGroupIds.has(g.id));
+  const someVisibleSelected = visibleGroups.some((g) => selectedGroupIds.has(g.id));
+
+  useEffect(() => {
+    if (programOptions.length === 1 && !programFilter) {
+      setProgramFilter(String(programOptions[0][0]));
+    }
+  }, [programOptions, programFilter]);
+
+  useEffect(() => {
+    setGroupTypeFilter('');
+  }, [programFilter]);
 
   // Existing assignments for this template (active or scheduled).
   const [current, setCurrent] = useState([]);
@@ -251,8 +279,8 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
       return next;
     });
   };
-  const toggleGroupType = (gtypeGroups) => {
-    const ids = gtypeGroups.map((g) => g.id);
+  const toggleAllVisible = () => {
+    const ids = visibleGroups.map((g) => g.id);
     setSelectedGroupIds((prev) => {
       const next = new Set(prev);
       const allChecked = ids.every((id) => next.has(id));
@@ -620,65 +648,79 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                   {groupsError}
                 </p>
               )}
-              {!groupsLoading && !groupsError && grouped.length === 0 && (
+              {!groupsLoading && !groupsError && groups.length === 0 && (
                 <p className="text-sm text-gray-500" data-testid="lt-groups-empty">
                   No active assignment groups found in this org.
                 </p>
               )}
-              {!groupsLoading && !groupsError && grouped.length > 0 && (
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  Filter by group type
-                  <select
-                    value={groupTypeFilter}
-                    onChange={(e) => setGroupTypeFilter(e.target.value)}
-                    className="ml-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
-                    data-testid="lt-assignment-group-type-filter"
-                  >
-                    <option value="">All types</option>
-                    {GROUP_TYPE_ORDER.filter((gt) => grouped.some(([k]) => k === gt)).map((gt) => (
-                      <option key={gt} value={gt}>{GROUP_TYPE_LABEL[gt] ?? gt}</option>
-                    ))}
-                    {grouped
-                      .filter(([gt]) => !GROUP_TYPE_ORDER.includes(gt))
-                      .map(([gt]) => (
-                        <option key={gt} value={gt}>{gt}</option>
+              {!groupsLoading && !groupsError && groups.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 min-w-[12rem]">
+                    Program
+                    <select
+                      value={programFilter}
+                      onChange={(e) => setProgramFilter(e.target.value)}
+                      className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
+                      data-testid="lt-assignment-program-filter"
+                    >
+                      <option value="">Select program…</option>
+                      {programOptions.map(([id, label]) => (
+                        <option key={id} value={String(id)}>{label}</option>
                       ))}
-                  </select>
-                </label>
+                    </select>
+                  </label>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 min-w-[12rem]">
+                    Group type
+                    <select
+                      value={groupTypeFilter}
+                      onChange={(e) => setGroupTypeFilter(e.target.value)}
+                      disabled={!programFilter}
+                      className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm disabled:opacity-50"
+                      data-testid="lt-assignment-group-type-filter"
+                    >
+                      <option value="">Select type…</option>
+                      {typeOptions.map((gt) => (
+                        <option key={gt} value={gt}>{GROUP_TYPE_LABEL[gt] ?? gt}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               )}
-              {visibleGrouped.map(([gtype, list]) => {
-                const ids = list.map((g) => g.id);
-                const allChecked = ids.every((id) => selectedGroupIds.has(id));
-                const someChecked = ids.some((id) => selectedGroupIds.has(id));
-                return (
-                  <fieldset
-                    key={gtype}
-                    className="rounded-md border border-gray-200 dark:border-gray-700 p-2"
-                    data-testid={`lt-assignment-group-section-${gtype}`}
-                  >
-                    <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 flex items-center gap-2">
-                      <label className="flex items-center gap-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={allChecked}
-                          ref={(el) => {
-                            if (el) el.indeterminate = !allChecked && someChecked;
-                          }}
-                          onChange={() => toggleGroupType(list)}
-                          data-testid={`lt-assignment-group-toggle-all-${gtype}`}
-                        />
-                        {GROUP_TYPE_LABEL[gtype] || gtype}
-                      </label>
-                      <span className="font-normal text-gray-400">({list.length})</span>
-                    </legend>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-1">
-                      {list.map((g) => {
-                        const checked = selectedGroupIds.has(g.id);
-                        const outcome = groupResults[g.id];
-                        return (
+              {!groupsLoading && !groupsError && groups.length > 0 && !filtersReady && (
+                <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="lt-groups-filter-hint">
+                  Select a program and group type to browse groups.
+                </p>
+              )}
+              {filtersReady && visibleGroups.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="lt-groups-filter-empty">
+                  No groups match these filters.
+                </p>
+              )}
+              {filtersReady && visibleGroups.length > 0 && (
+                <div
+                  className="rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-2"
+                  data-testid="lt-assignment-group-list"
+                >
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+                      }}
+                      onChange={toggleAllVisible}
+                      data-testid="lt-assignment-group-select-all"
+                    />
+                    Select all ({visibleGroups.length})
+                  </label>
+                  <ul className="max-h-48 overflow-y-auto space-y-1">
+                    {visibleGroups.map((g) => {
+                      const checked = selectedGroupIds.has(g.id);
+                      const outcome = groupResults[g.id];
+                      return (
+                        <li key={g.id}>
                           <label
-                            key={g.id}
-                            className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                            className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
                           >
                             <input
                               type="checkbox"
@@ -686,9 +728,9 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                               onChange={() => toggleGroup(g.id)}
                               data-testid={`lt-assignment-group-${g.id}`}
                             />
-                            <span className="truncate">
+                            <span className="truncate" data-testid={`lt-assignment-group-label-${g.id}`}>
                               {g.name}
-                              {multiProgram && g.program_name ? ` · ${g.program_name}` : ''}
+                              <span className="text-gray-400 dark:text-gray-500 ml-1.5">#{g.id}</span>
                             </span>
                             {outcome?.status === 'ok' && (
                               <span className="text-xs text-green-700 dark:text-green-300">✓</span>
@@ -704,12 +746,12 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                               </span>
                             )}
                           </label>
-                        );
-                      })}
-                    </div>
-                  </fieldset>
-                );
-              })}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
               {selectedGroupIds.size > 0 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {selectedGroupIds.size} group{selectedGroupIds.size === 1 ? '' : 's'} selected.

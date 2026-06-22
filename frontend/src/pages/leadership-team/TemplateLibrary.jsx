@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   archiveTemplate,
   cloneTemplate,
@@ -19,7 +19,13 @@ import {
   unpublishTemplate,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
+import ActivelyAssignedTab from './ActivelyAssignedTab';
 import AssignmentDialog from './AssignmentDialog';
+
+const LIBRARY_TABS = [
+  { key: 'all', label: 'All templates' },
+  { key: 'assigned', label: 'Actively assigned' },
+];
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
@@ -76,7 +82,9 @@ function statusBadge(status) {
 
 export default function LeadershipTeamTemplateLibrary() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { orgSlug } = useAuth();
+  const activeTab = searchParams.get('tab') === 'assigned' ? 'assigned' : 'all';
   const [templates, setTemplates] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -86,6 +94,14 @@ export default function LeadershipTeamTemplateLibrary() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
   const [flash, setFlash] = useState('');
+  const [assignedRefreshKey, setAssignedRefreshKey] = useState(0);
+
+  const setActiveTab = (tab) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'assigned') next.set('tab', 'assigned');
+    else next.delete('tab');
+    setSearchParams(next, { replace: true });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -162,6 +178,41 @@ export default function LeadershipTeamTemplateLibrary() {
           New template
         </Link>
       </div>
+
+      <nav
+        className="flex gap-1 border-b border-gray-200 dark:border-gray-700"
+        aria-label="Template library views"
+      >
+        {LIBRARY_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+              activeTab === tab.key
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+            aria-pressed={activeTab === tab.key}
+            data-testid={`lt-tpl-tab-${tab.key}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'assigned' ? (
+        <ActivelyAssignedTab
+          orgSlug={orgSlug}
+          templates={templates}
+          refreshKey={assignedRefreshKey}
+          onChanged={() => {
+            setAssignedRefreshKey((k) => k + 1);
+            load();
+          }}
+        />
+      ) : (
+        <>
         <section
           className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 flex flex-wrap gap-3"
           aria-label="Filters"
@@ -358,6 +409,8 @@ export default function LeadershipTeamTemplateLibrary() {
             ))}
           </ul>
         )}
+        </>
+      )}
       {assignTarget && (
         <AssignmentDialog
           template={assignTarget}
@@ -370,6 +423,7 @@ export default function LeadershipTeamTemplateLibrary() {
               `Assigned "${assignTarget.name}" — assignment #${assignment?.id ?? '?'} created.`,
             );
             setTimeout(() => setFlash(''), 5000);
+            setAssignedRefreshKey((k) => k + 1);
           }}
         />
       )}

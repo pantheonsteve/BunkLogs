@@ -39,6 +39,17 @@ const template = {
   assignment_group_types: [],
 };
 
+const summerProgramId = 1;
+
+function selectAssignmentGroupFilters(programId = summerProgramId, groupType = 'bunk') {
+  fireEvent.change(screen.getByTestId('lt-assignment-program-filter'), {
+    target: { value: String(programId) },
+  });
+  fireEvent.change(screen.getByTestId('lt-assignment-group-type-filter'), {
+    target: { value: groupType },
+  });
+}
+
 describe('AssignmentDialog', () => {
   it('submits a role-targeted assignment and calls onCreated', async () => {
     postMock.mockResolvedValue({ data: { id: 1, target_type: 'role' } });
@@ -138,9 +149,18 @@ describe('AssignmentDialog', () => {
       if (url?.includes('/assignment-groups/')) {
         return Promise.resolve({
           data: [
-            { id: 11, name: 'Bunk Birch', group_type: 'bunk', is_active: true },
-            { id: 12, name: 'Bunk Cedar', group_type: 'bunk', is_active: true },
-            { id: 20, name: 'Unit Maple', group_type: 'unit', is_active: true },
+            {
+              id: 11, name: 'Bunk Birch', group_type: 'bunk', program: summerProgramId,
+              program_name: 'Summer 2026', is_active: true,
+            },
+            {
+              id: 12, name: 'Bunk Cedar', group_type: 'bunk', program: summerProgramId,
+              program_name: 'Summer 2026', is_active: true,
+            },
+            {
+              id: 20, name: 'Unit Maple', group_type: 'unit', program: summerProgramId,
+              program_name: 'Summer 2026', is_active: true,
+            },
           ],
         });
       }
@@ -154,12 +174,15 @@ describe('AssignmentDialog', () => {
     fireEvent.click(screen.getByTestId('lt-assignment-target-assignment_group'));
     await waitFor(() => expect(screen.getByTestId('lt-assignment-groups-panel')).toBeInTheDocument());
     await waitFor(() => expect(getMock).toHaveBeenCalled());
+    selectAssignmentGroupFilters(summerProgramId, 'bunk');
     await waitFor(() => expect(screen.getByTestId('lt-assignment-group-11')).toBeInTheDocument());
-    // Sections are grouped by group_type.
-    expect(screen.getByTestId('lt-assignment-group-section-bunk')).toBeInTheDocument();
-    expect(screen.getByTestId('lt-assignment-group-section-unit')).toBeInTheDocument();
+    expect(screen.getByTestId('lt-assignment-group-label-11')).toHaveTextContent('Bunk Birch');
+    expect(screen.getByTestId('lt-assignment-group-label-11')).toHaveTextContent('#11');
+    expect(screen.queryByTestId('lt-assignment-group-20')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('lt-assignment-group-11'));
+    selectAssignmentGroupFilters(summerProgramId, 'unit');
+    await waitFor(() => expect(screen.getByTestId('lt-assignment-group-20')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('lt-assignment-group-20'));
     fireEvent.change(screen.getByTestId('lt-assignment-start'), {
       target: { value: '2026-07-01' },
@@ -177,36 +200,45 @@ describe('AssignmentDialog', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it('group_type filter narrows visible groups without affecting selection', async () => {
+  it('program and group type filters narrow the visible list', async () => {
     getMock.mockImplementation((url) => {
       if (url?.includes('/assignment-groups/')) {
         return Promise.resolve({
           data: [
-            { id: 11, name: 'Bunk Birch', group_type: 'bunk', is_active: true },
-            { id: 20, name: 'Unit Maple', group_type: 'unit', is_active: true },
+            {
+              id: 11, name: 'Bunk Birch', group_type: 'bunk', program: summerProgramId,
+              program_name: 'Summer 2026', is_active: true,
+            },
+            {
+              id: 20, name: 'Unit Maple', group_type: 'unit', program: summerProgramId,
+              program_name: 'Summer 2026', is_active: true,
+            },
+            {
+              id: 30, name: 'Fall Bunk', group_type: 'bunk', program: 2,
+              program_name: 'Fall 2026', is_active: true,
+            },
           ],
         });
       }
       return Promise.resolve({ data: { assignments: [] } });
     });
-    postMock.mockResolvedValue({ data: { id: 42, target_type: 'assignment_group' } });
     render(<AssignmentDialog template={template} onCreated={() => {}} onClose={() => {}} />);
 
     fireEvent.click(screen.getByTestId('lt-assignment-target-assignment_group'));
-    await waitFor(() => screen.getByTestId('lt-assignment-group-type-filter'));
+    await waitFor(() => screen.getByTestId('lt-assignment-program-filter'));
+    expect(screen.getByTestId('lt-groups-filter-hint')).toBeInTheDocument();
 
-    // Filter to bunk — unit section disappears.
-    fireEvent.change(screen.getByTestId('lt-assignment-group-type-filter'), {
-      target: { value: 'bunk' },
-    });
-    expect(screen.getByTestId('lt-assignment-group-section-bunk')).toBeInTheDocument();
-    expect(screen.queryByTestId('lt-assignment-group-section-unit')).not.toBeInTheDocument();
+    selectAssignmentGroupFilters(summerProgramId, 'bunk');
+    await waitFor(() => expect(screen.getByTestId('lt-assignment-group-list')).toBeInTheDocument());
+    expect(screen.getByTestId('lt-assignment-group-11')).toBeInTheDocument();
+    expect(screen.queryByTestId('lt-assignment-group-20')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('lt-assignment-group-30')).not.toBeInTheDocument();
 
-    // Reset filter — both sections are visible again.
     fireEvent.change(screen.getByTestId('lt-assignment-group-type-filter'), {
-      target: { value: '' },
+      target: { value: 'unit' },
     });
-    expect(screen.getByTestId('lt-assignment-group-section-unit')).toBeInTheDocument();
+    expect(screen.queryByTestId('lt-assignment-group-11')).not.toBeInTheDocument();
+    expect(screen.getByTestId('lt-assignment-group-20')).toBeInTheDocument();
   });
 
   it('lists current assignments and unassigns an active one via PATCH end_date', async () => {

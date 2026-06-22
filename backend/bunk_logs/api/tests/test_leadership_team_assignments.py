@@ -508,6 +508,10 @@ def test_get_list_includes_new_fields(
     # in the "Current assignments" / Unassign list without a second
     # lookup.
     assert a.get("assignment_group_name") == bunk.name
+    assert a.get("assignment_group_type") == bunk.group_type
+    assert a.get("program_name") == program.name
+    assert "reflection_count" in a
+    assert a["reflection_count"] == 0
 
 
 @pytest.mark.django_db
