@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import TemplateLibrary from '../TemplateLibrary';
 
 const getMock = vi.fn();
@@ -27,10 +27,12 @@ beforeEach(() => {
   deleteMock.mockReset();
 });
 
-function renderLib() {
+function renderLib(initialEntry = '/admin/templates') {
   return render(
-    <MemoryRouter initialEntries={['/admin/templates']}>
-      <TemplateLibrary />
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/admin/templates" element={<TemplateLibrary />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -226,5 +228,97 @@ describe('LeadershipTeamTemplateLibrary', () => {
     await user.click(screen.getByTestId('lt-tpl-delete-cancel-30'));
     expect(screen.getByTestId('lt-tpl-delete-30')).toBeInTheDocument();
     expect(deleteMock).not.toHaveBeenCalled();
+  });
+
+  it('shows actively assigned tab with grouped assignments', async () => {
+    getMock.mockImplementation((url) => {
+      if (String(url).includes('/assignments/')) {
+        return Promise.resolve({
+          data: {
+            assignments: [
+              {
+                id: 101,
+                template: 9,
+                display_title: 'Counselor Daily',
+                target_type: 'role',
+                target_payload: { role: 'counselor' },
+                start_date: '2026-06-01',
+                end_date: null,
+                status: 'active',
+                is_required: true,
+                program_name: 'Summer 2026',
+                reflection_count: 12,
+                effective_cadence: 'daily',
+              },
+              {
+                id: 102,
+                template: 9,
+                display_title: 'Counselor Daily',
+                target_type: 'assignment_group',
+                target_payload: {},
+                assignment_group: 5,
+                assignment_group_name: 'Bunk Birch',
+                assignment_group_type: 'bunk',
+                start_date: '2026-06-01',
+                end_date: '2026-08-15',
+                status: 'scheduled',
+                is_required: true,
+                program_name: 'Summer 2026',
+                reflection_count: 3,
+                effective_cadence: 'daily',
+              },
+              {
+                id: 103,
+                template: 11,
+                display_title: 'Old Form',
+                target_type: 'role',
+                target_payload: { role: 'kitchen_staff' },
+                start_date: '2026-01-01',
+                end_date: '2026-05-01',
+                status: 'ended',
+                is_required: true,
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({
+        data: {
+          templates: [
+            {
+              id: 9, name: 'Counselor Daily', status: 'published', version: 2,
+              role: 'counselor', languages: ['en'], cadence: 'daily',
+            },
+          ],
+        },
+      });
+    });
+
+    renderLib('/admin/templates?tab=assigned');
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-assigned-group-9')).toBeInTheDocument());
+    expect(screen.getByTestId('assignment-row-101')).toBeInTheDocument();
+    expect(screen.getByTestId('assignment-row-102')).toBeInTheDocument();
+    expect(screen.queryByTestId('assignment-row-103')).not.toBeInTheDocument();
+    expect(screen.getByTestId('assignment-end-today-101')).toBeInTheDocument();
+    expect(screen.getByTestId('assignment-cancel-102')).toBeInTheDocument();
+    expect(screen.getByTestId('assignment-end-today-102')).toBeInTheDocument();
+    expect(screen.getByTestId('assignment-meta-101')).toHaveTextContent('12 responses');
+    expect(screen.getByTestId('assignment-target-102')).toHaveTextContent('Bunk Birch (bunk)');
+    expect(screen.getByTestId('lt-tpl-assigned-edit-9')).toHaveAttribute('href', '/admin/templates/9');
+  });
+
+  it('switches to assigned tab via tab control', async () => {
+    getMock.mockImplementation((url) => {
+      if (String(url).includes('/assignments/')) {
+        return Promise.resolve({ data: { assignments: [] } });
+      }
+      return Promise.resolve({ data: { templates: [] } });
+    });
+    const user = userEvent.setup();
+
+    renderLib();
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-tab-assigned')).toBeInTheDocument());
+    await user.click(screen.getByTestId('lt-tpl-tab-assigned'));
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-assigned-empty')).toBeInTheDocument());
   });
 });
