@@ -20,12 +20,13 @@ Endpoints under ``/api/v1/leadership-team/templates/``:
 * ``POST   /<id>/archive/`` — ``published -> archived`` (preserves
                               historical reflections).
 
-Permission: ``leadership_team`` role + ``program_lead`` capability
-(reuses ``viewer_or_403``). Templates are visible if:
+Permission: ``admin`` capability only (``admin_only_or_403``). Per the
+builder consolidation, Leadership Team members no longer create or edit
+templates — they keep dashboards, team views, and self-reflection.
+Templates are visible if:
 
 * the viewer's organization owns them, OR
-* a co-supervisor of the viewer is the author (we approximate this as
-  any LT in the same program — fine for Tier 1).
+* they are global (org-less) templates available to clone.
 
 Lifecycle parity: every write updates ``is_active`` in lockstep with
 ``status`` so the existing admin template CRUD and old code that filters
@@ -58,7 +59,8 @@ from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.validators.template_schema import check_field_key_hints
 from bunk_logs.core.validators.template_schema import validate_template_schema
 
-from .common import viewer_or_403
+from .common import admin_only_or_403
+from .common import viewer_or_403  # noqa: F401  (re-exported for callers/tests)
 
 if TYPE_CHECKING:
     from bunk_logs.core.models import Organization
@@ -153,7 +155,7 @@ class LeadershipTeamTemplateListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         qs = _lt_template_queryset(ctx.organization).order_by("-created_at")
 
         status_q = (request.query_params.get("status") or "").strip().lower()
@@ -203,7 +205,7 @@ class LeadershipTeamTemplateListCreateView(APIView):
         )
 
     def post(self, request, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         payload = dict(request.data) if isinstance(request.data, dict) else {}
 
         slug = (payload.get("slug") or "").strip()
@@ -267,7 +269,7 @@ class LeadershipTeamTemplateDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_template(self, request, pk: int) -> ReflectionTemplate:
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         try:
             tpl = _lt_template_queryset(ctx.organization).get(pk=pk)
         except ReflectionTemplate.DoesNotExist as exc:
@@ -293,7 +295,7 @@ class LeadershipTeamTemplateDetailView(APIView):
         Reflection rows exist. Once staff have submitted answers, archive
         the template instead so historical data is preserved.
         """
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         tpl = self._get_template(request, pk)
         self._check_writable(ctx, tpl)
         if Reflection.all_objects.filter(template=tpl).exists():
@@ -307,7 +309,7 @@ class LeadershipTeamTemplateDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk: int, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         tpl = self._get_template(request, pk)
         self._check_writable(ctx, tpl)
 
@@ -407,7 +409,7 @@ class _BaseLifecycleView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get(self, request, pk: int) -> tuple[Any, ReflectionTemplate]:
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         try:
             tpl = _lt_template_queryset(ctx.organization).get(pk=pk)
         except ReflectionTemplate.DoesNotExist as exc:

@@ -38,7 +38,7 @@ from bunk_logs.core.reflection_scores import _as_float
 from bunk_logs.core.reflection_scores import iter_scored_fields
 from bunk_logs.core.reflection_scores import scale_max
 
-from .common import viewer_or_403
+from .common import admin_only_or_403
 
 if TYPE_CHECKING:
     from datetime import date
@@ -82,7 +82,7 @@ class LeadershipTeamTemplateResponsesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, template_id: int, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         try:
             template = ReflectionTemplate.all_objects.get(pk=template_id)
         except ReflectionTemplate.DoesNotExist as exc:

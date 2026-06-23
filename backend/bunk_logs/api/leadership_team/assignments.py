@@ -159,23 +159,54 @@ def _targets_equal(a: dict, b: dict) -> bool:
     return (a.get("role") == b.get("role")) and (a.get("tag") == b.get("tag"))
 
 
+def _template_family_ids(template: ReflectionTemplate) -> list[int]:
+    """All ReflectionTemplate PKs in the same version family as ``template``.
+
+    A template's version family is every row sharing its
+    ``(organization, slug)`` -- which is exactly the model's
+    ``unique_together = (organization, slug, version)`` key with the version
+    dropped. All three ways a new version is born land in the same family:
+
+    * LT-builder / admin edit that bumps version (``parent_template`` set), and
+    * ``clone`` (same slug, new version, ``parent_template`` deliberately
+      NOT linked back to the source).
+
+    We use slug rather than walking the ``parent_template`` chain precisely
+    because clones break that chain on purpose; slug is the durable family
+    identifier. Global templates (``organization IS NULL``) can't be assigned
+    by an LT (the POST handler rejects them), so the org-scoped match is
+    sufficient here.
+    """
+    if template.organization_id is None:
+        return [template.pk]
+    return sorted(
+        ReflectionTemplate.all_objects.filter(
+            organization_id=template.organization_id,
+            slug=template.slug,
+        ).values_list("pk", flat=True),
+    )
+
+
 def _find_conflicts(
     *, organization, template: ReflectionTemplate, target_type: str,
     target_payload: dict, start: date, end: date | None,
     assignment_group_id: int | None = None,
 ):
-    """Return queryset of overlapping assignments on (template, target).
+    """Return queryset of overlapping assignments on (template family, target).
 
-    Two assignments conflict iff they share template + target_type +
-    target identifiers (role, tag, or assignment_group) AND their date
-    windows overlap. Individuals targets are treated as never-overlapping
-    (they're explicit per-membership picks).
+    Two assignments conflict iff they share the same template *version
+    family* + target_type + target identifiers (role, tag, or
+    assignment_group) AND their date windows overlap. Matching the whole
+    version family (not the exact template row) is what stops a v2 assignment
+    from silently coexisting with a live v1 on the same audience. Individuals
+    targets are treated as never-overlapping (they're explicit per-membership
+    picks).
     """
     if target_type == "individuals":
         return TemplateAssignment.all_objects.none()
     qs = TemplateAssignment.all_objects.filter(
         organization=organization,
-        template=template,
+        template_id__in=_template_family_ids(template),
         target_type=target_type,
         status__in=[
             TemplateAssignment.Status.SCHEDULED,

@@ -3,7 +3,7 @@
 Covers:
 - Model persistence for new fields
 - resolve_members for all target types (including regression on existing ones)
-- API: POST/PATCH/GET with new fields, permission checks (LT, Admin, UH → 403)
+- API: POST/PATCH/GET with new fields, permission checks (Admin only; LT + UH → 403)
 - Conflict detection for assignment_group target type
 """
 
@@ -279,10 +279,10 @@ def test_resolve_members_role_regression(
 
 
 @pytest.mark.django_db
-def test_post_assignment_group_as_lt(
+def test_post_assignment_group_as_lt_is_403(
     org, program, lt_membership, lt_user, bunk, published_template,
 ):
-    """LT user can POST an assignment_group assignment → 201."""
+    """LT user can no longer POST assignments — builder is admin-only → 403."""
     c = _client(lt_user, org)
     with organization_context(org):
         resp = c.post(
@@ -299,18 +299,12 @@ def test_post_assignment_group_as_lt(
             },
             format="json",
         )
-    assert resp.status_code == 201, resp.data
-    body = resp.json()
-    assert body["target_type"] == "assignment_group"
-    assert body["assignment_group"] == bunk.id
-    assert body["is_required"] is False
-    assert body["title"] == "Daily Bunk Log"
-    assert body["display_title"] == "Daily Bunk Log"
+    assert resp.status_code == 403, resp.data
 
 
 @pytest.mark.django_db
 def test_post_assignment_group_cohort_other_program(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, admin_membership, admin_user, published_template,
 ):
     """Any group type in another program than the viewer's membership still works."""
     other_program = Program.all_objects.create(
@@ -328,7 +322,7 @@ def test_post_assignment_group_cohort_other_program(
         slug="counselors",
         group_type="cohort",
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -391,10 +385,10 @@ def test_post_assignment_group_as_uh_is_403(
 
 @pytest.mark.django_db
 def test_post_assignment_group_without_group_id_is_400(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, admin_membership, admin_user, published_template,
 ):
     """target_type='assignment_group' without assignment_group → 400."""
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -411,10 +405,10 @@ def test_post_assignment_group_without_group_id_is_400(
 
 @pytest.mark.django_db
 def test_post_assignment_group_with_role_target_type_is_400(
-    org, program, lt_membership, lt_user, bunk, published_template,
+    org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """Supplying assignment_group when target_type='role' → 400."""
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -432,7 +426,7 @@ def test_post_assignment_group_with_role_target_type_is_400(
 
 @pytest.mark.django_db
 def test_patch_title_and_is_required(
-    org, program, lt_membership, lt_user, bunk, published_template,
+    org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """PATCH title and is_required on an assignment with no responses → 200."""
     assignment = TemplateAssignment.all_objects.create(
@@ -441,9 +435,9 @@ def test_patch_title_and_is_required(
         assignment_group=bunk,
         is_required=True,
         title="",
-        start_date=date(2026, 6, 1), created_by=lt_membership,
+        start_date=date(2026, 6, 1), created_by=admin_membership,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.patch(
             f"/api/v1/leadership-team/assignments/{assignment.id}/",
@@ -458,20 +452,20 @@ def test_patch_title_and_is_required(
 
 @pytest.mark.django_db
 def test_patch_assignment_group_is_400(
-    org, program, lt_membership, lt_user, bunk, published_template,
+    org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """PATCH assignment_group is immutable post-creation → 400."""
     assignment = TemplateAssignment.all_objects.create(
         organization=org, program=program, template=published_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), created_by=lt_membership,
+        start_date=date(2026, 6, 1), created_by=admin_membership,
     )
     other_bunk = AssignmentGroup.all_objects.create(
         organization=org, program=program,
         name="Bunk B", slug="bunk-b", group_type="bunk",
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.patch(
             f"/api/v1/leadership-team/assignments/{assignment.id}/",
@@ -483,16 +477,16 @@ def test_patch_assignment_group_is_400(
 
 @pytest.mark.django_db
 def test_get_list_includes_new_fields(
-    org, program, lt_membership, lt_user, bunk, published_template,
+    org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """GET list response includes assignment_group, is_required, title, display_title."""
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=published_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk, is_required=False, title="My Title",
-        start_date=date(2026, 6, 1), created_by=lt_membership,
+        start_date=date(2026, 6, 1), created_by=admin_membership,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.get("/api/v1/leadership-team/assignments/")
     assert resp.status_code == 200
@@ -516,16 +510,16 @@ def test_get_list_includes_new_fields(
 
 @pytest.mark.django_db
 def test_display_title_falls_back_to_template_name(
-    org, program, lt_membership, lt_user, bunk, published_template,
+    org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """display_title falls back to template.name when title is blank."""
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=published_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk, is_required=True, title="",
-        start_date=date(2026, 6, 1), created_by=lt_membership,
+        start_date=date(2026, 6, 1), created_by=admin_membership,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.get("/api/v1/leadership-team/assignments/")
     a = resp.json()["assignments"][0]
@@ -534,7 +528,7 @@ def test_display_title_falls_back_to_template_name(
 
 @pytest.mark.django_db
 def test_conflict_detection_assignment_group(
-    org, program, lt_membership, lt_user, bunk, published_template,
+    org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """Two overlapping assignment_group assignments on the same bunk → 409."""
     TemplateAssignment.all_objects.create(
@@ -543,9 +537,9 @@ def test_conflict_detection_assignment_group(
         assignment_group=bunk,
         start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
         status=TemplateAssignment.Status.SCHEDULED,
-        created_by=lt_membership,
+        created_by=admin_membership,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -606,7 +600,7 @@ def scored_camper_template(org):
 
 @pytest.mark.django_db
 def test_second_different_scored_camper_form_same_bunk_is_400(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """A second *different* scored camper template on the same bunk → 400.
 
@@ -645,7 +639,7 @@ def test_second_different_scored_camper_form_same_bunk_is_400(
         is_active=True,
         version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -664,7 +658,7 @@ def test_second_different_scored_camper_form_same_bunk_is_400(
 
 @pytest.mark.django_db
 def test_scored_form_with_non_camper_subject_is_allowed(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """A scored form whose subject is NOT camper does not trigger the guard → 201."""
     TemplateAssignment.all_objects.create(
@@ -700,7 +694,7 @@ def test_scored_form_with_non_camper_subject_is_allowed(
         is_active=True,
         version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -719,7 +713,7 @@ def test_scored_form_with_non_camper_subject_is_allowed(
 
 @pytest.mark.django_db
 def test_second_camper_form_without_rating_fields_is_allowed(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """A second camper form with no rating fields doesn't collide on the grid → 201."""
     TemplateAssignment.all_objects.create(
@@ -746,7 +740,7 @@ def test_second_camper_form_without_rating_fields_is_allowed(
         is_active=True,
         version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -765,7 +759,7 @@ def test_second_camper_form_without_rating_fields_is_allowed(
 
 @pytest.mark.django_db
 def test_non_overlapping_windows_not_blocked(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """Two different scored camper forms on the same bunk with non-overlapping
     date windows are allowed — they never co-drive the grid on the same day.
@@ -802,7 +796,7 @@ def test_non_overlapping_windows_not_blocked(
         is_active=True,
         version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -821,7 +815,7 @@ def test_non_overlapping_windows_not_blocked(
 
 @pytest.mark.django_db
 def test_same_template_reuse_goes_through_conflict_resolution(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """A second assignment of the *same* scored camper template should not hit
     the new guard — same template means identical grid columns, so it falls
@@ -835,7 +829,7 @@ def test_same_template_reuse_goes_through_conflict_resolution(
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -854,7 +848,7 @@ def test_same_template_reuse_goes_through_conflict_resolution(
 
 @pytest.mark.django_db
 def test_scored_camper_form_on_different_bunk_is_allowed(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """The guard is per assignment group: a scored camper form on a different
     bunk is not affected by an existing one on this bunk → 201.
@@ -895,7 +889,7 @@ def test_scored_camper_form_on_different_bunk_is_allowed(
         is_active=True,
         version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -914,7 +908,7 @@ def test_scored_camper_form_on_different_bunk_is_allowed(
 
 @pytest.mark.django_db
 def test_ended_scored_camper_assignment_does_not_block(
-    org, program, lt_membership, lt_user, bunk, scored_camper_template,
+    org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """An ENDED scored camper assignment does not trigger the guard even when
     the date windows overlap — only SCHEDULED and ACTIVE assignments count.
@@ -951,7 +945,7 @@ def test_ended_scored_camper_assignment_does_not_block(
         is_active=True,
         version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
             "/api/v1/leadership-team/assignments/",
@@ -966,3 +960,279 @@ def test_ended_scored_camper_assignment_does_not_block(
             format="json",
         )
     assert resp.status_code == 201, resp.data
+
+
+# ---------------------------------------------------------------------------
+# Template-version-family conflict detection
+#
+# Two versions of the same template (parent_template chain) target the same
+# audience. Assigning v2 over a live v1 must trip the conflict_resolution flow
+# (409) instead of silently double-assigning -- otherwise half a role/group
+# fills out v1 and half fills out v2. Genuinely different templates must still
+# be allowed to coexist (product decision: weekly 3-2-1 + monthly check-in OK).
+# ---------------------------------------------------------------------------
+
+
+def _make_template_version(org, *, slug, version, parent=None, role="counselor"):
+    """Helper: a published template row in a parent_template version chain."""
+    return ReflectionTemplate.all_objects.create(
+        organization=org,
+        name=f"Kitchen Daily v{version}",
+        slug=slug,
+        cadence="daily",
+        role=role,
+        schema={"fields": [{"key": "x", "type": "textarea", "prompts": {"en": "x?"}}]},
+        languages=["en"],
+        subject_mode="self",
+        author_role_filter=[role],
+        status=ReflectionTemplate.Status.PUBLISHED,
+        is_active=True,
+        version=version,
+        parent_template=parent,
+    )
+
+
+@pytest.mark.django_db
+def test_v2_over_live_v1_role_conflicts(org, program, lt_membership, admin_membership, admin_user):
+    """Assigning template v2 to a role that already has a live v1 → 409."""
+    v1 = _make_template_version(org, slug="kitchen-daily", version=1)
+    v2 = _make_template_version(org, slug="kitchen-daily", version=2, parent=v1)
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=v1,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "counselor"},
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": v2.id,
+                "target_type": "role",
+                "target_payload": {"role": "counselor"},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 409, resp.data
+    body = resp.json()
+    assert body["conflicts"]
+    # The conflict surfaces the already-live version so the LT can tell which
+    # form is in play before choosing replace / run_both / cancel.
+    assert body["conflicts"][0]["template"] == v1.id
+
+
+@pytest.mark.django_db
+def test_v1_under_live_v2_role_conflicts(org, program, lt_membership, admin_membership, admin_user):
+    """Order-independence: assigning the older v1 while v2 is live also → 409."""
+    v1 = _make_template_version(org, slug="kitchen-daily", version=1)
+    v2 = _make_template_version(org, slug="kitchen-daily", version=2, parent=v1)
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=v2,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "counselor"},
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": v1.id,
+                "target_type": "role",
+                "target_payload": {"role": "counselor"},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 409, resp.data
+
+
+@pytest.mark.django_db
+def test_v2_over_v1_assignment_group_conflicts(
+    org, program, lt_membership, admin_membership, admin_user, bunk,
+):
+    """Version-family conflict also applies to assignment_group targets → 409."""
+    v1 = _make_template_version(org, slug="bunk-daily", version=1)
+    v2 = _make_template_version(org, slug="bunk-daily", version=2, parent=v1)
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=v1,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": v2.id,
+                "target_type": "assignment_group",
+                "assignment_group": bunk.id,
+                "target_payload": {},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 409, resp.data
+
+
+@pytest.mark.django_db
+def test_v2_over_v1_replace_ends_prior_version(
+    org, program, lt_membership, admin_membership, admin_user,
+):
+    """conflict_resolution='replace' ends the live v1 and links replaces."""
+    v1 = _make_template_version(org, slug="kitchen-daily", version=1)
+    v2 = _make_template_version(org, slug="kitchen-daily", version=2, parent=v1)
+    a1 = TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=v1,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "counselor"},
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": v2.id,
+                "target_type": "role",
+                "target_payload": {"role": "counselor"},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+                "conflict_resolution": "replace",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+    a1.refresh_from_db()
+    assert a1.status == TemplateAssignment.Status.ENDED
+    assert a1.end_date == date(2026, 6, 30)
+    new_assignment = TemplateAssignment.all_objects.get(pk=resp.json()["id"])
+    assert new_assignment.replaces_id == a1.id
+
+
+@pytest.mark.django_db
+def test_different_templates_same_role_still_coexist(
+    org, program, lt_membership, admin_membership, admin_user,
+):
+    """Two UNRELATED templates on the same role with overlapping dates → 201.
+
+    Product decision: a weekly 3-2-1 and a separate monthly check-in for the
+    same role at the same time is legitimate. Only same-version-family
+    overlaps are blocked.
+    """
+    weekly = _make_template_version(org, slug="weekly-321", version=1)
+    monthly = ReflectionTemplate.all_objects.create(
+        organization=org, name="Monthly Check-in", slug="monthly-checkin",
+        cadence="monthly", role="counselor",
+        schema={"fields": [{"key": "y", "type": "textarea", "prompts": {"en": "y?"}}]},
+        languages=["en"], subject_mode="self", author_role_filter=["counselor"],
+        status=ReflectionTemplate.Status.PUBLISHED, is_active=True, version=1,
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=weekly,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "counselor"},
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": monthly.id,
+                "target_type": "role",
+                "target_payload": {"role": "counselor"},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+
+
+@pytest.mark.django_db
+def test_version_family_conflict_respects_different_role(
+    org, program, lt_membership, admin_membership, admin_user,
+):
+    """v2 on a DIFFERENT role than the live v1 does not conflict → 201."""
+    v1 = _make_template_version(org, slug="kitchen-daily", version=1)
+    v2 = _make_template_version(org, slug="kitchen-daily", version=2, parent=v1)
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=v1,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "counselor"},
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": v2.id,
+                "target_type": "role",
+                "target_payload": {"role": "specialist"},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 201, resp.data
+
+
+@pytest.mark.django_db
+def test_clone_unchained_version_still_conflicts(
+    org, program, lt_membership, admin_membership, admin_user,
+):
+    """A clone shares slug + bumps version but sets parent_template=None.
+
+    The family is keyed on (organization, slug), not the parent_template
+    chain, so a clone assigned over its live source must STILL conflict (409)
+    even though no parent link connects them. This is the case a chain-walk
+    would have missed.
+    """
+    source = _make_template_version(org, slug="kitchen-daily", version=1)
+    # Simulate a clone: same slug, next version, NO parent_template link.
+    clone = _make_template_version(
+        org, slug="kitchen-daily", version=2, parent=None,
+    )
+    assert clone.parent_template_id is None
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=source,
+        target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "counselor"},
+        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=lt_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/assignments/",
+            data={
+                "template": clone.id,
+                "target_type": "role",
+                "target_payload": {"role": "counselor"},
+                "start_date": "2026-07-01",
+                "end_date": "2026-08-31",
+            },
+            format="json",
+        )
+    assert resp.status_code == 409, resp.data
