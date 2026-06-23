@@ -33,6 +33,7 @@ from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.reflection_scores import _as_float
 from bunk_logs.core.reflection_scores import iter_scored_fields
 
+from .common import admin_only_or_403
 from .common import supervised_roles
 from .common import viewer_or_403
 
@@ -128,7 +129,7 @@ class LeadershipTeamTemplateResponsesExportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, template_id: int, *args, **kwargs):
-        ctx = viewer_or_403(request)
+        ctx = admin_only_or_403(request)
         try:
             template = ReflectionTemplate.all_objects.get(pk=template_id)
         except ReflectionTemplate.DoesNotExist as exc:

@@ -44,6 +44,7 @@ if TYPE_CHECKING:
 __all__ = [
     "LT_SELF_TEMPLATE_SLUG",
     "ViewerContext",
+    "admin_only_or_403",
     "assignment_viewer_or_403",
     "leadership_team_self_template",
     "resolve_period",
@@ -69,11 +70,14 @@ class ViewerContext:
     today: date
 
 
-def assignment_viewer_or_403(request) -> ViewerContext:
-    """Like ``viewer_or_403`` but also accepts ``admin`` capability (decision FA7).
+def admin_only_or_403(request) -> ViewerContext:
+    """Resolve viewer context, requiring an active ``admin`` Membership.
 
-    Used exclusively by the assignments endpoints so the wider gate doesn't
-    silently apply to other LT surfaces.
+    Gate for the template-builder + assignment surfaces. Per the
+    consolidation decision, only org admins create and manage templates
+    and assignments; Leadership Team members no longer have write access
+    to that surface (they keep their own dashboards, team views, and
+    self-reflection, which continue to use ``viewer_or_403``).
     """
     org = getattr(request, "organization", None)
     if org is None:
@@ -89,7 +93,7 @@ def assignment_viewer_or_403(request) -> ViewerContext:
     membership = (
         Membership.objects.filter(
             person=person,
-            capability__in=["program_lead", "admin"],
+            capability="admin",
             is_active=True,
         )
         .select_related("program", "program__organization")
@@ -97,7 +101,7 @@ def assignment_viewer_or_403(request) -> ViewerContext:
         .first()
     )
     if membership is None:
-        msg = "Leadership Team or Admin role required."
+        msg = "Admin role required."
         raise PermissionDenied(msg)
     return ViewerContext(
         person=person,
@@ -106,6 +110,17 @@ def assignment_viewer_or_403(request) -> ViewerContext:
         program=membership.program,
         today=get_today(org),
     )
+
+
+def assignment_viewer_or_403(request) -> ViewerContext:
+    """Admin-only gate for the assignments surface.
+
+    Previously accepted ``program_lead`` (Leadership Team) as well, but the
+    builder surface is now admin-only (consolidation decision). Retained as a
+    thin alias of :func:`admin_only_or_403` so existing import sites keep
+    working.
+    """
+    return admin_only_or_403(request)
 
 
 def viewer_or_403(request) -> ViewerContext:

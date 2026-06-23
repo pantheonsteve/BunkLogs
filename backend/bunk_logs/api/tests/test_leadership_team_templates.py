@@ -55,7 +55,26 @@ def program(org):
 
 
 @pytest.fixture
+def builder_user():
+    """The user who manages templates/assignments. Admin capability (the
+    builder surface is admin-only after the consolidation)."""
+    return User.objects.create_user(email="builder@lt.test", password="pw")
+
+
+@pytest.fixture
+def builder_membership(program, org, builder_user):
+    person = Person.all_objects.create(
+        organization=org, first_name="Site", last_name="Admin", user=builder_user,
+    )
+    return Membership.all_objects.create(
+        program=program, person=person, role="admin", is_active=True,
+    )
+
+
+@pytest.fixture
 def lt_user():
+    """A genuine Leadership Team user. After the consolidation LT no longer
+    has builder access, so this fixture is used to assert 403s."""
     return User.objects.create_user(email="ltb@lt.test", password="pw")
 
 
@@ -95,9 +114,9 @@ def test_template_list_requires_lt_membership(org, program):
 
 
 @pytest.mark.django_db
-def test_template_create_draft_then_publish(org, lt_membership, lt_user):
+def test_template_create_draft_then_publish(org, builder_membership, builder_user):
     """Create -> default status=draft. Publish -> status=published + is_active."""
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     payload = {
         "name": "Kitchen Daily Pulse",
         "slug": f"kitchen-daily-{date.today().isoformat()}",
@@ -147,9 +166,9 @@ def test_template_create_draft_then_publish(org, lt_membership, lt_user):
 
 
 @pytest.mark.django_db
-def test_template_publish_missing_prompt_returns_409(org, lt_membership, lt_user):
+def test_template_publish_missing_prompt_returns_409(org, builder_membership, builder_user):
     """Publish must reject schemas missing required-language prompts."""
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     payload = {
         "name": "Bad Template",
         "slug": "bad-template",
@@ -187,7 +206,7 @@ def test_template_publish_missing_prompt_returns_409(org, lt_membership, lt_user
 
 @pytest.mark.django_db
 def test_template_patch_with_responses_creates_new_version(
-    org, program, lt_membership, lt_user,
+    org, program, builder_membership, builder_user,
 ):
     """PATCH on a template that has Reflection rows bumps version + 1 (draft)."""
     tpl = ReflectionTemplate.all_objects.create(
@@ -205,7 +224,7 @@ def test_template_patch_with_responses_creates_new_version(
         period_start=date.today(), period_end=date.today(),
         answers={"x": "y"}, is_complete=True,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.patch(
             f"/api/v1/leadership-team/templates/{tpl.id}/",
@@ -219,7 +238,7 @@ def test_template_patch_with_responses_creates_new_version(
 
 
 @pytest.mark.django_db
-def test_template_clone_creates_new_draft(org, lt_membership, lt_user):
+def test_template_clone_creates_new_draft(org, builder_membership, builder_user):
     """Clone produces a new draft owned by viewer's org, version bump only."""
     global_tpl = ReflectionTemplate.all_objects.create(
         organization=None, name="Global", slug="global-tpl",
@@ -228,7 +247,7 @@ def test_template_clone_creates_new_draft(org, lt_membership, lt_user):
         languages=["en"], subject_mode="self",
         status=ReflectionTemplate.Status.PUBLISHED, is_active=True, version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.post(
             f"/api/v1/leadership-team/templates/{global_tpl.id}/clone/",
@@ -241,7 +260,7 @@ def test_template_clone_creates_new_draft(org, lt_membership, lt_user):
 
 
 @pytest.mark.django_db
-def test_template_archive_marks_archived(org, lt_membership, lt_user):
+def test_template_archive_marks_archived(org, builder_membership, builder_user):
     """Archive transitions published -> archived (is_active=False)."""
     tpl = ReflectionTemplate.all_objects.create(
         organization=org, name="Archive Me", slug="archive-me",
@@ -250,7 +269,7 @@ def test_template_archive_marks_archived(org, lt_membership, lt_user):
         languages=["en"], subject_mode="self",
         status=ReflectionTemplate.Status.PUBLISHED, is_active=True, version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.post(
             f"/api/v1/leadership-team/templates/{tpl.id}/archive/",
@@ -281,9 +300,9 @@ def published_template(org):
 
 @pytest.mark.django_db
 def test_assignment_create_role_target(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, builder_membership, builder_user, published_template,
 ):
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     today = date.today()
     with organization_context(org):
         resp = c.post(
@@ -305,9 +324,9 @@ def test_assignment_create_role_target(
 
 @pytest.mark.django_db
 def test_assignment_conflict_requires_resolution(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, builder_membership, builder_user, published_template,
 ):
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     today = date.today()
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=published_template,
@@ -316,7 +335,7 @@ def test_assignment_conflict_requires_resolution(
         start_date=today,
         end_date=today + timedelta(days=14),
         status=TemplateAssignment.Status.SCHEDULED,
-        created_by=lt_membership,
+        created_by=builder_membership,
     )
     with organization_context(org):
         resp = c.post(
@@ -338,9 +357,9 @@ def test_assignment_conflict_requires_resolution(
 
 @pytest.mark.django_db
 def test_assignment_conflict_replace_ends_prior(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, builder_membership, builder_user, published_template,
 ):
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     today = date.today()
     prior = TemplateAssignment.all_objects.create(
         organization=org, program=program, template=published_template,
@@ -349,7 +368,7 @@ def test_assignment_conflict_replace_ends_prior(
         start_date=today,
         end_date=today + timedelta(days=14),
         status=TemplateAssignment.Status.SCHEDULED,
-        created_by=lt_membership,
+        created_by=builder_membership,
     )
     new_start = today + timedelta(days=7)
     with organization_context(org):
@@ -378,7 +397,7 @@ def test_assignment_conflict_replace_ends_prior(
 
 @pytest.mark.django_db
 def test_responses_individual_tab(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, builder_membership, builder_user, published_template,
 ):
     person = Person.all_objects.create(
         organization=org, first_name="Author", last_name="One",
@@ -392,7 +411,7 @@ def test_responses_individual_tab(
         period_start=date.today(), period_end=date.today(),
         answers={"x": "value-a"}, is_complete=True,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.get(
             f"/api/v1/leadership-team/templates/{published_template.id}/responses/",
@@ -406,7 +425,7 @@ def test_responses_individual_tab(
 
 @pytest.mark.django_db
 def test_responses_aggregate_tab(
-    org, program, lt_membership, lt_user,
+    org, program, builder_membership, builder_user,
 ):
     tpl = ReflectionTemplate.all_objects.create(
         organization=org, name="Scored", slug="scored-tpl",
@@ -440,7 +459,7 @@ def test_responses_aggregate_tab(
             period_start=date.today(), period_end=date.today(),
             answers={"morale": v}, is_complete=True,
         )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.get(
             f"/api/v1/leadership-team/templates/{tpl.id}/responses/?tab=aggregate",
@@ -470,7 +489,7 @@ def test_responses_aggregate_tab(
 
 @pytest.mark.django_db
 def test_template_responses_export_individual_csv(
-    org, program, lt_membership, lt_user, published_template,
+    org, program, builder_membership, builder_user, published_template,
 ):
     person = Person.all_objects.create(
         organization=org, first_name="Ex", last_name="Porter",
@@ -484,7 +503,7 @@ def test_template_responses_export_individual_csv(
         period_start=date.today(), period_end=date.today(),
         answers={"x": "csv-row"}, is_complete=True,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.get(
             f"/api/v1/leadership-team/templates/{published_template.id}/responses/export/",
@@ -554,15 +573,40 @@ def test_non_lt_non_admin_still_gets_403(org, program):
     assert resp.status_code == 403
 
 
+@pytest.mark.django_db
+def test_lt_can_no_longer_create_templates(org, lt_membership, lt_user):
+    """Consolidation: LT (program_lead) lost builder write access → 403.
+
+    The builder surface is admin-only now; LT keeps dashboards / team views /
+    self-reflection elsewhere but cannot create or edit templates.
+    """
+    c = _client(lt_user, org)
+    payload = {
+        "name": "LT Attempt",
+        "slug": f"lt-attempt-{date.today().isoformat()}",
+        "cadence": "daily",
+        "schema": {
+            "fields": [{"key": "x", "type": "textarea", "prompts": {"en": "x?"}}],
+        },
+        "languages": ["en"],
+        "subject_mode": "self",
+    }
+    with organization_context(org):
+        resp = c.post(
+            "/api/v1/leadership-team/templates/", data=payload, format="json",
+        )
+    assert resp.status_code == 403, resp.data
+
+
 # ---------------------------------------------------------------------------
 # Unpublish endpoint (published → draft, no responses)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-def test_unpublish_published_template_succeeds(org, lt_membership, lt_user, published_template):
+def test_unpublish_published_template_succeeds(org, builder_membership, builder_user, published_template):
     """POST /unpublish/ on a published template with no responses → draft."""
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.post(f"/api/v1/leadership-team/templates/{published_template.id}/unpublish/")
     assert resp.status_code == 200
@@ -572,7 +616,7 @@ def test_unpublish_published_template_succeeds(org, lt_membership, lt_user, publ
 
 
 @pytest.mark.django_db
-def test_unpublish_draft_template_rejected(org, lt_membership, lt_user):
+def test_unpublish_draft_template_rejected(org, builder_membership, builder_user):
     """POST /unpublish/ on a draft returns 400."""
     tpl = ReflectionTemplate.all_objects.create(
         organization=org, name="Still Draft", slug="still-draft-unp",
@@ -581,14 +625,14 @@ def test_unpublish_draft_template_rejected(org, lt_membership, lt_user):
         languages=["en"], subject_mode="self",
         status=ReflectionTemplate.Status.DRAFT, is_active=False, version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.post(f"/api/v1/leadership-team/templates/{tpl.id}/unpublish/")
     assert resp.status_code == 400
 
 
 @pytest.mark.django_db
-def test_unpublish_with_responses_rejected(org, program, lt_membership, lt_user, published_template):
+def test_unpublish_with_responses_rejected(org, program, builder_membership, builder_user, published_template):
     """POST /unpublish/ when responses exist returns 400 — archive instead."""
     person = Person.all_objects.create(organization=org, first_name="A", last_name="B")
     Reflection.all_objects.create(
@@ -597,7 +641,7 @@ def test_unpublish_with_responses_rejected(org, program, lt_membership, lt_user,
         period_start=date.today(), period_end=date.today(),
         answers={"x": "hi"}, is_complete=True,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.post(f"/api/v1/leadership-team/templates/{published_template.id}/unpublish/")
     assert resp.status_code == 400
@@ -610,7 +654,7 @@ def test_unpublish_with_responses_rejected(org, program, lt_membership, lt_user,
 
 
 @pytest.mark.django_db
-def test_delete_draft_template_succeeds(org, lt_membership, lt_user):
+def test_delete_draft_template_succeeds(org, builder_membership, builder_user):
     """DELETE on a draft with no responses returns 204 and removes the row."""
     tpl = ReflectionTemplate.all_objects.create(
         organization=org, name="To Be Deleted", slug="to-be-deleted",
@@ -619,7 +663,7 @@ def test_delete_draft_template_succeeds(org, lt_membership, lt_user):
         languages=["en"], subject_mode="self",
         status=ReflectionTemplate.Status.DRAFT, is_active=False, version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
     assert resp.status_code == 204
@@ -628,10 +672,10 @@ def test_delete_draft_template_succeeds(org, lt_membership, lt_user):
 
 @pytest.mark.django_db
 def test_delete_published_template_succeeds_when_no_responses(
-    org, lt_membership, lt_user, published_template,
+    org, builder_membership, builder_user, published_template,
 ):
     """DELETE on a published template with no responses permanently removes it."""
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.delete(f"/api/v1/leadership-team/templates/{published_template.id}/")
     assert resp.status_code == 204
@@ -639,7 +683,7 @@ def test_delete_published_template_succeeds_when_no_responses(
 
 
 @pytest.mark.django_db
-def test_delete_archived_template_succeeds_when_no_responses(org, lt_membership, lt_user):
+def test_delete_archived_template_succeeds_when_no_responses(org, builder_membership, builder_user):
     """DELETE on an archived template with no responses permanently removes it."""
     tpl = ReflectionTemplate.all_objects.create(
         organization=org, name="Archived Empty", slug="archived-empty",
@@ -648,7 +692,7 @@ def test_delete_archived_template_succeeds_when_no_responses(org, lt_membership,
         languages=["en"], subject_mode="self",
         status=ReflectionTemplate.Status.ARCHIVED, is_active=False, version=1,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
     assert resp.status_code == 204
@@ -656,7 +700,7 @@ def test_delete_archived_template_succeeds_when_no_responses(org, lt_membership,
 
 
 @pytest.mark.django_db
-def test_delete_draft_with_responses_rejected(org, program, lt_membership, lt_user):
+def test_delete_draft_with_responses_rejected(org, program, builder_membership, builder_user):
     """DELETE on a draft that already has responses returns 400."""
     tpl = ReflectionTemplate.all_objects.create(
         organization=org, name="Has Responses", slug="has-responses-del",
@@ -672,7 +716,7 @@ def test_delete_draft_with_responses_rejected(org, program, lt_membership, lt_us
         period_start=date.today(), period_end=date.today(),
         answers={"x": "hi"}, is_complete=True,
     )
-    c = _client(lt_user, org)
+    c = _client(builder_user, org)
     with organization_context(org):
         resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
     assert resp.status_code == 400
