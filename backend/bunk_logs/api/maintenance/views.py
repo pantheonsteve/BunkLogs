@@ -396,7 +396,10 @@ def _activity_event_payload(event: OrderActivityEvent) -> dict:
         "note": event.note,
         "reason": event.reason,
         "visibility": visibility,
-        "actor_name": actor_person.full_name if actor_person else None,
+        "actor_name": (
+            actor_person.full_name if actor_person
+            else (event.metadata or {}).get("sender_email")
+        ),
         "actor_membership_id": str(event.actor_membership_id) if event.actor_membership_id else None,
         "is_within_edit_window": is_editable,
         "correction_of": str(event.correction_of_id) if event.correction_of_id else None,

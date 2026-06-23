@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import uuid
 from datetime import date
 
@@ -140,14 +141,62 @@ def test_unknown_ticket_404(api_client):
 
 
 @override_settings(ANYMAIL={"MAILGUN_API_KEY": API_KEY})
-def test_unauthorized_sender_rejected(api_client, open_ticket):
+def test_unauthorized_sender_still_creates_note(api_client, open_ticket):
     resp = _post_payload(
         api_client,
         recipient=f"ticket+{open_ticket.id}@reply.mail.test",
-        body="intruder",
+        body="contractor update",
         sender="stranger@evil.test",
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 200
+    note = OrderActivityEvent.all_objects.filter(content_id=open_ticket.id).first()
+    assert note is not None
+    assert note.note == "contractor update"
+    assert note.metadata.get("sender_email") == "stranger@evil.test"
+
+
+@override_settings(ANYMAIL={"MAILGUN_API_KEY": API_KEY})
+def test_angle_bracket_recipient_parsed(api_client, open_ticket):
+    recipient = f'"BunkLogs Ticket" <ticket+{open_ticket.id}@reply.mail.test>'
+    resp = _post_payload(
+        api_client,
+        recipient=recipient,
+        body="Bracket recipient works.",
+        sender="facilities@camp.test",
+    )
+    assert resp.status_code == 200
+    assert OrderActivityEvent.all_objects.filter(content_id=open_ticket.id).exists()
+
+
+@override_settings(ANYMAIL={"MAILGUN_API_KEY": API_KEY})
+def test_message_headers_recipient_parsed(api_client, open_ticket):
+    headers = json.dumps([
+        ["To", f"ticket+{open_ticket.id}@reply.mail.test"],
+        ["From", "facilities@camp.test"],
+    ])
+    resp = _post_payload(
+        api_client,
+        recipient="facilities@camp.test",
+        body="Header recipient works.",
+        sender="facilities@camp.test",
+        **{"message-headers": headers},
+    )
+    assert resp.status_code == 200
+    assert OrderActivityEvent.all_objects.filter(content_id=open_ticket.id).exists()
+
+
+@override_settings(ANYMAIL={"MAILGUN_API_KEY": API_KEY})
+def test_stripped_html_body_parsed(api_client, open_ticket):
+    resp = _post_payload(
+        api_client,
+        recipient=f"ticket+{open_ticket.id}@reply.mail.test",
+        body="",
+        sender="facilities@camp.test",
+        **{"stripped-html": "<p>HTML reply body</p>"},
+    )
+    assert resp.status_code == 200
+    note = OrderActivityEvent.all_objects.filter(content_id=open_ticket.id).first()
+    assert note.note == "HTML reply body"
 
 
 @override_settings(ANYMAIL={"MAILGUN_API_KEY": API_KEY})
