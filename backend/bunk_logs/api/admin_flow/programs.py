@@ -25,14 +25,20 @@ Key invariants:
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
 from django.db import transaction
 from django.utils.dateparse import parse_date
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from bunk_logs.api.maintenance.notifications import send_maintenance_notifications_test_email
+from bunk_logs.api.maintenance.settings import normalize_recipients
+from bunk_logs.api.maintenance.settings import validate_maintenance_settings_patch
 
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import AuditEvent
@@ -45,6 +51,8 @@ from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.state_machine import OrderStateMachine
 
 from .common import viewer_or_403
+
+logger = logging.getLogger(__name__)
 
 PROGRAM_PATCH_FIELDS = (
     "name",
@@ -363,6 +371,22 @@ class AdminSettingsView(APIView):
             if key in data:
                 new_settings[key] = data[key]
 
+        maintenance_keys = {
+            k for k in new_settings
+            if k in (
+                "maintenance_notification_recipients",
+                "maintenance_digest_time",
+            )
+        }
+        if maintenance_keys:
+            try:
+                validated = validate_maintenance_settings_patch(
+                    {k: new_settings[k] for k in maintenance_keys},
+                )
+            except ValidationError:
+                raise
+            new_settings.update(validated)
+
         if new_settings == before:
             return Response({"settings": before})
         org.settings = new_settings
@@ -380,3 +404,42 @@ class AdminSettingsView(APIView):
             after_state={"settings": new_settings},
         )
         return Response({"settings": new_settings})
+
+
+class AdminMaintenanceNotificationsTestView(APIView):
+    """``POST /api/v1/admin/settings/test-notifications/`` — send a test email."""
+
+    permission_classes = [IsOrgAdminOrSuperuser]
+
+    def post(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        data = request.data or {}
+        email = (data.get("email") or "").strip().lower()
+        if not email:
+            person = getattr(ctx, "person", None)
+            email = (getattr(person, "email", None) or "").strip().lower()
+        if not email:
+            return Response(
+                {"detail": "Email is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            normalize_recipients([
+                {"email": email, "instant": True, "digest": False},
+            ])
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = send_maintenance_notifications_test_email(email)
+        except Exception:
+            logger.exception(
+                "maintenance notifications test email failed for org %s",
+                ctx.organization.slug,
+            )
+            return Response(
+                {"detail": "Failed to send test email. Check server logs."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(result)

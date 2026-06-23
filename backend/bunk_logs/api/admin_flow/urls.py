@@ -26,6 +26,7 @@ from .people_dedupe import AdminPeopleDedupeApplyView
 from .people_dedupe import AdminPeopleDedupePreviewView
 from .people_delete import AdminPersonDeleteApplyView
 from .people_delete import AdminPersonDeletePreviewView
+from .programs import AdminMaintenanceNotificationsTestView
 from .programs import AdminProgramDetailView
 from .programs import AdminProgramEndView
 from .programs import AdminProgramsListCreateView
@@ -119,6 +120,11 @@ urlpatterns = [
         name="admin-program-end",
     ),
     path("settings/", AdminSettingsView.as_view(), name="admin-settings"),
+    path(
+        "settings/test-notifications/",
+        AdminMaintenanceNotificationsTestView.as_view(),
+        name="admin-settings-test-notifications",
+    ),
     # ------------------------------------------------------------------
     # Global search + Templates oversight + Bulk import (PR3)
     # ------------------------------------------------------------------

@@ -84,7 +84,7 @@ services:
     name: bunklogs-celery
     runtime: python3
     buildCommand: "./build.sh"
-    startCommand: "ddtrace-run celery -A config worker -l info --concurrency=2"
+    startCommand: "ddtrace-run celery -A config worker -B -l info --concurrency=2"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"

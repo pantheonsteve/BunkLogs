@@ -166,3 +166,17 @@ class TestDigestGeneration:
 
         org.refresh_from_db()
         assert org.settings.get("maintenance_digest_consecutive_failures", 0) == 0
+
+    def test_multi_recipient_digest(self, org, program, open_ticket):
+        org.settings = {
+            "maintenance_notification_recipients": [
+                {"email": "a@camp.test", "instant": False, "digest": True},
+                {"email": "b@camp.test", "instant": False, "digest": True},
+            ],
+            "maintenance_digest_time": "06:00",
+        }
+        org.save()
+        send_maintenance_digest(str(org.id), str(program.id))
+        assert len(mail.outbox) == 2
+        recipients = {msg.to[0] for msg in mail.outbox}
+        assert recipients == {"a@camp.test", "b@camp.test"}

@@ -33,6 +33,8 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from bunk_logs.api.maintenance.settings import digest_time as org_digest_time
+from bunk_logs.api.maintenance.settings import get_digest_recipients
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import Organization
@@ -55,11 +57,10 @@ SEND_WINDOW_MINUTES = 59  # task runs every hour; accept if within 59 min of tar
 def dispatch_daily_digests() -> None:
     """Fan-out one digest task per eligible org/program pair."""
     for org in Organization.objects.filter(is_active=True):
-        digest_email = (org.settings or {}).get("maintenance_digest_email")
-        if not digest_email:
+        if not get_digest_recipients(org):
             continue
 
-        target_time_str: str = (org.settings or {}).get("maintenance_digest_time", DEFAULT_DIGEST_TIME)
+        target_time_str = org_digest_time(org)
         if not _is_send_window(org, target_time_str):
             continue
 
@@ -102,8 +103,8 @@ def send_maintenance_digest(self, org_id: str, program_id: str) -> None:
         logger.warning("maintenance digest: org %s / program %s not found", org_id, program_id)
         return
 
-    recipient = (org.settings or {}).get("maintenance_digest_email")
-    if not recipient:
+    recipients = get_digest_recipients(org)
+    if not recipients:
         return
 
     tz = get_org_timezone(org)
@@ -119,20 +120,26 @@ def send_maintenance_digest(self, org_id: str, program_id: str) -> None:
     text_body = render_to_string("maintenance/digest.txt", ctx)
     html_body = render_to_string("maintenance/digest.html", ctx)
 
-    try:
-        msg = EmailMultiAlternatives(subject, text_body, from_email, [recipient])
-        msg.attach_alternative(html_body, "text/html")
-        msg.send()
+    any_sent = False
+    for recipient in recipients:
+        try:
+            msg = EmailMultiAlternatives(subject, text_body, from_email, [recipient])
+            msg.attach_alternative(html_body, "text/html")
+            msg.send()
+            any_sent = True
+            logger.info(
+                "maintenance digest sent to %s for program %s", recipient, program_id,
+            )
+        except Exception:
+            _increment_failure_count(org)
+            logger.exception(
+                "maintenance digest send failure — org %s program %s recipient %s",
+                org_id,
+                program_id,
+                recipient,
+            )
+    if any_sent:
         _reset_failure_count(org)
-        logger.info("maintenance digest sent to %s for program %s", recipient, program_id)
-    except Exception:
-        _increment_failure_count(org)
-        logger.exception(
-            "maintenance digest send failure — org %s program %s recipient %s",
-            org_id,
-            program_id,
-            recipient,
-        )
 
 
 # ---------------------------------------------------------------------------

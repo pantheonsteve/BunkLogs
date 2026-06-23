@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   getAdminSettings,
   patchAdminSettings,
+  testAdminMaintenanceNotifications,
   listAdminPrograms,
   createAdminProgram,
   patchAdminProgram,
@@ -25,8 +27,27 @@ import {
 const TABS = [
   { key: 'identity', label: 'Identity & Localization' },
   { key: 'tags', label: 'Tag vocabulary' },
+  { key: 'notifications', label: 'Notifications' },
   { key: 'programs', label: 'Programs' },
 ];
+
+const EMPTY_RECIPIENT = { email: '', instant: true, digest: false };
+
+function legacyRecipientsFromSettings(settings) {
+  const list = settings?.maintenance_notification_recipients;
+  if (Array.isArray(list) && list.length > 0) {
+    return list.map((r) => ({
+      email: r.email || '',
+      instant: Boolean(r.instant),
+      digest: Boolean(r.digest),
+    }));
+  }
+  const legacy = settings?.maintenance_digest_email;
+  if (legacy) {
+    return [{ email: legacy, instant: false, digest: true }];
+  }
+  return [{ ...EMPTY_RECIPIENT }];
+}
 
 function FieldInput({ label, value, onChange, type = 'text' }) {
   return (
@@ -146,6 +167,204 @@ function TagsTab({ settings, onSaved }) {
         className="px-3 py-1.5 rounded-md text-sm bg-indigo-600 text-white disabled:opacity-60"
       >
         {saving ? 'Saving…' : 'Save tag vocabulary'}
+      </button>
+    </form>
+  );
+}
+
+function NotificationsTab({ settings, onSaved }) {
+  const orgSettings = settings?.settings || settings || {};
+  const [recipients, setRecipients] = useState(() => legacyRecipientsFromSettings(orgSettings));
+  const [digestTime, setDigestTime] = useState(
+    orgSettings.maintenance_digest_time || '06:00',
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [testEmail, setTestEmail] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState('');
+  const [testError, setTestError] = useState('');
+
+  useEffect(() => {
+    const rows = legacyRecipientsFromSettings(orgSettings);
+    setRecipients(rows);
+    setDigestTime(orgSettings.maintenance_digest_time || '06:00');
+    const first = rows.find((r) => r.email.trim())?.email?.trim() || '';
+    setTestEmail(first);
+  }, [settings]);
+
+  const updateRecipient = (index, field, value) => {
+    setRecipients((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+    );
+  };
+
+  const addRecipient = () => {
+    setRecipients((rows) => [...rows, { ...EMPTY_RECIPIENT }]);
+  };
+
+  const removeRecipient = (index) => {
+    setRecipients((rows) => rows.filter((_, i) => i !== index));
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const cleaned = recipients
+      .map((r) => ({
+        email: r.email.trim().toLowerCase(),
+        instant: Boolean(r.instant),
+        digest: Boolean(r.digest),
+      }))
+      .filter((r) => r.email);
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await patchAdminSettings({
+        settings: {
+          maintenance_notification_recipients: cleaned,
+          maintenance_digest_time: digestTime.trim() || '06:00',
+        },
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(
+        err?.response?.data?.maintenance_notification_recipients
+        || err?.response?.data?.maintenance_digest_time
+        || err?.response?.data?.detail
+        || 'Could not save.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setTesting(true);
+    setTestMessage('');
+    setTestError('');
+    try {
+      const result = await testAdminMaintenanceNotifications(testEmail.trim());
+      setTestMessage(result?.detail || 'Test email sent.');
+    } catch (err) {
+      setTestError(err?.response?.data?.detail || 'Test email failed.');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4" data-testid="settings-notifications">
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Configure who receives instant alerts when a counselor submits a maintenance ticket,
+        and who receives the daily digest of open tickets. Times use your org timezone.
+      </p>
+      <div className="overflow-x-auto rounded-md border bg-white dark:bg-gray-900">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs uppercase text-gray-500">
+              <th className="p-2 font-medium">Email</th>
+              <th className="p-2 font-medium">Instant alert</th>
+              <th className="p-2 font-medium">Daily digest</th>
+              <th className="p-2 w-16" />
+            </tr>
+          </thead>
+          <tbody>
+            {recipients.map((row, index) => (
+              <tr key={index} className="border-b last:border-b-0" data-testid={`recipient-row-${index}`}>
+                <td className="p-2">
+                  <input
+                    type="email"
+                    value={row.email}
+                    onChange={(e) => updateRecipient(index, 'email', e.target.value)}
+                    placeholder="facilities@camp.com"
+                    className="w-full rounded-md border border-gray-300 bg-white p-2 text-sm dark:bg-gray-800"
+                  />
+                </td>
+                <td className="p-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={row.instant}
+                    onChange={(e) => updateRecipient(index, 'instant', e.target.checked)}
+                    data-testid={`recipient-instant-${index}`}
+                  />
+                </td>
+                <td className="p-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={row.digest}
+                    onChange={(e) => updateRecipient(index, 'digest', e.target.checked)}
+                    data-testid={`recipient-digest-${index}`}
+                  />
+                </td>
+                <td className="p-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => removeRecipient(index)}
+                    className="text-xs text-red-600 hover:underline"
+                    disabled={recipients.length <= 1}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={addRecipient}
+        data-testid="recipient-add"
+        className="text-sm text-indigo-600 hover:underline"
+      >
+        Add recipient
+      </button>
+      <FieldInput
+        label="Daily digest send time (HH:MM, 24-hour)"
+        value={digestTime}
+        onChange={setDigestTime}
+      />
+      <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-2 dark:border-gray-700 dark:bg-gray-900/40">
+        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+          Test outbound email
+        </p>
+        <p className="text-xs text-gray-500">
+          Sends a test message through the same Mailgun path used for maintenance alerts.
+        </p>
+        <FieldInput
+          label="Send test to"
+          type="email"
+          value={testEmail}
+          onChange={setTestEmail}
+        />
+        {testMessage && (
+          <p className="text-sm text-green-700" data-testid="notifications-test-success">
+            {testMessage}
+          </p>
+        )}
+        {testError && (
+          <p className="text-sm text-red-700" data-testid="notifications-test-error">
+            {testError}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={sendTest}
+          disabled={testing || !testEmail.trim()}
+          data-testid="settings-notifications-test"
+          className="px-3 py-1.5 rounded-md text-sm border border-indigo-300 text-indigo-700 bg-white disabled:opacity-60 dark:bg-gray-900"
+        >
+          {testing ? 'Sending test…' : 'Send test email'}
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-700">{error}</p>}
+      <button
+        type="submit"
+        disabled={saving}
+        data-testid="settings-notifications-save"
+        className="px-3 py-1.5 rounded-md text-sm bg-indigo-600 text-white disabled:opacity-60"
+      >
+        {saving ? 'Saving…' : 'Save notifications'}
       </button>
     </form>
   );
@@ -362,9 +581,13 @@ function EndProgramModal({ program, onClose, onEnded }) {
 }
 
 export default function AdminSettings() {
+  const [searchParams] = useSearchParams();
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState('identity');
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState(
+    TABS.some((t) => t.key === initialTab) ? initialTab : 'identity',
+  );
   const load = useCallback(async () => {
     try {
       const data = await getAdminSettings();
@@ -405,6 +628,12 @@ export default function AdminSettings() {
         <>
           {tab === 'identity' && <IdentityTab settings={settings} onSaved={(s) => setSettings({ ...settings, ...s })} />}
           {tab === 'tags' && <TagsTab settings={settings} onSaved={(s) => setSettings({ ...settings, ...s })} />}
+          {tab === 'notifications' && (
+            <NotificationsTab
+              settings={settings}
+              onSaved={(s) => setSettings({ ...settings, settings: { ...(settings.settings || {}), ...s.settings } })}
+            />
+          )}
           {tab === 'programs' && <ProgramsTab />}
         </>
       )}

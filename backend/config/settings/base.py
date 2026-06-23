@@ -366,6 +366,8 @@ if REDIS_SSL:
 # ------------------------------------------------------------------------------
 # Base URL used in deep-links inside the daily digest email.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="https://clc.bunklogs.net")
+# Inbound subdomain for reply-to-ticket addresses (ticket+{uuid}@domain).
+MAILGUN_INBOUND_DOMAIN = env("MAILGUN_INBOUND_DOMAIN", default="")
 
 # AUTO-TRANSLATION (Step 7_5; see docs/user_stories/00_cross_cutting/i18n.md)
 # ------------------------------------------------------------------------------
