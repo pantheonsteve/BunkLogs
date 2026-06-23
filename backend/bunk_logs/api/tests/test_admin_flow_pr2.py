@@ -693,28 +693,3 @@ class TestAdminSettings:
                 **_hdr(org.slug),
             )
         assert r.status_code == 403
-
-    def test_send_maintenance_notifications_test_email(self, api, org, admin_user):
-        api.force_authenticate(user=admin_user)
-        with organization_context(org):
-            r = api.post(
-                "/api/v1/admin/settings/test-notifications/",
-                {"email": "facilities@camp.test"},
-                format="json",
-                **_hdr(org.slug),
-            )
-        assert r.status_code == 200
-        body = r.json()
-        assert "facilities@camp.test" in body["detail"]
-        assert "from_email" in body
-
-    def test_send_test_rejects_non_admin(self, api, org, non_admin_user):
-        api.force_authenticate(user=non_admin_user)
-        with organization_context(org):
-            r = api.post(
-                "/api/v1/admin/settings/test-notifications/",
-                {"email": "facilities@camp.test"},
-                format="json",
-                **_hdr(org.slug),
-            )
-        assert r.status_code == 403

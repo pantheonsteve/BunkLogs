@@ -39,7 +39,6 @@ from rest_framework.views import APIView
 from bunk_logs.api.maintenance.notifications import send_maintenance_notifications_test_email
 from bunk_logs.api.maintenance.settings import normalize_recipients
 from bunk_logs.api.maintenance.settings import validate_maintenance_settings_patch
-
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
@@ -379,12 +378,9 @@ class AdminSettingsView(APIView):
             )
         }
         if maintenance_keys:
-            try:
-                validated = validate_maintenance_settings_patch(
-                    {k: new_settings[k] for k in maintenance_keys},
-                )
-            except ValidationError:
-                raise
+            validated = validate_maintenance_settings_patch(
+                {k: new_settings[k] for k in maintenance_keys},
+            )
             new_settings.update(validated)
 
         if new_settings == before:

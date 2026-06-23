@@ -30,7 +30,7 @@ def _absolute_image_url(photo: TicketPhoto) -> str | None:
     if not photo.image:
         return None
     url = photo.image.url
-    if url.startswith("http://") or url.startswith("https://"):
+    if url.startswith(("http://", "https://")):
         return url
     site_url = getattr(settings, "SITE_URL", "http://localhost:8000").rstrip("/")
     return urljoin(f"{site_url}/", url.lstrip("/"))

@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from rest_framework.test import APIClient
 
 from bunk_logs.api.maintenance.notifications import send_ticket_created_email
 from bunk_logs.api.maintenance.notifications import ticket_reply_to_address
@@ -139,8 +140,6 @@ def test_reply_to_address(ticket):
 
 
 def test_create_dispatches_celery_task(org, program):
-    from rest_framework.test import APIClient
-
     User = get_user_model()
     user = User.objects.create_user(email="new@camp.test", password="pw")
     person = Person.all_objects.create(
@@ -153,28 +152,28 @@ def test_create_dispatches_celery_task(org, program):
     client.force_authenticate(user=user)
     client.credentials(HTTP_X_ORGANIZATION_SLUG=org.slug)
 
-    with patch(
-        "bunk_logs.api.counselor.maintenance_tickets.send_ticket_created_email.delay",
-    ) as mock_delay:
-        with organization_context(org):
-            resp = client.post(
-                "/api/v1/counselor/maintenance-tickets/",
-                {
-                    "location": "Pool",
-                    "category": "other",
-                    "description": "Gate broken",
-                    "urgency": "normal",
-                    "client_submission_id": str(uuid.uuid4()),
-                },
-                format="json",
-            )
+    with (
+        patch(
+            "bunk_logs.api.counselor.maintenance_tickets.send_ticket_created_email.delay",
+        ) as mock_delay,
+        organization_context(org),
+    ):
+        resp = client.post(
+            "/api/v1/counselor/maintenance-tickets/",
+            {
+                "location": "Pool",
+                "category": "other",
+                "description": "Gate broken",
+                "urgency": "normal",
+                "client_submission_id": str(uuid.uuid4()),
+            },
+            format="json",
+        )
     assert resp.status_code == 201
     mock_delay.assert_called_once()
 
 
 def test_idempotent_replay_skips_email(org, program):
-    from rest_framework.test import APIClient
-
     User = get_user_model()
     user = User.objects.create_user(email="idem@camp.test", password="pw")
     person = Person.all_objects.create(
@@ -194,12 +193,14 @@ def test_idempotent_replay_skips_email(org, program):
         "urgency": "normal",
         "client_submission_id": sub_id,
     }
-    with patch(
-        "bunk_logs.api.counselor.maintenance_tickets.send_ticket_created_email.delay",
-    ) as mock_delay:
-        with organization_context(org):
-            r1 = client.post("/api/v1/counselor/maintenance-tickets/", payload, format="json")
-            r2 = client.post("/api/v1/counselor/maintenance-tickets/", payload, format="json")
+    with (
+        patch(
+            "bunk_logs.api.counselor.maintenance_tickets.send_ticket_created_email.delay",
+        ) as mock_delay,
+        organization_context(org),
+    ):
+        r1 = client.post("/api/v1/counselor/maintenance-tickets/", payload, format="json")
+        r2 = client.post("/api/v1/counselor/maintenance-tickets/", payload, format="json")
     assert r1.status_code == 201
     assert r2.status_code == 200
     mock_delay.assert_called_once()
