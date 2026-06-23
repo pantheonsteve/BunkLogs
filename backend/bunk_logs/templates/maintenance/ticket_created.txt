@@ -1,0 +1,22 @@
+New Maintenance Ticket — {{ ticket.location }}
+
+Location: {{ ticket.location }}
+Category: {{ category_display }}
+Urgency: {{ urgency_display }}
+{% if ticket.urgency == "urgent" and ticket.urgent_reason %}Urgent reason: {{ ticket.urgent_reason }}
+{% endif %}Submitted by: {{ submitter_name }}
+Submitted at: {{ ticket.created_at|date:"N j, Y g:i A T" }}
+
+Description:
+{{ ticket.description }}
+
+{% if embedded_photo_urls %}Photos attached ({{ embedded_photo_urls|length }}{% if extra_photo_count %} + {{ extra_photo_count }} more{% endif %})
+{% for url in embedded_photo_urls %}{{ url }}
+{% endfor %}{% elif extra_photo_count %}Additional photos on the ticket.
+{% endif %}
+View ticket: {{ deep_link }}
+
+Reply to this email to add a note to the ticket.
+
+---
+Sent by BunkLogs for {{ org_name }}

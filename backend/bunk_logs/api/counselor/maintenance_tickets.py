@@ -21,6 +21,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.maintenance.notifications import send_ticket_created_email
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
@@ -133,6 +134,8 @@ class MaintenanceTicketCreateView(APIView):
             after_state=_ticket_after_state(ticket),
             content_type="maintenance_ticket",
         )
+
+        send_ticket_created_email.delay(str(ticket.id))
 
         bunks = viewer_bunk_groups(viewer)
         co_ids = co_counselor_person_ids(viewer, bunks)

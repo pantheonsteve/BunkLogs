@@ -58,6 +58,7 @@ from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
 from .unit_head import dashboard as uh_dashboard
 from .unit_head import self_reflection as uh_self_reflection
+from .webhooks import mailgun_inbound as mailgun_webhook
 
 router = DefaultRouter()
 
@@ -88,6 +89,11 @@ router.register(r"item-categories", views.ItemCategoryViewSet, basename="item-ca
 router.register(r"order-types", views.OrderTypeViewSet, basename="order-type")
 
 urlpatterns = [
+    path(
+        "webhooks/mailgun/inbound/",
+        mailgun_webhook.MailgunInboundWebhookView.as_view(),
+        name="mailgun-inbound-webhook",
+    ),
     # Order/Ticket state machine endpoints (Step 7_2). UUID-typed paths so they
     # do not collide with the legacy ``/api/v1/orders/<int:pk>/`` viewset above.
     path(

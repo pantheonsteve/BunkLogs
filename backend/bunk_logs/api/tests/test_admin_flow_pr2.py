@@ -640,3 +640,56 @@ class TestAdminSettings:
         assert AuditEvent.all_objects.filter(
             content_type="organization_settings", content_id=str(org.id),
         ).exists()
+
+    def test_patch_maintenance_notification_recipients(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.patch(self.URL, {
+                "settings": {
+                    "maintenance_notification_recipients": [
+                        {"email": "Facilities@Camp.test", "instant": True, "digest": True},
+                    ],
+                    "maintenance_digest_time": "7:30",
+                },
+            }, format="json", **_hdr(org.slug))
+        assert r.status_code == 200
+        recipients = r.json()["settings"]["maintenance_notification_recipients"]
+        assert recipients[0]["email"] == "facilities@camp.test"
+        assert r.json()["settings"]["maintenance_digest_time"] == "07:30"
+
+    def test_patch_rejects_invalid_recipient_email(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.patch(self.URL, {
+                "settings": {
+                    "maintenance_notification_recipients": [
+                        {"email": "not-an-email", "instant": True, "digest": False},
+                    ],
+                },
+            }, format="json", **_hdr(org.slug))
+        assert r.status_code == 400
+
+    def test_send_maintenance_notifications_test_email(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.post(
+                "/api/v1/admin/settings/test-notifications/",
+                {"email": "facilities@camp.test"},
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 200
+        body = r.json()
+        assert "facilities@camp.test" in body["detail"]
+        assert "from_email" in body
+
+    def test_send_test_rejects_non_admin(self, api, org, non_admin_user):
+        api.force_authenticate(user=non_admin_user)
+        with organization_context(org):
+            r = api.post(
+                "/api/v1/admin/settings/test-notifications/",
+                {"email": "facilities@camp.test"},
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 403

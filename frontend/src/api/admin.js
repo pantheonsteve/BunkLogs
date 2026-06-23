@@ -180,6 +180,13 @@ export async function patchAdminSettings(patch) {
   return resp?.data ?? null;
 }
 
+export async function testAdminMaintenanceNotifications(email) {
+  const resp = await api.post(`${ADMIN_BASE}/settings/test-notifications/`, {
+    email: email || undefined,
+  });
+  return resp?.data ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // PR3 — Global search, Templates oversight, Bulk import
 // ---------------------------------------------------------------------------
