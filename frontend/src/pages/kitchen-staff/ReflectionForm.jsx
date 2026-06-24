@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import ReflectionField from '../../components/templates/ReflectionField';
+import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
@@ -200,21 +200,21 @@ export default function KitchenStaffReflectionForm() {
           </label>
 
           {/* Reflection fields */}
-          {!isDayOff && fields.map(field => (
-            <div key={field.key} className="mb-6">
-              {/* "(English only)" note when prompt isn't translated for the current language */}
-              {field.prompts && !field.prompts[i18n.language] && i18n.language !== 'en' && (
-                <span className="block text-xs text-gray-400 mb-1">{t('form.languageNote')}</span>
-              )}
-              <ReflectionField
-                field={field}
-                answer={answers[field.key]}
-                onChange={val => handleFieldChange(field.key, val)}
-                error={fieldErrors[field.key]}
-                language={i18n.language}
-              />
-            </div>
-          ))}
+          {!isDayOff && (
+            <ReflectionFieldList
+              fields={fields}
+              answers={answers}
+              errors={fieldErrors}
+              language={i18n.language}
+              onChange={handleFieldChange}
+              fieldClassName="mb-6"
+              renderBefore={(field) =>
+                field.prompts && !field.prompts[i18n.language] && i18n.language !== 'en' ? (
+                  <span className="block text-xs text-gray-400 mb-1">{t('form.languageNote')}</span>
+                ) : null
+              }
+            />
+          )}
 
           {submitError && (
             <p className="text-red-600 dark:text-red-400 text-sm mb-4" data-testid="ks-submit-error">

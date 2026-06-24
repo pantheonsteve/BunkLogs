@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReflectionField from '../../components/templates/ReflectionField';
+import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
@@ -187,23 +188,22 @@ export default function SpecialistSelfReflectionPage() {
         {dayOffField && (
           <ReflectionField
             field={dayOffField}
-            value={answers[dayOffField.key]}
+            answer={answers[dayOffField.key]}
             onChange={(v) => handleAnswer(dayOffField.key, v)}
             error={fieldErrors[dayOffField.key]}
-            disabled={submitting}
+            readonly={submitting}
           />
         )}
 
-        {!isDayOff && nonDayOffFields.map((field) => (
-          <ReflectionField
-            key={field.key}
-            field={field}
-            value={answers[field.key]}
-            onChange={(v) => handleAnswer(field.key, v)}
-            error={fieldErrors[field.key]}
-            disabled={submitting}
+        {!isDayOff && (
+          <ReflectionFieldList
+            fields={nonDayOffFields}
+            answers={answers}
+            errors={fieldErrors}
+            onChange={handleAnswer}
+            readonly={submitting}
           />
-        ))}
+        )}
 
         {submitError && (
           <p role="alert" className="text-sm text-red-700 dark:text-red-300">{submitError}</p>
