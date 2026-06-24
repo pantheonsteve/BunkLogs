@@ -10,10 +10,9 @@ Covers:
 from __future__ import annotations
 
 from datetime import date
-
-import pytest
 from datetime import timedelta
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.utils import timezone
