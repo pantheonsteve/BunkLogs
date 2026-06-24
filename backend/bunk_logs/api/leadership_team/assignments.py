@@ -27,6 +27,7 @@ from typing import Any
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import status as drf_status
 from rest_framework.exceptions import NotFound
@@ -528,6 +529,21 @@ class LeadershipTeamAssignmentDetailView(APIView):
                 msg = "end_date must be on or after start_date."
                 raise ValidationError(msg)
             assignment.end_date = new_end
+            # "End today" (and the unassign flow) set end_date to today or
+            # earlier. The status field is authoritative for the LT UI badges
+            # and per-status actions, so flip an active/scheduled assignment to
+            # ENDED — mirroring the conflict-replace path — instead of leaving
+            # it 'active' (which makes the row reappear unchanged). A future
+            # end_date is a scheduled wind-down and leaves status untouched.
+            if (
+                new_end is not None
+                and new_end <= timezone.localdate()
+                and assignment.status in (
+                    TemplateAssignment.Status.ACTIVE,
+                    TemplateAssignment.Status.SCHEDULED,
+                )
+            ):
+                assignment.status = TemplateAssignment.Status.ENDED
         if not has_responses:
             for k in ("cadence_override", "target_payload"):
                 if k in payload:

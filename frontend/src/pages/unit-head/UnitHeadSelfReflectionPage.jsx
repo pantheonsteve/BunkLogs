@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import ReflectionField from '../../components/templates/ReflectionField';
+import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
   prepareReflectionAnswersForSubmit,
@@ -393,16 +393,15 @@ export default function UnitHeadSelfReflectionPage() {
               </p>
             </fieldset>
 
-            {!dayOff && (visibleSchema?.fields || []).map((field) => (
-              <ReflectionField
-                key={field.key}
-                field={field}
+            {!dayOff && (
+              <ReflectionFieldList
+                fields={visibleSchema?.fields}
+                answers={answers}
+                errors={fieldErrors}
                 language={language}
-                answer={answers[field.key]}
-                onChange={(val) => updateAnswer(field.key, val)}
-                error={fieldErrors[field.key]}
+                onChange={updateAnswer}
               />
-            ))}
+            )}
 
             {submitError && (
               <p

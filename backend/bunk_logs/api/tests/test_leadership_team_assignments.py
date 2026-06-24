@@ -12,8 +12,11 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bunk_logs.api.leadership_team.assignments import resolve_members
@@ -448,6 +451,61 @@ def test_patch_title_and_is_required(
     body = resp.json()
     assert body["title"] == "Renamed"
     assert body["is_required"] is False
+
+
+@pytest.mark.django_db
+def test_patch_end_date_today_ends_active_assignment(
+    org, program, admin_membership, admin_user, bunk, published_template,
+):
+    """"End today" (end_date <= today) flips an active assignment to ended."""
+    today = timezone.localdate()
+    assignment = TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=published_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=today - timedelta(days=7),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=admin_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.patch(
+            f"/api/v1/leadership-team/assignments/{assignment.id}/",
+            data={"end_date": today.isoformat()},
+            format="json",
+        )
+    assert resp.status_code == 200, resp.data
+    assert resp.json()["status"] == TemplateAssignment.Status.ENDED
+    assignment.refresh_from_db()
+    assert assignment.status == TemplateAssignment.Status.ENDED
+    assert assignment.end_date == today
+
+
+@pytest.mark.django_db
+def test_patch_future_end_date_keeps_assignment_active(
+    org, program, admin_membership, admin_user, bunk, published_template,
+):
+    """Scheduling a future end_date is a wind-down — status stays active."""
+    today = timezone.localdate()
+    assignment = TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=published_template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=bunk,
+        start_date=today - timedelta(days=7),
+        status=TemplateAssignment.Status.ACTIVE,
+        created_by=admin_membership,
+    )
+    c = _client(admin_user, org)
+    with organization_context(org):
+        resp = c.patch(
+            f"/api/v1/leadership-team/assignments/{assignment.id}/",
+            data={"end_date": (today + timedelta(days=14)).isoformat()},
+            format="json",
+        )
+    assert resp.status_code == 200, resp.data
+    assert resp.json()["status"] == TemplateAssignment.Status.ACTIVE
+    assignment.refresh_from_db()
+    assert assignment.status == TemplateAssignment.Status.ACTIVE
 
 
 @pytest.mark.django_db

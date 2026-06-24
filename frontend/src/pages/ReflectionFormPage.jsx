@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
-import ReflectionField from '../components/templates/ReflectionField';
+import ReflectionFieldList from '../components/templates/ReflectionFieldList';
 import {
   validateReflectionAnswers,
   buildDefaultAnswers,
@@ -151,17 +151,6 @@ export default function ReflectionFormPage() {
       return next;
     });
   };
-
-  const renderField = (field) => (
-    <ReflectionField
-      key={field.key}
-      field={field}
-      language={language}
-      answer={answers[field.key]}
-      onChange={(val) => updateAnswer(field.key, val)}
-      error={fieldErrors[field.key]}
-    />
-  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -396,7 +385,15 @@ export default function ReflectionFormPage() {
               </fieldset>
             ) : null}
 
-            {!dayOff && (visibleSchema?.fields || []).map((field) => renderField(field))}
+            {!dayOff && (
+              <ReflectionFieldList
+                fields={visibleSchema?.fields}
+                answers={answers}
+                errors={fieldErrors}
+                language={language}
+                onChange={updateAnswer}
+              />
+            )}
 
             {submitError ? (
               <p className="text-red-600 text-sm" role="alert">

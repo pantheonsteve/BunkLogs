@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import ReflectionField from '../../components/templates/ReflectionField';
+import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
@@ -182,17 +182,16 @@ export default function LeadershipTeamSelfReflectionPage() {
             <span className="text-sm text-gray-700 dark:text-gray-300">Day off</span>
           </label>
 
-          {!isDayOff && fields.map((field) => (
-            <div key={field.key} className="mb-6">
-              <ReflectionField
-                field={field}
-                answer={answers[field.key]}
-                onChange={(v) => updateAnswer(field.key, v)}
-                error={fieldErrors[field.key]}
-                language={language}
-              />
-            </div>
-          ))}
+          {!isDayOff && (
+            <ReflectionFieldList
+              fields={fields}
+              answers={answers}
+              errors={fieldErrors}
+              language={language}
+              onChange={updateAnswer}
+              fieldClassName="mb-6"
+            />
+          )}
 
           <label className="flex items-center gap-2 mb-4 cursor-pointer">
             <input

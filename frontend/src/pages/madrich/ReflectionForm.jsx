@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import ReflectionField from '../../components/templates/ReflectionField';
+import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
@@ -152,17 +152,14 @@ export default function MadrichReflectionForm() {
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
-          {fields.map(field => (
-            <div key={field.key} className="mb-6">
-              <ReflectionField
-                field={field}
-                answer={answers[field.key]}
-                onChange={val => handleFieldChange(field.key, val)}
-                error={fieldErrors[field.key]}
-                language={LANGUAGE}
-              />
-            </div>
-          ))}
+          <ReflectionFieldList
+            fields={fields}
+            answers={answers}
+            errors={fieldErrors}
+            language={LANGUAGE}
+            onChange={handleFieldChange}
+            fieldClassName="mb-6"
+          />
 
           {submitError && (
             <p className="text-red-600 dark:text-red-400 text-sm mb-4" data-testid="md-submit-error">

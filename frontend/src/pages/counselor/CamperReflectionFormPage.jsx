@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AudienceDisclosure from '../../components/AudienceDisclosure';
-import ReflectionField from '../../components/templates/ReflectionField';
+import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
   validateReflectionAnswers,
@@ -192,14 +192,15 @@ export default function CamperReflectionFormPage() {
     load();
   }, [load]);
 
-  const updateAnswer = (key, value) => {
+  const updateAnswer = useCallback((key, value) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
     setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
       const next = { ...prev };
       delete next[key];
       return next;
     });
-  };
+  }, []);
 
   const langChoices = useMemo(
     () => (templateMeta?.languages?.length ? templateMeta.languages : ['en']),
@@ -379,16 +380,13 @@ export default function CamperReflectionFormPage() {
               </fieldset>
             ) : null}
 
-            {(schema?.fields || []).map((field) => (
-              <ReflectionField
-                key={field.key}
-                field={field}
-                language={language}
-                answer={answers[field.key]}
-                onChange={(val) => updateAnswer(field.key, val)}
-                error={fieldErrors[field.key]}
-              />
-            ))}
+            <ReflectionFieldList
+              fields={schema?.fields}
+              answers={answers}
+              errors={fieldErrors}
+              language={language}
+              onChange={updateAnswer}
+            />
 
             {submitError ? (
               <p

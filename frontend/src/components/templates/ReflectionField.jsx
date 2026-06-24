@@ -3,6 +3,7 @@
  * and the live preview pane in the template editor. Handles all 12 field types.
  */
 
+import { memo } from 'react';
 import Wysiwyg from '../form/Wysiwyg';
 import InfoTooltip from '../common/InfoTooltip';
 
@@ -94,7 +95,7 @@ function scoreButtonClassName(score, selected, readonly) {
  * @param {boolean} [props.readonly]  - disable all inputs (preview mode)
  * @param {boolean} [props.dimmed]    - reduce opacity (editor preview effect)
  */
-export default function ReflectionField({ field, language, answer, onChange, error, readonly = false, dimmed = false }) {
+function ReflectionField({ field, language, answer, onChange, error, readonly = false, dimmed = false }) {
   const prompt = getPromptText(field, language);
   const hintText = getLocalizedString(field.hint, language);
   const baseInputClass =
@@ -261,12 +262,23 @@ export default function ReflectionField({ field, language, answer, onChange, err
           {options.map((opt, idx) => {
             const optId = optionAnswerValue(opt);
             const reactKey = optId || `single_choice_${field.key}_${idx}`;
+            const selected = answer === optId;
             return (
-              <label key={reactKey} className="flex items-center gap-2 text-sm cursor-pointer">
+              <label
+                key={reactKey}
+                className={`flex items-center gap-3 text-sm rounded-lg border px-3 min-h-[44px] transition-colors ${
+                  readonly ? 'cursor-not-allowed' : 'cursor-pointer'
+                } ${
+                  selected
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-gray-900 dark:text-white'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100'
+                }`}
+              >
                 <input
                   type="radio"
+                  className="h-5 w-5 text-blue-600 border-gray-300 focus:ring-blue-500 dark:border-gray-600"
                   name={`choice_${field.key}`}
-                  checked={answer === optId}
+                  checked={selected}
                   onChange={() => onChange(optId)}
                   disabled={readonly}
                 />
@@ -294,11 +306,22 @@ export default function ReflectionField({ field, language, answer, onChange, err
           {options.map((opt, idx) => {
             const optId = optionAnswerValue(opt);
             const reactKey = optId || `multiple_choice_${field.key}_${idx}`;
+            const selected = v.includes(optId);
             return (
-              <label key={reactKey} className="flex items-center gap-2 text-sm cursor-pointer">
+              <label
+                key={reactKey}
+                className={`flex items-center gap-3 text-sm rounded-lg border px-3 min-h-[44px] transition-colors ${
+                  readonly ? 'cursor-not-allowed' : 'cursor-pointer'
+                } ${
+                  selected
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-gray-900 dark:text-white'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100'
+                }`}
+              >
                 <input
                   type="checkbox"
-                  checked={v.includes(optId)}
+                  className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-600"
+                  checked={selected}
                   onChange={() => toggle(optId)}
                   disabled={readonly}
                 />
@@ -543,3 +566,5 @@ export default function ReflectionField({ field, language, answer, onChange, err
 
   return null;
 }
+
+export default memo(ReflectionField);
