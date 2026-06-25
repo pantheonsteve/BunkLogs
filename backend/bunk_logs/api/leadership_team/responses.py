@@ -29,7 +29,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.counselor.common import person_display_name
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Reflection
@@ -238,11 +237,11 @@ class LeadershipTeamTemplateResponsesView(APIView):
             "language": r.language,
             "author": {
                 "id": r.author_id,
-                "name": person_display_name(r.author) if r.author_id else None,
+                "name": r.author.full_name if r.author_id else None,
             } if r.author_id else None,
             "subject": {
                 "id": r.subject_id,
-                "name": person_display_name(r.subject) if r.subject_id else None,
+                "name": r.subject.full_name if r.subject_id else None,
             } if r.subject_id else None,
             "groups": groups,
             "template_version": r.template.version if r.template_id else None,

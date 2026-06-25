@@ -421,6 +421,9 @@ def test_responses_individual_tab(
     assert body["tab"] == "individual"
     assert body["total"] == 1
     assert body["results"]
+    row = body["results"][0]
+    assert row["author"]["name"] == "Author One"
+    assert row["subject"]["name"] == "Author One"
 
 
 @pytest.mark.django_db
