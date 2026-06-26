@@ -37,6 +37,8 @@ import AdminSettingsPage from '../pages/admin/Settings';
 import GroupListPage from '../pages/admin/groups/GroupListPage';
 import GroupDetailPage from '../pages/admin/groups/GroupDetailPage';
 import FieldKeyListPage from '../pages/admin/field-keys/FieldKeyListPage';
+import CatalogManagePage from '../pages/admin/catalog/CatalogManagePage';
+import CatalogPlanningDashboard from '../pages/admin/catalog/PlanningDashboard';
 import TasksPage from '../pages/TasksPage';
 import ObservationsInbox from '../pages/observations/ObservationsInbox';
 import ObservationThread from '../pages/observations/ObservationThread';
@@ -256,6 +258,8 @@ export const routeConfig = [
       { path: 'groups', element: admin(<GroupListPage />) },
       { path: 'groups/:id', element: admin(<GroupDetailPage />) },
       { path: 'field-keys', element: admin(<FieldKeyListPage />) },
+      { path: 'catalog', element: admin(<CatalogManagePage />) },
+      { path: 'catalog/planning', element: admin(<CatalogPlanningDashboard />) },
     ],
   },
 

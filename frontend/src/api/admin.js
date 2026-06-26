@@ -250,3 +250,113 @@ export async function downloadAdminPeopleImportTemplate(source, variant) {
   anchor.click();
   window.URL.revokeObjectURL(url);
 }
+
+// ---------------------------------------------------------------------------
+// Configurable catalog (Store / RequestType / CatalogItem)
+// ---------------------------------------------------------------------------
+
+const CATALOG_BASE = `${ADMIN_BASE}/catalog`;
+
+export async function fetchCatalogTree() {
+  const resp = await api.get(`${CATALOG_BASE}/tree/`);
+  return resp?.data ?? { stores: [] };
+}
+
+export async function createCatalogStore(payload) {
+  const resp = await api.post(`${CATALOG_BASE}/stores/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function patchCatalogStore(storeId, patch) {
+  const resp = await api.patch(`${CATALOG_BASE}/stores/${storeId}/`, patch);
+  return resp?.data ?? null;
+}
+
+export async function deleteCatalogStore(storeId) {
+  await api.delete(`${CATALOG_BASE}/stores/${storeId}/`);
+}
+
+export async function createCatalogRequestType(payload) {
+  const resp = await api.post(`${CATALOG_BASE}/request-types/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function patchCatalogRequestType(typeId, patch) {
+  const resp = await api.patch(`${CATALOG_BASE}/request-types/${typeId}/`, patch);
+  return resp?.data ?? null;
+}
+
+export async function deleteCatalogRequestType(typeId) {
+  await api.delete(`${CATALOG_BASE}/request-types/${typeId}/`);
+}
+
+export async function createCatalogItem(payload) {
+  const resp = await api.post(`${CATALOG_BASE}/items/`, payload);
+  return resp?.data ?? null;
+}
+
+export async function patchCatalogItem(itemId, patch) {
+  const resp = await api.patch(`${CATALOG_BASE}/items/${itemId}/`, patch);
+  return resp?.data ?? null;
+}
+
+export async function deleteCatalogItem(itemId) {
+  await api.delete(`${CATALOG_BASE}/items/${itemId}/`);
+}
+
+export async function importCatalogCsv(file, { mode = 'preview', deactivateMissing = false } = {}) {
+  const fd = new FormData();
+  fd.append('csv', file);
+  const params = { mode };
+  if (deactivateMissing) params.deactivate_missing = 'true';
+  const resp = await api.post(`${CATALOG_BASE}/import/`, fd, {
+    params,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return resp?.data ?? null;
+}
+
+export function downloadCatalogTemplate() {
+  const anchor = document.createElement('a');
+  anchor.href = `${CATALOG_BASE}/template.csv`;
+  anchor.click();
+}
+
+// ---------------------------------------------------------------------------
+// Catalog planning dashboard (PR3)
+// ---------------------------------------------------------------------------
+
+export async function fetchCatalogPlanning({
+  start, end, status, store, groupBy,
+} = {}) {
+  const params = {};
+  if (start) params.start = start;
+  if (end) params.end = end;
+  if (status) params.status = status;
+  if (store) params.store = store;
+  if (groupBy) params.group_by = groupBy;
+  const resp = await api.get(`${CATALOG_BASE}/planning/`, { params });
+  return resp?.data ?? { rows: [], totals: {} };
+}
+
+export async function downloadCatalogPlanningCsv(params = {}) {
+  const query = { export: 'csv' };
+  if (params.start) query.start = params.start;
+  if (params.end) query.end = params.end;
+  if (params.status) query.status = params.status;
+  if (params.store) query.store = params.store;
+  if (params.groupBy) query.group_by = params.groupBy;
+  const resp = await api.get(`${CATALOG_BASE}/planning/`, {
+    params: query,
+    responseType: 'blob',
+  });
+  const disposition = resp.headers['content-disposition'] || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match?.[1] || 'catalog_planning.csv';
+  const url = window.URL.createObjectURL(resp.data);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(url);
+}

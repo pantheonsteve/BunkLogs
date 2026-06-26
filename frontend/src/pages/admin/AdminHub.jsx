@@ -5,6 +5,7 @@ import {
   Layers,
   BarChart3,
   Tag,
+  Boxes,
 } from 'lucide-react';
 
 const ADMIN_CARDS = [
@@ -47,6 +48,14 @@ const ADMIN_CARDS = [
       'Canonical short keys used across reflection templates so cross-template dashboards can aggregate the same field even when it lives in different templates.',
     to: '/admin/field-keys',
     icon: Tag,
+  },
+  {
+    id: 'catalog',
+    title: 'Request catalog',
+    blurb:
+      'Configure the stores, request types, and items behind the Maintenance and Camper Care request forms. Bulk-import via CSV and track requested quantities on the planning dashboard.',
+    to: '/admin/catalog',
+    icon: Boxes,
   },
 ];
 

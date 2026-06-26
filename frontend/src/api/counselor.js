@@ -328,6 +328,7 @@ export async function createCamperCareRequest({
   item,
   itemNote = '',
   description = '',
+  lineItems,
   clientSubmissionId,
 }) {
   const payload = {
@@ -336,6 +337,9 @@ export async function createCamperCareRequest({
     description,
     client_submission_id: clientSubmissionId,
   };
+  if (Array.isArray(lineItems) && lineItems.length) {
+    payload.line_items = lineItems;
+  }
   if (subjectId !== undefined && subjectId !== null) {
     payload.subject_id = subjectId;
   }
@@ -352,6 +356,7 @@ export async function createCamperCareRequest({
       item,
       item_note: itemNote,
       description,
+      line_items: payload.line_items,
     },
     execute: async () => {
       const res = await api.post(
@@ -382,6 +387,7 @@ export async function createMaintenanceTicket({
   description = '',
   urgency = 'normal',
   urgentReason = '',
+  lineItems,
   photos = [],
   clientSubmissionId,
 }) {
@@ -392,6 +398,12 @@ export async function createMaintenanceTicket({
   form.append('urgency', urgency);
   if (urgency === 'urgent' && urgentReason) {
     form.append('urgent_reason', urgentReason);
+  }
+  if (Array.isArray(lineItems) && lineItems.length) {
+    // Multipart can't carry nested arrays cleanly; send as a JSON string the
+    // serializer's JSONParser-compatible view re-parses (DRF accepts a JSON
+    // string for a nested ListField when sent as a single field value).
+    form.append('line_items', JSON.stringify(lineItems));
   }
   form.append('client_submission_id', clientSubmissionId);
   for (const file of photos) {
@@ -407,6 +419,7 @@ export async function createMaintenanceTicket({
       description,
       urgency,
       urgentReason,
+      line_items: lineItems,
     },
     photoBlobs: photos,
     execute: async () => {
@@ -418,6 +431,17 @@ export async function createMaintenanceTicket({
       return { data: res.data, status: res.status };
     },
   });
+}
+
+/**
+ * Fetch the configurable Maintenance-store catalog (request types + items)
+ * for the viewer's program. Used to populate the maintenance ticket form's
+ * category/consumable pickers from the DB instead of hard-coded constants.
+ * Returns ``{ request_types: [{ id, name, items: [{ id, label, track_quantity, unit }] }] }``.
+ */
+export async function fetchMaintenanceOptions() {
+  const { data } = await api.get('/api/v1/counselor/maintenance-options/');
+  return data;
 }
 
 /**
@@ -437,23 +461,6 @@ export async function uploadMaintenanceTicketPhoto(ticketId, { image, caption = 
   );
   return data;
 }
-
-/**
- * Frozen list of maintenance ticket categories. Mirrors
- * ``MaintenanceTicket.Category.choices`` in the backend model. Kept
- * client-side because the form's category picker can't wait on a round
- * trip to render, and because the list is stable across releases —
- * adding a new category is a coordinated backend + frontend change.
- *
- * Keep in sync with ``bunk_logs/core/models.py``.
- */
-export const MAINTENANCE_CATEGORIES = Object.freeze([
-  { value: 'plumbing', label: 'Clogged plumbing' },
-  { value: 'broken_light', label: 'Broken light' },
-  { value: 'pest', label: 'Pest / Insect' },
-  { value: 'leak', label: 'Leak' },
-  { value: 'other', label: 'Other' },
-]);
 
 /**
  * Frozen list of maintenance urgency levels. Mirrors

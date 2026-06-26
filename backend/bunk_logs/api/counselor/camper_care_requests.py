@@ -14,10 +14,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit as audit_module
+from bunk_logs.core.catalog import camper_care_item_options
+from bunk_logs.core.catalog import resolve_line_items
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
-from bunk_logs.core.models import OrderItemSuggestion
+from bunk_logs.core.models import RequestLineItem
 from bunk_logs.core.submission import idempotent_create
 
 from .common import co_counselor_person_ids
@@ -55,19 +57,11 @@ class CamperCareItemSuggestionListView(APIView):
             return Response({"suggestions": []})
 
         program = primary_membership.program
-        rows = (
-            OrderItemSuggestion.all_objects.filter(program=program, is_active=True)
-            .order_by("sort_order", "label")
-            .values("id", "label", "sort_order")
-        )
-        # Stringify the id to match the convention used elsewhere in the
-        # counselor surface (Order/MaintenanceTicket also return string IDs).
-        return Response({
-            "suggestions": [
-                {"id": str(r["id"]), "label": r["label"], "sort_order": r["sort_order"]}
-                for r in rows
-            ],
-        })
+        # Catalog-backed (Step 7_catalog): the curated list now lives in
+        # CatalogItem under the Camper Care store. Counselors can still submit
+        # any free-text label, so an empty list just disables autocomplete.
+        suggestions = camper_care_item_options(ctx.organization, program)
+        return Response({"suggestions": suggestions})
 
 
 class CamperCareRequestCreateView(APIView):
@@ -117,6 +111,20 @@ class CamperCareRequestCreateView(APIView):
             bunk_id=payload.get("bunk_id"),
         )
 
+        # Resolve line items (catalog or free-text) up front so an invalid
+        # item id fails before we create the Order.
+        resolved_lines = resolve_line_items(
+            org,
+            program,
+            "camper_care",
+            payload.get("line_items"),
+            legacy_item=payload.get("item", ""),
+            legacy_note=payload.get("item_note", ""),
+        )
+        # Order.item keeps a summary of the first line for back-compat with
+        # surfaces that still read the scalar field.
+        summary_label = resolved_lines[0]["item_label"] if resolved_lines else payload.get("item", "")
+
         def _create_order():
             order = Order(
                 organization=org,
@@ -124,13 +132,22 @@ class CamperCareRequestCreateView(APIView):
                 subject_id=subject_id,
                 submitted_by=primary_membership,
                 submitted_from_bunk=submitted_from_bunk,
-                item=payload["item"],
+                item=summary_label,
                 item_note=payload.get("item_note", ""),
                 description=payload.get("description", ""),
                 client_submission_id=payload["client_submission_id"],
             )
             order.full_clean()
             order.save()
+            for line in resolved_lines:
+                RequestLineItem.objects.create(
+                    organization=org,
+                    order=order,
+                    item=line["item"],
+                    item_label=line["item_label"],
+                    quantity=line["quantity"],
+                    note=line["note"],
+                )
             return order
 
         try:

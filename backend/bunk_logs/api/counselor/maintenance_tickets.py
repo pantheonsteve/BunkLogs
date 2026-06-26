@@ -11,6 +11,8 @@ production (with presigned URLs) and the local filesystem in dev / tests.
 
 from __future__ import annotations
 
+import json
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -23,8 +25,12 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.maintenance.notifications import send_ticket_created_email
 from bunk_logs.core import audit as audit_module
+from bunk_logs.core.catalog import active_items_for_role
+from bunk_logs.core.catalog import maintenance_options
+from bunk_logs.core.catalog import resolve_line_items
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
+from bunk_logs.core.models import RequestLineItem
 from bunk_logs.core.models import TicketPhoto
 from bunk_logs.core.submission import idempotent_create
 
@@ -49,6 +55,29 @@ def _ticket_after_state(ticket: MaintenanceTicket) -> dict:
     }
 
 
+class MaintenanceOptionsListView(APIView):
+    """``GET /api/v1/counselor/maintenance-options/``.
+
+    Returns the configurable Maintenance-store catalog (request types + items)
+    for the viewer's program so the ticket form can render category/item
+    pickers from the DB instead of hard-coded constants. An empty payload
+    means no catalog is configured; the client should fall back to free text.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        primary_membership = (
+            Membership.objects.filter(person=ctx.person, is_active=True)
+            .select_related("program")
+            .order_by("-created_at")
+            .first()
+        )
+        program = primary_membership.program if primary_membership else None
+        return Response(maintenance_options(ctx.organization, program))
+
+
 class MaintenanceTicketCreateView(APIView):
     """Counselor POST for a new maintenance ticket."""
 
@@ -60,7 +89,25 @@ class MaintenanceTicketCreateView(APIView):
         ctx = viewer_or_403(request)
         viewer, org, today = ctx.person, ctx.organization, ctx.today
 
-        serializer = MaintenanceTicketCreateSerializer(data=request.data)
+        # ``line_items`` arrives as a JSON string under multipart (nested
+        # arrays don't survive a QueryDict); normalize to a real list before
+        # validation. JSON requests already provide a list.
+        data = request.data.dict() if hasattr(request.data, "dict") else dict(request.data)
+        raw_lines = data.get("line_items")
+        if isinstance(raw_lines, str):
+            stripped = raw_lines.strip()
+            if stripped:
+                try:
+                    data["line_items"] = json.loads(stripped)
+                except ValueError:
+                    return Response(
+                        {"line_items": "Must be a JSON array."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                data.pop("line_items", None)
+
+        serializer = MaintenanceTicketCreateSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
 
@@ -87,20 +134,65 @@ class MaintenanceTicketCreateView(APIView):
             raise PermissionDenied(msg)
         program = primary_membership.program
 
+        # Validate category against the configurable catalog (active
+        # Maintenance-store items) plus the legacy enum values for back-compat.
+        category = (payload["category"] or "").strip()
+        catalog_items = list(active_items_for_role(org, program, "maintenance"))
+        allowed = {it.name.casefold() for it in catalog_items}
+        allowed |= {v.casefold() for v in MaintenanceTicket.Category.values}
+        if category.casefold() not in allowed:
+            return Response(
+                {"category": f"Unknown maintenance category {category!r}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        category_item = next(
+            (it for it in catalog_items if it.name.casefold() == category.casefold()),
+            None,
+        )
+
+        # Resolve consumable line items up front so an invalid id fails before
+        # we create the ticket.
+        resolved_lines = resolve_line_items(
+            org, program, "maintenance", payload.get("line_items"),
+        )
+
         def _create_ticket():
             ticket = MaintenanceTicket(
                 organization=org,
                 program=program,
                 submitted_by=primary_membership,
                 location=payload["location"],
-                category=payload["category"],
+                category=category,
                 description=payload.get("description", ""),
                 urgency=payload["urgency"],
                 urgent_reason=payload.get("urgent_reason", ""),
                 client_submission_id=payload["client_submission_id"],
             )
-            ticket.full_clean()
+            # Exclude ``category`` from model validation: the field keeps
+            # ``choices=Category.choices`` for legacy back-compat, but we now
+            # also accept configurable catalog item labels (already validated
+            # against the catalog + enum above). full_clean()'s choice check
+            # would otherwise reject any admin-defined label.
+            ticket.full_clean(exclude=["category"])
             ticket.save()
+            # Record the category selection as a (service) line item so the
+            # planning dashboard can group maintenance requests by item/type.
+            RequestLineItem.objects.create(
+                organization=org,
+                ticket=ticket,
+                item=category_item,
+                item_label=category[:120],
+                quantity=1,
+            )
+            for line in resolved_lines:
+                RequestLineItem.objects.create(
+                    organization=org,
+                    ticket=ticket,
+                    item=line["item"],
+                    item_label=line["item_label"],
+                    quantity=line["quantity"],
+                    note=line["note"],
+                )
             for image in photos:
                 TicketPhoto.objects.create(
                     ticket=ticket,

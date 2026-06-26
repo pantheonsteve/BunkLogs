@@ -119,25 +119,60 @@ class SelfReflectionUpdateSerializer(serializers.Serializer):
 # ---------------------------------------------------------------------------
 
 
+class RequestLineItemSerializer(serializers.Serializer):
+    """A single requested item + quantity (camper-care or maintenance).
+
+    ``item_id`` points at a :class:`CatalogItem` (the canonical label is
+    re-derived server-side); ``item_label`` is the free-text fallback. At
+    least one of the two must be present.
+    """
+
+    item_id = serializers.IntegerField(required=False, allow_null=True)
+    item_label = serializers.CharField(
+        max_length=120, required=False, allow_blank=True, default="",
+    )
+    quantity = serializers.IntegerField(min_value=1, default=1)
+    note = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        if not attrs.get("item_id") and not (attrs.get("item_label") or "").strip():
+            msg = "Each line item needs item_id or item_label."
+            raise serializers.ValidationError(msg)
+        return attrs
+
+
 class CamperCareRequestCreateSerializer(serializers.Serializer):
     """Counselor POST body for a Camper Care request (Story 7).
 
-    ``item`` is free-text but the client surfaces an autocomplete from
-    :class:`OrderItemSuggestion`. We store the literal label so admin edits
-    to the suggestion list don't rewrite history. ``subject_id`` is the
-    target camper Person; null when the request is bunk-scoped (rare).
+    Accepts either the legacy single ``item`` (free-text, with autocomplete
+    against the catalog) or a structured ``line_items`` list with quantities.
+    Both shapes are persisted as :class:`RequestLineItem` rows; ``Order.item``
+    keeps a summary of the first line for back-compat with existing surfaces.
+    The literal label is stored so admin edits to the catalog don't rewrite
+    history. ``subject_id`` is the target camper; null when bunk-scoped.
     """
 
     subject_id = serializers.IntegerField(required=False, allow_null=True)
     bunk_id = serializers.IntegerField(required=False, allow_null=True)
-    item = serializers.CharField(max_length=120)
+    item = serializers.CharField(
+        max_length=120, required=False, allow_blank=True, default="",
+    )
     item_note = serializers.CharField(
         required=False, allow_blank=True, default="",
     )
+    line_items = RequestLineItemSerializer(many=True, required=False)
     description = serializers.CharField(
         required=False, allow_blank=True, default="",
     )
     client_submission_id = serializers.UUIDField()
+
+    def validate(self, attrs):
+        has_item = bool((attrs.get("item") or "").strip())
+        has_lines = bool(attrs.get("line_items"))
+        if not has_item and not has_lines:
+            msg = "Provide 'item' or at least one 'line_items' entry."
+            raise serializers.ValidationError({"item": msg})
+        return attrs
 
 
 class CamperCareRequestUpdateSerializer(serializers.Serializer):
@@ -164,17 +199,19 @@ class CamperCareRequestUpdateSerializer(serializers.Serializer):
 class MaintenanceTicketCreateSerializer(serializers.Serializer):
     """Counselor POST body for a Maintenance ticket (Story 8).
 
-    Photos are NOT validated here — multipart QueryDict + DRF's ListField
-    don't compose cleanly (the field collapses repeated keys to a single
-    value), so the view reaches into ``request.FILES`` directly to collect
-    the upload list and validate each item individually. ``urgent_reason``
-    is enforced by ``MaintenanceTicket.clean()`` when urgency = ``urgent``.
+    ``category`` is now free-form text (max 120) validated by the view against
+    the configurable catalog (active Maintenance-store items) plus the legacy
+    ``MaintenanceTicket.Category`` enum values for back-compat. Optional
+    ``line_items`` capture consumable supply requests with quantities. Photos
+    are NOT validated here — multipart QueryDict + DRF's ListField don't
+    compose cleanly, so the view reaches into ``request.FILES`` directly.
+    ``urgent_reason`` is enforced by ``MaintenanceTicket.clean()`` when
+    urgency = ``urgent``.
     """
 
     location = serializers.CharField(max_length=255)
-    category = serializers.ChoiceField(
-        choices=MaintenanceTicket.Category.choices,
-    )
+    category = serializers.CharField(max_length=120)
+    line_items = RequestLineItemSerializer(many=True, required=False)
     description = serializers.CharField(allow_blank=True, default="")
     urgency = serializers.ChoiceField(
         choices=MaintenanceTicket.Urgency.choices,

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   CAMPER_REFLECTION_AUDIENCE,
   COUNSELOR_SELF_REFLECTION_AUDIENCE,
-  MAINTENANCE_CATEGORIES,
   MAINTENANCE_URGENCY_CHOICES,
   createCamperCareRequest,
   createCamperReflection,
@@ -304,14 +303,7 @@ describe('counselor API helpers', () => {
     expect(body.get('image')).toBeInstanceOf(File);
   });
 
-  it('exports stable maintenance categories + urgencies', () => {
-    expect(MAINTENANCE_CATEGORIES.map((c) => c.value)).toEqual([
-      'plumbing',
-      'broken_light',
-      'pest',
-      'leak',
-      'other',
-    ]);
+  it('exports stable maintenance urgencies', () => {
     expect(MAINTENANCE_URGENCY_CHOICES.map((u) => u.value)).toEqual([
       'normal',
       'urgent',

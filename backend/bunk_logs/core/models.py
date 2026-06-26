@@ -1550,6 +1550,170 @@ class OrderItemSuggestion(models.Model):
         return self.program.organization if self.program_id else None
 
 
+class Store(models.Model):
+    """Generalizable catalog 'store' — a department/queue that owns requests.
+
+    Maps the CSV "Stores" column (Maintenance, Camper Care). A store groups
+    :class:`RequestType` rows and routes its submissions to the fulfilling
+    team via ``fulfilling_role`` (mirrors ``Order.fulfilling_role`` /
+    ``MaintenanceTicket.fulfilling_role``). Org-scoped configuration; an
+    optional ``program`` narrows the store to one program, else it applies
+    org-wide. ``labels`` carries localized display copy (EN/ES) from day one.
+    """
+
+    class FulfillingRole(models.TextChoices):
+        CAMPER_CARE = "camper_care", "Camper Care"
+        MAINTENANCE = "maintenance", "Maintenance"
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="catalog_stores",
+    )
+    program = models.ForeignKey(
+        Program,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="catalog_stores",
+        help_text="Narrow this store to one program; null = org-wide.",
+    )
+    name = models.CharField(max_length=120, help_text="Canonical name, e.g. 'Maintenance'.")
+    slug = models.SlugField(max_length=120)
+    labels = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Localized labels, e.g. {'en': 'Maintenance', 'es': 'Mantenimiento'}.",
+    )
+    fulfilling_role = models.CharField(
+        max_length=32,
+        choices=FulfillingRole.choices,
+        help_text="Team that fulfils this store's requests.",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "slug"],
+                name="core_store_org_slug_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active", "sort_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def label(self, language: str = "en") -> str:
+        return (self.labels or {}).get(language) or self.name
+
+
+class RequestType(models.Model):
+    """A type of request within a :class:`Store` (CSV "Order Types").
+
+    e.g. "Maintenance Items Request", "Maintenance Service Request",
+    "Camper Care Items Request". Carries a denormalized ``organization`` FK
+    so it can use the same fail-closed ``OrgScopedManager`` as the rest of
+    the catalog; the API layer keeps it in sync with ``store.organization``.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="catalog_request_types",
+    )
+    store = models.ForeignKey(
+        Store, on_delete=models.CASCADE, related_name="request_types",
+    )
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=120)
+    labels = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store", "slug"],
+                name="core_requesttype_store_slug_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active", "sort_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def label(self, language: str = "en") -> str:
+        return (self.labels or {}).get(language) or self.name
+
+
+class CatalogItem(models.Model):
+    """A selectable catalog item / variation (CSV "Variations").
+
+    e.g. "Toilet Paper", "Toothbrush", "Clogged toilet". ``track_quantity``
+    is False for services (where a count of requests is what matters) and
+    True for consumables (where the planning dashboard sums quantities).
+    The canonical ``name`` is used for CSV keying and sort fallback; ``labels``
+    holds localized display copy.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="catalog_items",
+    )
+    request_type = models.ForeignKey(
+        RequestType, on_delete=models.CASCADE, related_name="items",
+    )
+    name = models.CharField(max_length=120, help_text="Canonical label, e.g. 'Toothbrush'.")
+    labels = models.JSONField(default=dict, blank=True)
+    track_quantity = models.BooleanField(
+        default=True,
+        help_text="False for services (count requests); True for consumables (sum quantities).",
+    )
+    unit = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="Optional unit for quantities, e.g. 'roll', 'bottle'.",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["request_type", "name"],
+                name="core_catalogitem_type_name_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active", "sort_order"]),
+            models.Index(fields=["request_type", "is_active", "sort_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def label(self, language: str = "en") -> str:
+        return (self.labels or {}).get(language) or self.name
+
+
 class MaintenanceTicket(OrderableContent):
     """Maintenance ticket — see Stories 30-36 and the order_state_machine spec.
 
@@ -1595,11 +1759,16 @@ class MaintenanceTicket(OrderableContent):
         ),
     )
     category = models.CharField(
-        max_length=24,
+        max_length=120,
         choices=Category.choices,
         blank=True,
         default="",
-        help_text="Triage category (Story 8 criterion 1.ii).",
+        help_text=(
+            "Triage category (Story 8 criterion 1.ii). Stores either a legacy "
+            "enum value (mapped to a label by get_category_display) or a "
+            "configurable catalog item label. Widened from 24 chars in Step "
+            "7_catalog to hold longer admin-defined service labels."
+        ),
     )
     description = models.TextField(blank=True)
     urgent_reason = models.TextField(
@@ -1648,6 +1817,75 @@ class MaintenanceTicket(OrderableContent):
     @staticmethod
     def fulfilling_role() -> str:
         return "maintenance"
+
+
+class RequestLineItem(models.Model):
+    """A single requested item + quantity on a submitted request.
+
+    Attaches to exactly one parent — a camper-care :class:`Order` or a
+    :class:`MaintenanceTicket` — enforced by a check constraint. ``item`` is a
+    nullable FK to :class:`CatalogItem`; ``item_label`` is a snapshot of the
+    label at submission time so admin edits to the catalog never rewrite
+    history (and free-text entries with no catalog match still record a
+    label). The planning dashboard sums ``quantity`` across these rows.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="request_line_items",
+    )
+    order = models.ForeignKey(
+        "core.Order",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="line_items",
+    )
+    ticket = models.ForeignKey(
+        "core.MaintenanceTicket",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="line_items",
+    )
+    item = models.ForeignKey(
+        CatalogItem,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="line_items",
+        help_text="Catalog item; null for free-text entries.",
+    )
+    item_label = models.CharField(
+        max_length=120,
+        help_text="Snapshot of the item label at submission time.",
+    )
+    quantity = models.PositiveIntegerField(default=1)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            models.CheckConstraint(
+                name="core_requestlineitem_exactly_one_parent",
+                check=(
+                    Q(order__isnull=False, ticket__isnull=True)
+                    | Q(order__isnull=True, ticket__isnull=False)
+                ),
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "item"]),
+            models.Index(fields=["order"]),
+            models.Index(fields=["ticket"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item_label} x{self.quantity}"
 
 
 def maintenance_ticket_photo_upload_path(instance: "TicketPhoto", filename: str) -> str:

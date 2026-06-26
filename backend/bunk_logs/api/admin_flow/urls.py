@@ -11,6 +11,16 @@ from bunk_logs.api.audit import AuditEventViewSet
 
 from .assignments import AdminAssignmentDetailView
 from .assignments import AdminAssignmentsListCreateView
+from .catalog import AdminCatalogImportView
+from .catalog import AdminCatalogItemDetailView
+from .catalog import AdminCatalogItemListCreateView
+from .catalog import AdminCatalogTemplateView
+from .catalog import AdminCatalogTreeView
+from .catalog import AdminRequestTypeDetailView
+from .catalog import AdminRequestTypeListCreateView
+from .catalog import AdminStoreDetailView
+from .catalog import AdminStoreListCreateView
+from .catalog_dashboard import AdminCatalogPlanningView
 from .dashboard import AdminDashboardView
 from .imports import AdminBulkImportCommitView
 from .imports import AdminBulkImportPreviewView
@@ -149,5 +159,38 @@ urlpatterns = [
         "people/import/commit/",
         AdminBulkImportCommitView.as_view(),
         name="admin-people-import-commit",
+    ),
+    # ------------------------------------------------------------------
+    # Configurable catalog (Store / RequestType / CatalogItem)
+    # ------------------------------------------------------------------
+    path("catalog/tree/", AdminCatalogTreeView.as_view(), name="admin-catalog-tree"),
+    path("catalog/stores/", AdminStoreListCreateView.as_view(), name="admin-catalog-stores"),
+    path(
+        "catalog/stores/<int:store_id>/",
+        AdminStoreDetailView.as_view(),
+        name="admin-catalog-store-detail",
+    ),
+    path(
+        "catalog/request-types/",
+        AdminRequestTypeListCreateView.as_view(),
+        name="admin-catalog-request-types",
+    ),
+    path(
+        "catalog/request-types/<int:type_id>/",
+        AdminRequestTypeDetailView.as_view(),
+        name="admin-catalog-request-type-detail",
+    ),
+    path("catalog/items/", AdminCatalogItemListCreateView.as_view(), name="admin-catalog-items"),
+    path(
+        "catalog/items/<int:item_id>/",
+        AdminCatalogItemDetailView.as_view(),
+        name="admin-catalog-item-detail",
+    ),
+    path("catalog/template.csv", AdminCatalogTemplateView.as_view(), name="admin-catalog-template"),
+    path("catalog/import/", AdminCatalogImportView.as_view(), name="admin-catalog-import"),
+    path(
+        "catalog/planning/",
+        AdminCatalogPlanningView.as_view(),
+        name="admin-catalog-planning",
     ),
 ]
