@@ -76,6 +76,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Groups              /admin/groups
  *     Assignments         /admin/assignments
  *     Templates           /admin/templates
+ *     Request catalog     /admin/catalog
  *     Field keys          /admin/field-keys
  *     Settings            /admin/settings
  *
@@ -304,6 +305,7 @@ function Sidebar({
                 <SubItem to="/admin/groups" label="Groups" />
                 <SubItem to="/admin/assignments" label="Assignments" />
                 <SubItem to="/admin/templates" label="Templates" />
+                <SubItem to="/admin/catalog" label="Request catalog" />
                 <SubItem to="/admin/field-keys" label="Field Keys" />
                 <SubItem to="/admin/settings" label="Settings" />
               </>

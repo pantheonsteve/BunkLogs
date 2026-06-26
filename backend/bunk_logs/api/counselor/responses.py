@@ -17,7 +17,19 @@ if TYPE_CHECKING:
     from bunk_logs.core.models import MaintenanceTicket
     from bunk_logs.core.models import Order
     from bunk_logs.core.models import Reflection
+    from bunk_logs.core.models import RequestLineItem
     from bunk_logs.core.models import TicketPhoto
+
+
+def line_item_response(line: RequestLineItem) -> dict:
+    """A single requested item + quantity on an order or ticket."""
+    return {
+        "id": str(line.id),
+        "item_id": line.item_id,
+        "item_label": line.item_label,
+        "quantity": line.quantity,
+        "note": line.note,
+    }
 
 
 def reflection_response(reflection: Reflection) -> dict:
@@ -73,6 +85,7 @@ def order_response(order: Order) -> dict:
         "item": order.item,
         "item_note": order.item_note,
         "description": order.description,
+        "line_items": [line_item_response(li) for li in order.line_items.all()],
         "client_submission_id": (
             str(order.client_submission_id) if order.client_submission_id else None
         ),
@@ -109,6 +122,7 @@ def maintenance_ticket_response(ticket: MaintenanceTicket) -> dict:
         "urgency": ticket.urgency,
         "urgent_reason": ticket.urgent_reason,
         "submitted_by_id": ticket.submitted_by_id,
+        "line_items": [line_item_response(li) for li in ticket.line_items.all()],
         "client_submission_id": (
             str(ticket.client_submission_id) if ticket.client_submission_id else None
         ),

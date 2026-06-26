@@ -400,6 +400,11 @@ urlpatterns = [
         name="counselor-maintenance-ticket-create",
     ),
     path(
+        "counselor/maintenance-options/",
+        counselor_maintenance_tickets.MaintenanceOptionsListView.as_view(),
+        name="counselor-maintenance-options",
+    ),
+    path(
         "counselor/maintenance-tickets/<uuid:ticket_id>/photos/",
         counselor_maintenance_tickets.MaintenanceTicketPhotoCreateView.as_view(),
         name="counselor-maintenance-ticket-photo-create",

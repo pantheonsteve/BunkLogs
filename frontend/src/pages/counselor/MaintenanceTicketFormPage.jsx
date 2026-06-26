@@ -24,12 +24,24 @@ import { useNavigate } from 'react-router-dom';
 import { useCounselorDraft } from '../../hooks/useCounselorDraft';
 import { isQueuedSubmissionError } from '../../lib/submissionQueue/queue';
 import { maintenanceDraftKey } from '../../utils/counselor/counselorDraftStorage';
+import { QuantityStepper } from '../../components/counselor/RequestFormControls';
 import {
-  MAINTENANCE_CATEGORIES,
   MAINTENANCE_URGENCY_CHOICES,
   createMaintenanceTicket,
+  fetchMaintenanceOptions,
   newClientSubmissionId,
 } from '../../api/counselor';
+
+// Fallback categories when no catalog is configured for the org/program, so
+// the form still works. Mirrors the legacy MaintenanceTicket.Category enum;
+// these values remain valid server-side for back-compat.
+const LEGACY_CATEGORY_FALLBACK = [
+  { value: 'plumbing', label: 'Clogged plumbing' },
+  { value: 'broken_light', label: 'Broken light' },
+  { value: 'pest', label: 'Pest / Insect' },
+  { value: 'leak', label: 'Leak' },
+  { value: 'other', label: 'Other' },
+];
 
 function flattenError(err, fallback) {
   const body = err?.response?.data;
@@ -82,6 +94,12 @@ export default function MaintenanceTicketFormPage() {
   const [urgentReason, setUrgentReason] = useState('');
   const [photos, setPhotos] = useState([]);
 
+  // Catalog-driven options (Step 7_catalog). Services populate the category
+  // picker; consumables get optional quantity inputs sent as line_items.
+  const [serviceItems, setServiceItems] = useState([]);
+  const [consumableItems, setConsumableItems] = useState([]);
+  const [consumableQty, setConsumableQty] = useState({});
+
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -114,6 +132,37 @@ export default function MaintenanceTicketFormPage() {
     },
   });
 
+  useEffect(() => {
+    let active = true;
+    fetchMaintenanceOptions()
+      .then((data) => {
+        if (!active) return;
+        const services = [];
+        const consumables = [];
+        for (const rt of data?.request_types || []) {
+          for (const it of rt.items || []) {
+            if (it.track_quantity) consumables.push(it);
+            else services.push(it);
+          }
+        }
+        setServiceItems(services);
+        setConsumableItems(consumables);
+      })
+      .catch(() => {
+        // No catalog configured / offline: fall back to legacy categories.
+        setServiceItems([]);
+        setConsumableItems([]);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const categoryOptions = useMemo(() => {
+    if (serviceItems.length) {
+      return serviceItems.map((it) => ({ value: it.label, label: it.label }));
+    }
+    return LEGACY_CATEGORY_FALLBACK;
+  }, [serviceItems]);
+
   const handlePhotosChosen = (e) => {
     const next = Array.from(e.target.files || []);
     if (next.length === 0) return;
@@ -140,6 +189,10 @@ export default function MaintenanceTicketFormPage() {
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
+    const lineItems = consumableItems
+      .map((it) => ({ item_id: it.id, quantity: Number(consumableQty[it.id]) || 0 }))
+      .filter((li) => li.quantity > 0);
+
     setSubmitting(true);
     try {
       await createMaintenanceTicket({
@@ -149,6 +202,7 @@ export default function MaintenanceTicketFormPage() {
         urgency,
         urgentReason: urgency === 'urgent' ? urgentReason.trim() : '',
         photos,
+        lineItems,
         clientSubmissionId: clientSubmissionIdRef.current,
       });
       clearDraft();
@@ -187,7 +241,7 @@ export default function MaintenanceTicketFormPage() {
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[96rem] mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-28 w-full max-w-2xl mx-auto">
         <header className="mb-6">
           <button
             type="button"
@@ -196,7 +250,7 @@ export default function MaintenanceTicketFormPage() {
           >
             ← Back to dashboard
           </button>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             New Maintenance ticket
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -206,10 +260,10 @@ export default function MaintenanceTicketFormPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="space-y-4"
           data-testid="maintenance-form"
           encType="multipart/form-data"
         >
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 sm:p-6 space-y-4 shadow-sm">
           <div>
             <label
               htmlFor="mt-location"
@@ -249,7 +303,7 @@ export default function MaintenanceTicketFormPage() {
               className="block w-full min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
             >
               <option value="">— pick one —</option>
-              {MAINTENANCE_CATEGORIES.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
@@ -330,6 +384,38 @@ export default function MaintenanceTicketFormPage() {
             />
           </div>
 
+          {consumableItems.length ? (
+            <fieldset
+              data-testid="maintenance-supplies-group"
+              className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-3"
+            >
+              <legend className="text-xs font-medium text-gray-600 dark:text-gray-400 px-1">
+                Supplies needed (optional)
+              </legend>
+              <div className="space-y-2 mt-1">
+                {consumableItems.map((it) => (
+                  <div key={it.id} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-800 dark:text-gray-200">
+                      {it.label}
+                      {it.unit ? (
+                        <span className="text-gray-500 dark:text-gray-400"> ({it.unit})</span>
+                      ) : null}
+                    </span>
+                    <QuantityStepper
+                      value={consumableQty[it.id] ?? '0'}
+                      min={0}
+                      ariaLabel={`Quantity for ${it.label}`}
+                      testId={`maintenance-supply-${it.id}`}
+                      onChange={(q) =>
+                        setConsumableQty((prev) => ({ ...prev, [it.id]: q }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
+
           <div>
             <span className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Photos
@@ -374,15 +460,18 @@ export default function MaintenanceTicketFormPage() {
               {submitError}
             </p>
           ) : null}
+          </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            data-testid="maintenance-submit"
-            className="w-full sm:w-auto mt-4 min-h-[48px] px-6 rounded-lg bg-blue-600 text-white font-medium text-sm disabled:opacity-50"
-          >
-            {submitting ? 'Submitting…' : 'Submit ticket'}
-          </button>
+          <div className="sticky bottom-0 z-20 mt-4 -mx-4 sm:mx-0 border-t border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-4 py-3 sm:static sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+            <button
+              type="submit"
+              disabled={submitting}
+              data-testid="maintenance-submit"
+              className="w-full sm:w-auto min-h-[48px] px-6 rounded-lg bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {submitting ? 'Submitting…' : 'Submit ticket'}
+            </button>
+          </div>
         </form>
     </div>
   );

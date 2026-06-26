@@ -15,6 +15,7 @@ from .admin_organization import membership_role_choices
 from .models import AssignmentDashboardGrant
 from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
+from .models import CatalogItem
 from .models import FieldKey
 from .models import Membership
 from .models import Organization
@@ -22,7 +23,9 @@ from .models import Person
 from .models import Program
 from .models import Reflection
 from .models import ReflectionTemplate
+from .models import RequestType
 from .models import RosterImportLog
+from .models import Store
 from .models import TemplateAssignment
 
 
@@ -910,3 +913,93 @@ class MembershipAdmin(admin.ModelAdmin):
                 "action_name": "bulk_edit_tags",
             },
         )
+
+
+# ---------------------------------------------------------------------------
+# Configurable catalog (Store / RequestType / CatalogItem)
+# ---------------------------------------------------------------------------
+# Secondary management surface; the primary UI is the React admin at
+# /admin/catalog. All three use all_objects so staff see every tenant
+# (the logged-in admin may have no Person/org context here).
+
+
+class RequestTypeInline(admin.TabularInline):
+    model = RequestType
+    extra = 0
+    show_change_link = True
+    fields = ("name", "slug", "is_active", "sort_order")
+
+    def get_queryset(self, request):
+        return RequestType.all_objects.select_related("organization", "store")
+
+
+@admin.register(Store)
+class StoreAdmin(admin.ModelAdmin):
+    list_display = ["name", "organization", "program", "fulfilling_role", "is_active", "sort_order"]
+    list_filter = ["organization", "fulfilling_role", "is_active"]
+    search_fields = ["name", "slug"]
+    prepopulated_fields = {"slug": ("name",)}
+    autocomplete_fields = ["organization", "program"]
+    inlines = [RequestTypeInline]
+
+    def get_queryset(self, request):
+        return Store.all_objects.select_related("organization", "program")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "organization":
+            kwargs.setdefault("queryset", Organization.objects.all())
+        elif db_field.name == "program":
+            kwargs.setdefault("queryset", Program.all_objects.select_related("organization"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+class CatalogItemInline(admin.TabularInline):
+    model = CatalogItem
+    extra = 0
+    fields = ("name", "track_quantity", "unit", "is_active", "sort_order")
+
+    def get_queryset(self, request):
+        return CatalogItem.all_objects.select_related("organization", "request_type")
+
+
+@admin.register(RequestType)
+class RequestTypeAdmin(admin.ModelAdmin):
+    list_display = ["name", "store", "organization", "is_active", "sort_order"]
+    list_filter = ["organization", "store", "is_active"]
+    search_fields = ["name", "slug"]
+    prepopulated_fields = {"slug": ("name",)}
+    autocomplete_fields = ["organization", "store"]
+    inlines = [CatalogItemInline]
+
+    def get_queryset(self, request):
+        return RequestType.all_objects.select_related("organization", "store")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "organization":
+            kwargs.setdefault("queryset", Organization.objects.all())
+        elif db_field.name == "store":
+            kwargs.setdefault("queryset", Store.all_objects.select_related("organization"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(CatalogItem)
+class CatalogItemAdmin(admin.ModelAdmin):
+    list_display = ["name", "request_type", "organization", "track_quantity", "unit", "is_active", "sort_order"]
+    list_filter = ["organization", "request_type__store", "track_quantity", "is_active"]
+    search_fields = ["name"]
+    autocomplete_fields = ["organization", "request_type"]
+
+    def get_queryset(self, request):
+        return CatalogItem.all_objects.select_related(
+            "organization", "request_type", "request_type__store",
+        )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "organization":
+            kwargs.setdefault("queryset", Organization.objects.all())
+        elif db_field.name == "request_type":
+            kwargs.setdefault(
+                "queryset",
+                RequestType.all_objects.select_related("organization", "store"),
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)

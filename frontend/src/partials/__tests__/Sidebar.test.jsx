@@ -149,6 +149,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).not.toContain('/admin/people');
     expect(links).not.toContain('/admin/memberships');
     expect(links).not.toContain('/admin/groups');
+    expect(links).not.toContain('/admin/catalog');
     expect(links).not.toContain('/admin/field-keys');
     expect(links).not.toContain('/admin/settings');
     expect(links).not.toContain('/tasks');
@@ -273,6 +274,11 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
   it('includes Field keys under Admin (added in 3.32)', () => {
     renderWith({ role: 'Admin' }, { path: '/admin' });
     expect(hrefs()).toContain('/admin/field-keys');
+  });
+
+  it('includes Request catalog under Admin (Step 7_catalog)', () => {
+    renderWith({ role: 'Admin' }, { path: '/admin' });
+    expect(hrefs()).toContain('/admin/catalog');
   });
 
   it('still includes People / Memberships / Groups / Templates and top-level Home', () => {

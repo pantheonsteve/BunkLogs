@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import CamperCareRequestFormPage from '../CamperCareRequestFormPage';
@@ -114,26 +114,54 @@ describe('CamperCareRequestFormPage', () => {
     ]);
   });
 
-  it('renders a datalist with the curated suggestions', async () => {
+  it('surfaces catalog suggestions in the combobox and links the selection', async () => {
     arrange();
+    const user = userEvent.setup();
     renderPage();
     await waitFor(() =>
       expect(screen.getByTestId('camper-care-form')).toBeInTheDocument(),
     );
-    const dl = document.getElementById('camper-care-item-options');
-    expect(dl).toBeTruthy();
-    const values = Array.from(dl.querySelectorAll('option')).map((o) => o.value);
-    expect(values).toEqual(['Toothpaste', 'Sunscreen']);
+    await user.type(screen.getByTestId('camper-care-item'), 'Tooth');
+    const listbox = await screen.findByTestId('camper-care-item-listbox');
+    const option = within(listbox).getByText('Toothpaste');
+    await user.click(option);
+    expect(screen.getByTestId('camper-care-item')).toHaveValue('Toothpaste');
   });
 
-  it('skips the datalist when no suggestions exist (free text only)', async () => {
-    arrange({ suggestions: [] });
+  it('renders quick-pick chips that fill an item line', async () => {
+    arrange();
+    const user = userEvent.setup();
     renderPage();
     await waitFor(() =>
       expect(screen.getByTestId('camper-care-form')).toBeInTheDocument(),
     );
-    expect(document.getElementById('camper-care-item-options')).toBeNull();
-    expect(screen.getByTestId('camper-care-item').hasAttribute('list')).toBe(false);
+    // Chip 1 == second suggestion ("Sunscreen"); fills the empty first line.
+    await user.click(screen.getByTestId('camper-care-chip-1'));
+    expect(screen.getByTestId('camper-care-item')).toHaveValue('Sunscreen');
+  });
+
+  it('supports multiple item lines and sends them as line_items', async () => {
+    arrange();
+    postMock.mockResolvedValue({ data: { id: 'order-multi' }, status: 201 });
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('camper-care-form')).toBeInTheDocument(),
+    );
+
+    await user.type(screen.getByTestId('camper-care-item'), 'Toothpaste');
+    await user.click(screen.getByTestId('camper-care-add-item'));
+    await user.type(screen.getByTestId('camper-care-item-1'), 'Sunscreen');
+    await user.click(screen.getByTestId('camper-care-submit'));
+
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    const body = postMock.mock.calls[0][1];
+    expect(body.item).toBe('Toothpaste');
+    expect(Array.isArray(body.line_items)).toBe(true);
+    expect(body.line_items.map((li) => li.item_label)).toEqual([
+      'Toothpaste',
+      'Sunscreen',
+    ]);
   });
 
   it('survives a suggestions endpoint error gracefully', async () => {
@@ -147,7 +175,9 @@ describe('CamperCareRequestFormPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('camper-care-form')).toBeInTheDocument(),
     );
-    expect(document.getElementById('camper-care-item-options')).toBeNull();
+    // No suggestions → no quick-pick chips, but the free-text item field works.
+    expect(screen.queryByTestId('camper-care-quick-picks')).toBeNull();
+    expect(screen.getByTestId('camper-care-item')).toBeInTheDocument();
   });
 
   it('requires an item before submit', async () => {
