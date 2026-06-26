@@ -40,7 +40,6 @@ from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 
 from .common import viewer_or_403
 
-
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
