@@ -26,8 +26,8 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
-from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.program_scope import primary_operational_membership
+from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 from .common import counselor_self_template

@@ -34,7 +34,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.assignment_resolution import active_assignments_for
-from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person

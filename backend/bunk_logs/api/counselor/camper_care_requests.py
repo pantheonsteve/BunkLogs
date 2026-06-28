@@ -17,7 +17,6 @@ from bunk_logs.core import audit as audit_module
 from bunk_logs.core.catalog import camper_care_item_options
 from bunk_logs.core.catalog import resolve_line_items
 from bunk_logs.core.models import AssignmentGroupMembership
-from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import RequestLineItem
 from bunk_logs.core.program_scope import primary_operational_membership
