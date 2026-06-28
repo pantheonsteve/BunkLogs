@@ -9,7 +9,8 @@
  *     clicks "Confirm" to re-POST.
  *   - On 400 with "scored camper form" in the body, an amber callout is shown
  *     below the target group picker instead of the generic error area.
- *   - Group picker filters by program and group type (matches AssignmentDialog).
+ *   - Group picker filters by program and group type; checkboxes allow
+ *     assigning to multiple groups at once (one POST per group).
  *
  * Calls onCreated(assignment) on success, then closes.
  *
@@ -102,7 +103,15 @@ function extractErrorMessage(responseData) {
 
 // ─── Group picker ─────────────────────────────────────────────────────────────
 
-function GroupPicker({ orgSlug, template, value, onChange, scoredCamperError }) {
+function GroupPicker({
+  orgSlug,
+  template,
+  selectedIds,
+  onToggleGroup,
+  onSetSelectedIds,
+  groupResults,
+  scoredCamperError,
+}) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -169,6 +178,22 @@ function GroupPicker({ orgSlug, template, value, onChange, scoredCamperError }) 
   }, [groups, programFilter, groupTypeFilter, search]);
 
   const filtersReady = Boolean(programFilter && groupTypeFilter);
+  const allVisibleSelected = visibleGroups.length > 0
+    && visibleGroups.every((g) => selectedIds.has(g.id));
+  const someVisibleSelected = visibleGroups.some((g) => selectedIds.has(g.id));
+
+  const toggleAllVisible = () => {
+    const ids = visibleGroups.map((g) => g.id);
+    onSetSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allChecked = ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (allChecked) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (programOptions.length === 1 && !programFilter) {
@@ -179,12 +204,6 @@ function GroupPicker({ orgSlug, template, value, onChange, scoredCamperError }) 
   useEffect(() => {
     setGroupTypeFilter('');
   }, [programFilter]);
-
-  useEffect(() => {
-    if (value != null && !visibleGroups.some((g) => g.id === value)) {
-      onChange(null);
-    }
-  }, [value, visibleGroups, onChange]);
 
   return (
     <div className="space-y-2">
@@ -259,23 +278,64 @@ function GroupPicker({ orgSlug, template, value, onChange, scoredCamperError }) 
         </p>
       )}
       {filtersReady && visibleGroups.length > 0 && (
-        <select
-          size={Math.min(visibleGroups.length + 1, 6)}
-          value={value ?? ''}
-          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-          className="w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-          data-testid="assign-form-group-select"
+        <div
+          className="rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-2"
+          data-testid="assign-form-group-list"
         >
-          <option value="">— select a group —</option>
-          {visibleGroups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-              {g.group_type ? ` (${GROUP_TYPE_SHORT[g.group_type] ?? g.group_type})` : ''}
-              {' · #'}
-              {g.id}
-            </option>
-          ))}
-        </select>
+          <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+              }}
+              onChange={toggleAllVisible}
+              data-testid="assign-form-group-select-all"
+            />
+            Select all ({visibleGroups.length})
+          </label>
+          <ul className="max-h-48 overflow-y-auto space-y-1">
+            {visibleGroups.map((g) => {
+              const checked = selectedIds.has(g.id);
+              const outcome = groupResults?.[g.id];
+              return (
+                <li key={g.id}>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggleGroup(g.id)}
+                      data-testid={`assign-form-group-${g.id}`}
+                    />
+                    <span className="truncate" data-testid={`assign-form-group-label-${g.id}`}>
+                      {g.name}
+                      {g.group_type ? ` (${GROUP_TYPE_SHORT[g.group_type] ?? g.group_type})` : ''}
+                      <span className="text-gray-400 dark:text-gray-500 ml-1.5">#{g.id}</span>
+                    </span>
+                    {outcome?.status === 'ok' && (
+                      <span className="text-xs text-green-700 dark:text-green-300">✓</span>
+                    )}
+                    {outcome?.status === 'conflict' && (
+                      <span className="text-xs text-amber-700 dark:text-amber-300" title={outcome.detail}>
+                        conflict
+                      </span>
+                    )}
+                    {outcome?.status === 'error' && (
+                      <span className="text-xs text-red-700 dark:text-red-300" title={outcome.detail}>
+                        error
+                      </span>
+                    )}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+      {selectedIds.size > 0 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400" data-testid="assign-form-groups-selected-count">
+          {selectedIds.size} group{selectedIds.size === 1 ? '' : 's'} selected.
+        </p>
       )}
 
       {scoredCamperError && (
@@ -375,7 +435,7 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
 
   // Form state
   const [targetType, setTargetType] = useState('assignment_group');
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set());
   const [role, setRole] = useState('counselor');
   const [tag, setTag] = useState('');
   const [title, setTitle] = useState('');
@@ -389,13 +449,18 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [dateError, setDateError] = useState('');
+  const [groupResults, setGroupResults] = useState({});
 
   // Scored-camper guard (400 with specific message)
   const [scoredCamperError, setScoredCamperError] = useState('');
 
-  // Conflict resolution (409)
-  const [conflictState, setConflictState] = useState(null); // { conflicts, pendingPayload }
-  const [resolution, setResolution] = useState('replace');
+  // Batch conflict resolution (assignment_group multi-POST)
+  const [conflicts, setConflicts] = useState([]);
+  const [resolution, setResolution] = useState('');
+
+  // Single-target conflict resolution (role / tag_group)
+  const [conflictState, setConflictState] = useState(null);
+  const [singleResolution, setSingleResolution] = useState('replace');
 
   // Validate end >= start client-side
   const validateDates = () => {
@@ -407,27 +472,116 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
     return true;
   };
 
-  const buildPayload = (extraFields = {}) => {
+  const buildBasePayload = () => {
     const payload = {
       template: template?.id,
-      target_type: targetType,
       is_required: isRequired,
       start_date: startDate,
     };
     if (title.trim()) payload.title = title.trim();
     if (endDate) payload.end_date = endDate;
     if (cadenceOverride) payload.cadence_override = cadenceOverride;
+    return payload;
+  };
+
+  const buildPayload = (extraFields = {}) => {
+    const payload = {
+      ...buildBasePayload(),
+      target_type: targetType,
+      ...extraFields,
+    };
 
     if (targetType === 'assignment_group') {
-      payload.target_payload = {};
-      if (selectedGroupId) payload.assignment_group = selectedGroupId;
+      payload.target_payload = { role: role || template?.role || 'counselor' };
+      if (extraFields.assignment_group) payload.assignment_group = extraFields.assignment_group;
     } else if (targetType === 'role') {
       payload.target_payload = { role };
     } else if (targetType === 'tag_group') {
       payload.target_payload = { tag };
     }
 
-    return { ...payload, ...extraFields };
+    return payload;
+  };
+
+  const toggleGroup = (id) => {
+    setSelectedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const submitGroups = async () => {
+    if (conflicts.length > 0 && !resolution) {
+      setError('Pick how to resolve the conflict.');
+      return false;
+    }
+    const ids = Array.from(selectedGroupIds);
+    const results = { ...groupResults };
+    let anyConflict = false;
+    const conflictRows = [];
+    let scoredMsg = '';
+
+    for (const gid of ids) {
+      const prior = results[gid];
+      if (prior?.status === 'ok') continue;
+
+      const body = {
+        ...buildBasePayload(),
+        target_type: 'assignment_group',
+        target_payload: { role: role || template?.role || 'counselor' },
+        assignment_group: gid,
+      };
+      if (resolution) body.conflict_resolution = resolution;
+
+      try {
+        const data = await createAssignment(orgSlug, body);
+        results[gid] = { status: 'ok', assignment: data };
+        if (onCreated) onCreated(data);
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 409) {
+          anyConflict = true;
+          const body409 = err.response.data ?? {};
+          results[gid] = {
+            status: 'conflict',
+            detail: body409.detail ?? 'Conflicting assignment exists.',
+            conflicts: body409.conflicts ?? [],
+          };
+          conflictRows.push(...(body409.conflicts ?? []));
+        } else if (status === 400) {
+          const body400 = err.response.data;
+          const msg = extractScoredCamperError(body400);
+          if (msg) scoredMsg = msg;
+          const detail = msg || extractErrorMessage(body400);
+          results[gid] = { status: 'error', detail };
+        } else {
+          results[gid] = {
+            status: 'error',
+            detail: extractErrorMessage(err?.response?.data),
+          };
+        }
+      }
+    }
+
+    setGroupResults(results);
+    if (scoredMsg) setScoredCamperError(scoredMsg);
+
+    if (anyConflict) {
+      setConflicts(conflictRows);
+      setError('One or more groups already have an active assignment. Pick a resolution and retry.');
+      setResolution((prev) => prev || '');
+      return false;
+    }
+
+    const everyOk = ids.every((id) => results[id]?.status === 'ok');
+    if (everyOk) {
+      onClose?.();
+      return true;
+    }
+    setError('Some assignments could not be created. See per-group errors below.');
+    return false;
   };
 
   const handleSubmit = async () => {
@@ -438,14 +592,18 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
     if (!template?.id) { setError('No template selected.'); return; }
     if (!startDate) { setError('Start date is required.'); return; }
     if (!validateDates()) return;
-    if (targetType === 'assignment_group' && !selectedGroupId) {
-      setError('Select a group.'); return;
+    if (targetType === 'assignment_group' && selectedGroupIds.size === 0) {
+      setError('Check at least one group.'); return;
     }
     if (targetType === 'role' && !role) { setError('Select a role.'); return; }
     if (targetType === 'tag_group' && !tag.trim()) { setError('Enter a tag.'); return; }
 
     setSubmitting(true);
     try {
+      if (targetType === 'assignment_group') {
+        await submitGroups();
+        return;
+      }
       const payload = buildPayload();
       const data = await createAssignment(orgSlug, payload);
       if (onCreated) onCreated(data);
@@ -455,7 +613,7 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
       if (status === 409) {
         const body = err.response.data ?? {};
         setConflictState({ conflicts: body.conflicts ?? [], pendingPayload: buildPayload() });
-        setResolution('replace');
+        setSingleResolution('replace');
       } else if (status === 400) {
         const body = err.response.data;
         const scoredMsg = extractScoredCamperError(body);
@@ -474,14 +632,14 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
 
   const handleConflictConfirm = async () => {
     if (!conflictState) return;
-    if (resolution === 'cancel') {
+    if (singleResolution === 'cancel') {
       onClose?.();
       return;
     }
     setSubmitting(true);
     setError('');
     try {
-      const payload = { ...conflictState.pendingPayload, conflict_resolution: resolution };
+      const payload = { ...conflictState.pendingPayload, conflict_resolution: singleResolution };
       const data = await createAssignment(orgSlug, payload);
       if (onCreated) onCreated(data);
       onClose?.();
@@ -503,9 +661,15 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
     onClose?.();
   };
 
-  const inConflict = Boolean(conflictState);
-  // Freeze form while in conflict resolution mode
-  const fieldDisabled = submitting || inConflict;
+  const inSingleConflict = Boolean(conflictState);
+  const fieldDisabled = submitting || inSingleConflict;
+  const assignButtonLabel = (() => {
+    if (submitting) return 'Assigning…';
+    if (targetType === 'assignment_group' && selectedGroupIds.size > 1) {
+      return `Assign to ${selectedGroupIds.size} groups`;
+    }
+    return 'Assign form';
+  })();
 
   return (
     <div
@@ -577,14 +741,19 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
           {targetType === 'assignment_group' && (
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Assignment group <span className="text-red-500">*</span>
+                Assignment groups <span className="text-red-500">*</span>
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Check one or more groups. A separate assignment is created per group.
               </p>
               <fieldset disabled={fieldDisabled}>
                 <GroupPicker
                   orgSlug={orgSlug}
                   template={template}
-                  value={selectedGroupId}
-                  onChange={setSelectedGroupId}
+                  selectedIds={selectedGroupIds}
+                  onToggleGroup={toggleGroup}
+                  onSetSelectedIds={setSelectedGroupIds}
+                  groupResults={groupResults}
                   scoredCamperError={scoredCamperError}
                 />
               </fieldset>
@@ -729,12 +898,46 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
             </p>
           )}
 
-          {/* Conflict resolution panel — replaces submit area */}
-          {inConflict ? (
+          {targetType === 'assignment_group' && conflicts.length > 0 && (
+            <div
+              className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-200"
+              data-testid="assign-form-conflicts"
+            >
+              <p className="font-medium mb-1">Conflicting assignments:</p>
+              <ul className="list-disc list-inside text-xs space-y-0.5 mb-2">
+                {conflicts.map((c) => (
+                  <li key={c.id} data-testid={`conflict-item-${c.id}`}>
+                    {c.display_title || c.title || c.template_slug}
+                    {' · '}
+                    {c.start_date} – {c.end_date ?? 'ongoing'}
+                    {c.assignment_group_name ? ` · ${c.assignment_group_name}` : ''}
+                  </li>
+                ))}
+              </ul>
+              <fieldset className="space-y-1" role="radiogroup">
+                {CONFLICT_CHOICES.map((choice) => (
+                  <label key={choice.value} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="assign-form-batch-conflict"
+                      value={choice.value}
+                      checked={resolution === choice.value}
+                      onChange={() => setResolution(choice.value)}
+                      data-testid={`conflict-choice-${choice.value}`}
+                    />
+                    {choice.label}
+                  </label>
+                ))}
+              </fieldset>
+            </div>
+          )}
+
+          {/* Conflict resolution panel — role/tag single POST only */}
+          {inSingleConflict ? (
             <ConflictPanel
               conflicts={conflictState.conflicts}
-              resolution={resolution}
-              onResolutionChange={setResolution}
+              resolution={singleResolution}
+              onResolutionChange={setSingleResolution}
               onConfirm={handleConflictConfirm}
               onCancel={handleConflictCancel}
               submitting={submitting}
@@ -756,7 +959,7 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
                 className="text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-1.5"
                 data-testid="assign-form-submit"
               >
-                {submitting ? 'Assigning…' : 'Assign form'}
+                {assignButtonLabel}
               </button>
             </div>
           )}
