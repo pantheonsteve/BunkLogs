@@ -20,6 +20,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.state_machine import OrderStateMachine
 
 from .bunk_requests import order_detail_for_viewer
@@ -45,12 +46,7 @@ class CounselorRequestsListView(APIView):
         viewer = ctx.person
         org = ctx.organization
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=ctx.today)
         if primary_membership is None or primary_membership.program is None:
             return Response({"requests": []})
         program = primary_membership.program

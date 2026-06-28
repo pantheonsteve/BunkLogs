@@ -32,6 +32,7 @@ from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import RequestLineItem
 from bunk_logs.core.models import TicketPhoto
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.submission import idempotent_create
 
 from .common import co_counselor_person_ids
@@ -68,12 +69,7 @@ class MaintenanceOptionsListView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        primary_membership = (
-            Membership.objects.filter(person=ctx.person, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(ctx.person, today=ctx.today)
         program = primary_membership.program if primary_membership else None
         return Response(maintenance_options(ctx.organization, program))
 
@@ -123,12 +119,7 @@ class MaintenanceTicketCreateView(APIView):
                 p_ser = photo_validator(data={"image": f})
                 p_ser.is_valid(raise_exception=True)
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=today)
         if primary_membership is None or primary_membership.program is None:
             msg = "No active program membership."
             raise PermissionDenied(msg)

@@ -22,6 +22,7 @@ from django.db.models import When
 from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.assignment_resolution import resolve_template_for
+from bunk_logs.core.program_scope import operational_author_groups_qs
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import CamperDayState
@@ -100,23 +101,25 @@ def resolve_submitted_from_bunk(
     return None
 
 
-def viewer_bunk_groups(viewer: Person) -> list[AssignmentGroup]:
+def viewer_bunk_groups(viewer: Person, *, today: date | None = None) -> list[AssignmentGroup]:
     """Active bunk AssignmentGroups the viewer is an author on.
 
     "Co-counselor" relationships are derived from author-membership on the
     same bunk groups (decision C4). We surface ``group_type == 'bunk'``
     explicitly so a counselor who also authors on a "unit" group doesn't
     accidentally pull units into the bunk roster.
+
+    Only groups in operational programs (active + within date window) are
+    returned so ended sessions do not appear on dashboards.
     """
+    if today is None:
+        today = get_today(viewer.organization)
     bunk_ids = list(
-        AssignmentGroupMembership.objects.filter(
-            person=viewer,
-            role_in_group="author",
-            is_active=True,
-            group__is_active=True,
+        operational_author_groups_qs(
+            viewer,
+            today=today,
             group__group_type="bunk",
-        )
-        .values_list("group_id", flat=True),
+        ).values_list("group_id", flat=True),
     )
     if not bunk_ids:
         return []

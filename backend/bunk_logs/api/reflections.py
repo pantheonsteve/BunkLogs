@@ -21,6 +21,9 @@ from rest_framework.response import Response
 
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.assignment_resolution import list_required_assignments_for
+from bunk_logs.core.program_scope import operational_assignment_groups_qs
+from bunk_logs.core.program_scope import operational_author_groups_qs
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -241,9 +244,7 @@ def _my_summary_scope(
     viewer's most recent self-reflection so a submission from /tasks shows up
     immediately even if another membership was created more recently.
     """
-    memberships_qs = Membership.objects.filter(
-        person=viewer, is_active=True,
-    ).select_related("program")
+    memberships_qs = operational_memberships_qs(viewer, today=today)
     if program_slug:
         memberships_qs = memberships_qs.filter(program__slug=program_slug)
     memberships = list(memberships_qs.order_by("-created_at"))
@@ -1201,14 +1202,10 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         today = get_today(org)
 
         viewer_memberships = list(
-            Membership.objects.filter(person=viewer, is_active=True).select_related("program"),
+            operational_memberships_qs(viewer, today=today).select_related("program"),
         )
         author_agms = list(
-            AssignmentGroupMembership.objects.filter(
-                person=viewer,
-                role_in_group="author",
-                is_active=True,
-            ).select_related("group"),
+            operational_author_groups_qs(viewer, today=today).select_related("group"),
         )
 
         tasks = _tasks_from_required_assignments(
@@ -1245,15 +1242,13 @@ class ReflectionViewSet(viewsets.ModelViewSet):
 
         if is_admin:
             groups = list(
-                AssignmentGroup.objects.filter(organization=org, is_active=True),
+                operational_assignment_groups_qs(today=today, organization=org),
             )
         else:
             author_group_ids = list(
-                AssignmentGroupMembership.objects.filter(
-                    person=viewer,
-                    role_in_group="author",
-                    is_active=True,
-                ).values_list("group_id", flat=True),
+                operational_author_groups_qs(viewer, today=today).values_list(
+                    "group_id", flat=True,
+                ),
             )
             if not author_group_ids:
                 return Response({"groups": []})

@@ -20,6 +20,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import RequestLineItem
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.submission import idempotent_create
 
 from .common import co_counselor_person_ids
@@ -47,12 +48,7 @@ class CamperCareItemSuggestionListView(APIView):
         ctx = viewer_or_403(request)
         viewer = ctx.person
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=ctx.today)
         if primary_membership is None or primary_membership.program is None:
             return Response({"suggestions": []})
 
@@ -78,12 +74,7 @@ class CamperCareRequestCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=today)
         if primary_membership is None or primary_membership.program is None:
             msg = "No active program membership."
             raise PermissionDenied(msg)

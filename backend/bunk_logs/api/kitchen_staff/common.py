@@ -26,6 +26,7 @@ from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-e
 from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -68,8 +69,8 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
     membership = (
-        Membership.objects.filter(
-            person=person, role="kitchen_staff", is_active=True,
+        operational_memberships_qs(
+            person, today=get_today(org), role="kitchen_staff",
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")

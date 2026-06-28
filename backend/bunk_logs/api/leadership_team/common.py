@@ -34,6 +34,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -144,10 +145,10 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
     membership = (
-        Membership.objects.filter(
-            person=person,
+        operational_memberships_qs(
+            person,
+            today=get_today(org),
             capability__in=["program_lead", "admin"],
-            is_active=True,
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")

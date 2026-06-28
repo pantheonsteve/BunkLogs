@@ -23,6 +23,8 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.permissions.super_admin import is_super_admin
+from bunk_logs.core.program_scope import operational_program_q
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -276,7 +278,7 @@ def _supervision_authored_q(person: Person, organization_id: int | None) -> Q | 
     return reduce(or_, parts)
 
 
-def _author_group_ids_split(person: Person) -> tuple[set[int], set[int]]:
+def _author_group_ids_split(person: Person, *, today: date | None = None) -> tuple[set[int], set[int]]:
     """Return ``(direct_ids, descendant_only_ids)`` for the person's authoring memberships.
 
     ``direct_ids`` is the set of groups where the person is a direct author --
@@ -288,14 +290,20 @@ def _author_group_ids_split(person: Person) -> tuple[set[int], set[int]]:
     can gate peer visibility independently of supervisor visibility.
 
     Same two-query BFS as ``_author_group_ids_with_descendants``; the split is
-    bookkeeping over the visited set.
+    bookkeeping over the visited set. Only groups in operational programs are
+    included so ended sessions do not expand visibility on default dashboards.
     """
+    if today is None:
+        today = get_today(person.organization)
     direct_ids = set(
         AssignmentGroupMembership.all_objects.filter(
             person=person,
             role_in_group="author",
             is_active=True,
-        ).values_list("group_id", flat=True),
+            group__is_active=True,
+        )
+        .filter(operational_program_q(today=today, prefix="group__program"))
+        .values_list("group_id", flat=True),
     )
     if not direct_ids:
         return set(), set()

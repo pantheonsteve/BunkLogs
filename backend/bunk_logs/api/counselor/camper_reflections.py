@@ -29,6 +29,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
@@ -75,12 +76,7 @@ class CamperReflectionListView(APIView):
                 status=400,
             )
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=today)
         if primary_membership is None or primary_membership.program is None:
             return Response({
                 "date": target.isoformat(),
@@ -89,7 +85,7 @@ class CamperReflectionListView(APIView):
             })
         program = primary_membership.program
 
-        bunks = viewer_bunk_groups(viewer)
+        bunks = viewer_bunk_groups(viewer, today=today)
         if not bunks:
             return Response({
                 "date": target.isoformat(),
@@ -202,12 +198,7 @@ class CamperReflectionListView(APIView):
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=ctx.today)
         if primary_membership is None or primary_membership.program is None:
             msg = "No active program membership."
             raise PermissionDenied(msg)
