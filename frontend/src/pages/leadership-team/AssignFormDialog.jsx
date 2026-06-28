@@ -9,7 +9,7 @@
  *     clicks "Confirm" to re-POST.
  *   - On 400 with "scored camper form" in the body, an amber callout is shown
  *     below the target group picker instead of the generic error area.
- *   - "Cadence override" is collapsed under an "Advanced" disclosure.
+ *   - Group picker filters by program and group type (matches AssignmentDialog).
  *
  * Calls onCreated(assignment) on success, then closes.
  *
@@ -44,7 +44,23 @@ const CONFLICT_CHOICES = [
   { value: 'cancel', label: 'Cancel — discard and close the dialog' },
 ];
 
-const GROUP_TYPE_LABELS = {
+const GROUP_TYPE_ORDER = [
+  'bunk', 'unit', 'division', 'cohort', 'classroom', 'caseload', 'team', 'specialty', 'custom',
+];
+
+const GROUP_TYPE_LABEL = {
+  bunk: 'Bunks',
+  unit: 'Units',
+  division: 'Divisions',
+  cohort: 'Cohorts',
+  classroom: 'Classrooms',
+  caseload: 'Caseloads',
+  team: 'Teams',
+  specialty: 'Specialty / Activity groups',
+  custom: 'Custom groups',
+};
+
+const GROUP_TYPE_SHORT = {
   bunk: 'Bunk', unit: 'Unit', division: 'Division', cohort: 'Cohort',
   classroom: 'Classroom', caseload: 'Caseload', team: 'Team', specialty: 'Specialty', custom: 'Custom',
 };
@@ -86,11 +102,12 @@ function extractErrorMessage(responseData) {
 
 // ─── Group picker ─────────────────────────────────────────────────────────────
 
-function GroupPicker({ orgSlug, value, onChange, scoredCamperError }) {
+function GroupPicker({ orgSlug, template, value, onChange, scoredCamperError }) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
+  const [programFilter, setProgramFilter] = useState('');
   const [groupTypeFilter, setGroupTypeFilter] = useState('');
 
   useEffect(() => {
@@ -104,52 +121,73 @@ function GroupPicker({ orgSlug, value, onChange, scoredCamperError }) {
     return () => { cancelled = true; };
   }, [orgSlug]);
 
-  const filteredGroups = useMemo(() => {
-    let list = groups;
-    if (groupTypeFilter) list = list.filter((g) => g.group_type === groupTypeFilter);
+  const programOptions = useMemo(() => {
+    const byId = new Map();
+    for (const g of groups) {
+      if (g.program != null && !byId.has(g.program)) {
+        byId.set(g.program, g.program_name ?? `Program #${g.program}`);
+      }
+    }
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [groups]);
+
+  const allowedGroupTypes = useMemo(() => {
+    const fromTemplate = Array.isArray(template?.assignment_group_types)
+      ? template.assignment_group_types.filter(Boolean)
+      : [];
+    return fromTemplate.length > 0 ? new Set(fromTemplate) : null;
+  }, [template?.assignment_group_types]);
+
+  const typeOptions = useMemo(() => {
+    if (!programFilter) return [];
+    const types = new Set(
+      groups
+        .filter((g) => String(g.program) === programFilter)
+        .map((g) => g.group_type)
+        .filter(Boolean),
+    );
+    const ordered = GROUP_TYPE_ORDER.filter((gt) => types.has(gt));
+    for (const gt of types) {
+      if (!ordered.includes(gt)) ordered.push(gt);
+    }
+    if (allowedGroupTypes) {
+      return ordered.filter((gt) => allowedGroupTypes.has(gt));
+    }
+    return ordered;
+  }, [groups, programFilter, allowedGroupTypes]);
+
+  const visibleGroups = useMemo(() => {
+    if (!programFilter || !groupTypeFilter) return [];
+    let list = groups.filter(
+      (g) => String(g.program) === programFilter && g.group_type === groupTypeFilter,
+    );
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((g) => (g.name || '').toLowerCase().includes(q));
     }
-    return list;
-  }, [groups, groupTypeFilter, search]);
+    return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [groups, programFilter, groupTypeFilter, search]);
 
-  const groupTypes = useMemo(
-    () => [...new Set(groups.map((g) => g.group_type).filter(Boolean))],
-    [groups],
-  );
+  const filtersReady = Boolean(programFilter && groupTypeFilter);
 
-  const multiProgram = useMemo(
-    () => new Set(groups.map((g) => g.program).filter(Boolean)).size > 1,
-    [groups],
-  );
+  useEffect(() => {
+    if (programOptions.length === 1 && !programFilter) {
+      setProgramFilter(String(programOptions[0][0]));
+    }
+  }, [programOptions, programFilter]);
+
+  useEffect(() => {
+    setGroupTypeFilter('');
+  }, [programFilter]);
+
+  useEffect(() => {
+    if (value != null && !visibleGroups.some((g) => g.id === value)) {
+      onChange(null);
+    }
+  }, [value, visibleGroups, onChange]);
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2 flex-wrap">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search groups…"
-          className="flex-1 min-w-[10rem] text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-          data-testid="assign-form-group-search"
-        />
-        {groupTypes.length > 1 && (
-          <select
-            value={groupTypeFilter}
-            onChange={(e) => setGroupTypeFilter(e.target.value)}
-            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-            data-testid="assign-form-group-type-filter"
-          >
-            <option value="">All types</option>
-            {groupTypes.map((gt) => (
-              <option key={gt} value={gt}>{GROUP_TYPE_LABELS[gt] ?? gt}</option>
-            ))}
-          </select>
-        )}
-      </div>
-
       {loading && (
         <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="assign-form-groups-loading">
           Loading groups…
@@ -160,25 +198,81 @@ function GroupPicker({ orgSlug, value, onChange, scoredCamperError }) {
           {loadError}
         </p>
       )}
-      {!loading && !loadError && filteredGroups.length === 0 && (
+      {!loading && !loadError && groups.length === 0 && (
         <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="assign-form-groups-empty">
-          No groups found.
+          No active assignment groups found in this org.
         </p>
       )}
-      {!loading && !loadError && filteredGroups.length > 0 && (
+      {!loading && !loadError && groups.length > 0 && (
+        <>
+          <div className="flex flex-wrap gap-3">
+            <label className="block text-sm text-gray-700 dark:text-gray-300 min-w-[12rem]">
+              Program
+              <select
+                value={programFilter}
+                onChange={(e) => setProgramFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
+                data-testid="assign-form-program-filter"
+              >
+                <option value="">Select program…</option>
+                {programOptions.map(([id, label]) => (
+                  <option key={id} value={String(id)}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm text-gray-700 dark:text-gray-300 min-w-[12rem]">
+              Group type
+              <select
+                value={groupTypeFilter}
+                onChange={(e) => setGroupTypeFilter(e.target.value)}
+                disabled={!programFilter}
+                className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm disabled:opacity-50"
+                data-testid="assign-form-group-type-filter"
+              >
+                <option value="">Select type…</option>
+                {typeOptions.map((gt) => (
+                  <option key={gt} value={gt}>{GROUP_TYPE_LABEL[gt] ?? gt}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {!filtersReady && (
+            <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="assign-form-groups-filter-hint">
+              Select a program and group type to browse groups.
+            </p>
+          )}
+          {filtersReady && (
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search groups…"
+              className="w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+              data-testid="assign-form-group-search"
+            />
+          )}
+        </>
+      )}
+      {filtersReady && visibleGroups.length === 0 && (
+        <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="assign-form-groups-filter-empty">
+          No groups match these filters.
+        </p>
+      )}
+      {filtersReady && visibleGroups.length > 0 && (
         <select
-          size={Math.min(filteredGroups.length + 1, 6)}
+          size={Math.min(visibleGroups.length + 1, 6)}
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
           className="w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
           data-testid="assign-form-group-select"
         >
           <option value="">— select a group —</option>
-          {filteredGroups.map((g) => (
+          {visibleGroups.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name}
-              {g.group_type ? ` (${GROUP_TYPE_LABELS[g.group_type] ?? g.group_type})` : ''}
-              {multiProgram && g.program_name ? ` · ${g.program_name}` : ''}
+              {g.group_type ? ` (${GROUP_TYPE_SHORT[g.group_type] ?? g.group_type})` : ''}
+              {' · #'}
+              {g.id}
             </option>
           ))}
         </select>
@@ -488,6 +582,7 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
               <fieldset disabled={fieldDisabled}>
                 <GroupPicker
                   orgSlug={orgSlug}
+                  template={template}
                   value={selectedGroupId}
                   onChange={setSelectedGroupId}
                   scoredCamperError={scoredCamperError}

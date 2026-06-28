@@ -17,6 +17,8 @@ import { createAssignment, listAssignmentGroups } from '../../../api/leadershipT
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
+const summerProgramId = 1;
+
 const template = {
   id: 7,
   name: 'Daily Bunk Log',
@@ -25,8 +27,14 @@ const template = {
 };
 
 const groups = [
-  { id: 3, name: 'Bunk Birch', group_type: 'bunk' },
-  { id: 4, name: 'Bunk Oak', group_type: 'bunk' },
+  {
+    id: 3, name: 'Bunk Birch', group_type: 'bunk', program: summerProgramId,
+    program_name: 'Summer 2026', is_active: true,
+  },
+  {
+    id: 4, name: 'Bunk Oak', group_type: 'bunk', program: summerProgramId,
+    program_name: 'Summer 2026', is_active: true,
+  },
 ];
 
 const newAssignment = {
@@ -62,6 +70,21 @@ function make400Error(detail) {
   return err;
 }
 
+function selectGroupFilters(programId = summerProgramId, groupType = 'bunk') {
+  fireEvent.change(screen.getByTestId('assign-form-program-filter'), {
+    target: { value: String(programId) },
+  });
+  fireEvent.change(screen.getByTestId('assign-form-group-type-filter'), {
+    target: { value: groupType },
+  });
+}
+
+async function waitForGroupSelect() {
+  await waitFor(() => expect(screen.getByTestId('assign-form-program-filter')).toBeInTheDocument());
+  selectGroupFilters();
+  await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+}
+
 function renderDialog({ onClose = vi.fn(), onCreated = vi.fn() } = {}) {
   return render(
     <AssignFormDialog template={template} onClose={onClose} onCreated={onCreated} />,
@@ -90,8 +113,9 @@ describe('AssignFormDialog', () => {
     expect(screen.getByTestId('assign-form-required')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-start-date')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-end-date')).toBeInTheDocument();
-    // Group picker should load
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    // Group picker shows program/type filters once groups load
+    await waitFor(() => expect(screen.getByTestId('assign-form-program-filter')).toBeInTheDocument());
+    expect(screen.getByTestId('assign-form-groups-filter-hint')).toBeInTheDocument();
   });
 
   it('builds the correct POST payload on submit', async () => {
@@ -100,8 +124,7 @@ describe('AssignFormDialog', () => {
     const onClose = vi.fn();
     renderDialog({ onCreated, onClose });
 
-    // Wait for groups to load and select group 3
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    await waitForGroupSelect();
     fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
 
     // Set a title
@@ -146,8 +169,7 @@ describe('AssignFormDialog', () => {
     const onCreated = vi.fn();
     renderDialog({ onCreated });
 
-    // Select a group and submit
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    await waitForGroupSelect();
     fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
     fireEvent.click(screen.getByTestId('assign-form-submit'));
 
@@ -185,7 +207,7 @@ describe('AssignFormDialog', () => {
     const onClose = vi.fn();
     renderDialog({ onClose });
 
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    await waitForGroupSelect();
     fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
     fireEvent.click(screen.getByTestId('assign-form-submit'));
 
@@ -203,7 +225,7 @@ describe('AssignFormDialog', () => {
     );
     renderDialog();
 
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    await waitForGroupSelect();
     fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
     fireEvent.click(screen.getByTestId('assign-form-submit'));
 
@@ -218,7 +240,7 @@ describe('AssignFormDialog', () => {
 
   it('validates end_date >= start_date client-side and shows error before submitting', async () => {
     renderDialog();
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    await waitForGroupSelect();
     fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
 
     fireEvent.change(screen.getByTestId('assign-form-start-date'), {
@@ -268,5 +290,36 @@ describe('AssignFormDialog', () => {
     expect(screen.queryByTestId('assign-form-cadence')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('assign-form-advanced-toggle'));
     expect(screen.getByTestId('assign-form-cadence')).toBeInTheDocument();
+  });
+
+  it('program and group type filters narrow the visible list', async () => {
+    listAssignmentGroups.mockResolvedValue([
+      {
+        id: 11, name: 'Bunk Birch', group_type: 'bunk', program: summerProgramId,
+        program_name: 'Summer 2026', is_active: true,
+      },
+      {
+        id: 20, name: 'Unit Maple', group_type: 'unit', program: summerProgramId,
+        program_name: 'Summer 2026', is_active: true,
+      },
+      {
+        id: 30, name: 'Fall Bunk', group_type: 'bunk', program: 2,
+        program_name: 'Fall 2026', is_active: true,
+      },
+    ]);
+    renderDialog();
+
+    await waitFor(() => expect(screen.getByTestId('assign-form-program-filter')).toBeInTheDocument());
+    selectGroupFilters(summerProgramId, 'bunk');
+    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+    expect(screen.getByRole('option', { name: /Bunk Birch/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Unit Maple/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Fall Bunk/ })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('assign-form-group-type-filter'), {
+      target: { value: 'unit' },
+    });
+    expect(screen.queryByRole('option', { name: /Bunk Birch/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Unit Maple/ })).toBeInTheDocument();
   });
 });

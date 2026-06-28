@@ -112,17 +112,17 @@ describe('CamperCareCamperDashboardPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('cc-camper-notes-filter')).toBeInTheDocument();
     });
+    const callsBeforeApply = getMock.mock.calls.length;
     fireEvent.change(screen.getByTestId('cc-notes-from'), { target: { value: '2026-06-01' } });
     fireEvent.change(screen.getByTestId('cc-notes-to'), { target: { value: '2026-07-04' } });
     fireEvent.click(screen.getByTestId('cc-notes-filter-apply'));
     await waitFor(() => {
-      const calls = getMock.mock.calls;
-      const params = calls[calls.length - 1]?.[1]?.params || {};
-      expect(params).toMatchObject({
-        notes_from: '2026-06-01',
-        notes_to: '2026-07-04',
-      });
-    }, { timeout: 2000 });
+      const refetchedWithNotes = getMock.mock.calls.slice(callsBeforeApply).some(
+        ([, config]) => config?.params?.notes_from === '2026-06-01'
+          && config?.params?.notes_to === '2026-07-04',
+      );
+      expect(refetchedWithNotes).toBe(true);
+    });
     expect(screen.getByTestId('cc-notes-filter-active')).toHaveTextContent(/2026-06-01/);
   });
 
