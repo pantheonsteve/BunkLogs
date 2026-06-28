@@ -88,7 +88,7 @@ export function initDatadogRum() {
       env: config.env,
       version: config.version,
       sessionSampleRate: 100,
-      sessionReplaySampleRate: 20,
+      sessionReplaySampleRate: 100,
       traceSampleRate: 100,
       traceContextInjection: 'all',
       defaultPrivacyLevel: 'mask-user-input',
