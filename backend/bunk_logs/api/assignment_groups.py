@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.http import HttpResponse
 from django.utils.text import slugify
 from rest_framework import permissions
 from rest_framework import serializers
@@ -13,6 +14,8 @@ from rest_framework.response import Response
 from bunk_logs.core.group_clone import GroupCloneError
 from bunk_logs.core.group_clone import clone_assignment_group
 from bunk_logs.core.group_clone import unique_group_slug
+from bunk_logs.core.group_csv_import import build_group_import_template_csv
+from bunk_logs.core.group_csv_import import import_groups_from_csv_text
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Person
@@ -207,7 +210,18 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
     permission_classes = [AssignmentGroupPermission]
 
     def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy", "add_membership", "remove_membership", "import_roster", "clone"):
+        if self.action in (
+            "create",
+            "update",
+            "partial_update",
+            "destroy",
+            "add_membership",
+            "remove_membership",
+            "import_roster",
+            "bulk_import",
+            "import_template",
+            "clone",
+        ):
             return [AssignmentGroupPermission(), IsOrgAdminOrSuperuser()]
         return [AssignmentGroupPermission()]
 
@@ -445,6 +459,54 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
             context={"request": request, "clone_summary": clone_summary},
         )
         return Response(out.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="import-template")
+    def import_template(self, request):
+        filename, csv_text = build_group_import_template_csv()
+        response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="bulk-import",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def bulk_import(self, request):
+        program_raw = str(request.data.get("program") or "").strip()
+        if not program_raw.isdigit():
+            return Response(
+                {"detail": "A numeric program id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        program = Program.all_objects.filter(pk=int(program_raw)).first()
+        if program is None:
+            return Response({"detail": "Program not found."}, status=status.HTTP_404_NOT_FOUND)
+        if program.organization_id != request.organization.pk:
+            return Response(
+                {"detail": "Program must belong to your organization."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        csv_file = request.FILES.get("file") or request.FILES.get("csv")
+        if csv_file is None:
+            return Response({"detail": "A CSV file is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            csv_text = csv_file.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return Response({"detail": "CSV must be UTF-8 encoded."}, status=status.HTTP_400_BAD_REQUEST)
+
+        mode = (request.data.get("mode") or "preview").strip().lower()
+        dry_run = mode != "commit"
+        payload = import_groups_from_csv_text(
+            organization=request.organization,
+            program=program,
+            csv_text=csv_text,
+            dry_run=dry_run,
+        )
+        http_status = status.HTTP_200_OK if payload.get("valid") else status.HTTP_400_BAD_REQUEST
+        return Response(payload, status=http_status)
 
     @action(detail=False, methods=["get"], url_path=r"import-logs/(?P<log_id>\d+)")
     def import_log_status(self, request, log_id=None):
