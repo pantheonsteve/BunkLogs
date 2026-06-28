@@ -24,6 +24,7 @@ const HREFS = {
   counselorHome: '/counselor',
   unitHeadHome: '/unit-head',
   camperCareHome: '/camper-care',
+  camperCareFlags: '/camper-care/flags',
   leadershipTeamHome: '/leadership-team',
   camperCareOrders: '/camper-care/orders',
   observations: '/observations',
@@ -104,16 +105,20 @@ test.describe('Sidebar RBAC — capability tiers (3.32)', () => {
     expect(await hasLink(page, HREFS.counselorHome)).toBe(false);
   });
 
-  test('camper_care (supervisor): same Supervise gates as unit head + reflection forms', async ({
+  test('camper_care (supervisor): workspace links + Supervise, no admin nav', async ({
     page,
   }) => {
     await loginAs(page, 'camper_care');
     await readSidebarText(page);
 
+    expect(await hasLink(page, HREFS.camperCareHome)).toBe(true);
+    expect(await hasLink(page, HREFS.camperCareFlags)).toBe(true);
+    expect(await hasLink(page, HREFS.camperCareOrders)).toBe(true);
     expect(await hasLink(page, HREFS.groupsPerformance)).toBe(true);
     expect(await hasLink(page, HREFS.concernsInbox)).toBe(true);
-    expect(await hasLink(page, HREFS.reflect)).toBe(true);
-    expect(await hasLink(page, HREFS.myReflections)).toBe(true);
+    expect(await hasLink(page, HREFS.reflect)).toBe(false);
+    expect(await hasLink(page, HREFS.myReflections)).toBe(false);
+    expect(await hasLink(page, HREFS.tasks)).toBe(false);
 
     // Camper care does NOT get admin or dashboards.
     expect(await hasLink(page, HREFS.dashboardsHome)).toBe(false);
