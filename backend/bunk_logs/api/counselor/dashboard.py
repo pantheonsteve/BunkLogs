@@ -34,13 +34,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.assignment_resolution import active_assignments_for
-from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_org_timezone
@@ -57,6 +57,7 @@ from .common import latest_camper_reflection_per_subject
 from .common import latest_self_reflection
 from .common import off_camp_camper_ids
 from .common import person_display_name
+from .common import viewer_bunk_groups
 from .common import viewer_or_403
 
 DASHBOARD_CACHE_TTL_SECONDS = 30
@@ -145,32 +146,14 @@ class CounselorDashboardView(APIView):
             if cached is not None:
                 return Response(cached)
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=org_today)
         if primary_membership is None or primary_membership.program is None:
             payload = self._empty_payload(org_today, target_date, org, viewer)
             cache.set(cache_key, payload, DASHBOARD_CACHE_TTL_SECONDS)
             return Response(payload)
         program = primary_membership.program
 
-        bunk_ids = list(
-            AssignmentGroupMembership.objects.filter(
-                person=viewer,
-                role_in_group="author",
-                is_active=True,
-                group__is_active=True,
-                group__group_type="bunk",
-            ).values_list("group_id", flat=True),
-        )
-        bunks = list(
-            AssignmentGroup.objects.filter(id__in=bunk_ids)
-            .select_related("parent")
-            .order_by("name"),
-        )
+        bunks = viewer_bunk_groups(viewer, today=org_today)
 
         camper_section = self._camper_section(org, program, viewer, bunks, target_date)
         self_section = self._self_section(viewer, org, program, target_date)

@@ -36,6 +36,8 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.permissions import is_super_admin
+from bunk_logs.core.program_scope import operational_memberships_qs
+from bunk_logs.core.program_scope import operational_program_q
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -110,8 +112,8 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
     membership = (
-        Membership.objects.filter(
-            person=person, role="camper_care", is_active=True,
+        operational_memberships_qs(
+            person, today=get_today(org), role="camper_care",
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")
@@ -262,8 +264,11 @@ def caseload_bunks(
     )
     if not bunk_ids:
         return []
+    if today is None:
+        today = get_today(membership.program.organization)
     return list(
         AssignmentGroup.objects.filter(id__in=bunk_ids, is_active=True)
+        .filter(operational_program_q(today=today, prefix="program"))
         .select_related("parent", "organization")
         .order_by("name"),
     )

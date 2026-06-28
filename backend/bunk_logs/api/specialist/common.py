@@ -24,6 +24,7 @@ from bunk_logs.api.counselor.common import is_editable_today  # noqa: F401 (re-e
 from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -73,8 +74,8 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
     membership = (
-        Membership.objects.filter(
-            person=person, role="specialist", is_active=True,
+        operational_memberships_qs(
+            person, today=get_today(org), role="specialist",
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")
@@ -106,12 +107,14 @@ def specialist_label(membership: Membership) -> str:
     return "Specialist"
 
 
-def specialist_program_ids(person: Person) -> list[int]:
-    """All active program IDs where ``person`` has a specialist membership."""
+def specialist_program_ids(person: Person, *, today: date | None = None) -> list[int]:
+    """Active program IDs where ``person`` has an operational specialist membership."""
+    if today is None:
+        today = get_today(person.organization)
     return list(
-        Membership.objects.filter(
-            person=person, role="specialist", is_active=True,
-        ).values_list("program_id", flat=True),
+        operational_memberships_qs(person, today=today, role="specialist").values_list(
+            "program_id", flat=True,
+        ),
     )
 
 

@@ -29,6 +29,8 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import is_org_admin
+from bunk_logs.core.program_scope import is_program_operational
+from bunk_logs.core.program_scope import operational_program_q
 from bunk_logs.core.time_utils import get_today
 
 DEFAULT_WINDOW_DAYS = 14
@@ -81,7 +83,7 @@ class CoverageDashboardView(APIView):
             return Response({"detail": "Person profile required."}, status=403)
 
         # Time window
-        today = date.today()
+        today = get_today(org)
         cur_end = _parse_date(request.query_params.get("date_end"), today)
         cur_start = _parse_date(
             request.query_params.get("date_start"),
@@ -109,6 +111,8 @@ class CoverageDashboardView(APIView):
         program_filter = (request.query_params.get("program") or "").strip()
         if program_filter.isdigit():
             groups_qs = groups_qs.filter(program_id=int(program_filter))
+        elif not is_org_admin(request.user):
+            groups_qs = groups_qs.filter(operational_program_q(today=today, prefix="program"))
 
         if not is_org_admin(request.user):
             if viewer is None:
@@ -118,12 +122,17 @@ class CoverageDashboardView(APIView):
                     "programs": program_options,
                     "groups": [],
                 })
-            org_today = get_today(org)
-            program_ids = (
-                [int(program_filter)]
-                if program_filter.isdigit()
-                else [p["id"] for p in program_options]
-            )
+            org_today = today
+            if program_filter.isdigit():
+                program_ids = [int(program_filter)]
+            else:
+                program_ids = [
+                    p["id"]
+                    for p in program_options
+                    if (
+                        prog := Program.objects.filter(id=p["id"], organization=org).first()
+                    ) is not None and is_program_operational(prog, today=org_today)
+                ]
             visible_group_ids: set[int] = set()
             for pid in program_ids:
                 program_obj = Program.objects.filter(

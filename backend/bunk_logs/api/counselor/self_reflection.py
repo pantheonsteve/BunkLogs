@@ -26,6 +26,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 
@@ -74,12 +75,7 @@ class SelfReflectionHistoryView(APIView):
         org = ctx.organization
         today = ctx.today
 
-        primary_membership = (
-            Membership.objects.filter(person=viewer, is_active=True)
-            .select_related("program")
-            .order_by("-created_at")
-            .first()
-        )
+        primary_membership = primary_operational_membership(viewer, today=today)
         if primary_membership is None or primary_membership.program is None:
             return Response({"results": [], "count": 0, "next": None, "previous": None})
         program = primary_membership.program
@@ -170,13 +166,8 @@ def _day_off_answers() -> dict:
     return {"day_off": True}
 
 
-def _resolve_self_program_and_template(viewer, org):
-    primary_membership = (
-        Membership.objects.filter(person=viewer, is_active=True)
-        .select_related("program")
-        .order_by("-created_at")
-        .first()
-    )
+def _resolve_self_program_and_template(viewer, org, *, today):
+    primary_membership = primary_operational_membership(viewer, today=today)
     if primary_membership is None or primary_membership.program is None:
         msg = "No active program membership."
         raise PermissionDenied(msg)
@@ -202,7 +193,9 @@ class SelfReflectionCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
 
-        membership, program, template = _resolve_self_program_and_template(viewer, org)
+        membership, program, template = _resolve_self_program_and_template(
+            viewer, org, today=today,
+        )
 
         if payload["day_off"]:
             answers = _day_off_answers()

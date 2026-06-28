@@ -33,6 +33,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.reflection_scores import iter_grid_fields
 from bunk_logs.core.reflection_scores import resolve_grid_cells
 from bunk_logs.core.time_utils import get_current_period
@@ -109,8 +110,8 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
     membership = (
-        Membership.objects.filter(
-            person=person, role="unit_head", is_active=True,
+        operational_memberships_qs(
+            person, today=get_today(org), role="unit_head",
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")

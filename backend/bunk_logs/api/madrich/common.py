@@ -25,6 +25,7 @@ from rest_framework.exceptions import PermissionDenied
 from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_today
 
@@ -72,8 +73,8 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
     membership = (
-        Membership.objects.filter(
-            person=person, role="madrich", is_active=True,
+        operational_memberships_qs(
+            person, today=get_today(org), role="madrich",
         )
         .select_related("program", "program__organization")
         .order_by("-created_at")

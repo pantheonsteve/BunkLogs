@@ -34,6 +34,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -71,13 +72,14 @@ def org():
 
 @pytest.fixture
 def program(org):
+    today = get_today(org)
     return Program.all_objects.create(
         organization=org,
         name="TBE Religious School 2026-27",
         slug="rs-2026-27",
         program_type="religious_school",
-        start_date=date(2026, 9, 6),
-        end_date=date(2027, 5, 30),
+        start_date=today - timedelta(days=30),
+        end_date=today + timedelta(days=200),
     )
 
 

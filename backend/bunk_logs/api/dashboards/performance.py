@@ -183,7 +183,12 @@ class GroupPerformanceDashboardView(APIView):
                     selected_program = opt
                     break
         else:
-            current = _current_program(program_options, today)
+            operational_options = [
+                opt for opt in program_options
+                if opt.get("is_active")
+                and date.fromisoformat(opt["start_date"]) <= today <= date.fromisoformat(opt["end_date"])
+            ]
+            current = _current_program(operational_options, today)
             if current is None:
                 return Response(_performance_response(
                     target_date=target_date,
