@@ -89,6 +89,8 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * observations/maintenance), Supervise (supervisor+). Help
  * (program_lead+). Camper Care omits My tasks / File a reflection /
  * My reflections / Bunk Logs — those live on the Camper Care home dashboard.
+ * Camper Care also gets Flagged campers + Camper Care orders in the global
+ * nav (dashboard cards remain secondary entry points with counts).
  * Gates use
  * hasCapability(user, [...]) || isSuperAdmin(user); direct `user.role`
  * references remain only for reflection-form access. Role workspaces are the
@@ -321,6 +323,12 @@ function Sidebar({
             <NavItem to={homePathFor(user.role)} label="Home" icon={IconHome} end />
             {canSeeHelp && (
               <NavItem to="/help" label="Help" icon={IconHelp} />
+            )}
+            {isCamperCare && (
+              <>
+                <NavItem to="/camper-care/flags" label="Flagged campers" icon={IconAlert} />
+                <NavItem to="/camper-care/orders" label="Camper Care orders" icon={IconHeart} />
+              </>
             )}
             {!isCamperCare && (
               <NavItem to="/tasks" label="My tasks" icon={IconTasks} />
