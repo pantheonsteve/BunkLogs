@@ -79,10 +79,14 @@ function selectGroupFilters(programId = summerProgramId, groupType = 'bunk') {
   });
 }
 
-async function waitForGroupSelect() {
+async function waitForGroupList() {
   await waitFor(() => expect(screen.getByTestId('assign-form-program-filter')).toBeInTheDocument());
   selectGroupFilters();
-  await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByTestId('assign-form-group-list')).toBeInTheDocument());
+}
+
+function selectGroup(id) {
+  fireEvent.click(screen.getByTestId(`assign-form-group-${id}`));
 }
 
 function renderDialog({ onClose = vi.fn(), onCreated = vi.fn() } = {}) {
@@ -101,19 +105,14 @@ describe('AssignFormDialog', () => {
 
   it('renders all required fields', async () => {
     renderDialog();
-    // Target type radios
     expect(screen.getByTestId('assign-form-target-assignment_group')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-target-role')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-target-tag_group')).toBeInTheDocument();
-    // Individuals is disabled
-    const individualsRadio = screen.getByTestId('assign-form-target-individuals');
-    expect(individualsRadio).toBeDisabled();
-    // Other fields
+    expect(screen.getByTestId('assign-form-target-individuals')).toBeDisabled();
     expect(screen.getByTestId('assign-form-title')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-required')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-start-date')).toBeInTheDocument();
     expect(screen.getByTestId('assign-form-end-date')).toBeInTheDocument();
-    // Group picker shows program/type filters once groups load
     await waitFor(() => expect(screen.getByTestId('assign-form-program-filter')).toBeInTheDocument());
     expect(screen.getByTestId('assign-form-groups-filter-hint')).toBeInTheDocument();
   });
@@ -124,20 +123,13 @@ describe('AssignFormDialog', () => {
     const onClose = vi.fn();
     renderDialog({ onCreated, onClose });
 
-    await waitForGroupSelect();
-    fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
-
-    // Set a title
+    await waitForGroupList();
+    selectGroup(3);
     fireEvent.change(screen.getByTestId('assign-form-title'), { target: { value: 'My Title' } });
-
-    // Uncheck required
     fireEvent.click(screen.getByTestId('assign-form-required'));
-
-    // Set start date
     fireEvent.change(screen.getByTestId('assign-form-start-date'), {
       target: { value: '2026-06-01' },
     });
-
     fireEvent.click(screen.getByTestId('assign-form-submit'));
 
     await waitFor(() => expect(createAssignment).toHaveBeenCalledOnce());
@@ -149,12 +141,34 @@ describe('AssignFormDialog', () => {
     expect(payload.is_required).toBe(false);
     expect(payload.start_date).toBe('2026-06-01');
 
-    // onCreated and onClose called on success
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(newAssignment));
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('shows conflict resolution panel on 409 and re-submits with chosen resolution', async () => {
+  it('creates one assignment per checked group', async () => {
+    createAssignment.mockImplementation((_org, body) => Promise.resolve({
+      ...newAssignment,
+      id: body.assignment_group,
+      assignment_group: body.assignment_group,
+    }));
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    renderDialog({ onCreated, onClose });
+
+    await waitForGroupList();
+    selectGroup(3);
+    selectGroup(4);
+    expect(screen.getByTestId('assign-form-submit')).toHaveTextContent('Assign to 2 groups');
+    fireEvent.click(screen.getByTestId('assign-form-submit'));
+
+    await waitFor(() => expect(createAssignment).toHaveBeenCalledTimes(2));
+    const groupIds = createAssignment.mock.calls.map(([, body]) => body.assignment_group);
+    expect(groupIds).toEqual(expect.arrayContaining([3, 4]));
+    expect(onCreated).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows inline conflict resolution on 409 and re-submits with chosen resolution', async () => {
     const conflictAssignment = {
       id: 10,
       display_title: 'Old Log',
@@ -169,52 +183,20 @@ describe('AssignFormDialog', () => {
     const onCreated = vi.fn();
     renderDialog({ onCreated });
 
-    await waitForGroupSelect();
-    fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
+    await waitForGroupList();
+    selectGroup(3);
     fireEvent.click(screen.getByTestId('assign-form-submit'));
 
-    // Conflict panel should appear
-    await waitFor(() =>
-      expect(screen.getByTestId('assign-form-conflict-panel')).toBeInTheDocument(),
-    );
-    // Shows the conflicting assignment
+    await waitFor(() => expect(screen.getByTestId('assign-form-conflicts')).toBeInTheDocument());
     expect(screen.getByTestId('conflict-item-10')).toBeInTheDocument();
 
-    // Form fields are frozen (submit button replaced by conflict panel)
-    expect(screen.queryByTestId('assign-form-submit')).not.toBeInTheDocument();
-
-    // "Replace" is selected by default — confirm
-    expect(screen.getByTestId('conflict-choice-replace')).toBeChecked();
-    fireEvent.click(screen.getByTestId('conflict-confirm'));
+    fireEvent.click(screen.getByTestId('conflict-choice-replace'));
+    fireEvent.click(screen.getByTestId('assign-form-submit'));
 
     await waitFor(() => expect(createAssignment).toHaveBeenCalledTimes(2));
     const secondCall = createAssignment.mock.calls[1][1];
     expect(secondCall.conflict_resolution).toBe('replace');
-
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(newAssignment));
-  });
-
-  it('closes the dialog when Cancel is chosen in the conflict panel', async () => {
-    const conflictAssignment = {
-      id: 10,
-      display_title: 'Old Log',
-      title: 'Old Log',
-      start_date: '2026-01-01',
-      end_date: null,
-      assignment_group_name: 'Bunk Birch',
-    };
-    createAssignment.mockRejectedValueOnce(makeConflictError([conflictAssignment]));
-    const onClose = vi.fn();
-    renderDialog({ onClose });
-
-    await waitForGroupSelect();
-    fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
-    fireEvent.click(screen.getByTestId('assign-form-submit'));
-
-    await waitFor(() => expect(screen.getByTestId('assign-form-conflict-panel')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByTestId('conflict-cancel'));
-    expect(onClose).toHaveBeenCalled();
   });
 
   it('shows the scored-camper guard callout on 400 with matching error text', async () => {
@@ -225,8 +207,8 @@ describe('AssignFormDialog', () => {
     );
     renderDialog();
 
-    await waitForGroupSelect();
-    fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
+    await waitForGroupList();
+    selectGroup(3);
     fireEvent.click(screen.getByTestId('assign-form-submit'));
 
     await waitFor(() =>
@@ -235,14 +217,12 @@ describe('AssignFormDialog', () => {
     expect(screen.getByTestId('assign-form-scored-camper-error')).toHaveTextContent(
       'scored camper form',
     );
-    // Dialog should still be open (no onClose call)
   });
 
   it('validates end_date >= start_date client-side and shows error before submitting', async () => {
     renderDialog();
-    await waitForGroupSelect();
-    fireEvent.change(screen.getByTestId('assign-form-group-select'), { target: { value: '3' } });
-
+    await waitForGroupList();
+    selectGroup(3);
     fireEvent.change(screen.getByTestId('assign-form-start-date'), {
       target: { value: '2026-08-01' },
     });
@@ -254,20 +234,14 @@ describe('AssignFormDialog', () => {
     await waitFor(() =>
       expect(screen.getByTestId('assign-form-date-error')).toBeInTheDocument(),
     );
-    expect(screen.getByTestId('assign-form-date-error')).toHaveTextContent(
-      'End date must be on or after start date',
-    );
     expect(createAssignment).not.toHaveBeenCalled();
   });
 
-  it('shows "Assign form" button disabled when template status is draft', async () => {
-    // This is tested at the builder page level (TemplateBuilderPage renders disabled button)
-    // Here we just verify the dialog submit itself requires a group selection
-    createAssignment.mockResolvedValue(newAssignment);
+  it('requires at least one group before submitting', async () => {
     renderDialog();
-    // No group selected — submit should show error, not call API
     fireEvent.click(screen.getByTestId('assign-form-submit'));
     await waitFor(() => expect(screen.getByTestId('assign-form-error')).toBeInTheDocument());
+    expect(screen.getByTestId('assign-form-error')).toHaveTextContent(/at least one group/i);
     expect(createAssignment).not.toHaveBeenCalled();
   });
 
@@ -275,14 +249,14 @@ describe('AssignFormDialog', () => {
     renderDialog();
     fireEvent.click(screen.getByTestId('assign-form-target-role'));
     expect(screen.getByTestId('assign-form-role')).toBeInTheDocument();
-    expect(screen.queryByTestId('assign-form-group-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assign-form-group-list')).not.toBeInTheDocument();
   });
 
   it('shows a tag input when Tag group target type is selected', async () => {
     renderDialog();
     fireEvent.click(screen.getByTestId('assign-form-target-tag_group'));
     expect(screen.getByTestId('assign-form-tag')).toBeInTheDocument();
-    expect(screen.queryByTestId('assign-form-group-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assign-form-group-list')).not.toBeInTheDocument();
   });
 
   it('shows cadence override when Advanced section is expanded', async () => {
@@ -311,15 +285,23 @@ describe('AssignFormDialog', () => {
 
     await waitFor(() => expect(screen.getByTestId('assign-form-program-filter')).toBeInTheDocument());
     selectGroupFilters(summerProgramId, 'bunk');
-    await waitFor(() => expect(screen.getByTestId('assign-form-group-select')).toBeInTheDocument());
-    expect(screen.getByRole('option', { name: /Bunk Birch/ })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Unit Maple/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Fall Bunk/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('assign-form-group-11')).toBeInTheDocument());
+    expect(screen.queryByTestId('assign-form-group-20')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assign-form-group-30')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('assign-form-group-type-filter'), {
       target: { value: 'unit' },
     });
-    expect(screen.queryByRole('option', { name: /Bunk Birch/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /Unit Maple/ })).toBeInTheDocument();
+    expect(screen.queryByTestId('assign-form-group-11')).not.toBeInTheDocument();
+    expect(screen.getByTestId('assign-form-group-20')).toBeInTheDocument();
+  });
+
+  it('select all checks every visible group', async () => {
+    renderDialog();
+    await waitForGroupList();
+    fireEvent.click(screen.getByTestId('assign-form-group-select-all'));
+    expect(screen.getByTestId('assign-form-group-3')).toBeChecked();
+    expect(screen.getByTestId('assign-form-group-4')).toBeChecked();
+    expect(screen.getByTestId('assign-form-groups-selected-count')).toHaveTextContent('2 groups selected');
   });
 });
