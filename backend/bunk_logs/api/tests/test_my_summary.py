@@ -14,6 +14,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -157,7 +158,7 @@ def test_no_reflections_returns_zero_streak(api, org, counselor_user, daily_temp
 @pytest.mark.django_db
 def test_streak_counts_consecutive_days(api, org, program, counselor_user, daily_template):
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org)
     for i in range(3):
         _make_reflection(org, program, person, daily_template, today - timedelta(days=i))
     api.force_authenticate(user=user)
@@ -172,7 +173,7 @@ def test_streak_counts_consecutive_days(api, org, program, counselor_user, daily
 @pytest.mark.django_db
 def test_streak_breaks_on_gap(api, org, program, counselor_user, daily_template):
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org)
     # Submit today and 2 days ago but NOT yesterday
     _make_reflection(org, program, person, daily_template, today)
     _make_reflection(org, program, person, daily_template, today - timedelta(days=2))
@@ -186,7 +187,7 @@ def test_streak_breaks_on_gap(api, org, program, counselor_user, daily_template)
 @pytest.mark.django_db
 def test_streak_no_submission_today(api, org, program, counselor_user, daily_template):
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org)
     # Submitted the last 3 days but not today
     for i in range(1, 4):
         _make_reflection(org, program, person, daily_template, today - timedelta(days=i))
@@ -216,7 +217,7 @@ def test_weekly_history_has_4_periods(api, org, program, unit_head_user, weekly_
 @pytest.mark.django_db
 def test_weekly_streak(api, org, program, unit_head_user, weekly_template):
     user, person = unit_head_user
-    today = date.today()
+    today = get_today(org)
     monday = today - timedelta(days=today.weekday())
     # Submit in this week and the previous 2 weeks
     for i in range(3):
@@ -236,7 +237,7 @@ def test_weekly_streak(api, org, program, unit_head_user, weekly_template):
 @pytest.mark.django_db
 def test_total_completed_counts_beyond_window(api, org, program, counselor_user, daily_template):
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org)
     # 20 reflections — more than the 14-day window
     for i in range(20):
         _make_reflection(org, program, person, daily_template, today - timedelta(days=i))
@@ -255,7 +256,7 @@ def test_total_completed_counts_beyond_window(api, org, program, counselor_user,
 @pytest.mark.django_db
 def test_incomplete_reflection_not_counted(api, org, program, counselor_user, daily_template):
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org)
     _make_reflection(org, program, person, daily_template, today, is_complete=False)
     api.force_authenticate(user=user)
     r = api.get("/api/v1/reflections/my-summary/", **ORG_HDR)
@@ -273,7 +274,7 @@ def test_incomplete_reflection_not_counted(api, org, program, counselor_user, da
 @pytest.mark.django_db
 def test_program_filter_respected(api, org, program, counselor_user, daily_template):
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org)
     _make_reflection(org, program, person, daily_template, today)
     api.force_authenticate(user=user)
     # Correct program returns the reflection
@@ -329,7 +330,7 @@ def test_my_summary_uses_assigned_self_template_not_role_fallback(
         template__organization__isnull=True,
     ).delete()
     make_active_assignment(template=assigned_tpl, program=program, target_role="counselor")
-    today = date.today()
+    today = get_today(org)
     _make_reflection(org, program, person, assigned_tpl, today)
 
     api.force_authenticate(user=user)
@@ -374,7 +375,7 @@ def test_my_summary_prefers_latest_self_reflection_program(
     )
     TemplateAssignment.all_objects.filter(program=program, template=daily_template).delete()
     make_active_assignment(template=assigned_tpl, program=program, target_role="counselor")
-    today = date.today()
+    today = get_today(org)
     _make_reflection(org, program, person, assigned_tpl, today)
 
     api.force_authenticate(user=user)

@@ -18,6 +18,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
 
@@ -108,7 +109,7 @@ def _role_assignment(*, organization, program, template, role, lt_membership, st
         template=template,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": role},
-        start_date=start or (date.today() - timedelta(days=1)),
+        start_date=start or (get_today(organization) - timedelta(days=1)),
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
         is_required=True,
@@ -290,7 +291,7 @@ def test_my_tasks_self_reflection_shows_submitted(
     self_assignment,
 ):
     _drop_seeded_counselor_self_template()
-    today = date.today()
+    today = get_today(org)
     with organization_context(org):
         Reflection.all_objects.create(
             organization=org,
@@ -381,7 +382,7 @@ def test_my_tasks_team_self_reflection_subject_in_group(org, program, lt_members
         organization=org, program=program, template=template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=team,
-        start_date=date.today() - timedelta(days=1),
+        start_date=get_today(org) - timedelta(days=1),
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership, is_required=True,
     )
@@ -432,7 +433,7 @@ def test_my_tasks_cohort_self_reflection_author_in_group(
         template=template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=cohort,
-        start_date=date.today() - timedelta(days=1),
+        start_date=get_today(org) - timedelta(days=1),
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
         is_required=True,
@@ -499,12 +500,12 @@ def test_my_tasks_cohort_self_reflection_counts_null_group_submission(
         template=template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=cohort,
-        start_date=date.today() - timedelta(days=1),
+        start_date=get_today(org) - timedelta(days=1),
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
         is_required=True,
     )
-    today = date.today()
+    today = get_today(org)
     with organization_context(org):
         Reflection.all_objects.create(
             organization=org,
@@ -600,7 +601,7 @@ def test_my_tasks_coverage_state_reflects_existing_reflections(
     camper_person,
     camper_person2,
 ):
-    today = date.today()
+    today = get_today(org)
     with organization_context(org):
         Reflection.all_objects.create(
             organization=org,
@@ -651,7 +652,7 @@ def test_my_tasks_covered_by_me_flag_accurate(
     other_person = Person.all_objects.create(
         organization=org, first_name="Other", last_name="Counselor", user=other_user,
     )
-    today = date.today()
+    today = get_today(org)
     with organization_context(org):
         Reflection.all_objects.create(
             organization=org,
@@ -790,7 +791,7 @@ def test_create_reflection_with_subject_and_assignment_group(
     camper_in_bunk,
     camper_person,
 ):
-    today = date.today()
+    today = get_today(org)
     with organization_context(org):
         client = _authed_client(counselor_user, org)
         resp = client.post(
@@ -826,7 +827,7 @@ def test_create_reflection_roster_rejects_non_author(
     camper_person,
 ):
     """A user who is not an author in the group cannot submit using that group."""
-    today = date.today()
+    today = get_today(org)
     with organization_context(org):
         client = _authed_client(counselor_user, org)
         resp = client.post(
