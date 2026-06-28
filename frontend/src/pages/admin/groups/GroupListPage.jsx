@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, ArrowLeft, ChevronRight } from 'lucide-react';
 import api from '../../../api';
 import { listAdminPrograms } from '../../../api/admin';
+import GroupBulkImportPanel from '../../../components/admin/GroupBulkImportPanel';
 import {
   readStoredProgramId,
   resolveInitialProgramId,
@@ -89,6 +90,7 @@ export default function GroupListPage() {
   const [parentFilter, setParentFilter] = useState('');
   const [parentOptions, setParentOptions] = useState([]);
   const [createParentOptions, setCreateParentOptions] = useState([]);
+  const [showImport, setShowImport] = useState(false);
 
   const syncProgramContext = useCallback((programId) => {
     writeStoredProgramId(programId);
@@ -248,6 +250,7 @@ export default function GroupListPage() {
 
   const byType = groupByType(groups);
   const typesPresent = GROUP_TYPE_ORDER.filter((t) => byType[t]?.length > 0);
+  const selectedProgram = programs.find((p) => String(p.id) === String(programFilter));
 
   return (
     <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-screen-2xl mx-auto" data-testid="admin-groups">
@@ -277,7 +280,30 @@ export default function GroupListPage() {
           >
             Add Group
           </Button>
+          <Button
+            variant="secondary"
+            disabled={!programFilter}
+            onClick={() => setShowImport((value) => !value)}
+            data-testid="group-list-import-toggle"
+          >
+            {showImport ? 'Close import' : 'Import CSV'}
+          </Button>
         </div>
+
+        {!programFilter && showImport && (
+          <p className="mb-4 text-xs text-amber-700 dark:text-amber-300">
+            Select a program above before importing groups.
+          </p>
+        )}
+
+        {showImport && programFilter && selectedProgram && (
+          <GroupBulkImportPanel
+            programId={programFilter}
+            programName={selectedProgram.name}
+            onDone={load}
+            showToast={showToast}
+          />
+        )}
 
         {/* Create form */}
         {creating && (

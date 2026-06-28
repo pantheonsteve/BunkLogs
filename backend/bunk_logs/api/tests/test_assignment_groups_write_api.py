@@ -5,6 +5,7 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
 from bunk_logs.core.models import AssignmentGroup
@@ -503,3 +504,124 @@ class TestCloneGroup:
         )
         assert r_cross.status_code == 400
         assert "target_program" in r_cross.json()
+
+
+GROUPS_CSV = """name,group_type,parent_name,parent_group_type,is_active
+Upper Camp,division,,,true
+Sophomores,unit,Upper Camp,division,true
+Bunk Maple,bunk,Sophomores,unit,true
+"""
+
+
+def _groups_csv_file(content: str = GROUPS_CSV) -> SimpleUploadedFile:
+    return SimpleUploadedFile("groups.csv", content.encode("utf-8"), content_type="text/csv")
+
+
+class TestAssignmentGroupBulkImport:
+    def test_preview_and_commit_create_hierarchy(self, client, org, program, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+
+        preview = client.post(
+            "/api/v1/assignment-groups/bulk-import/",
+            {
+                "program": program.pk,
+                "mode": "preview",
+                "file": _groups_csv_file(),
+            },
+            format="multipart",
+            **_hdr(org.slug),
+        )
+        assert preview.status_code == 200, preview.json()
+        assert preview.json()["valid"] is True
+        assert preview.json()["row_count"] == 3
+        assert AssignmentGroup.all_objects.filter(program=program).count() == 0
+
+        commit = client.post(
+            "/api/v1/assignment-groups/bulk-import/",
+            {
+                "program": program.pk,
+                "mode": "commit",
+                "file": _groups_csv_file(),
+            },
+            format="multipart",
+            **_hdr(org.slug),
+        )
+        assert commit.status_code == 200
+        summary = commit.json()["summary"]
+        assert summary["groups_created"] == 3
+        assert summary["parents_linked"] == 2
+
+        bunk = AssignmentGroup.all_objects.get(program=program, slug="bunk-maple")
+        unit = AssignmentGroup.all_objects.get(program=program, slug="sophomores")
+        division = AssignmentGroup.all_objects.get(program=program, slug="upper-camp")
+        assert bunk.parent_id == unit.pk
+        assert unit.parent_id == division.pk
+
+    def test_reimport_is_idempotent(self, client, org, program, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        client.post(
+            "/api/v1/assignment-groups/bulk-import/",
+            {
+                "program": program.pk,
+                "mode": "commit",
+                "file": _groups_csv_file(),
+            },
+            format="multipart",
+            **_hdr(org.slug),
+        )
+        second = client.post(
+            "/api/v1/assignment-groups/bulk-import/",
+            {
+                "program": program.pk,
+                "mode": "commit",
+                "file": _groups_csv_file(),
+            },
+            format="multipart",
+            **_hdr(org.slug),
+        )
+        assert second.status_code == 200
+        assert second.json()["summary"]["groups_created"] == 0
+
+    def test_non_admin_forbidden(self, client, org, program, regular_user):
+        user, _ = regular_user
+        client.force_authenticate(user=user)
+        r = client.post(
+            "/api/v1/assignment-groups/bulk-import/",
+            {
+                "program": program.pk,
+                "mode": "preview",
+                "file": _groups_csv_file(),
+            },
+            format="multipart",
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 403
+
+    def test_import_template_download(self, client, org, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.get("/api/v1/assignment-groups/import-template/", **_hdr(org.slug))
+        assert r.status_code == 200
+        assert "text/csv" in r["Content-Type"]
+        assert "name,group_type" in r.content.decode("utf-8")
+
+    def test_invalid_csv_returns_errors(self, client, org, program, admin_user):
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        bad_csv = "name,group_type\n,bunk\n"
+        r = client.post(
+            "/api/v1/assignment-groups/bulk-import/",
+            {
+                "program": program.pk,
+                "mode": "preview",
+                "file": _groups_csv_file(bad_csv),
+            },
+            format="multipart",
+            **_hdr(org.slug),
+        )
+        assert r.status_code == 400
+        assert r.json()["valid"] is False
+        assert r.json()["errors"]
+
