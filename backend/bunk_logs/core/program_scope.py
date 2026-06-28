@@ -7,7 +7,6 @@ and memberships tied to operational programs; historical views opt in explicitly
 
 from __future__ import annotations
 
-from datetime import date
 from typing import TYPE_CHECKING
 
 from django.db.models import Q
@@ -17,6 +16,8 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 
 if TYPE_CHECKING:
+    from datetime import date
+
     from bunk_logs.core.models import Organization
     from bunk_logs.core.models import Person
 

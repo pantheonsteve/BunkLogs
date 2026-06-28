@@ -21,9 +21,6 @@ from rest_framework.response import Response
 
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.assignment_resolution import list_required_assignments_for
-from bunk_logs.core.program_scope import operational_assignment_groups_qs
-from bunk_logs.core.program_scope import operational_author_groups_qs
-from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -36,6 +33,9 @@ from bunk_logs.core.models import TranslationRecord
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.permissions import is_super_admin
+from bunk_logs.core.program_scope import operational_assignment_groups_qs
+from bunk_logs.core.program_scope import operational_author_groups_qs
+from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.time_utils import get_today
 from bunk_logs.core.translation import enqueue_translation_for_reflection
 

@@ -22,7 +22,6 @@ from django.db.models import When
 from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.core.assignment_resolution import resolve_template_for
-from bunk_logs.core.program_scope import operational_author_groups_qs
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import CamperDayState
@@ -30,6 +29,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.program_scope import operational_author_groups_qs
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:

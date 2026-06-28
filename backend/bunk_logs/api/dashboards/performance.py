@@ -29,7 +29,6 @@ from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import is_org_admin
 from bunk_logs.core.reflection_scores import iter_scored_fields
 from bunk_logs.core.reflection_scores import resolve_rating_cells
-from bunk_logs.core.program_scope import operational_program_q
 from bunk_logs.core.time_utils import get_today
 
 
