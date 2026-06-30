@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import GenericAvatar from '../../images/avatar-generic.png';
+import GenericAvatar from '../../images/avatar-generic.webp';
 import RichText from '../ui/RichText';
 
 function AdminBunkLogItem({ log, date, onViewDetails }) {

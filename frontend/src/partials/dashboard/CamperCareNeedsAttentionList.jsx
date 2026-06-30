@@ -1,6 +1,6 @@
 import React from 'react';
 import api from '../../api';
-import GenericAvatar from '../../images/avatar-generic.png';
+import GenericAvatar from '../../images/avatar-generic.webp';
 import { useAuth } from '../../auth/AuthContext';
 import { Heart, UserCheck } from 'lucide-react';
 

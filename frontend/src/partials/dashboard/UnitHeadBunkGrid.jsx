@@ -5,7 +5,7 @@ import api from '../../api';
 import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
 import CounselorLogsGrid from '../admin-dashboard/CounselorLogsGrid';
 import { Loader2, AlertTriangle, Users, Home, UserCheck, Heart, UserX, Clock, AlertCircle, Baby } from 'lucide-react';
-import GenericAvatar from '../../images/avatar-generic.png';
+import GenericAvatar from '../../images/avatar-generic.webp';
 
 function UnitHeadBunkGrid({ selectedDate }) {
   const [error, setError] = useState(null);

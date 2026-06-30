@@ -7,7 +7,7 @@ import CampLogo from "../../src/images/clc-logo.jpeg";
 import SocialLoginButton from "../components/SocialLoginButton";
 import api from "../api";
 
-import AuthImage from "../images/crane_lake/DSC_1985.png";
+import AuthImage from "../images/crane_lake/DSC_1985.webp";
 
 function Signin() {
   const [email, setEmail] = useState("");
@@ -192,7 +192,7 @@ function Signin() {
 
         {/* Image */}
         <div className="hidden md:block absolute top-0 bottom-0 right-0 md:w-1/2" aria-hidden="true">
-          <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" />
+          <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" decoding="async" fetchpriority="high" />
         </div>
       </div>
     </main>
