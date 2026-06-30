@@ -65,7 +65,7 @@ export default defineConfig(({ command }) => ({
           ) {
             return 'vendor-markdown';
           }
-          if (id.includes('moment')) return 'vendor-moment';
+          if (id.includes('date-fns')) return 'vendor-date-fns';
           return undefined;
         },
       },

@@ -5,7 +5,7 @@ import { chartColors } from './ChartjsConfig';
 import {
   Chart, LineController, LineElement, Filler, PointElement, LinearScale, TimeScale, Tooltip,
 } from 'chart.js';
-import 'chartjs-adapter-moment';
+import 'chartjs-adapter-date-fns';
 
 // Import utilities
 import { formatValue } from '../utils/Utils';
@@ -57,7 +57,7 @@ function LineChart08({
           x: {
             type: 'time',
             time: {
-              parser: 'MM-DD-YYYY',
+              parser: 'MM-dd-yyyy',
               unit: 'month',
             },
             display: false,
