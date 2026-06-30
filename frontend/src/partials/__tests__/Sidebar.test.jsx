@@ -109,6 +109,8 @@ describe('Sidebar — section gating (3.32)', () => {
     const links = hrefs();
     expect(links).toContain('/camper-care');
     expect(links.filter((h) => h === '/camper-care')).toHaveLength(2);
+    expect(links).toContain('/camper-care/flags');
+    expect(links).toContain('/camper-care/orders');
     expect(links).not.toContain('/dashboard');
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
