@@ -60,6 +60,17 @@ const Wysiwyg = forwardRef(({ onChange, value, readOnly = false, showToolbar = t
       const content = quillRef.current.root.innerHTML;
       onChangeRef.current?.(content);
     });
+
+    // Flush the live editor content to the parent on blur (range === null).
+    // Defense-in-depth so the submitted state always matches what the user
+    // sees, even if an external effect briefly reverts the `value` prop while
+    // the editor held focus (the value->editor sync below is skipped while
+    // focused). Same-string updates are no-ops, so this can't loop.
+    quillRef.current.on('selection-change', (range) => {
+      if (range !== null || !quillRef.current) return;
+      const content = quillRef.current.root.innerHTML;
+      onChangeRef.current?.(content);
+    });
   }, [readOnly, showToolbar]);
 
   useEffect(() => {
