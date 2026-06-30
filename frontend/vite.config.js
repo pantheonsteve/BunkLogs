@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: '/',
   define: {
     'process.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(process.env.VITE_GOOGLE_CLIENT_ID),
@@ -29,6 +29,15 @@ export default defineConfig({
     }
   },
   plugins: [react()],
+  // Strip developer console noise + debugger from production bundles only.
+  // console.error / console.warn are kept on purpose: Datadog RUM auto-collects
+  // console.error as errors and Logs forwards error/warn, so real errors keep
+  // flowing. logToDatadog() uses the SDK directly and is unaffected regardless.
+  // Dev (command === 'serve') and vitest keep all console output.
+  esbuild:
+    command === 'build'
+      ? { drop: ['debugger'], pure: ['console.log', 'console.info', 'console.debug'] }
+      : {},
   build: {
     commonjsOptions: {
       transformMixedEsModules: true,
@@ -72,4 +81,4 @@ export default defineConfig({
       'e2e/**',
     ],
   }
-})
+}))
