@@ -44,8 +44,9 @@ function renderApp() {
 }
 
 async function bootstrap() {
+  // Init RUM synchronously — this also starts the initial view (see
+  // startInitialDatadogView in ./lib/datadog). It does NOT block paint.
   initDatadogRum();
-  await waitForDatadogSession();
 
   if (document.readyState === 'loading') {
     await new Promise((resolve) => {
@@ -53,9 +54,15 @@ async function bootstrap() {
     });
   }
 
+  // Paint as soon as the DOM is ready. Previously we awaited the RUM session
+  // here first, which could leave a blank screen for up to 5s before the app
+  // rendered. The session is not needed for first paint.
   renderApp();
 
   try {
+    // Wait for the RUM session off the render path so the bootstrap API calls
+    // in init() (CSRF prefetch, auth) still carry distributed-tracing headers.
+    await waitForDatadogSession();
     await init();
     console.log('App initialization completed');
   } catch (error) {
