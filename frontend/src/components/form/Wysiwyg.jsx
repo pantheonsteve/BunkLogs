@@ -1,108 +1,30 @@
-import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import Quill from 'quill';
-import 'quill/dist/quill.snow.css';
+import { forwardRef, lazy, Suspense } from 'react';
 
-function normalizeHtml(html) {
-  if (html == null || html === '') return '';
-  return String(html);
-}
+// Quill (~200 KB gzipped chunk) is the single largest editor dependency. It
+// lives in WysiwygEditor and is loaded on demand the first time a rich-text
+// field actually renders, rather than being pulled into every route that
+// imports this widget. React.lazy forwards refs to the underlying forwardRef
+// editor, so the imperative API (getQuill/setContent) keeps working.
+const WysiwygEditor = lazy(() => import('./WysiwygEditor'));
 
-function htmlMatches(a, b) {
-  return normalizeHtml(a) === normalizeHtml(b);
-}
-
-const Wysiwyg = forwardRef(({ onChange, value, readOnly = false, showToolbar = true }, ref) => {
-  const editorRef = useRef(null);
-  const quillRef = useRef(null);
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-
-  useImperativeHandle(ref, () => ({
-    getQuill: () => quillRef.current,
-    setContent: (content) => {
-      if (!quillRef.current) return;
-      try {
-        if (!content || String(content).trim() === '') {
-          quillRef.current.setText('');
-        } else if (content.includes('<') && content.includes('>')) {
-          quillRef.current.root.innerHTML = content;
-        } else {
-          quillRef.current.setText(content);
-        }
-      } catch {
-        quillRef.current.setText(content || '');
-      }
-    },
-  }));
-
-  useEffect(() => {
-    if (!editorRef.current || quillRef.current) return;
-
-    const toolbarOptions = [
-      [{ header: [1, 2, false] }],
-      ['bold', 'italic', 'underline'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      [{ align: [] }],
-      ['link'],
-      ['clean'],
-    ];
-
-    quillRef.current = new Quill(editorRef.current, {
-      modules: {
-        toolbar: showToolbar ? toolbarOptions : false,
-      },
-      theme: 'snow',
-      readOnly,
-    });
-
-    quillRef.current.on('text-change', (_delta, _oldDelta, source) => {
-      if (source !== 'user' || !quillRef.current) return;
-      const content = quillRef.current.root.innerHTML;
-      onChangeRef.current?.(content);
-    });
-
-    // Flush the live editor content to the parent on blur (range === null).
-    // Defense-in-depth so the submitted state always matches what the user
-    // sees, even if an external effect briefly reverts the `value` prop while
-    // the editor held focus (the value->editor sync below is skipped while
-    // focused). Same-string updates are no-ops, so this can't loop.
-    quillRef.current.on('selection-change', (range) => {
-      if (range !== null || !quillRef.current) return;
-      const content = quillRef.current.root.innerHTML;
-      onChangeRef.current?.(content);
-    });
-  }, [readOnly, showToolbar]);
-
-  useEffect(() => {
-    if (!quillRef.current) return;
-    quillRef.current.enable(!readOnly);
-  }, [readOnly]);
-
-  useEffect(() => {
-    if (!quillRef.current || value === undefined) return;
-    if (quillRef.current.hasFocus()) return;
-
-    const currentContent = quillRef.current.root.innerHTML;
-    if (htmlMatches(currentContent, value)) return;
-
-    try {
-      if (!value || String(value).trim() === '') {
-        quillRef.current.setText('');
-      } else if (value.includes('<') && value.includes('>')) {
-        quillRef.current.root.innerHTML = value;
-      } else {
-        quillRef.current.setText(value);
-      }
-    } catch {
-      quillRef.current.setText(value || '');
-    }
-  }, [value]);
-
+function EditorFallback({ readOnly }) {
   return (
-    <div>
-      <div ref={editorRef} style={{ height: '300px' }} />
+    <div
+      style={{ minHeight: readOnly ? '120px' : '300px' }}
+      className="flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-sm text-gray-400"
+      aria-busy="true"
+    >
+      Loading editor…
     </div>
   );
-});
+}
+
+const Wysiwyg = forwardRef((props, ref) => (
+  <Suspense fallback={<EditorFallback readOnly={props.readOnly} />}>
+    <WysiwygEditor {...props} ref={ref} />
+  </Suspense>
+));
+
+Wysiwyg.displayName = 'Wysiwyg';
 
 export default Wysiwyg;
