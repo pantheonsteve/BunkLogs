@@ -5,7 +5,7 @@ import { chartColors } from './ChartjsConfig';
 import {
   Chart, BarController, BarElement, LinearScale, CategoryScale, Tooltip, Legend,
 } from 'chart.js';
-import 'chartjs-adapter-moment';
+import 'chartjs-adapter-date-fns';
 
 // Import utilities
 import { formatValue } from '../utils/Utils';

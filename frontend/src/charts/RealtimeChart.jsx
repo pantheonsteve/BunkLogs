@@ -5,7 +5,7 @@ import { chartColors } from './ChartjsConfig';
 import {
   Chart, LineController, LineElement, Filler, PointElement, LinearScale, TimeScale, Tooltip,
 } from 'chart.js';
-import 'chartjs-adapter-moment';
+import 'chartjs-adapter-date-fns';
 
 // Import utilities
 import { adjustColorOpacity, getCssVariable, formatValue } from '../utils/Utils';
@@ -57,7 +57,7 @@ function RealtimeChart({
             time: {
               parser: 'hh:mm:ss',
               unit: 'second',
-              tooltipFormat: 'MMM DD, H:mm:ss a',
+              tooltipFormat: 'MMM dd, H:mm:ss a',
               displayFormats: {
                 second: 'H:mm:ss',
               },

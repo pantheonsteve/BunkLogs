@@ -5,7 +5,7 @@ import { chartColors } from './ChartjsConfig';
 import {
   Chart, PieController, ArcElement, TimeScale, Tooltip,
 } from 'chart.js';
-import 'chartjs-adapter-moment';
+import 'chartjs-adapter-date-fns';
 
 // Import utilities
 import { getCssVariable } from '../utils/Utils';

@@ -5,7 +5,7 @@ import { chartColors } from './ChartjsConfig';
 import {
   Chart, BarController, BarElement, LinearScale, TimeScale, Tooltip, Legend,
 } from 'chart.js';
-import 'chartjs-adapter-moment';
+import 'chartjs-adapter-date-fns';
 
 // Import utilities
 import { formatThousands } from '../utils/Utils';
@@ -60,7 +60,7 @@ function BarChart03({
             stacked: true,
             type: 'time',
             time: {
-              parser: 'MM-DD-YYYY',
+              parser: 'MM-dd-yyyy',
               unit: 'month',
               displayFormats: {
                 month: 'MMM',
