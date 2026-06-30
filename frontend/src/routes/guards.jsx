@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import {
   Navigate,
   Outlet,
@@ -11,11 +11,22 @@ import isSuperAdmin from '../utils/auth/isSuperAdmin';
 import { hasCapability, homePathForUser } from '../utils/auth/capability';
 import DashboardsHub from '../pages/dashboards/DashboardsHub';
 
+/** Fallback shown while a lazily-loaded route chunk is fetched. */
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500" />
+    </div>
+  );
+}
+
 export function RootLayout() {
   return (
     <>
       <RedirectHandler />
-      <Outlet />
+      <Suspense fallback={<RouteFallback />}>
+        <Outlet />
+      </Suspense>
     </>
   );
 }
