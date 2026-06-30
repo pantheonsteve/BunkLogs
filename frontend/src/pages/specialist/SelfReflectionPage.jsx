@@ -21,6 +21,7 @@ import {
 import { fetchReflection, fetchTemplateById, newClientSubmissionId } from '../../api/counselor';
 import {
   createSpecialistSelfReflection,
+  fetchSpecialistDashboard,
   patchSpecialistSelfReflection,
 } from '../../api/specialist';
 
@@ -67,9 +68,7 @@ export default function SpecialistSelfReflectionPage() {
         // New: load template from dashboard context (template_id from self_reflection.template_id)
         // For now we load a known slug; the backend returns it in the dashboard payload.
         // The form fetches the full template once we have the ID.
-        const dashRes = await import('../../api/specialist').then(m =>
-          m.fetchSpecialistDashboard(),
-        );
+        const dashRes = await fetchSpecialistDashboard();
         const templateId = dashRes?.self_reflection?.template_id;
         if (templateId) {
           const tpl = await fetchTemplateById(templateId);
