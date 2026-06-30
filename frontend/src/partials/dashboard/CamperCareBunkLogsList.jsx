@@ -1,7 +1,7 @@
 import React from 'react';
 import CamperCareBunkLogItem from '../../components/bunklogs/CamperCareBunkLogItem';
 import api from '../../api';
-import GenericAvatar from '../../images/avatar-generic.png';
+import GenericAvatar from '../../images/avatar-generic.webp';
 import { useAuth } from '../../auth/AuthContext';
 
 function CamperCareBunkLogsList({ selectedDate }) {

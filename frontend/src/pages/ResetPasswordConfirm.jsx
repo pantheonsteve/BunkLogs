@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate, NavLink } from "react-router-dom";
 import { getPasswordReset, resetPassword } from "../lib/allauth";
 
-import AuthImage from "../images/crane_lake/DSC_1985.png";
+import AuthImage from "../images/crane_lake/DSC_1985.webp";
 import CampLogo from "../images/clc-logo.jpeg";
 
 function ResetPasswordConfirm() {
@@ -212,7 +212,7 @@ function ResetPasswordConfirm() {
           </div>
 
           <div className="hidden md:block absolute top-0 bottom-0 right-0 md:w-1/2" aria-hidden="true">
-            <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" />
+            <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" decoding="async" />
           </div>
         </div>
       </main>
@@ -319,7 +319,7 @@ function ResetPasswordConfirm() {
 
         {/* Image */}
         <div className="hidden md:block absolute top-0 bottom-0 right-0 md:w-1/2" aria-hidden="true">
-          <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" />
+          <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" decoding="async" />
         </div>
       </div>
     </main>

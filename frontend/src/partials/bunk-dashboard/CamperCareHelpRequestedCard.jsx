@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import GenericAvatar from '../../images/avatar-generic.png'; // Adjust the path as necessary
+import GenericAvatar from '../../images/avatar-generic.webp'; // Adjust the path as necessary
 
 function CamperCareHelpRequestedCard({ bunkData }) {
 
@@ -56,7 +56,7 @@ function CamperCareHelpRequestedCard({ bunkData }) {
                       <td className="p-2">
                       <div className="flex items-center">
                         <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
-                          <img className="rounded-full ml-1" width="36" height="36" viewBox="0 0 36 36" src={GenericAvatar} />
+                          <img className="rounded-full ml-1" width="36" height="36" src={GenericAvatar} loading="lazy" decoding="async" />
                         </div>
                         <a 
                           href={camperUrl}

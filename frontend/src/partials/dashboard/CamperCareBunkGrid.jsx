@@ -5,7 +5,7 @@ import UnitHeadBunkCard from '../../components/bunklogs/UnitHeadBunkCard';
 import CamperCareBunkLogItem from '../../components/bunklogs/CamperCareBunkLogItem';
 import CamperCareFilters from '../../components/CamperCareFilters';
 import { Loader2, AlertTriangle, Users, Home, Heart, UserCheck, Clock, Baby, AlertCircle, UserX, Filter, Search, X } from 'lucide-react';
-import GenericAvatar from '../../images/avatar-generic.png';
+import GenericAvatar from '../../images/avatar-generic.webp';
 
 function CamperCareBunkGrid({ selectedDate }) {
   const [error, setError] = useState(null);

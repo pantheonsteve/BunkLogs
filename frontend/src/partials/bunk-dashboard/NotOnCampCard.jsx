@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useBunk } from '../../contexts/BunkContext';
 
-import GenericAvatar from '../../images/avatar-generic.png';
+import GenericAvatar from '../../images/avatar-generic.webp';
 
 function NotOnCampCard({ bunkData }) {
 
@@ -57,7 +57,7 @@ function NotOnCampCard({ bunkData }) {
                       <td className="p-2">
                         <div className="flex items-center">
                           <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-2 sm:mr-3">
-                            <img className="rounded-full ml-1" width="36" height="36" viewBox="0 0 36 36" src={GenericAvatar} />
+                            <img className="rounded-full ml-1" width="36" height="36" src={GenericAvatar} loading="lazy" decoding="async" />
                           </div>
                           <div className="text-gray-800 dark:text-gray-100">{item.camper_first_name} {item.camper_last_name}</div>
                         </div>
