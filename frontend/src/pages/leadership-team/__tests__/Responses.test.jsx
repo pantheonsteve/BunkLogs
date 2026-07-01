@@ -205,6 +205,28 @@ describe('LeadershipTeamResponses', () => {
     expect(screen.getByTestId('lt-responses-export')).toHaveAttribute('href', expect.stringContaining('/responses/export/'));
   });
 
+  it('renders a mobile response card per row with name, score boxes, and narrative', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
+      return Promise.resolve({ data: templatePayload });
+    });
+    renderAt('/admin/templates/7/responses');
+    const card = await screen.findByTestId('lt-responses-card-401');
+
+    // Sticky header shows the camper name as a link to their profile.
+    const nameLink = within(card).getByRole('link', { name: 'Rose Postman' });
+    expect(nameLink).toHaveAttribute('href', expect.stringMatching(/^\/profile\/88\?date=/));
+
+    // Colored score boxes reuse the same aria-labels as the table cells.
+    expect(within(card).getByLabelText('Behavior: 2 of 5')).toBeInTheDocument();
+    expect(within(card).getByLabelText('Participation: 4 of 5')).toBeInTheDocument();
+
+    // Narrative body: description text + reporting author + yes-flag chip.
+    expect(within(card).getByText('Rose had a tough afternoon.')).toBeInTheDocument();
+    expect(within(card).getByText(/Reporting Author/)).toBeInTheDocument();
+    expect(within(card).getByTestId('lt-responses-card-flag-request_camper_care_help')).toBeInTheDocument();
+  });
+
   it('clicking the Camper Care KPI filters the table to yes-only rows', async () => {
     getMock.mockImplementation((url) => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });

@@ -43,11 +43,16 @@ export function SubjectCell({ row, linkTo = null }) {
   );
 }
 
-export function RatingCellTd({ col, answers }) {
+/** Read + normalise a single rating value from an answers blob. */
+function readRating(col, answers) {
   const raw = col.subKey
     ? (answers?.[col.key] ?? {})[col.subKey]
     : answers?.[col.key];
-  const num = raw == null ? null : Number(raw);
+  return raw == null ? null : Number(raw);
+}
+
+export function RatingCellTd({ col, answers }) {
+  const num = readRating(col, answers);
   const tone = ratingTierClass(num, col.scaleMax);
   return (
     <td
@@ -63,6 +68,32 @@ export function RatingCellTd({ col, answers }) {
         {Number.isFinite(num) ? num : '—'}
       </div>
     </td>
+  );
+}
+
+/** Mobile score box: a colored tile with the score number and its label
+ *  underneath. Shares the rating palette with the desktop `RatingCellTd`. */
+export function RatingBox({ col, answers }) {
+  const num = readRating(col, answers);
+  const tone = ratingTierClass(num, col.scaleMax);
+  return (
+    <div
+      className="flex-1 min-w-[4rem] flex flex-col items-center"
+      aria-label={
+        Number.isFinite(num)
+          ? `${col.label}: ${num} of ${col.scaleMax}`
+          : `${col.label}: no answer`
+      }
+    >
+      <div className={`w-full rounded-md py-2 text-center ${tone}`}>
+        <span className="text-lg font-semibold tabular-nums">
+          {Number.isFinite(num) ? num : '—'}
+        </span>
+      </div>
+      <div className="mt-1 text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 text-center leading-tight">
+        {col.label}
+      </div>
+    </div>
   );
 }
 
@@ -93,7 +124,9 @@ export function FlagChip({ field, testidPrefix = 'lt-responses-flag' }) {
   );
 }
 
-export function DescriptionCell({
+/** Narrative body (flags, chips, description text, reporting author) shared
+ *  by the desktop Description `<td>` and the mobile response card. */
+export function DescriptionContent({
   row,
   flagFields,
   chipFields,
@@ -106,7 +139,7 @@ export function DescriptionCell({
   const createdAt = row.created_at ?? row.updated_at;
 
   return (
-    <td className="px-3 py-3 align-top border border-gray-300 dark:border-gray-700 max-w-md break-words">
+    <>
       {activeFlags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {activeFlags.map((f) => (
@@ -182,6 +215,14 @@ export function DescriptionCell({
           </span>
         )}
       </div>
+    </>
+  );
+}
+
+export function DescriptionCell(props) {
+  return (
+    <td className="px-3 py-3 align-top border border-gray-300 dark:border-gray-700 max-w-md break-words">
+      <DescriptionContent {...props} />
     </td>
   );
 }
