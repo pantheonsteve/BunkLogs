@@ -933,6 +933,150 @@ class TestCrossOrgIsolation:
             assert reflections_visible_to(u).count() == 0
 
 
+# ── Derived supervisor pipe: self + other reflections of supervised people ───
+
+
+class TestDerivedSupervisorSelfReflections:
+    """A supervisor (derived from unit/bunk authorship or Supervision rows)
+    sees the self-reflections of the people they supervise, even though those
+    rows are not attached to the supervised AssignmentGroup.
+    """
+
+    def _self_reflection(self, org, program, counselor, *, team_visibility):
+        tpl = _make_template(
+            org, slug="counselor-self", role="counselor", subject_mode="self",
+        )
+        return _make_reflection(
+            org, program, tpl,
+            subject=counselor, author=counselor, assignment_group=None,
+            team_visibility=team_visibility,
+        )
+
+    def test_unit_head_via_unit_authorship_sees_counselor_self_reflection(
+        self, org_a, program_a,
+    ):
+        u = _make_user("uh-self@a.com")
+        unit_head = _make_person(org_a, "Un", "Head", u)
+        Membership.all_objects.create(
+            program=program_a, person=unit_head, role="unit_head", is_active=True,
+        )
+        unit = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Unit",
+            slug="unit-self", group_type="unit",
+        )
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Bunk",
+            slug="bunk-self", group_type="bunk", parent=unit,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=unit, person=unit_head, role_in_group="author", is_active=True,
+        )
+        counselor = _make_person(org_a, "Co", "Un")
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor, role_in_group="author", is_active=True,
+        )
+        # Private (supervisors_only) self-reflection: still visible to the UH.
+        self._self_reflection(
+            org_a, program_a, counselor,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 1
+
+    def test_camper_care_caseload_sees_counselor_self_reflection(
+        self, org_a, program_a,
+    ):
+        u = _make_user("cc-self@a.com")
+        cc = _make_person(org_a, "Ca", "Re", u)
+        cc_membership = Membership.all_objects.create(
+            program=program_a, person=cc, role="camper_care", is_active=True,
+        )
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Caseload Bunk",
+            slug="cc-bunk-self", group_type="bunk",
+        )
+        Supervision.all_objects.create(
+            supervisor_membership=cc_membership,
+            target_type=Supervision.TargetType.BUNK,
+            target_bunk=bunk,
+            start_date=date(2026, 1, 1),
+        )
+        counselor = _make_person(org_a, "Co", "Un")
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor, role_in_group="author", is_active=True,
+        )
+        self._self_reflection(
+            org_a, program_a, counselor,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 1
+
+    def test_peer_counselor_does_not_see_co_counselor_self_reflection(
+        self, org_a, program_a,
+    ):
+        u = _make_user("peer@a.com")
+        counselor_a = _make_person(org_a, "Co", "A", u)
+        Membership.all_objects.create(
+            program=program_a, person=counselor_a, role="counselor", is_active=True,
+        )
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org_a, program=program_a, name="Bunk",
+            slug="peer-bunk", group_type="bunk",
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor_a, role_in_group="author", is_active=True,
+        )
+        counselor_b = _make_person(org_a, "Co", "B")
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor_b, role_in_group="author", is_active=True,
+        )
+        # B's self-reflection must not leak to peer A (A supervises no one).
+        self._self_reflection(
+            org_a, program_a, counselor_b,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            assert reflections_visible_to(u).count() == 0
+
+    def test_ended_program_self_reflection_not_leaked(self, org_a):
+        ended_program = Program.all_objects.create(
+            organization=org_a,
+            name="Vis A Ended Session",
+            slug="ended-session",
+            program_type="summer_camp",
+            start_date=date(2020, 6, 1),
+            end_date=date(2020, 8, 31),
+        )
+        u = _make_user("uh-ended@a.com")
+        unit_head = _make_person(org_a, "Un", "Head", u)
+        Membership.all_objects.create(
+            program=ended_program, person=unit_head, role="unit_head", is_active=True,
+        )
+        unit = AssignmentGroup.all_objects.create(
+            organization=org_a, program=ended_program, name="Old Unit",
+            slug="old-unit", group_type="unit",
+        )
+        bunk = AssignmentGroup.all_objects.create(
+            organization=org_a, program=ended_program, name="Old Bunk",
+            slug="old-bunk", group_type="bunk", parent=unit,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=unit, person=unit_head, role_in_group="author", is_active=True,
+        )
+        counselor = _make_person(org_a, "Co", "Un")
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk, person=counselor, role_in_group="author", is_active=True,
+        )
+        self._self_reflection(
+            org_a, ended_program, counselor,
+            team_visibility=Reflection.TeamVisibility.SUPERVISORS_ONLY,
+        )
+        with organization_context(org_a):
+            # Ended program is not operational -> author pipe does not resolve.
+            assert reflections_visible_to(u).count() == 0
+
+
 # ── Performance: bulk-resolve, no N+1 ─────────────────────────────────────────
 
 
@@ -977,8 +1121,9 @@ class TestQueryCount:
                 count = reflections_visible_to(u).count()
             assert count == 24
             # Person lookup, admin check, direct-author groups, descendant rows,
-            # leadership memberships, wellness check, then the COUNT(*).
+            # leadership memberships, wellness check, the derived supervisor pipe
+            # (one Supervision read + one membership resolve), then the COUNT(*).
             # Allow some slack but ensure it doesn't scale with reflection count.
-            assert len(ctx.captured_queries) < 12, [
+            assert len(ctx.captured_queries) < 16, [
                 q["sql"] for q in ctx.captured_queries
             ]

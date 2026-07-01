@@ -40,6 +40,7 @@ from rest_framework.views import APIView
 from bunk_logs.api.counselor.common import bunk_camper_persons
 from bunk_logs.api.counselor.common import camper_reflection_template
 from bunk_logs.api.counselor.common import person_display_name
+from bunk_logs.api.counselor.common import person_full_name
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -56,6 +57,7 @@ from bunk_logs.notes.models import Observation
 from .common import build_score_grid
 from .common import bunk_concerns_referencing
 from .common import camper_care_help_requested_camper_ids_from
+from .common import counselor_self_reflections_for_bunk
 from .common import help_requested_camper_ids_from
 from .common import off_camp_camper_ids
 from .common import supervised_bunk_ids
@@ -221,6 +223,10 @@ def build_bunk_dashboard_payload(
         camper_ids=camper_ids,
     )
 
+    counselor_self_payload = counselor_self_reflections_for_bunk(
+        request=request, bunk=bunk, target_date=target_date,
+    )
+
     return {
         "header": {
             "bunk": {
@@ -238,6 +244,7 @@ def build_bunk_dashboard_payload(
         "camper_care_help_requested": cc_help_payload,
         "off_camp": off_camp_payload,
         "bunk_concerns": bc_payload,
+        "counselor_self_reflections": counselor_self_payload,
         "score_grid": score_grid_payload,
         "orders": orders_payload,
         "specialist_reports": spec_payload,
@@ -340,7 +347,7 @@ def _counselor_names(bunk: AssignmentGroup) -> list[str]:
         .select_related("person")
         .order_by("person__last_name", "person__first_name")
     )
-    return [person_display_name(agm.person) for agm in rows if agm.person]
+    return [person_full_name(agm.person) for agm in rows if agm.person]
 
 
 def _serialize_bunk_concerns(reflections: list[Reflection]) -> list[dict]:
