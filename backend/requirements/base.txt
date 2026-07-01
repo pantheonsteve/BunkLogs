@@ -29,7 +29,7 @@ django-cors-headers==4.7.0  # https://github.com/adamchainz/django-cors-headers
 # DRF-spectacular for api documentation
 drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 
-dj-rest-auth[with_social]==7.0.1  # https://dj-rest-auth.readthedocs.io/
+dj-rest-auth[with_social]==7.2.0  # https://dj-rest-auth.readthedocs.io/
 qrcode==8.2
 pyjwt==2.10.1
 djangorestframework-simplejwt==5.5.1
