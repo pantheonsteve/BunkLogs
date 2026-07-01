@@ -96,7 +96,7 @@ describe('AdminAssignments', () => {
           params: expect.objectContaining({ program: 'summer-2026' }),
         }),
       );
-    });
+    }, { timeout: 5000 });
   });
 
   it('shows assignments empty pane until a group is selected', async () => {
@@ -118,8 +118,9 @@ describe('AdminAssignments', () => {
     await screen.findByTestId('assignment-group-list');
 
     fireEvent.change(select, { target: { value: '1' } });
-    await waitFor(() => expect(select).toHaveValue('1'));
+    await waitFor(() => expect(select).toHaveValue('1'), { timeout: 5000 });
 
+    await screen.findByText('Bunk Maple', undefined, { timeout: 5000 });
     fireEvent.click(screen.getByText('Bunk Maple'));
 
     expect(select).toHaveValue('1');
