@@ -141,6 +141,13 @@ describe('GroupDashboardPage', () => {
     expect(backLink).toHaveAttribute('href', expectedHref);
   });
 
+  it('preserves the URL date on the role back link for a round-trip', async () => {
+    getMock.mockResolvedValueOnce({ data: bunkPayload('camper_care') });
+    renderAt('/dashboards/group/11?date=2026-06-30');
+    const backLink = await screen.findByRole('link', { name: /back/i });
+    expect(backLink).toHaveAttribute('href', '/camper-care?date=2026-06-30');
+  });
+
   it('routes admin back link to performance dashboard preserving date', async () => {
     getMock.mockResolvedValueOnce({ data: bunkPayload('admin') });
     renderAt('/dashboards/group/11?date=2026-06-03');

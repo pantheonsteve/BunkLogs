@@ -148,4 +148,20 @@ describe('CamperCareDashboard', () => {
       '/dashboards/group/11',
     );
   });
+
+  it('preserves the selected date on bunk links so the same day carries over', async () => {
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    render(
+      <MemoryRouter initialEntries={['/camper-care?date=2026-06-30']}>
+        <CamperCareDashboard />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('cc-bunk-link-11')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('cc-bunk-link-11')).toHaveAttribute(
+      'href',
+      '/dashboards/group/11?date=2026-06-30',
+    );
+  });
 });

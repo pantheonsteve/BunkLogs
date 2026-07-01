@@ -9,6 +9,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { groupDashboardLink } from '../utils/dashboardLinks';
 
 const BADGE_LABEL = Object.freeze({
   help_requested: 'help requested',
@@ -128,7 +129,7 @@ export default function UnitDashboard({ data, selectedDate, onDateChange, backTo
               <li key={bunk.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <Link
-                    to={`/dashboards/group/${bunk.id}`}
+                    to={groupDashboardLink(bunk.id, { date: selectedDate })}
                     data-testid={`bunk-row-${bunk.id}`}
                     className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"
                   >

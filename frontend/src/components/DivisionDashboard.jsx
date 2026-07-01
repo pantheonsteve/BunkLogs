@@ -9,6 +9,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { groupDashboardLink } from '../utils/dashboardLinks';
 
 export default function DivisionDashboard({
   data, selectedDate, onDateChange, backTo = '/dashboards',
@@ -81,7 +82,7 @@ export default function DivisionDashboard({
               >
                 <div className="min-w-0">
                   <Link
-                    to={`/dashboards/group/${unit.id}`}
+                    to={groupDashboardLink(unit.id, { date: selectedDate })}
                     data-testid={`unit-row-${unit.id}`}
                     className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"
                   >

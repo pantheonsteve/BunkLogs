@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Flag, ClipboardList, Users, Heart } from 'lucide-react';
 import { fetchCamperCareDashboard } from '../../api/camperCare';
+import { groupDashboardLink } from '../../utils/dashboardLinks';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -85,12 +86,12 @@ function CompletionLabel({ completion }) {
   );
 }
 
-function BunkRow({ bunk }) {
+function BunkRow({ bunk, date }) {
   const { completion } = bunk;
   return (
     <li data-testid={`cc-bunk-row-${bunk.id}`}>
       <Link
-        to={`/dashboards/group/${bunk.id}`}
+        to={groupDashboardLink(bunk.id, { date })}
         data-testid={`cc-bunk-link-${bunk.id}`}
         className="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
       >
@@ -142,7 +143,7 @@ function persistCollapsedUnits(setLike) {
   }
 }
 
-function UnitSection({ unit, collapsed, onToggle }) {
+function UnitSection({ unit, collapsed, onToggle, date }) {
   const open = !collapsed;
   return (
     <section
@@ -173,7 +174,7 @@ function UnitSection({ unit, collapsed, onToggle }) {
       {open && unit.bunks.length > 0 && (
         <ul className="border-t border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800 bg-gray-50/40 dark:bg-gray-800/20">
           {unit.bunks.map((b) => (
-            <BunkRow key={b.id} bunk={b} />
+            <BunkRow key={b.id} bunk={b} date={date} />
           ))}
         </ul>
       )}
@@ -444,6 +445,7 @@ export default function CamperCareDashboard() {
                     unit={u}
                     collapsed={collapsedUnits.has(key)}
                     onToggle={() => toggleUnit(u.id)}
+                    date={dateParam || undefined}
                   />
                 );
               })}

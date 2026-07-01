@@ -23,6 +23,7 @@ import UnsupportedGroupDashboard from '../../components/UnsupportedGroupDashboar
 import GroupRoster from '../../components/GroupRoster';
 import GroupTemplateResponses from '../../components/GroupTemplateResponses';
 import { fetchGroupDashboard } from '../../api/dashboards';
+import { withDateParam } from '../../utils/dashboardLinks';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -38,7 +39,7 @@ const BACK_TO_BY_ROLE = Object.freeze({
 
 const ADMIN_BACK_TO = '/groups/performance';
 
-function backToFor(role, { date, program, tab } = {}) {
+function backToFor(role, { date, urlDate, program, tab } = {}) {
   if (role === 'admin') {
     const params = new URLSearchParams();
     if (date) params.set('date', date);
@@ -47,7 +48,10 @@ function backToFor(role, { date, program, tab } = {}) {
     const query = params.toString();
     return query ? `${ADMIN_BACK_TO}?${query}` : ADMIN_BACK_TO;
   }
-  return BACK_TO_BY_ROLE[role] ?? FALLBACK_BACK_TO;
+  // Carry the day the user was viewing back to their role home so the
+  // round-trip preserves the selected date. Only propagate an explicit
+  // URL date (not the resolved "today") to keep default links clean.
+  return withDateParam(BACK_TO_BY_ROLE[role] ?? FALLBACK_BACK_TO, urlDate);
 }
 
 // Wrap the legacy BunkDashboard so the dispatch test can target it
@@ -165,6 +169,7 @@ export default function GroupDashboardPage() {
   const Dash = COMPONENT_BY_GROUP_TYPE[groupType];
   const backTo = backToFor(role, {
     date: dateParam || data?.header?.date,
+    urlDate: dateParam,
     program: searchParams.get('program') || '',
     tab: searchParams.get('tab') || '',
   });
