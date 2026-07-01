@@ -227,6 +227,27 @@ describe('SubjectDetail', () => {
     );
   });
 
+  it('renders a mobile response card per reflection with heading, score boxes, and narrative', () => {
+    renderDetail();
+    const card = screen.getByTestId('subject-card-228');
+
+    // No Subject column on the profile page, so the card header shows the date.
+    expect(within(card).getByText('May 23, 2026')).toBeInTheDocument();
+
+    // Colored score boxes expose value via aria-label, same as the table cells.
+    expect(within(card).getByLabelText('Behavior: 5 of 5')).toBeInTheDocument();
+    expect(within(card).getByLabelText('Participation: 4 of 5')).toBeInTheDocument();
+    expect(within(card).getByLabelText('Social: 5 of 5')).toBeInTheDocument();
+
+    // Narrative body: description text + reporting author.
+    expect(within(card).getByText('Solid day overall.')).toBeInTheDocument();
+    expect(within(card).getByText('Reporting Author:')).toBeInTheDocument();
+    expect(within(card).getByText('BulkCounselor #9')).toBeInTheDocument();
+
+    // Note + control on the card when personId is set.
+    expect(within(card).getByTestId('subject-card-add-observation-228')).toHaveTextContent('Note +');
+  });
+
   it('shows help request badges when help was requested in the period', () => {
     renderDetail();
     expect(screen.getByTestId('subject-help-badges')).toBeInTheDocument();

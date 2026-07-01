@@ -53,7 +53,9 @@ import ScorePieChart from '../../dashboards/performance/ScorePieChart';
 import { ratingColor } from '../../dashboards/colors';
 import {
   DescriptionCell,
+  DescriptionContent,
   FlagChip,
+  RatingBox,
   RatingCellTd,
   SubjectCell as SharedSubjectCell,
 } from '../../dashboards/subject/responseTable/cells';
@@ -245,8 +247,9 @@ function IndividualTab({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-visible md:overflow-hidden">
+      {/* Desktop / tablet: horizontally-scrolling table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="table-auto w-full text-sm dark:text-gray-300" data-testid="lt-responses-rows">
           <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
             <tr>
@@ -301,6 +304,87 @@ function IndividualTab({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: stacked cards with a sticky per-camper header */}
+      <div className="md:hidden p-3 space-y-4" data-testid="lt-responses-cards">
+        {filteredRows.map((r) => {
+          const subjectName = r.subject?.name ?? 'Unknown';
+          const subjectId = r.subject?.id;
+          const rowDate = r.period_end || r.period_start;
+          const groups = r.groups ?? [];
+          return (
+            <div
+              key={r.id}
+              className="rounded-lg border border-gray-200 dark:border-gray-700"
+              data-testid={`lt-responses-card-${r.id}`}
+            >
+              <div className="sticky top-16 z-20 flex items-center gap-2 rounded-t-lg border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/60 px-3 py-2">
+                <div className="w-9 h-9 shrink-0 flex items-center justify-center bg-gray-200 dark:bg-gray-600 rounded-full">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                    {getInitials(subjectName)}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {subjectId ? (
+                      <Link
+                        to={`/profile/${subjectId}${dateQs}`}
+                        className="text-indigo-700 dark:text-indigo-300 hover:underline"
+                      >
+                        {subjectName}
+                      </Link>
+                    ) : (
+                      subjectName
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    <span>{formatShortDate(rowDate)}</span>
+                    <span>{r.language} · v{r.template_version}</span>
+                    {groups.map((g) => (
+                      <Link
+                        key={g.id}
+                        to={`/dashboards/group/${g.id}${rowDate ? `?date=${rowDate}` : ''}`}
+                        title={g.group_type ? `${g.name} (${g.group_type})` : g.name}
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        {g.name || `Group ${g.id}`}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                <Link
+                  to={`/reflections/${r.id}`}
+                  className="shrink-0 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Open →
+                </Link>
+              </div>
+              <div className="p-3 space-y-3">
+                {ratingCols.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {ratingCols.map((c, idx) => (
+                      <RatingBox
+                        key={`${r.id}-${c.key}-${c.subKey ?? ''}-${idx}`}
+                        col={c}
+                        answers={r.answers}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="text-sm dark:text-gray-300">
+                  <DescriptionContent
+                    row={r}
+                    flagFields={flagFields}
+                    chipFields={chipFields}
+                    descTextFields={descTextFields}
+                    flagTestidPrefix="lt-responses-card-flag"
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

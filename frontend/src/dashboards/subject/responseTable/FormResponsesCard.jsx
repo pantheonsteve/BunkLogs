@@ -24,10 +24,13 @@ import { ratingColor } from '../../colors';
 import {
   deriveSchemaSections,
   formatShortDate,
+  getInitials,
   seriesDisplayLabel,
 } from './schema';
 import {
   DescriptionCell,
+  DescriptionContent,
+  RatingBox,
   RatingCellTd,
   SubjectCell,
 } from './cells';
@@ -174,7 +177,7 @@ export default function FormResponsesCard({
 
   return (
     <section
-      className="mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+      className="mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-visible md:overflow-hidden"
       data-testid={`${testidPrefix}-template-card-${tpl.id}`}
     >
       <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -267,7 +270,9 @@ export default function FormResponsesCard({
           {reflections.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400 italic">No reflections in this window.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Desktop / tablet: horizontally-scrolling table */}
+            <div className="hidden md:block overflow-x-auto">
               <table
                 className="table-auto w-full text-sm dark:text-gray-300"
                 data-testid={`${testidPrefix}-table-${tpl.id}`}
@@ -385,6 +390,107 @@ export default function FormResponsesCard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile: stacked cards with a sticky per-camper header */}
+            <div className="md:hidden space-y-4" data-testid={`${testidPrefix}-cards-${tpl.id}`}>
+              {reflections.map((r) => {
+                const row = {
+                  ...r,
+                  author: r.author_name ? { name: r.author_name } : null,
+                };
+                const subjectName = r.subject?.name ?? null;
+                const subjectLink = r.subject?.id
+                  ? (subjectProfileLink
+                    ? subjectProfileLink(r.subject.id)
+                    : subjectLinkBase
+                      ? `${subjectLinkBase}/${r.subject.id}`
+                      : null)
+                  : null;
+                const headingText = showSubject
+                  ? (subjectName ?? 'Unknown')
+                  : formatShortDate(r.date);
+                return (
+                  <div
+                    key={r.id}
+                    className="rounded-lg border border-gray-200 dark:border-gray-700"
+                    data-testid={`${testidPrefix}-card-${r.id}`}
+                  >
+                    <div className="sticky top-16 z-20 flex items-center gap-2 rounded-t-lg border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/60 px-3 py-2">
+                      {showSubject && (
+                        <div className="w-9 h-9 shrink-0 flex items-center justify-center bg-gray-200 dark:bg-gray-600 rounded-full">
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                            {getInitials(subjectName)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                          {showSubject && subjectLink ? (
+                            <Link to={subjectLink} className="text-indigo-700 dark:text-indigo-300 hover:underline">
+                              {headingText}
+                            </Link>
+                          ) : (
+                            headingText
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                          {showSubject && <span>{formatShortDate(r.date)}</span>}
+                          <span className="inline-flex items-center gap-1">
+                            {r.language ?? 'en'}
+                            <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
+                          </span>
+                          {r.assignment_group?.id && (
+                            <Link
+                              to={`/dashboards/group/${r.assignment_group.id}?date=${r.date}`}
+                              className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                              {r.assignment_group.name ?? 'View group'} →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                      {onAddObservation && (personId || (showSubject && r.subject?.id)) && (
+                        <button
+                          type="button"
+                          onClick={() => (
+                            showSubject && r.subject?.id
+                              ? onAddObservation(r.date, r.subject)
+                              : onAddObservation(r.date)
+                          )}
+                          className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30"
+                          data-testid={`${testidPrefix}-card-add-observation-${r.id}`}
+                        >
+                          Note +
+                        </button>
+                      )}
+                    </div>
+                    <div className="p-3 space-y-3">
+                      {ratingCols.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {ratingCols.map((c, idx) => (
+                            <RatingBox
+                              key={`${r.id}-${c.key}-${c.subKey ?? ''}-${idx}`}
+                              col={c}
+                              answers={r.answers}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-sm dark:text-gray-300">
+                        <DescriptionContent
+                          row={row}
+                          flagFields={flagFields}
+                          chipFields={chipFields}
+                          descTextFields={descTextFields}
+                          flagTestidPrefix={`${testidPrefix}-flag-${tpl.id}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            </>
           )}
         </div>
       )}
