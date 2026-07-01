@@ -18,7 +18,7 @@
   "dependencies": {
     "@datadog/browser-logs": "^6.33.0",
     "@datadog/browser-rum": "^6.12.3",
-    "@datadog/browser-rum-react": "^6.12.3",
+    "@datadog/browser-rum-react": "^6.33.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
