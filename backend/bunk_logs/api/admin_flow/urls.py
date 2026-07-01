@@ -11,6 +11,7 @@ from bunk_logs.api.audit import AuditEventViewSet
 
 from .assignments import AdminAssignmentDetailView
 from .assignments import AdminAssignmentsListCreateView
+from .assignments import AdminSupervisorStatusView
 from .catalog import AdminCatalogImportView
 from .catalog import AdminCatalogItemDetailView
 from .catalog import AdminCatalogItemListCreateView
@@ -110,6 +111,11 @@ urlpatterns = [
     # Assignments (Story 56) — single endpoint, 5 sub-tabs
     # ------------------------------------------------------------------
     path("assignments/", AdminAssignmentsListCreateView.as_view(), name="admin-assignments"),
+    path(
+        "assignments/supervisor-status/",
+        AdminSupervisorStatusView.as_view(),
+        name="admin-assignment-supervisor-status",
+    ),
     path(
         "assignments/<int:assignment_id>/",
         AdminAssignmentDetailView.as_view(),

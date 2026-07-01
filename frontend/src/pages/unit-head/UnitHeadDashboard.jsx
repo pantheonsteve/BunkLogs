@@ -95,6 +95,7 @@ const BADGE_META = {
 
 function BunkRow({ bunk }) {
   const { completion } = bunk;
+  const selfRefl = bunk.counselor_self_reflections;
   return (
     <li
       data-testid={`uh-bunk-row-${bunk.id}`}
@@ -152,6 +153,14 @@ function BunkRow({ bunk }) {
           {completion.off_camp > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {completion.off_camp} off-camp
+            </p>
+          )}
+          {selfRefl?.expected > 0 && (
+            <p
+              data-testid={`uh-self-refl-rollup-${bunk.id}`}
+              className="text-xs text-gray-500 dark:text-gray-400 mt-1"
+            >
+              Counselor reflections: {selfRefl.submitted} of {selfRefl.expected}
             </p>
           )}
         </div>

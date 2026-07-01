@@ -3,6 +3,7 @@ import { listAdminPrograms } from '../../../api/admin';
 import { SUB_TABS, tabConfigFor } from './assignmentTabConfig';
 import GroupMembershipTab from './GroupMembershipTab';
 import SupervisionTab from './SupervisionTab';
+import SupervisorStatusTab from './SupervisorStatusTab';
 
 export default function AssignmentsPage() {
   const [subTab, setSubTab] = useState(SUB_TABS[0].key);
@@ -25,7 +26,7 @@ export default function AssignmentsPage() {
       </header>
 
       <nav
-        className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 mb-6"
+        className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2 mb-6"
         aria-label="Assignment types"
       >
         {SUB_TABS.map((t) => {
@@ -52,10 +53,14 @@ export default function AssignmentsPage() {
         })}
       </nav>
 
-      {config.kind === 'group_membership' ? (
+      {config.kind === 'group_membership' && (
         <GroupMembershipTab key={config.key} config={config} programs={programs} />
-      ) : (
+      )}
+      {config.kind === 'supervision' && (
         <SupervisionTab key={config.key} config={config} programs={programs} />
+      )}
+      {config.kind === 'supervisor_status' && (
+        <SupervisorStatusTab key={config.key} config={config} programs={programs} />
       )}
     </main>
   );

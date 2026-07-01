@@ -561,6 +561,46 @@ def test_admin_can_view_responses(
 
 
 @pytest.mark.django_db
+def test_superuser_without_admin_membership_can_list_templates(org, program):
+    """A Django super admin (is_staff/is_superuser) always has admin access.
+
+    Regression: previously ``admin_only_or_403`` required an active
+    ``admin``-capability Membership, so a superuser with none (or one that
+    got deactivated when its session ended) hit "You do not have LT access".
+    """
+    user = User.objects.create_user(
+        email="super@lt.test", password="pw", is_staff=True, is_superuser=True,
+    )
+    Person.all_objects.create(
+        organization=org, first_name="Super", last_name="User", user=user,
+    )
+    c = _client(user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/leadership-team/templates/")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_superuser_with_deactivated_admin_membership_can_list_templates(
+    org, program,
+):
+    """Even when the only admin membership sits in an ended (inactive) session."""
+    user = User.objects.create_user(
+        email="super2@lt.test", password="pw", is_staff=True, is_superuser=True,
+    )
+    person = Person.all_objects.create(
+        organization=org, first_name="Super", last_name="Two", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="admin", is_active=False,
+    )
+    c = _client(user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/leadership-team/templates/")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
 def test_non_lt_non_admin_still_gets_403(org, program):
     """A counselor (no admin/program_lead capability) is still blocked."""
     user = User.objects.create_user(email="counselor@lt.test", password="pw")
