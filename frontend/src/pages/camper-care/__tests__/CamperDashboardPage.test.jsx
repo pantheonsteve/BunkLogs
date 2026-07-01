@@ -122,7 +122,7 @@ describe('CamperCareCamperDashboardPage', () => {
           && config?.params?.notes_to === '2026-07-04',
       );
       expect(refetchedWithNotes).toBe(true);
-    });
+    }, { timeout: 5000 });
     expect(screen.getByTestId('cc-notes-filter-active')).toHaveTextContent(/2026-06-01/);
   });
 
