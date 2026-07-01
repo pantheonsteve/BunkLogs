@@ -19,12 +19,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from django.db.models import F
 from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.api.counselor.common import enforce_edit_window
 from bunk_logs.api.counselor.common import is_day_off_answer
 from bunk_logs.api.counselor.common import is_editable_today
 from bunk_logs.api.counselor.common import off_camp_camper_ids
+from bunk_logs.api.counselor.common import person_full_name
 from bunk_logs.core.assignment_resolution import resolve_template_for
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -54,6 +56,8 @@ __all__ = [
     "build_score_grid",
     "bunk_camper_ids",
     "compute_attention_badges",
+    "counselor_self_reflection_counts",
+    "counselor_self_reflections_for_bunk",
     "enforce_edit_window",
     "is_day_off_answer",
     "is_editable_today",
@@ -173,6 +177,165 @@ def bunk_camper_ids(bunk: AssignmentGroup) -> list[int]:
         .order_by("person__last_name", "person__first_name")
         .values_list("person_id", flat=True),
     )
+
+
+# ---------------------------------------------------------------------------
+# Counselor self-reflection surfacing (self-mode reflections by bunk authors)
+# ---------------------------------------------------------------------------
+
+
+def _bunk_counselor_authors(bunk: AssignmentGroup) -> list[Person]:
+    """Active author (counselor / JC) Persons on the bunk, name-ordered."""
+    rows = (
+        AssignmentGroupMembership.objects.filter(
+            group=bunk, role_in_group="author", is_active=True,
+        )
+        .select_related("person")
+        .order_by("person__last_name", "person__first_name")
+    )
+    return [agm.person for agm in rows if agm.person]
+
+
+def _self_reflections_for_authors(person_ids, target_date, program_id):
+    """``author_id -> Reflection`` for latest complete self-reflections.
+
+    Self-mode reflections where the author is also the subject, in the
+    period covering ``target_date``. Scoped to ``person_ids`` — the bunk's
+    counselor authors — and to ``program_id`` (the bunk's program) so a
+    counselor enrolled in multiple programs only counts the self-reflection
+    they filed for THIS program. Uses ``all_objects`` (visibility is applied
+    by the caller where required).
+    """
+    if not person_ids:
+        return {}
+    rows = (
+        Reflection.all_objects.filter(
+            author_id__in=person_ids,
+            subject_id__in=person_ids,
+            program_id=program_id,
+            template__subject_mode="self",
+            period_start__lte=target_date,
+            period_end__gte=target_date,
+            is_complete=True,
+        )
+        .filter(author_id=F("subject_id"))
+        .select_related("template", "author")
+        .order_by("-submitted_at")
+    )
+    by_author: dict[int, Reflection] = {}
+    for r in rows:
+        by_author.setdefault(r.author_id, r)
+    return by_author
+
+
+def counselor_self_reflection_counts(
+    bunk: AssignmentGroup, target_date: date,
+) -> dict:
+    """``{submitted, expected}`` self-reflection roll-up for a bunk.
+
+    ``expected`` is the count of active counselor authors on the bunk;
+    ``submitted`` is how many filed a complete self-reflection (including
+    "day off") for ``target_date``. Used by the UH dashboard bunk list.
+    """
+    authors = _bunk_counselor_authors(bunk)
+    expected = len(authors)
+    if expected == 0:
+        return {"submitted": 0, "expected": 0}
+    by_author = _self_reflections_for_authors(
+        [p.id for p in authors], target_date, bunk.program_id,
+    )
+    return {"submitted": len(by_author), "expected": expected}
+
+
+def _render_self_fields(template: ReflectionTemplate, answers: dict) -> list[dict]:
+    """Join template schema fields with answers into ``{key,label,value}`` rows.
+
+    Skips the ``day_off`` control field and any empty answers. ``label`` is
+    the English prompt, falling back to the field key.
+    """
+    out: list[dict] = []
+    for field in (template.schema or {}).get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        key = field.get("key")
+        if not isinstance(key, str) or key == "day_off":
+            continue
+        value = answers.get(key)
+        if value in (None, "", [], {}):
+            continue
+        prompts = field.get("prompts") or {}
+        label = prompts.get("en") if isinstance(prompts, dict) else None
+        if not (isinstance(label, str) and label.strip()):
+            label = key
+        out.append({"key": key, "label": label, "value": value})
+    return out
+
+
+def counselor_self_reflections_for_bunk(
+    *, request, bunk: AssignmentGroup, target_date: date,
+) -> list[dict]:
+    """Per-counselor self-reflection state + content for a bunk on a date.
+
+    One entry per active counselor author, name-ordered. Each carries the
+    submission ``state`` (``complete`` / ``day_off`` / ``missing``), the
+    linked reflection id, submit timestamp, template name, and rendered
+    field label/value pairs. Visibility is enforced against
+    ``request.user`` so a viewer only sees reflections the permission layer
+    permits.
+    """
+    from bunk_logs.core.filters import reflections_visible_for_user
+
+    authors = _bunk_counselor_authors(bunk)
+    if not authors:
+        return []
+    person_ids = [p.id for p in authors]
+    visible = reflections_visible_for_user(
+        request.user,
+        Reflection.all_objects.filter(
+            author_id__in=person_ids,
+            subject_id__in=person_ids,
+            program_id=bunk.program_id,
+            template__subject_mode="self",
+            period_start__lte=target_date,
+            period_end__gte=target_date,
+            is_complete=True,
+        )
+        .filter(author_id=F("subject_id"))
+        .select_related("template", "author")
+        .order_by("-submitted_at"),
+    )
+    by_author: dict[int, Reflection] = {}
+    for r in visible:
+        by_author.setdefault(r.author_id, r)
+
+    out: list[dict] = []
+    for person in authors:
+        r = by_author.get(person.id)
+        if r is None:
+            out.append({
+                "person_id": person.id,
+                "counselor_name": person_full_name(person),
+                "state": "missing",
+                "reflection_id": None,
+                "submitted_at": None,
+                "template_name": None,
+                "fields": [],
+            })
+            continue
+        state = "day_off" if is_day_off_answer(r) else "complete"
+        out.append({
+            "person_id": person.id,
+            "counselor_name": person_full_name(person),
+            "state": state,
+            "reflection_id": r.id,
+            "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+            "template_name": r.template.name if r.template_id else None,
+            "fields": (
+                [] if state == "day_off"
+                else _render_self_fields(r.template, r.answers or {})
+            ),
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.program_scope import operational_memberships_qs
 from bunk_logs.core.time_utils import get_today
 
@@ -62,12 +63,19 @@ LT_SELF_TEMPLATE_SLUG = "leadership-team-self-reflection"
 
 @dataclass(frozen=True)
 class ViewerContext:
-    """Resolved request context for a Leadership Team endpoint."""
+    """Resolved request context for a Leadership Team endpoint.
 
-    person: Person
+    ``person`` / ``membership`` / ``program`` may be ``None`` on the
+    admin-only surfaces when the caller is a Django super admin
+    (``is_staff`` / ``is_superuser``) with no admin ``Membership`` — those
+    surfaces only need ``organization``. The personal LT surfaces
+    (``viewer_or_403``) always resolve a real ``membership``.
+    """
+
+    person: Person | None
     organization: Organization
-    membership: Membership
-    program: Program
+    membership: Membership | None
+    program: Program | None
     today: date
 
 
@@ -88,19 +96,34 @@ def admin_only_or_403(request) -> ViewerContext:
         msg = "Authentication required."
         raise PermissionDenied(msg)
     person = Person.objects.filter(user=request.user).first()
+    membership = None
+    if person is not None:
+        membership = (
+            Membership.objects.filter(
+                person=person,
+                capability="admin",
+                is_active=True,
+            )
+            .select_related("program", "program__organization")
+            .order_by("-created_at")
+            .first()
+        )
+    # Django staff / superusers always have org-admin access, even without an
+    # active admin Membership (mirrors ``is_super_admin`` used across the rest
+    # of the RBAC — e.g. ``is_org_admin`` and ``reflections_visible_for_user``).
+    # These admin-only surfaces only read ``ctx.organization``; the personal LT
+    # surfaces keep requiring a real membership via ``viewer_or_403``.
+    if membership is None and is_super_admin(request.user):
+        return ViewerContext(
+            person=person,
+            organization=org,
+            membership=None,
+            program=None,
+            today=get_today(org),
+        )
     if person is None:
         msg = "Person profile required."
         raise PermissionDenied(msg)
-    membership = (
-        Membership.objects.filter(
-            person=person,
-            capability="admin",
-            is_active=True,
-        )
-        .select_related("program", "program__organization")
-        .order_by("-created_at")
-        .first()
-    )
     if membership is None:
         msg = "Admin role required."
         raise PermissionDenied(msg)
@@ -154,6 +177,22 @@ def viewer_or_403(request) -> ViewerContext:
         .order_by("-created_at")
         .first()
     )
+    # Super admins whose only admin/program_lead membership sits in a
+    # non-operational (e.g. ended-session) program still get in — admin is an
+    # org-wide role, not session-scoped. We keep a real membership so the
+    # personal LT surfaces that read ``ctx.membership`` / ``ctx.program``
+    # continue to work.
+    if membership is None and is_super_admin(request.user):
+        membership = (
+            Membership.objects.filter(
+                person=person,
+                capability__in=["program_lead", "admin"],
+                is_active=True,
+            )
+            .select_related("program", "program__organization")
+            .order_by("-created_at")
+            .first()
+        )
     if membership is None:
         msg = "Leadership Team or Admin role required."
         raise PermissionDenied(msg)

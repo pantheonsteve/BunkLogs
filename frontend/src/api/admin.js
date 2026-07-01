@@ -140,6 +140,14 @@ export async function patchAdminAssignment(assignmentId, kind, patch) {
   return resp?.data ?? null;
 }
 
+/** Read-only supervisor-status inspector for a given person. */
+export async function getAdminSupervisorStatus(personId) {
+  const resp = await api.get(`${ADMIN_BASE}/assignments/supervisor-status/`, {
+    params: { person: personId },
+  });
+  return resp?.data ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Programs + Settings (Story 58)
 // ---------------------------------------------------------------------------

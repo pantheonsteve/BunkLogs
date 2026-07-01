@@ -163,6 +163,56 @@ describe('BunkDashboard', () => {
     expect(section).toHaveTextContent('3 sensitive notes');
   });
 
+  it('renders counselor self-reflections with expandable content and states', async () => {
+    const data = {
+      ...baseData,
+      counselor_self_reflections: [
+        {
+          person_id: 1,
+          counselor_name: 'Pat L.',
+          state: 'complete',
+          reflection_id: 55,
+          submitted_at: '2026-07-04T18:00:00Z',
+          template_name: 'Counselor Self-Reflection',
+          fields: [
+            { key: 'overall_day', label: 'How was your day?', value: 4 },
+            { key: 'concern', label: 'Anything to flag?', value: 'A bit tired.' },
+            { key: 'notes', label: 'Notes', value: '<p>Cabin <strong>rocked</strong> today</p>' },
+          ],
+        },
+        {
+          person_id: 2,
+          counselor_name: 'Sam R.',
+          state: 'missing',
+          reflection_id: null,
+          submitted_at: null,
+          template_name: null,
+          fields: [],
+        },
+      ],
+    };
+    renderDash(data);
+    const section = screen.getByTestId('section-counselor-self-reflections');
+    expect(section).toHaveAttribute('data-state', 'populated');
+    const pat = screen.getByTestId('counselor-self-refl-1');
+    expect(pat).toHaveTextContent('Submitted');
+    const sam = screen.getByTestId('counselor-self-refl-2');
+    expect(sam).toHaveTextContent('Not yet');
+    // Content is hidden until expanded.
+    expect(screen.queryByText('A bit tired.')).not.toBeInTheDocument();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    await userEvent.click(within(pat).getByRole('button', { name: /view reflection/i }));
+    expect(within(pat).getByText('A bit tired.')).toBeInTheDocument();
+    // Quill-authored HTML renders as formatted markup, not literal tags.
+    expect(within(pat).getByText('rocked').tagName).toBe('STRONG');
+    expect(pat).not.toHaveTextContent('<strong>');
+  });
+
+  it('omits the counselor self-reflections section when there are no counselors', () => {
+    renderDash(baseData);
+    expect(screen.queryByTestId('section-counselor-self-reflections')).not.toBeInTheDocument();
+  });
+
   it('links observations back to the group dashboard when profileLinkContext is set', () => {
     const data = {
       ...baseData,

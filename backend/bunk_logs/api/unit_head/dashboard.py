@@ -29,6 +29,7 @@ from .common import build_score_grid  # noqa: F401 — re-exported for downstrea
 from .common import bunk_camper_ids
 from .common import bunk_concerns_referencing
 from .common import compute_attention_badges
+from .common import counselor_self_reflection_counts
 from .common import expected_by_passed
 from .common import help_requested_camper_ids_from
 from .common import off_camp_camper_ids
@@ -126,6 +127,9 @@ class UnitHeadDashboardView(APIView):
                     "expected": on_camp_total,
                     "off_camp": len(off_camp),
                 },
+                "counselor_self_reflections": counselor_self_reflection_counts(
+                    bunk, today,
+                ),
                 "badges": badges,
             })
 
