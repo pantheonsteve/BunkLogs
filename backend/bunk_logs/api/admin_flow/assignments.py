@@ -47,6 +47,8 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
+from bunk_logs.core.permissions.visibility import _author_group_ids_split
+from bunk_logs.core.permissions.visibility import supervised_person_ids
 
 from .common import viewer_or_403
 
@@ -681,3 +683,127 @@ def _resolve_person(ctx, raw) -> Person | None:
         return Person.all_objects.get(pk=raw, organization=ctx.organization)
     except (Person.DoesNotExist, ValueError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# Supervisor status inspector (read-only)
+# ---------------------------------------------------------------------------
+
+
+def _supervision_target_name(s: Supervision) -> str | None:
+    if s.target_type == Supervision.TargetType.MEMBERSHIP:
+        return _person_name(s.target_membership)
+    if s.target_type == Supervision.TargetType.BUNK and s.target_bunk_id:
+        return s.target_bunk.name
+    if s.target_type == Supervision.TargetType.ASSIGNMENT_GROUP and s.target_group_id:
+        return s.target_group.name
+    if s.target_type == Supervision.TargetType.ROLE_IN_PROGRAM:
+        role = s.target_role or ""
+        prog = s.target_program.name if s.target_program_id else ""
+        return f"{role} in {prog}".strip() or None
+    return None
+
+
+def _people_summary(person_ids: set[int], org_id: int, *, limit: int = 500) -> list[dict]:
+    if not person_ids:
+        return []
+    persons = list(
+        Person.all_objects.filter(id__in=person_ids, organization_id=org_id)
+        .order_by("last_name", "first_name")[:limit],
+    )
+    role_by_person: dict[int, str] = {}
+    for m in Membership.all_objects.filter(
+        person_id__in=[p.id for p in persons],
+        is_active=True,
+        program__organization_id=org_id,
+    ).order_by("person_id", "id"):
+        role_by_person.setdefault(m.person_id, m.role)
+    return [
+        {"id": p.id, "name": p.full_name, "role": role_by_person.get(p.id)}
+        for p in persons
+    ]
+
+
+class AdminSupervisorStatusView(APIView):
+    """GET `/admin/assignments/supervisor-status/?person=<id>`.
+
+    Read-only inspector: given a person, returns the entities they supervise
+    (derived from unit/bunk authorship + ``Supervision`` rows), the resolved
+    set of supervised people, and whether they can view self + other
+    reflections for those people. Mirrors exactly the derivation that
+    ``reflections_visible_to`` enforces, so what an admin sees here is what
+    the supervisor can actually read.
+    """
+
+    permission_classes = [IsOrgAdminOrSuperuser]
+
+    def get(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        person = _resolve_person(ctx, request.query_params.get("person"))
+        if person is None:
+            return Response(
+                {"detail": "Valid person query param is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = ctx.today
+        org_id = ctx.organization.id
+
+        person_ids = supervised_person_ids(person, org_id, today=today)
+
+        direct_ids, _descendant_ids = _author_group_ids_split(person, today=today)
+        author_groups = list(
+            AssignmentGroup.all_objects.filter(id__in=direct_ids).values(
+                "id", "name", "group_type",
+            ),
+        )
+        units = [
+            {"id": g["id"], "name": g["name"]}
+            for g in author_groups
+            if g["group_type"] == "unit"
+        ]
+        assigned_bunks = [
+            {"id": g["id"], "name": g["name"]}
+            for g in author_groups
+            if g["group_type"] == "bunk"
+        ]
+        teams = [
+            {"id": g["id"], "name": g["name"]}
+            for g in author_groups
+            if g["group_type"] == "team"
+        ]
+
+        sup_qs = (
+            Supervision.objects.active(today=today)
+            .filter(supervisor_membership__person=person)
+            .select_related(
+                "target_membership__person",
+                "target_program",
+                "target_bunk",
+                "target_group",
+            )
+        )
+        supervisions = [
+            {
+                "id": s.id,
+                "target_type": s.target_type,
+                "target_name": _supervision_target_name(s),
+            }
+            for s in sup_qs
+        ]
+
+        return Response({
+            "person": {"id": person.id, "name": person.full_name},
+            "is_supervisor": bool(person_ids),
+            "can_view_reflections": bool(person_ids),
+            "supervised_entities": {
+                "units": units,
+                "bunks": assigned_bunks,
+                "teams": teams,
+                "supervisions": supervisions,
+            },
+            "supervised_people": {
+                "count": len(person_ids),
+                "people": _people_summary(person_ids, org_id),
+            },
+        })

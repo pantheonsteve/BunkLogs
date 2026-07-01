@@ -14,6 +14,7 @@ from bunk_logs.core.permissions.subject_note_authoring import authorable_subject
 from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
+from bunk_logs.core.permissions.visibility import supervised_person_ids
 
 
 def _membership_capabilities(person: Person, org) -> set[str]:
@@ -65,16 +66,31 @@ def viewer_capability(person: Person, org) -> str | None:
 
 
 def viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
-    """True if viewer authors a group (or descendant) that contains subject."""
+    """True if the viewer supervises the subject (any group hierarchy path).
+
+    Two complementary paths, unified so every supervisor tier resolves the
+    same way as reflection visibility:
+
+    * AssignmentGroup authorship — the viewer authors a group (or ancestor)
+      that lists ``subject`` as a camper member. Covers Counselor -> own Bunk
+      and Unit Head -> Unit -> Bunk campers.
+    * ``supervised_person_ids`` — the derived supervisor set that also brings in
+      the counselors (authors) inside supervised/descendant bunks and honors
+      explicit ``Supervision`` rows (Camper Care caseload BUNK targets,
+      role-in-program, membership targets). This is the path Camper Care needs:
+      its caseload is modeled as Supervision rows, not group authorship. Direct
+      (peer) author groups are excluded there, so a counselor never gains
+      access to a co-counselor's page.
+    """
     group_ids = author_group_ids_with_descendants(viewer)
-    if not group_ids:
-        return False
-    return AssignmentGroupMembership.all_objects.filter(
+    if group_ids and AssignmentGroupMembership.all_objects.filter(
         person=subject,
         group_id__in=group_ids,
         role_in_group="subject",
         is_active=True,
-    ).exists()
+    ).exists():
+        return True
+    return subject.id in supervised_person_ids(viewer, viewer.organization_id)
 
 
 def can_view_subject_dashboard(
@@ -102,8 +118,14 @@ def can_view_subject_dashboard(
 
 
 def _supervised_subject_ids(viewer_person: Person, org) -> set[int]:
-    """Person ids the viewer supervises via group hierarchy (+ self)."""
+    """Person ids the viewer supervises via group hierarchy (+ self).
+
+    Folds in the unified ``supervised_person_ids`` derivation so explicit
+    ``Supervision`` rows (e.g. a Camper Care caseload of BUNK targets) grant
+    the same subject-dashboard access as AssignmentGroup authorship does.
+    """
     ids: set[int] = {viewer_person.id}
+    ids.update(supervised_person_ids(viewer_person, org.id))
     group_ids = author_group_ids_with_descendants(viewer_person)
     if group_ids:
         ids.update(

@@ -479,3 +479,17 @@ def person_display_name(person: Person | None) -> str:
     if first and last_initial:
         return f"{first} {last_initial}."
     return first or last_initial or ""
+
+
+def person_full_name(person: Person | None) -> str:
+    """Full "First Last" name (preferred-or-first + full last name).
+
+    Used where a supervisor needs to identify staff unambiguously (e.g. the
+    bunk dashboard's counselor list), unlike :func:`person_display_name` which
+    abbreviates the surname to an initial.
+    """
+    if person is None:
+        return ""
+    first = (person.preferred_name or person.first_name or "").strip()
+    last = (person.last_name or "").strip()
+    return f"{first} {last}".strip()

@@ -62,6 +62,13 @@ export const SUB_TABS = [
     roleInGroup: 'subject',
     leftLabel: 'Groups',
   },
+  {
+    key: 'supervisor_status',
+    label: 'Supervisor status',
+    subtitle: 'Who a person supervises + reflection visibility',
+    kind: 'supervisor_status',
+    leftLabel: 'People',
+  },
 ];
 
 export function tabConfigFor(key) {

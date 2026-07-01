@@ -21,6 +21,7 @@ from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
 from bunk_logs.core.models import MaintenanceTicket
@@ -693,3 +694,83 @@ class TestAdminSettings:
                 **_hdr(org.slug),
             )
         assert r.status_code == 403
+
+
+class TestSupervisorStatus:
+    URL = "/api/v1/admin/assignments/supervisor-status/"
+
+    def test_non_admin_blocked(self, api, org, non_admin_user):
+        api.force_authenticate(user=non_admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"person": 1}, **_hdr(org.slug))
+        assert r.status_code == 403
+
+    def test_missing_person_returns_400(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, **_hdr(org.slug))
+        assert r.status_code == 400
+
+    def test_unit_head_status_lists_supervised_counselor(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            uh_person = Person.all_objects.create(
+                organization=org, first_name="Un", last_name="Head",
+            )
+            Membership.all_objects.create(
+                program=program, person=uh_person, role="unit_head", is_active=True,
+            )
+            unit = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Unit",
+                slug="status-unit", group_type="unit",
+            )
+            bunk = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Bunk",
+                slug="status-bunk", group_type="bunk", parent=unit,
+            )
+            AssignmentGroupMembership.all_objects.create(
+                group=unit, person=uh_person, role_in_group="author", is_active=True,
+            )
+            counselor = Person.all_objects.create(
+                organization=org, first_name="Co", last_name="Un",
+            )
+            AssignmentGroupMembership.all_objects.create(
+                group=bunk, person=counselor, role_in_group="author", is_active=True,
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"person": uh_person.id}, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["is_supervisor"] is True
+        assert body["can_view_reflections"] is True
+        assert [u["name"] for u in body["supervised_entities"]["units"]] == ["Unit"]
+        people_ids = {p["id"] for p in body["supervised_people"]["people"]}
+        assert counselor.id in people_ids
+
+    def test_plain_counselor_is_not_supervisor(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            bunk = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Bunk",
+                slug="status-bunk-peer", group_type="bunk",
+            )
+            counselor = Person.all_objects.create(
+                organization=org, first_name="Co", last_name="Un",
+            )
+            Membership.all_objects.create(
+                program=program, person=counselor, role="counselor", is_active=True,
+            )
+            AssignmentGroupMembership.all_objects.create(
+                group=bunk, person=counselor, role_in_group="author", is_active=True,
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"person": counselor.id}, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["is_supervisor"] is False
+        assert body["can_view_reflections"] is False
+        assert body["supervised_people"]["count"] == 0

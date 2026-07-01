@@ -431,7 +431,8 @@ def test_bunk_dashboard_payload_shape(
     body = resp.json()
     expected_sections = {
         "header", "help_requested", "camper_care_help_requested", "off_camp",
-        "bunk_concerns", "score_grid", "orders", "specialist_reports",
+        "bunk_concerns", "counselor_self_reflections", "score_grid", "orders",
+        "specialist_reports",
     }
     assert expected_sections.issubset(body.keys())
     # Score grid: ratings + yes/no + textarea columns, 3 rows.
@@ -637,6 +638,108 @@ def test_bunk_dashboard_specialist_reports_placeholder_until_observations(
     assert reports["today"] == []
     assert reports["recent"] == []
     assert reports["sensitive_counts_by_camper"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Counselor self-reflections on UH surfaces
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_dashboard_counselor_self_reflection_rollup(
+    org, program, uh_user, uh_membership, bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor,
+):
+    """UH dashboard bunk row rolls up counselor self-reflection completion."""
+    today = _today_in_org(org)
+    c = _client(uh_user, org)
+
+    # No self-reflection yet — 0 of 1.
+    with organization_context(org):
+        resp = c.get("/api/v1/unit-head/dashboard/?nocache=1")
+    row = resp.json()["bunks"][0]
+    assert row["counselor_self_reflections"] == {"submitted": 0, "expected": 1}
+
+    # Counselor files their daily self-reflection.
+    template = ReflectionTemplate.all_objects.get(slug="counselor-self-reflection")
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=counselor_person, author=counselor_person,
+        period_start=today, period_end=today,
+        answers={"overall_day": 4}, is_complete=True,
+    )
+    with organization_context(org):
+        resp = c.get("/api/v1/unit-head/dashboard/?nocache=1")
+    row = resp.json()["bunks"][0]
+    assert row["counselor_self_reflections"] == {"submitted": 1, "expected": 1}
+
+
+@pytest.mark.django_db
+def test_bunk_dashboard_includes_counselor_self_reflections(
+    org, program, uh_user, uh_membership, bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor,
+):
+    """Bunk drill-down surfaces the counselor's self-reflection content."""
+    today = _today_in_org(org)
+    template = ReflectionTemplate.all_objects.get(slug="counselor-self-reflection")
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=counselor_person, author=counselor_person,
+        period_start=today, period_end=today,
+        answers={
+            "overall_day": 4,
+            "wins": ["Great lake swim"],
+            "concern": "A bit tired.",
+        },
+        is_complete=True,
+    )
+    c = _client(uh_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/bunks/{bunk.id}/?date={today.isoformat()}")
+    assert resp.status_code == 200
+    entries = resp.json()["counselor_self_reflections"]
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["person_id"] == counselor_person.id
+    assert entry["state"] == "complete"
+    field_keys = {f["key"] for f in entry["fields"]}
+    assert {"overall_day", "wins", "concern"}.issubset(field_keys)
+    # day_off control field is never surfaced as content.
+    assert "day_off" not in field_keys
+
+
+@pytest.mark.django_db
+def test_bunk_dashboard_counselor_self_reflection_states(
+    org, program, uh_user, uh_membership, bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor,
+):
+    """Day-off submissions report ``day_off`` with no content; absent ones ``missing``."""
+    today = _today_in_org(org)
+    template = ReflectionTemplate.all_objects.get(slug="counselor-self-reflection")
+    c = _client(uh_user, org)
+
+    # Nothing filed yet -> missing.
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/bunks/{bunk.id}/?date={today.isoformat()}")
+    entry = resp.json()["counselor_self_reflections"][0]
+    assert entry["state"] == "missing"
+    assert entry["fields"] == []
+
+    # Day-off submission -> day_off, still no content.
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=counselor_person, author=counselor_person,
+        period_start=today, period_end=today,
+        answers={"day_off": True}, is_complete=True,
+    )
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/bunks/{bunk.id}/?date={today.isoformat()}")
+    entry = resp.json()["counselor_self_reflections"][0]
+    assert entry["state"] == "day_off"
+    assert entry["fields"] == []
 
 
 # ---------------------------------------------------------------------------
