@@ -6,6 +6,7 @@ import {
   resolveProfileBackGroup,
   safeInternalPath,
   subjectProfileHref,
+  withDateParam,
 } from './dashboardLinks';
 
 describe('dashboardLinks', () => {
@@ -39,6 +40,20 @@ describe('dashboardLinks', () => {
       `/observations/9?from=${encodeURIComponent(ret)}&from_label=Cabin+Birch`,
     );
     expect(observationBackLabel(ret)).toBe('Back to group dashboard');
+  });
+
+  it('withDateParam appends, replaces, and no-ops correctly', () => {
+    expect(withDateParam('/camper-care', '2026-06-30')).toBe('/camper-care?date=2026-06-30');
+    expect(withDateParam('/camper-care', '')).toBe('/camper-care');
+    expect(withDateParam('/camper-care', undefined)).toBe('/camper-care');
+    // Preserves existing params and replaces an existing date.
+    expect(withDateParam('/x?foo=1&date=2026-01-01', '2026-06-30')).toBe(
+      '/x?foo=1&date=2026-06-30',
+    );
+    // Preserves a hash fragment.
+    expect(withDateParam('/camper-care/campers/5?flagId=9#flag-9', '2026-06-30')).toBe(
+      '/camper-care/campers/5?flagId=9&date=2026-06-30#flag-9',
+    );
   });
 
   it('resolves back group from query param or single bunk', () => {

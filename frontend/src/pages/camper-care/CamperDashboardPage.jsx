@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import CamperDashboard from '../../components/CamperDashboard';
 import { fetchCamperDashboard } from '../../api/camperCare';
+import { withDateParam } from '../../utils/dashboardLinks';
 
 const STATUS_META = {
   active: { label: 'Active', cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
@@ -272,7 +273,7 @@ export default function CamperCareCamperDashboardPage() {
         selectedRange={rangeParam}
         onDateChange={(next) => updateParam('date', next)}
         onRangeChange={(next) => updateParam('range', next)}
-        backTo="/camper-care"
+        backTo={withDateParam('/camper-care', dateParam)}
       />
       <div className="px-4 sm:px-6 lg:px-8 pb-20 w-full max-w-[96rem] mx-auto space-y-4">
         <NotesDateRangeFilter

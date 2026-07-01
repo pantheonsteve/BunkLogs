@@ -19,6 +19,21 @@ export function groupDashboardLink(groupId, { date } = {}) {
     : `/dashboards/group/${groupId}`;
 }
 
+/**
+ * Append/replace a `date` query param on an internal app path so the
+ * selected day carries across navigation. Preserves any existing query
+ * params and hash. No-op when `date` is falsy.
+ */
+export function withDateParam(path, date) {
+  if (!path || !date) return path;
+  const [beforeHash, hash] = path.split('#');
+  const [base, query = ''] = beforeHash.split('?');
+  const params = new URLSearchParams(query);
+  params.set('date', date);
+  const rebuilt = `${base}?${params.toString()}`;
+  return hash ? `${rebuilt}#${hash}` : rebuilt;
+}
+
 /** Resolve group metadata for the profile back link from URL + payload. */
 export function resolveProfileBackGroup(groupIdParam, assignmentGroups = []) {
   const groups = assignmentGroups ?? [];
