@@ -18,6 +18,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import Supervision
 from bunk_logs.core.time_utils import get_org_timezone
 from bunk_logs.core.time_utils import get_today
 from bunk_logs.notes.models import Observation
@@ -434,6 +435,53 @@ def test_supervisor_allowed_for_direct_report(api_client, org, program, setup):
     api_client.force_authenticate(user=uh_user)
     r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
     assert r.status_code == 200
+
+
+def test_camper_care_caseload_can_view_camper(api_client, org, program, setup):
+    """Camper Care supervises via Supervision caseload rows (BUNK targets),
+
+    not group authorship. They must be able to open the subject page of a
+    camper in a caseload bunk. Regression: previously 403 because the gate
+    only consulted AssignmentGroup authorship.
+    """
+    bunk, camper, _, _ = setup
+    cc_user = _user("cc-sd@a.com")
+    cc = _person(org, "Camper", "Care", cc_user)
+    cc_membership = Membership.all_objects.create(
+        program=program, person=cc, role="camper_care", is_active=True,
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=cc_membership,
+        target_type=Supervision.TargetType.BUNK,
+        target_bunk=bunk,
+        start_date=date(2026, 1, 1),
+    )
+    api_client.force_authenticate(user=cc_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 200, r.content
+
+
+def test_camper_care_blocked_for_camper_outside_caseload(api_client, org, program, setup):
+    """Camper Care cannot view a camper in a bunk outside their caseload."""
+    bunk, camper, _, _ = setup
+    cc_user = _user("cc-out-sd@a.com")
+    cc = _person(org, "Care", "Out", cc_user)
+    cc_membership = Membership.all_objects.create(
+        program=program, person=cc, role="camper_care", is_active=True,
+    )
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Off Caseload",
+        slug="sd-bunk-off", group_type="bunk",
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=cc_membership,
+        target_type=Supervision.TargetType.BUNK,
+        target_bunk=other_bunk,
+        start_date=date(2026, 1, 1),
+    )
+    api_client.force_authenticate(user=cc_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 403
 
 
 def test_program_lead_can_view_any_subject(api_client, org, program, setup):

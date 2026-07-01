@@ -25,6 +25,7 @@ const samplePayload = {
       unit_name: 'Unit One',
       counselor_names: ['Pat L.'],
       completion: { submitted: 5, expected: 8, off_camp: 1 },
+      counselor_self_reflections: { submitted: 1, expected: 2 },
       badges: ['help_requested', 'low_completion'],
     },
     {
@@ -59,6 +60,9 @@ describe('UnitHeadDashboard', () => {
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('5 of 8 submitted')).toBeInTheDocument();
     expect(screen.getByText('1 off-camp')).toBeInTheDocument();
+    expect(screen.getByTestId('uh-self-refl-rollup-11')).toHaveTextContent(
+      'Counselor reflections: 1 of 2',
+    );
     const helpBadges = screen.getAllByTestId('uh-badge-help_requested');
     expect(helpBadges.length).toBeGreaterThan(0);
   });
