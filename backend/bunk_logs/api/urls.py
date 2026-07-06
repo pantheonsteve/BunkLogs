@@ -11,6 +11,7 @@ from . import me as me_api
 from . import memberships
 from . import orders_state_machine as order_sm
 from . import reflections
+from . import rich_text_images
 from . import supervisions as supervisions_api
 from . import templates as templates_api
 from . import views
@@ -204,6 +205,13 @@ urlpatterns = [
         "maintenance/tickets/<uuid:ticket_id>/photos/",
         maint_views.MaintenanceTicketPhotoCreateView.as_view(),
         name="maintenance-ticket-photo-create",
+    ),
+    # Rich-text editor image upload (StaffLog, BunkLog, reflections). Stores to
+    # S3 and returns a stable URL; replaces base64-in-HTML embedding.
+    path(
+        "rich-text-images/",
+        rich_text_images.RichTextImageUploadView.as_view(),
+        name="rich-text-image-upload",
     ),
     path("", include(router.urls)),
 

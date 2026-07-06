@@ -136,3 +136,12 @@
     border-color: var(--color-gray-200, currentColor);
   }
 }
+
+/* Keep rich-text images (uploaded via the Quill editor) within bounds both
+   while editing and when rendered read-only via <RichText>. */
+.ql-editor img,
+.rich-text-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+}

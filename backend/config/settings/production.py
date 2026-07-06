@@ -102,6 +102,11 @@ if _USE_S3_MEDIA:
     aws_s3_domain = AWS_S3_CUSTOM_DOMAIN or f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
     MEDIA_URL = f"https://{aws_s3_domain}/"
 
+    # Rich-text editor images embed a stable, non-expiring S3 URL in stored HTML
+    # (see bunk_logs.core.storages.select_public_media_storage). Requires the
+    # bucket policy to grant public s3:GetObject on the ``rich-text/*`` prefix.
+    RICH_TEXT_USE_S3 = True
+
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3.S3Storage",

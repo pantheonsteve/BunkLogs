@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
+import { uploadRichTextImage } from '../../api/richText';
+
+const Delta = Quill.import('delta');
 
 function normalizeHtml(html) {
   if (html == null || html === '') return '';
@@ -43,7 +46,7 @@ const WysiwygEditor = forwardRef(({ onChange, value, readOnly = false, showToolb
       ['bold', 'italic', 'underline'],
       [{ list: 'ordered' }, { list: 'bullet' }],
       [{ align: [] }],
-      ['link'],
+      ['link', 'image'],
       ['clean'],
     ];
 
@@ -53,6 +56,65 @@ const WysiwygEditor = forwardRef(({ onChange, value, readOnly = false, showToolb
       },
       theme: 'snow',
       readOnly,
+    });
+
+    const quill = quillRef.current;
+
+    // Upload a file to S3 and embed the returned URL. Never inline base64 --
+    // that's what bloated the DB (multi-MB rows) before this change.
+    const uploadAndInsert = async (file) => {
+      if (!file || !file.type?.startsWith('image/')) return;
+      const range = quill.getSelection(true);
+      const index = range ? range.index : quill.getLength();
+      try {
+        const url = await uploadRichTextImage(file);
+        quill.insertEmbed(index, 'image', url, 'user');
+        quill.setSelection(index + 1, 0);
+      } catch {
+        // eslint-disable-next-line no-alert
+        window.alert?.('Image upload failed. Please try again.');
+      }
+    };
+
+    if (showToolbar) {
+      const toolbar = quill.getModule('toolbar');
+      toolbar?.addHandler('image', () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.onchange = () => uploadAndInsert(input.files?.[0]);
+        input.click();
+      });
+    }
+
+    // Pasted/dropped image files (e.g. screenshots) route through the uploader
+    // instead of Quill's default base64 embedding.
+    const handlePaste = (e) => {
+      const files = Array.from(e.clipboardData?.files || []).filter((f) =>
+        f.type?.startsWith('image/'),
+      );
+      if (files.length) {
+        e.preventDefault();
+        files.forEach(uploadAndInsert);
+      }
+    };
+    const handleDrop = (e) => {
+      const files = Array.from(e.dataTransfer?.files || []).filter((f) =>
+        f.type?.startsWith('image/'),
+      );
+      if (files.length) {
+        e.preventDefault();
+        files.forEach(uploadAndInsert);
+      }
+    };
+    quill.root.addEventListener('paste', handlePaste, true);
+    quill.root.addEventListener('drop', handleDrop, true);
+
+    // Pasting rich HTML that already contains base64 <img> (e.g. from a doc):
+    // drop those inline images rather than storing the blob.
+    quill.clipboard.addMatcher('IMG', (node, delta) => {
+      const src = node.getAttribute?.('src') || '';
+      return src.startsWith('data:') ? new Delta() : delta;
     });
 
     quillRef.current.on('text-change', (_delta, _oldDelta, source) => {

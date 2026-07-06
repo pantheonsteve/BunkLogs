@@ -18,8 +18,10 @@ from bunk_logs.core.managers import ProgramScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
 from bunk_logs.core.managers import SupervisionEventScopedManager
 from bunk_logs.core.managers import SupervisionManager
+from bunk_logs.core.rich_text import contains_inline_base64_image
 from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.state_machine import TransitionPlan
+from bunk_logs.core.storages import select_public_media_storage
 from bunk_logs.core.validators.template_schema import ALL_FIELD_TYPES
 from bunk_logs.core.validators.template_schema import META_FIELD_TYPES
 from bunk_logs.core.validators.template_schema import validate_template_coherence
@@ -94,6 +96,10 @@ def validate_reflection_answers(schema: Any, answers: Any) -> None:
         if ftype in ("text", "textarea", "single_choice", "date"):
             if not isinstance(value, str):
                 raise ValidationError({"answers": f'Field "{key}" must be a string.'})
+            if contains_inline_base64_image(value):
+                raise ValidationError(
+                    {"answers": f'Field "{key}" may not embed inline images; upload the image instead.'},
+                )
         elif ftype == "text_list":
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
                 raise ValidationError({"answers": f'Field "{key}" must be a list of strings.'})
@@ -1959,6 +1965,50 @@ class TicketPhoto(models.Model):
     @property
     def organization(self):
         return self.ticket.organization if self.ticket_id else None
+
+
+def rich_text_image_upload_path(instance: "RichTextImage", filename: str) -> str:
+    """UUID-keyed key under the public ``rich-text/`` prefix.
+
+    The UUID filename makes URLs unguessable/non-enumerable (the access model
+    for these public-read objects) and avoids collisions.
+    """
+    suffix = ""
+    if "." in filename:
+        suffix = "." + filename.rsplit(".", 1)[-1].lower()
+    return f"rich-text/{instance.id}{suffix}"
+
+
+class RichTextImage(models.Model):
+    """An image uploaded from the rich-text editor, served via a stable URL.
+
+    Replaces the old pattern of embedding base64 data URIs directly in stored
+    HTML. The editor uploads the file here, gets back ``image.url``, and inserts
+    an ``<img src="...">`` pointing at it. In production the URL is a public,
+    non-expiring S3 object (see ``core.storages.select_public_media_storage``);
+    locally it's a ``/media/`` path made absolute by the upload view.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    image = models.ImageField(
+        upload_to=rich_text_image_upload_path,
+        storage=select_public_media_storage,
+        max_length=512,
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="rich_text_images",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"RichTextImage {self.id}"
 
 
 class CamperDayState(models.Model):
