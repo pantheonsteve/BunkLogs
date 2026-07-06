@@ -15,12 +15,29 @@ from bunk_logs.bunks.models import Unit
 from bunk_logs.bunks.models import UnitStaffAssignment
 from bunk_logs.campers.models import Camper
 from bunk_logs.campers.models import CamperBunkAssignment
+from bunk_logs.core.rich_text import contains_inline_base64_image
 from bunk_logs.orders.models import Item
 from bunk_logs.orders.models import ItemCategory
 from bunk_logs.orders.models import Order
 from bunk_logs.orders.models import OrderItem
 from bunk_logs.orders.models import OrderType
 from bunk_logs.users.models import User
+
+_INLINE_IMAGE_ERROR = (
+    "Images can no longer be embedded directly. Upload the image and it will be "
+    "inserted as a link automatically."
+)
+
+
+def _reject_inline_images(value):
+    """Raise if ``value`` contains an inline base64 image; else return it.
+
+    Prevents the editor from re-introducing multi-MB base64 blobs into stored
+    HTML now that images upload to S3 instead.
+    """
+    if contains_inline_base64_image(value):
+        raise serializers.ValidationError(_INLINE_IMAGE_ERROR)
+    return value
 
 
 class CabinSerializer(serializers.ModelSerializer):
@@ -354,6 +371,9 @@ class BunkLogSerializer(serializers.ModelSerializer):
                 if score < 1 or score > 5:
                     raise serializers.ValidationError({score_field: "Score must be between 1 and 5"})
 
+        if "description" in data:
+            _reject_inline_images(data.get("description") or "")
+
         # Skip duplicate validation here since we'll handle it in perform_create
         # This allows the model's save() method to set the date automatically
         # and our view's error handling to provide better error messages
@@ -450,6 +470,12 @@ class StaffLogSerializer(serializers.ModelSerializer):
             "counselor", "counselor_first_name", "counselor_last_name", "counselor_email",
             "bunk_assignments", "bunk_names", "unit_assignment_name",
         ]
+
+    def validate_elaboration(self, value):
+        return _reject_inline_images(value or "")
+
+    def validate_values_reflection(self, value):
+        return _reject_inline_images(value or "")
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_bunk_assignments(self, obj):

@@ -42,5 +42,10 @@ export default function RichText({ html, className = '', as: Tag = 'div', fallba
   if (!hasHtmlMarkup(str)) {
     return <Tag className={`whitespace-pre-line ${className}`.trim()}>{str}</Tag>;
   }
-  return <Tag className={className} dangerouslySetInnerHTML={{ __html: str }} />;
+  return (
+    <Tag
+      className={`rich-text-content ${className}`.trim()}
+      dangerouslySetInnerHTML={{ __html: str }}
+    />
+  );
 }
