@@ -7,7 +7,7 @@ dashboard so the frontend can render the same expandable cards.
 
 from __future__ import annotations
 
-from datetime import date
+from typing import TYPE_CHECKING
 
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import ValidationError
@@ -18,6 +18,9 @@ from rest_framework.views import APIView
 from .common import counselor_self_reflections_for_bunk
 from .common import supervised_bunks
 from .common import viewer_or_403
+
+if TYPE_CHECKING:
+    from datetime import date
 
 
 def _parse_date_param(raw: str | None, *, default: date) -> date:
