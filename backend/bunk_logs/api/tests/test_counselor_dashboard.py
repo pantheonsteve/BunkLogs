@@ -485,6 +485,36 @@ def test_dashboard_self_section_day_off_counts_as_complete(
 
 
 @pytest.mark.django_db
+def test_dashboard_self_section_day_off_no_string_is_not_day_off(
+    org,
+    program,
+    counselor_user,
+    counselor_person,
+    counselor_membership,
+    self_template,
+):
+    today = get_today(org)
+    Reflection.all_objects.create(
+        organization=org,
+        program=program,
+        author=counselor_person,
+        subject=counselor_person,
+        template=self_template,
+        period_start=today,
+        period_end=today,
+        answers={"day_off": "no", "elaboration": "Solid day"},
+        is_complete=True,
+        language="en",
+    )
+    c = _client(counselor_user, org)
+    with organization_context(org):
+        resp = c.get("/api/v1/counselor/dashboard/?nocache=1")
+    section = resp.data["sections"]["self_reflection"]
+    assert section["state"] == "complete"
+    assert section["is_day_off"] is False
+
+
+@pytest.mark.django_db
 def test_dashboard_self_section_none_when_no_template(
     org, counselor_user, counselor_person, counselor_membership,
 ):

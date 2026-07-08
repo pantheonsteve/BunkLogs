@@ -175,8 +175,9 @@ function Sidebar({
   const adminStyleHomePath = canAdmin ? '/admin/home' : '/leadership-team';
   const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
   const isCounselor = user.role === 'Counselor';
+  const isUnitHead = user.role === 'Unit Head';
   const isCamperCare = user.role === 'Camper Care';
-  const canSeeFileReflectionNav = canFileReflection && !isCounselor && !isCamperCare;
+  const canSeeFileReflectionNav = canFileReflection && !isCounselor && !isCamperCare && !isUnitHead;
   const canSeeLogs = canSupervise || canAdmin;
   // Counselors see assigned/submitted work via My tasks + My reflections, not the org-wide dashboard.
   const canSeeReflectionsDashboard = (canSeeLogs || canFileReflection) && !isCounselor;
@@ -350,21 +351,21 @@ function Sidebar({
               label="Maintenance Queue"
               icon={IconWrench}
             />
-            {canSupervise && !canSeeDashboards && (
+            {canSupervise && !canSeeDashboards && !isUnitHead && (
               <NavItem
                 to="/groups/performance"
                 label="Group Performance"
                 icon={IconGrid}
               />
             )}
-            {canSupervise && !canSeeDashboards && canSeeLogs && !isCamperCare && (
+            {canSupervise && !canSeeDashboards && canSeeLogs && !isCamperCare && !isUnitHead && (
               <NavItem
                 to="/dashboards/logs"
                 label="Bunk Logs"
                 icon={IconBars}
               />
             )}
-            {canSeeReflectionsDashboard && !canAdmin && (
+            {canSeeReflectionsDashboard && !canAdmin && !isUnitHead && (
               <NavItem
                 to="/dashboards/reflections"
                 label="Reflections"
@@ -392,6 +393,13 @@ function Sidebar({
                 label="Concerns about my unit"
                 icon={IconAlert}
               />
+              {isUnitHead && (
+                <NavItem
+                  to="/unit-head/staff-reflections"
+                  label="Staff Reflections"
+                  icon={IconClipboard}
+                />
+              )}
               {canSeeDashboards && (
                 <>
                   <NavItem

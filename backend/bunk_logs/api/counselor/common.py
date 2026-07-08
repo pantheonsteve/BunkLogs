@@ -303,6 +303,19 @@ def is_editable_today(
     return reflection.period_start <= target_date <= reflection.period_end
 
 
+def is_truthy_yes_no(value: object) -> bool:
+    """Return whether a yes/no schema answer is affirmative.
+
+    Form submissions store ``day_off`` as ``True`` for day-off shortcuts and
+    ``"no"`` for normal daily logs (see frontend ``buildReflectionSubmitPayload``).
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"yes", "true", "1"}
+    return False
+
+
 def is_day_off_answer(reflection: Reflection | None) -> bool:
     """A reflection counts as 'day off' if the seeded ``day_off`` field is truthy.
 
@@ -314,7 +327,7 @@ def is_day_off_answer(reflection: Reflection | None) -> bool:
     if reflection is None:
         return False
     answers = reflection.answers or {}
-    return bool(answers.get("day_off"))
+    return is_truthy_yes_no(answers.get("day_off"))
 
 
 def latest_camper_reflection_per_subject(

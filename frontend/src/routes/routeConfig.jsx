@@ -77,6 +77,7 @@ const UnitHeadDashboardV2 = lazy(() => import('../pages/unit-head/UnitHeadDashbo
 const UnitHeadCamperDashboardPage = lazy(() => import('../pages/unit-head/UnitHeadCamperDashboardPage'));
 const UnitHeadSelfReflectionPage = lazy(() => import('../pages/unit-head/UnitHeadSelfReflectionPage'));
 const UnitHeadSelfReflectionHistoryPage = lazy(() => import('../pages/unit-head/UnitHeadSelfReflectionHistoryPage'));
+const UnitHeadStaffReflectionsPage = lazy(() => import('../pages/unit-head/UnitHeadStaffReflectionsPage'));
 const CamperCareDashboardV2 = lazy(() => import('../pages/camper-care/Dashboard'));
 const CamperCareCamperDashboardPage = lazy(() => import('../pages/camper-care/CamperDashboardPage'));
 const CamperCareFlagsPage = lazy(() => import('../pages/camper-care/Flags'));
@@ -196,6 +197,7 @@ export const routeConfig = [
       { path: '/unit-head/self-reflection', element: <UnitHeadSelfReflectionPage /> },
       { path: '/unit-head/self-reflection/history', element: <UnitHeadSelfReflectionHistoryPage /> },
       { path: '/unit-head/self-reflection/:reflectionId/edit', element: <UnitHeadSelfReflectionPage /> },
+      { path: '/unit-head/staff-reflections', element: <UnitHeadStaffReflectionsPage /> },
       { path: '/camper-care', element: <CamperCareDashboardV2 /> },
       { path: '/camper-care/bunks/:bunkId', element: <LegacyBunkDashboardRedirect /> },
       { path: '/camper-care/campers/:camperId', element: <CamperCareCamperDashboardPage /> },

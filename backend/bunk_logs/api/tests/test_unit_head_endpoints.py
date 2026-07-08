@@ -706,6 +706,8 @@ def test_bunk_dashboard_includes_counselor_self_reflections(
     assert entry["state"] == "complete"
     field_keys = {f["key"] for f in entry["fields"]}
     assert {"overall_day", "wins", "concern"}.issubset(field_keys)
+    assert entry["answers"]["overall_day"] == 4
+    assert len(entry["schema_fields"]) > 0
     # day_off control field is never surfaced as content.
     assert "day_off" not in field_keys
 
@@ -742,9 +744,92 @@ def test_bunk_dashboard_counselor_self_reflection_states(
     assert entry["fields"] == []
 
 
-# ---------------------------------------------------------------------------
-# Camper Dashboard (Story 13)
-# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_bunk_dashboard_counselor_self_reflection_day_off_no_is_complete(
+    org, program, uh_user, uh_membership, bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor,
+):
+    """Frontend submits ``day_off: \"no\"`` on normal logs; must not read as day off."""
+    today = _today_in_org(org)
+    template = ReflectionTemplate.all_objects.get(slug="counselor-self-reflection")
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=counselor_person, author=counselor_person,
+        period_start=today, period_end=today,
+        answers={"day_off": "no", "overall_day": 4, "wins": "Great day"},
+        is_complete=True,
+    )
+    c = _client(uh_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/bunks/{bunk.id}/?date={today.isoformat()}")
+    entry = resp.json()["counselor_self_reflections"][0]
+    assert entry["state"] == "complete"
+    assert entry["fields"]
+
+
+@pytest.mark.django_db
+def test_staff_reflections_lists_supervised_bunks_only(
+    org, program, uh_user, uh_membership, bunk, other_bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor,
+):
+    """Staff reflections page returns counselor entries for supervised bunks only."""
+    today = _today_in_org(org)
+    template = ReflectionTemplate.all_objects.get(slug="counselor-self-reflection")
+
+    other_counselor = Person.all_objects.create(
+        organization=org, first_name="Other", last_name="Counselor",
+    )
+    Membership.all_objects.create(
+        program=program, person=other_counselor, role="counselor", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_counselor, role_in_group="author", is_active=True,
+    )
+
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=counselor_person, author=counselor_person,
+        period_start=today, period_end=today,
+        answers={"overall_day": 4, "concern": "Mine"},
+        is_complete=True,
+    )
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=other_counselor, author=other_counselor,
+        period_start=today, period_end=today,
+        answers={"overall_day": 2, "concern": "Theirs"},
+        is_complete=True,
+    )
+
+    c = _client(uh_user, org)
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/staff-reflections/?date={today.isoformat()}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["header"]["date"] == today.isoformat()
+    bunk_ids = {b["id"] for b in body["bunks"]}
+    assert bunk.id in bunk_ids
+    assert other_bunk.id not in bunk_ids
+    supervised = next(b for b in body["bunks"] if b["id"] == bunk.id)
+    entry = supervised["counselor_self_reflections"][0]
+    assert entry["person_id"] == counselor_person.id
+    assert entry["state"] == "complete"
+    assert entry["answers"]["concern"] == "Mine"
+
+
+@pytest.mark.django_db
+def test_staff_reflections_future_date_rejected(
+    org, uh_user, uh_membership, bunk,
+    counselor_person, counselor_membership, counselor_authors_bunk,
+    uh_supervises_counselor,
+):
+    c = _client(uh_user, org)
+    future = (_today_in_org(org) + timedelta(days=1)).isoformat()
+    with organization_context(org):
+        resp = c.get(f"/api/v1/unit-head/staff-reflections/?date={future}")
+    assert resp.status_code == 400
 
 
 @pytest.mark.django_db

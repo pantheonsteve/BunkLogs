@@ -30,7 +30,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.filters import reflections_visible_for_user
+from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.reflection_scores import _as_float
@@ -44,6 +46,39 @@ if TYPE_CHECKING:
 
 
 MAX_PAGE_SIZE = 100
+
+# Operational placement group types shown under staff names on self-reflection
+# responses. Mirrors the admin Assignments sub-tabs (counselor_bunk,
+# uh_unit, staff_team) so cohort/custom roster groups are excluded.
+_STAFF_ASSIGNMENT_GROUP_TYPES: dict[str, tuple[str, ...]] = {
+    "counselor": ("bunk",),
+    "junior_counselor": ("bunk",),
+    "general_counselor": ("bunk",),
+    "unit_head": ("unit",),
+    "camper_care": ("unit", "caseload"),
+    "kitchen_staff": ("team",),
+    "leadership_team": ("team",),
+    "specialist": ("team", "specialty"),
+    "madrich": ("classroom",),
+    "maintenance": ("team",),
+    "housekeeping": ("team",),
+    "wellness": ("team",),
+    "health_center": ("team",),
+}
+_DEFAULT_STAFF_ASSIGNMENT_GROUP_TYPES = (
+    "bunk", "unit", "caseload", "classroom", "team", "specialty",
+)
+
+
+def _allowed_staff_assignment_group_types(
+    membership_role: str | None,
+    template_role: str | None,
+) -> frozenset[str]:
+    if membership_role and membership_role in _STAFF_ASSIGNMENT_GROUP_TYPES:
+        return frozenset(_STAFF_ASSIGNMENT_GROUP_TYPES[membership_role])
+    if template_role and template_role in _STAFF_ASSIGNMENT_GROUP_TYPES:
+        return frozenset(_STAFF_ASSIGNMENT_GROUP_TYPES[template_role])
+    return frozenset(_DEFAULT_STAFF_ASSIGNMENT_GROUP_TYPES)
 
 
 def _template_versions(
@@ -154,7 +189,18 @@ class LeadershipTeamTemplateResponsesView(APIView):
         total = ordered.count()
         start = (page - 1) * size
         rows = list(ordered[start:start + size])
-        groups_by_subject = self._active_groups_by_subject(rows)
+        role_in_group = (
+            "author"
+            if getattr(template, "subject_mode", None) == "self"
+            else "subject"
+        )
+        groups_by_person = self._active_groups_by_person(rows, role_in_group=role_in_group)
+        staff_ctx = None
+        if getattr(template, "subject_mode", None) == "self":
+            staff_ctx = {
+                "membership_roles": self._membership_roles_for_rows(rows),
+                "template_role": template.role,
+            }
 
         return {
             "tab": "individual",
@@ -162,26 +208,55 @@ class LeadershipTeamTemplateResponsesView(APIView):
             "total": total,
             "page": page,
             "page_size": size,
-            "results": [self._serialize_row(r, groups_by_subject) for r in rows],
+            "results": [
+                self._serialize_row(r, groups_by_person, staff_ctx=staff_ctx)
+                for r in rows
+            ],
         }
 
     @staticmethod
-    def _active_groups_by_subject(rows) -> dict[int, list]:
-        """Map subject_id -> their active subject-role group memberships.
+    def _membership_roles_for_rows(rows) -> dict[tuple[int, int], str]:
+        """Map ``(person_id, program_id)`` -> active program membership role."""
+        keys = {
+            (r.subject_id, r.program_id)
+            for r in rows
+            if r.subject_id and r.program_id
+        }
+        if not keys:
+            return {}
+        person_ids = {person_id for person_id, _ in keys}
+        program_ids = {program_id for _, program_id in keys}
+        lookup: dict[tuple[int, int], str] = {}
+        for membership in Membership.all_objects.filter(
+            person_id__in=person_ids,
+            program_id__in=program_ids,
+            is_active=True,
+        ).order_by("person_id", "program_id", "-start_date", "id"):
+            key = (membership.person_id, membership.program_id)
+            lookup.setdefault(key, membership.role)
+        return lookup
+
+    @staticmethod
+    def _active_groups_by_person(rows, *, role_in_group: str) -> dict[int, list]:
+        """Map person_id -> their active group memberships for one page.
+
+        Self-reflection templates use ``role_in_group='author'`` so staff
+        see bunk / unit / team assignments under their names. Camper log
+        templates use ``role_in_group='subject'`` for the Bunk column.
 
         One bulk query for the whole page (no N+1). Date-window filtering
-        is applied per row at serialization time so a camper who changed
-        bunks mid-summer shows the right group for the reflection's date.
+        is applied per row at serialization time so a person who changed
+        groups mid-summer shows the right assignment for the reflection date.
         """
-        subject_ids = {r.subject_id for r in rows if r.subject_id}
-        if not subject_ids:
+        person_ids = {r.subject_id for r in rows if r.subject_id}
+        if not person_ids:
             return {}
         org_ids = {r.organization_id for r in rows}
         out: dict[int, list] = defaultdict(list)
         memberships = (
             AssignmentGroupMembership.all_objects.filter(
-                person_id__in=subject_ids,
-                role_in_group="subject",
+                person_id__in=person_ids,
+                role_in_group=role_in_group,
                 is_active=True,
                 group__is_active=True,
                 group__organization_id__in=org_ids,
@@ -218,18 +293,32 @@ class LeadershipTeamTemplateResponsesView(APIView):
         return ids
 
     @classmethod
-    def _serialize_row(cls, r: Reflection, groups_by_subject=None) -> dict[str, Any]:
-        groups_by_subject = groups_by_subject or {}
+    def _serialize_row(
+        cls,
+        r: Reflection,
+        groups_by_person=None,
+        *,
+        staff_ctx: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        groups_by_person = groups_by_person or {}
         row_date = r.period_end or r.period_start
-        groups = [
-            {
-                "id": m.group_id,
-                "name": m.group.name,
-                "group_type": m.group.group_type,
-            }
-            for m in groups_by_subject.get(r.subject_id, [])
-            if cls._membership_active_on(m, row_date)
-        ]
+        if staff_ctx is not None:
+            groups = cls._staff_assignment_groups_for_row(
+                r,
+                groups_by_person.get(r.subject_id, []),
+                row_date,
+                staff_ctx,
+            )
+        else:
+            groups = [
+                {
+                    "id": m.group_id,
+                    "name": m.group.name,
+                    "group_type": m.group.group_type,
+                }
+                for m in groups_by_person.get(r.subject_id, [])
+                if cls._membership_active_on(m, row_date)
+            ]
         return {
             "id": r.pk,
             "period_start": r.period_start.isoformat() if r.period_start else None,
@@ -247,6 +336,119 @@ class LeadershipTeamTemplateResponsesView(APIView):
             "template_version": r.template.version if r.template_id else None,
             "answers": r.answers or {},
         }
+
+    @classmethod
+    def _staff_assignment_groups_for_row(
+        cls,
+        reflection: Reflection,
+        memberships: list[AssignmentGroupMembership],
+        row_date,
+        staff_ctx: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        membership_roles = staff_ctx.get("membership_roles") or {}
+        template_role = staff_ctx.get("template_role")
+        program_role = membership_roles.get(
+            (reflection.subject_id, reflection.program_id),
+        )
+        allowed_types = _allowed_staff_assignment_group_types(
+            program_role, template_role,
+        )
+        seen_ids: set[int] = set()
+        groups: list[dict[str, Any]] = []
+        for membership in memberships:
+            if not cls._membership_active_on(membership, row_date):
+                continue
+            group = membership.group
+            if group.group_type not in allowed_types:
+                continue
+            if group.pk in seen_ids:
+                continue
+            seen_ids.add(group.pk)
+            groups.append(
+                {
+                    "id": group.pk,
+                    "name": group.name,
+                    "group_type": group.group_type,
+                },
+            )
+        if groups:
+            return groups
+        return cls._legacy_staff_assignment_groups(
+            reflection,
+            program_role or template_role,
+            row_date,
+        )
+
+    @classmethod
+    def _legacy_staff_assignment_groups(
+        cls,
+        reflection: Reflection,
+        role: str | None,
+        row_date,
+    ) -> list[dict[str, Any]]:
+        """Fallback for staff still on legacy User-scoped bunk/unit tables."""
+        from bunk_logs.bunks.models import CounselorBunkAssignment
+        from bunk_logs.bunks.models import UnitStaffAssignment
+
+        person = reflection.subject
+        if person is None or not person.user_id or row_date is None:
+            return []
+
+        if role in {"counselor", "junior_counselor", "general_counselor"}:
+            assignments = CounselorBunkAssignment.objects.filter(
+                counselor_id=person.user_id,
+            ).select_related("bunk")
+            active = [
+                a for a in assignments
+                if a.start_date <= row_date
+                and (a.end_date is None or a.end_date >= row_date)
+            ]
+            active.sort(key=lambda a: (not a.is_primary, -(a.start_date.toordinal())))
+            groups: list[dict[str, Any]] = []
+            seen: set[int] = set()
+            for assignment in active:
+                bunk = assignment.bunk
+                ag = AssignmentGroup.all_objects.filter(
+                    organization_id=reflection.organization_id,
+                    metadata__legacy_bunk_id=bunk.id,
+                ).first()
+                group_id = ag.pk if ag else None
+                dedupe_key = group_id or bunk.id
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                label = bunk.name
+                if assignment.is_primary:
+                    label = f"{label} (Primary)"
+                groups.append(
+                    {
+                        "id": group_id,
+                        "name": label,
+                        "group_type": "bunk",
+                    },
+                )
+            return groups
+
+        if role in {"unit_head", "camper_care"}:
+            assignments = UnitStaffAssignment.objects.filter(
+                staff_member_id=person.user_id,
+            ).select_related("unit")
+            active = [
+                a for a in assignments
+                if a.start_date <= row_date
+                and (a.end_date is None or a.end_date >= row_date)
+            ]
+            active.sort(key=lambda a: (not a.is_primary, -(a.start_date.toordinal())))
+            return [
+                {
+                    "id": None,
+                    "name": a.unit.name if a.unit else "Unit assignment",
+                    "group_type": "unit",
+                }
+                for a in active
+            ]
+
+        return []
 
     # ------------------------------------------------------------------
     # Aggregate tab

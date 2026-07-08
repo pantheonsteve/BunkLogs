@@ -1,17 +1,13 @@
 /**
  * Unit Head dashboard — Step 7_7, Story 10.
  *
- * Renders the supervised bunk list with attention badges + completion
- * + the UH's own "My reflection" section. Tapping a bunk row opens
- * the Bunk Dashboard (Story 11).
- *
- * Sort + badge styling mirror the backend's
- * `ATTENTION_BADGE_ORDER`: badged bunks rise to the top, ordered
- * help_requested -> bunk_concerns -> off_camp -> low_completion.
+ * Renders the UH's own "My reflection" section plus the shared
+ * PerformanceDashboard (supervised bunk completion + score cards).
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import PerformanceDashboard from '../../dashboards/performance/PerformanceDashboard';
 import { fetchUnitHeadDashboard } from '../../api/unitHead';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -28,38 +24,6 @@ function formatToday(iso) {
   });
 }
 
-const HelpIcon = (props) => (
-  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
-    <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M10 2.75v2.75M10 14.5v2.75M2.75 10h2.75M14.5 10h2.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const WarningIcon = (props) => (
-  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-    <path d="M10 2.75 1.75 16.5h16.5L10 2.75Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M10 8v3.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="10" cy="13.75" r="0.85" fill="currentColor" />
-  </svg>
-);
-
-const BusIcon = (props) => (
-  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-    <rect x="3.25" y="3.25" width="13.5" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M3.25 9.5h13.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M5.5 14.25v1.5M14.5 14.25v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="6.25" cy="12" r="0.85" fill="currentColor" />
-    <circle cx="13.75" cy="12" r="0.85" fill="currentColor" />
-  </svg>
-);
-
-const BarsIcon = (props) => (
-  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-    <path d="M4.5 11.5v4M10 7.5v8M15.5 9.5v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
-
 const CheckIcon = (props) => (
   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" {...props}>
     <path
@@ -69,105 +33,6 @@ const CheckIcon = (props) => (
     />
   </svg>
 );
-
-const BADGE_META = {
-  help_requested: {
-    label: 'Help requested',
-    className: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-200',
-    Icon: HelpIcon,
-  },
-  bunk_concerns: {
-    label: 'Bunk concerns',
-    className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
-    Icon: WarningIcon,
-  },
-  off_camp: {
-    label: 'Off-camp',
-    className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
-    Icon: BusIcon,
-  },
-  low_completion: {
-    label: 'Low completion',
-    className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100',
-    Icon: BarsIcon,
-  },
-};
-
-function BunkRow({ bunk }) {
-  const { completion } = bunk;
-  const selfRefl = bunk.counselor_self_reflections;
-  return (
-    <li
-      data-testid={`uh-bunk-row-${bunk.id}`}
-      data-bunk-id={bunk.id}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
-    >
-      <Link
-        to={`/dashboards/group/${bunk.id}`}
-        className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl"
-      >
-        <div className="w-28 shrink-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-            {bunk.name}
-          </h3>
-          {bunk.unit_name && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-              {bunk.unit_name}
-            </p>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          {bunk.counselor_names?.length > 0 && (
-            <p className="text-sm text-gray-500 dark:text-gray-300 truncate">
-              {bunk.counselor_names.join(' · ')}
-            </p>
-          )}
-          {bunk.badges?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {bunk.badges.map((badge) => {
-                const meta = BADGE_META[badge] || {
-                  label: badge,
-                  className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
-                };
-                const Icon = meta.Icon;
-                return (
-                  <span
-                    key={badge}
-                    data-testid={`uh-badge-${badge}`}
-                    className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${meta.className}`}
-                  >
-                    {Icon && <Icon className="h-3.5 w-3.5" />}
-                    {meta.label}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {completion.submitted} of {completion.expected} submitted
-          </p>
-          {completion.off_camp > 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {completion.off_camp} off-camp
-            </p>
-          )}
-          {selfRefl?.expected > 0 && (
-            <p
-              data-testid={`uh-self-refl-rollup-${bunk.id}`}
-              className="text-xs text-gray-500 dark:text-gray-400 mt-1"
-            >
-              Counselor reflections: {selfRefl.submitted} of {selfRefl.expected}
-            </p>
-          )}
-        </div>
-      </Link>
-    </li>
-  );
-}
 
 function SelfReflectionSection({ section, today }) {
   const state = section?.state ?? 'missing';
@@ -286,8 +151,6 @@ export default function UnitHeadDashboard() {
     );
   }
 
-  const bunks = data?.bunks ?? [];
-
   return (
     <div data-testid="uh-dashboard" className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-6">
       <header>
@@ -304,25 +167,7 @@ export default function UnitHeadDashboard() {
 
       <SelfReflectionSection section={data?.self_reflection} today={formatToday(data?.today)} />
 
-      <section data-testid="uh-bunks">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">My bunks</h2>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {bunks.length} bunk{bunks.length === 1 ? '' : 's'}
-          </span>
-        </div>
-        {bunks.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            No supervised bunks yet. Once a Counselor is assigned to your supervision, their bunks will appear here.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {bunks.map((bunk) => (
-              <BunkRow key={bunk.id} bunk={bunk} />
-            ))}
-          </ul>
-        )}
-      </section>
+      <PerformanceDashboard embedded />
     </div>
   );
 }
