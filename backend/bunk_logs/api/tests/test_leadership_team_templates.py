@@ -18,6 +18,8 @@ from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -424,6 +426,100 @@ def test_responses_individual_tab(
     row = body["results"][0]
     assert row["author"]["name"] == "Author One"
     assert row["subject"]["name"] == "Author One"
+
+
+@pytest.mark.django_db
+def test_responses_self_template_includes_author_group_assignments(
+    org, program, builder_membership, builder_user, published_template,
+):
+    """Staff self-reflection rows expose role-appropriate author assignments."""
+    person = Person.all_objects.create(
+        organization=org, first_name="Counselor", last_name="One",
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="counselor", is_active=True,
+    )
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org,
+        program=program,
+        name="Maple",
+        slug="maple-resp",
+        group_type="bunk",
+        is_active=True,
+    )
+    cohort = AssignmentGroup.all_objects.create(
+        organization=org,
+        program=program,
+        name="Counselors",
+        slug="counselors-resp",
+        group_type="cohort",
+        is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=bunk, person=person, role_in_group="author", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=cohort, person=person, role_in_group="author", is_active=True,
+    )
+    Reflection.all_objects.create(
+        organization=org, program=program, template=published_template,
+        author=person, subject=person,
+        period_start=date.today(), period_end=date.today(),
+        answers={"x": "ok"}, is_complete=True,
+    )
+    c = _client(builder_user, org)
+    with organization_context(org):
+        resp = c.get(
+            f"/api/v1/leadership-team/templates/{published_template.id}/responses/",
+        )
+    assert resp.status_code == 200
+    groups = resp.json()["results"][0]["groups"]
+    assert groups == [{"id": bunk.id, "name": "Maple", "group_type": "bunk"}]
+
+
+@pytest.mark.django_db
+def test_responses_camper_template_uses_subject_group_memberships(
+    org, program, builder_membership, builder_user,
+):
+    """Camper log templates still resolve bunk memberships via subject role."""
+    tpl = ReflectionTemplate.all_objects.create(
+        organization=org, name="Camper Daily", slug="camper-daily-resp",
+        cadence="daily", role="counselor",
+        schema={"fields": [{"key": "x", "type": "textarea", "prompts": {"en": "x?"}}]},
+        languages=["en"], subject_mode="single_subject",
+        status=ReflectionTemplate.Status.PUBLISHED, is_active=True, version=1,
+    )
+    camper = Person.all_objects.create(
+        organization=org, first_name="Camper", last_name="Kid",
+    )
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org,
+        program=program,
+        name="Oak",
+        group_type="bunk",
+        is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=bunk, person=camper, role_in_group="subject", is_active=True,
+    )
+    author = Person.all_objects.create(
+        organization=org, first_name="Writer", last_name="One",
+    )
+    Reflection.all_objects.create(
+        organization=org, program=program, template=tpl,
+        author=author, subject=camper,
+        period_start=date.today(), period_end=date.today(),
+        answers={"x": "note"}, is_complete=True,
+    )
+    c = _client(builder_user, org)
+    with organization_context(org):
+        resp = c.get(
+            f"/api/v1/leadership-team/templates/{tpl.id}/responses/",
+        )
+    assert resp.status_code == 200
+    groups = resp.json()["results"][0]["groups"]
+    assert len(groups) == 1
+    assert groups[0]["name"] == "Oak"
 
 
 @pytest.mark.django_db

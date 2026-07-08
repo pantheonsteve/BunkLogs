@@ -174,6 +174,16 @@ describe('BunkDashboard', () => {
           reflection_id: 55,
           submitted_at: '2026-07-04T18:00:00Z',
           template_name: 'Counselor Self-Reflection',
+          answers: {
+            overall_day: 4,
+            concern: 'A bit tired.',
+            notes: '<p>Cabin <strong>rocked</strong> today</p>',
+          },
+          schema_fields: [
+            { key: 'overall_day', type: 'single_rating', scale: [1, 5], prompts: { en: 'How was your day?' } },
+            { key: 'concern', type: 'textarea', prompts: { en: 'Anything to flag?' } },
+            { key: 'notes', type: 'textarea', prompts: { en: 'Notes' } },
+          ],
           fields: [
             { key: 'overall_day', label: 'How was your day?', value: 4 },
             { key: 'concern', label: 'Anything to flag?', value: 'A bit tired.' },
@@ -202,10 +212,13 @@ describe('BunkDashboard', () => {
     expect(screen.queryByText('A bit tired.')).not.toBeInTheDocument();
     const { default: userEvent } = await import('@testing-library/user-event');
     await userEvent.click(within(pat).getByRole('button', { name: /view reflection/i }));
-    expect(within(pat).getByText('A bit tired.')).toBeInTheDocument();
+    const mobile = within(pat).getByTestId('counselor-self-refl-mobile-1');
+    expect(within(mobile).getByText('A bit tired.')).toBeInTheDocument();
+    expect(within(mobile).getByLabelText('How was your day?: 4 of 5')).toBeInTheDocument();
     // Quill-authored HTML renders as formatted markup, not literal tags.
-    expect(within(pat).getByText('rocked').tagName).toBe('STRONG');
+    expect(within(mobile).getByText('rocked').tagName).toBe('STRONG');
     expect(pat).not.toHaveTextContent('<strong>');
+    expect(within(pat).getByTestId('counselor-self-refl-mobile-1')).toBeInTheDocument();
   });
 
   it('omits the counselor self-reflections section when there are no counselors', () => {

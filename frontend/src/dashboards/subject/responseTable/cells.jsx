@@ -8,12 +8,22 @@ import { Link } from 'react-router-dom';
 import { getInitials, ratingTierClass, isTruthyFlag } from './schema';
 import RichText from '../../../components/ui/RichText';
 
+/** Secondary styling for staff placement labels under the subject name. */
+const assignmentLabelClass =
+  'text-slate-600 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-300';
+
 /** Avatar + name + optional subtitle. When ``linkTo`` is provided
  *  the name is rendered as a Router link (otherwise plain text). */
-export function SubjectCell({ row, linkTo = null }) {
+export function SubjectCell({
+  row,
+  linkTo = null,
+  groupsUnderName = false,
+  groupDate = null,
+}) {
   const person = row.subject?.name ? row.subject : row.author;
   const name = person?.name ?? 'Unknown';
   const subtitle = row.subject_group ?? row.bunk_name ?? null;
+  const groups = row.groups ?? [];
   const nameNode = linkTo ? (
     <Link
       to={linkTo}
@@ -34,9 +44,36 @@ export function SubjectCell({ row, linkTo = null }) {
         </div>
         <div>
           <div>{nameNode}</div>
-          {subtitle && (
+          {groupsUnderName && groups.length > 0 ? (
+            <div className="mt-0.5 space-y-0.5 text-xs">
+              {groups.map((g) => {
+                const label = g.name || `Group ${g.id ?? ''}`.trim();
+                if (g.id) {
+                  return (
+                    <Link
+                      key={g.id}
+                      to={`/dashboards/group/${g.id}${groupDate ? `?date=${groupDate}` : ''}`}
+                      title={g.group_type ? `${label} (${g.group_type})` : label}
+                      className={`block ${assignmentLabelClass}`}
+                    >
+                      {label}
+                    </Link>
+                  );
+                }
+                return (
+                  <span
+                    key={`${g.group_type ?? 'group'}-${label}`}
+                    title={g.group_type ? `${label} (${g.group_type})` : label}
+                    className={`block ${assignmentLabelClass}`}
+                  >
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+          ) : subtitle ? (
             <div className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</div>
-          )}
+          ) : null}
         </div>
       </div>
     </td>

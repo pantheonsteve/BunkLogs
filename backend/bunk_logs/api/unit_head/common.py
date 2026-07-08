@@ -25,6 +25,7 @@ from rest_framework.exceptions import PermissionDenied
 from bunk_logs.api.counselor.common import enforce_edit_window
 from bunk_logs.api.counselor.common import is_day_off_answer
 from bunk_logs.api.counselor.common import is_editable_today
+from bunk_logs.api.counselor.common import is_truthy_yes_no
 from bunk_logs.api.counselor.common import off_camp_camper_ids
 from bunk_logs.api.counselor.common import person_full_name
 from bunk_logs.core.assignment_resolution import resolve_template_for
@@ -323,6 +324,10 @@ def counselor_self_reflections_for_bunk(
             })
             continue
         state = "day_off" if is_day_off_answer(r) else "complete"
+        tpl_fields = (
+            [] if state == "day_off" or not r.template_id
+            else ((r.template.schema or {}).get("fields") or [])
+        )
         out.append({
             "person_id": person.id,
             "counselor_name": person_full_name(person),
@@ -330,6 +335,8 @@ def counselor_self_reflections_for_bunk(
             "reflection_id": r.id,
             "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
             "template_name": r.template.name if r.template_id else None,
+            "answers": {} if state == "day_off" else (r.answers or {}),
+            "schema_fields": tpl_fields,
             "fields": (
                 [] if state == "day_off"
                 else _render_self_fields(r.template, r.answers or {})
@@ -642,7 +649,7 @@ def help_requested_camper_ids_from(
     out: set[int] = set()
     for camper_id, refl in reflections.items():
         answers = refl.answers or {}
-        if _is_truthy_yes_no(answers.get("request_unit_head_help")):
+        if is_truthy_yes_no(answers.get("request_unit_head_help")):
             out.add(camper_id)
             continue
         for field in (refl.template.schema or {}).get("fields") or []:
@@ -651,7 +658,7 @@ def help_requested_camper_ids_from(
             if field.get("dashboard_role") != "help_request_unit_head":
                 continue
             key = field.get("key")
-            if isinstance(key, str) and _is_truthy_yes_no(answers.get(key)):
+            if isinstance(key, str) and is_truthy_yes_no(answers.get(key)):
                 out.add(camper_id)
                 break
     return out
@@ -670,7 +677,7 @@ def camper_care_help_requested_camper_ids_from(
     out: set[int] = set()
     for camper_id, refl in reflections.items():
         answers = refl.answers or {}
-        if _is_truthy_yes_no(answers.get("request_camper_care_help")):
+        if is_truthy_yes_no(answers.get("request_camper_care_help")):
             out.add(camper_id)
             continue
         for field in (refl.template.schema or {}).get("fields") or []:
@@ -679,18 +686,10 @@ def camper_care_help_requested_camper_ids_from(
             if field.get("dashboard_role") != "help_request_camper_care":
                 continue
             key = field.get("key")
-            if isinstance(key, str) and _is_truthy_yes_no(answers.get(key)):
+            if isinstance(key, str) and is_truthy_yes_no(answers.get(key)):
                 out.add(camper_id)
                 break
     return out
-
-
-def _is_truthy_yes_no(value: object) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"yes", "true", "1"}
-    return False
 
 
 # ---------------------------------------------------------------------------

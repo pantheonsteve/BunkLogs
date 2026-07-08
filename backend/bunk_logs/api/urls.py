@@ -59,6 +59,7 @@ from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
 from .unit_head import dashboard as uh_dashboard
 from .unit_head import self_reflection as uh_self_reflection
+from .unit_head import staff_reflections as uh_staff_reflections
 from .webhooks import mailgun_inbound as mailgun_webhook
 
 router = DefaultRouter()
@@ -452,6 +453,11 @@ urlpatterns = [
         "unit-head/self-reflection/<int:reflection_id>/",
         uh_self_reflection.UnitHeadSelfReflectionDetailView.as_view(),
         name="unit-head-self-reflection-detail",
+    ),
+    path(
+        "unit-head/staff-reflections/",
+        uh_staff_reflections.UnitHeadStaffReflectionsView.as_view(),
+        name="unit-head-staff-reflections",
     ),
 
     # ------------------------------------------------------------------

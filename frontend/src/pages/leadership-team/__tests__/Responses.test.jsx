@@ -118,6 +118,28 @@ const individualPayload = {
   ],
 };
 
+const selfReflectionTemplatePayload = {
+  ...templatePayload,
+  subject_mode: 'self',
+  role: 'counselor',
+};
+
+const selfReflectionIndividualPayload = {
+  ...individualPayload,
+  total: 1,
+  results: [
+    {
+      ...individualPayload.results[0],
+      subject: { id: 88, name: 'Rose Postman' },
+      author: { id: 88, name: 'Rose Postman' },
+      groups: [
+        { id: 501, name: 'Maple', group_type: 'bunk' },
+        { id: 502, name: 'Unit A', group_type: 'unit' },
+      ],
+    },
+  ],
+};
+
 // Matches the shape emitted by
 // ``LeadershipTeamTemplateResponsesView._aggregate`` — language_distribution
 // is a list of {language, count}, not a dict, and the dimensions key is
@@ -159,6 +181,25 @@ function renderAt(route) {
 }
 
 describe('LeadershipTeamResponses', () => {
+  it('shows staff assignments under names for self-reflection templates', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/responses/')) {
+        return Promise.resolve({ data: selfReflectionIndividualPayload });
+      }
+      return Promise.resolve({ data: selfReflectionTemplatePayload });
+    });
+    renderAt('/admin/templates/7/responses');
+
+    const row = await screen.findByTestId('lt-responses-row-401');
+    expect(within(row).getByRole('link', { name: 'Maple' })).toHaveAttribute(
+      'href', expect.stringContaining('/dashboards/group/501'),
+    );
+    expect(within(row).getByRole('link', { name: 'Unit A' })).toHaveAttribute(
+      'href', expect.stringContaining('/dashboards/group/502'),
+    );
+    expect(within(row).queryByText('Bunk')).not.toBeInTheDocument();
+  });
+
   it('renders the redesigned individual tab with KPI cards, flag chips, and colour-coded ratings', async () => {
     getMock.mockImplementation((url) => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });

@@ -20,7 +20,7 @@ import { Link } from 'react-router-dom';
 import { groupDashboardLink, observationThreadLink, profileLink } from '../utils/dashboardLinks';
 import { sensitivityAudience } from '../api/observations';
 import ScoreGrid from './ScoreGrid';
-import RichText, { hasHtmlMarkup } from './ui/RichText';
+import CounselorSelfReflectionsList, { counselorSelfReflectionSummary } from './CounselorSelfReflectionsList';
 
 // Field types kept as grid columns. Triage single_choice/yes-no fields
 // (on-camp, UH/CC help requests) are surfaced as cards + the On Camp column.
@@ -107,115 +107,18 @@ function SummaryCard({ title, tone, people, bunkLabel, toProfile, testid }) {
   );
 }
 
-const SELF_REFL_STATE = {
-  complete: { label: 'Submitted', cls: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-  day_off: { label: 'Day off', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
-  missing: { label: 'Not yet', cls: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200' },
-};
-
-function reflectionValueToText(value) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.map((v) => reflectionValueToText(v)).join(', ');
-  if (typeof value === 'object') {
-    return Object.entries(value)
-      .map(([k, v]) => `${k}: ${reflectionValueToText(v)}`)
-      .join(' · ');
-  }
-  return String(value);
-}
-
-// Renders a reflection answer value, letting Quill-authored HTML strings
-// (rich_text / textarea answers) render as formatted HTML rather than showing
-// tags literally. Non-string values fall back to a compact text projection.
-function ReflectionFieldValue({ value }) {
-  if (typeof value === 'string') {
-    return hasHtmlMarkup(value)
-      ? <RichText html={value} className="prose prose-sm dark:prose-invert max-w-none" />
-      : <span className="whitespace-pre-wrap">{value}</span>;
-  }
-  if (Array.isArray(value) && value.some((v) => typeof v === 'string' && hasHtmlMarkup(v))) {
-    return (
-      <ul className="list-disc pl-5 space-y-1">
-        {value.map((v, i) => (
-          <li key={i}>
-            <ReflectionFieldValue value={v} />
-          </li>
-        ))}
-      </ul>
-    );
-  }
-  return <span className="whitespace-pre-wrap">{reflectionValueToText(value)}</span>;
-}
-
-function CounselorSelfReflectionItem({ entry }) {
-  const [expanded, setExpanded] = useState(false);
-  const meta = SELF_REFL_STATE[entry.state] || SELF_REFL_STATE.missing;
-  const hasContent = entry.state === 'complete' && (entry.fields?.length || 0) > 0;
-  return (
-    <li
-      data-testid={`counselor-self-refl-${entry.person_id}`}
-      data-state={entry.state}
-      className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-gray-900 dark:text-white">
-          {entry.counselor_name}
-        </span>
-        <span className={`text-xs font-medium rounded-full px-2 py-0.5 ${meta.cls}`}>
-          {meta.label}
-        </span>
-      </div>
-      {entry.submitted_at && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-          {new Date(entry.submitted_at).toLocaleString()}
-        </p>
-      )}
-      {hasContent && (
-        <>
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline mt-1.5"
-          >
-            {expanded ? 'Hide reflection' : 'View reflection'}
-          </button>
-          {expanded && (
-            <dl className="mt-2 space-y-2">
-              {entry.fields.map((f) => (
-                <div key={f.key}>
-                  <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    {f.label}
-                  </dt>
-                  <dd className="text-sm text-gray-800 dark:text-gray-200">
-                    <ReflectionFieldValue value={f.value} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </>
-      )}
-    </li>
-  );
-}
-
 function CounselorSelfReflectionsSection({ entries }) {
   const list = entries || [];
   if (list.length === 0) return null;
-  const submitted = list.filter((e) => e.state !== 'missing').length;
+  const { submitted, expected } = counselorSelfReflectionSummary(list);
   return (
     <SectionCard
       title="Counselor reflections"
-      count={`${submitted}/${list.length}`}
+      count={`${submitted}/${expected}`}
       testid="section-counselor-self-reflections"
       state={submitted === 0 ? 'empty' : 'populated'}
     >
-      <ul className="space-y-2.5">
-        {list.map((entry) => (
-          <CounselorSelfReflectionItem key={entry.person_id} entry={entry} />
-        ))}
-      </ul>
+      <CounselorSelfReflectionsList entries={list} />
     </SectionCard>
   );
 }

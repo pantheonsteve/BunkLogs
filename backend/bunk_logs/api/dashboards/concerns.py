@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from datetime import date
 from datetime import timedelta
+from functools import reduce
+from operator import or_
 
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
@@ -23,7 +25,10 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import ConcernReadState
+from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.program_scope import operational_memberships_qs
+from bunk_logs.core.time_utils import get_today
 
 DEFAULT_WINDOW_DAYS = 14
 MAX_WINDOW_DAYS = 60
@@ -90,6 +95,59 @@ def _extract_concerns_from_reflection(r: Reflection) -> list[dict]:
     return items
 
 
+def _person_for_organization(user, organization) -> Person | None:
+    """Resolve the viewer's Person row for this tenant without thread-local org context."""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    org_id = getattr(organization, "id", organization)
+    if org_id is None:
+        return None
+    return Person.all_objects.filter(user=user, organization_id=org_id).first()
+
+
+def _unit_head_supervised_bunks_q(person: Person, organization) -> Q | None:
+    """Scope the concerns inbox to bunks the viewer supervises as Unit Head.
+
+    Mirrors :func:`_camper_care_caseload_q` in visibility: CC caseload limits
+    which reflections surface in the inbox even when broader visibility paths
+    exist. UH supervision via counselor membership can otherwise expose
+    concerns filed on every bunk that counselor authors.
+    """
+    from bunk_logs.api.unit_head.common import supervised_bunk_ids
+
+    today = get_today(organization)
+    memberships = operational_memberships_qs(person, today=today, role="unit_head")
+    if not memberships.exists():
+        return None
+
+    parts: list[Q] = []
+    for membership in memberships:
+        bunk_ids = supervised_bunk_ids(membership, today=today)
+        if not bunk_ids:
+            continue
+        parts.append(
+            Q(program_id=membership.program_id, assignment_group_id__in=bunk_ids),
+        )
+
+    if not parts:
+        return Q(pk__in=[])
+    return reduce(or_, parts)
+
+
+def _concerns_visible_queryset(user, queryset, *, organization=None):
+    """Reflection queryset visible in the concerns inbox for ``user``."""
+    qs = reflections_visible_for_user(user, queryset)
+    if organization is None:
+        return qs
+    person = _person_for_organization(user, organization)
+    if person is None:
+        return qs
+    scoped = _unit_head_supervised_bunks_q(person, organization)
+    if scoped is not None:
+        qs = qs.filter(scoped)
+    return qs
+
+
 class ConcernsInboxView(APIView):
     """List concerns visible to the viewer with read-state filtering."""
 
@@ -116,13 +174,14 @@ class ConcernsInboxView(APIView):
         )
 
         refs = list(
-            reflections_visible_for_user(
+            _concerns_visible_queryset(
                 request.user,
                 Reflection.objects.filter(
                     period_end__gte=cur_start,
                     period_end__lte=cur_end,
                     is_complete=True,
                 ).select_related("subject", "author", "template", "assignment_group"),
+                organization=org,
             ).order_by("-period_end"),
         )
 
@@ -209,9 +268,10 @@ class ConcernBulkReadView(APIView):
 
         ref_ids = {rid for rid, _ in items}
         visible_ids = set(
-            reflections_visible_for_user(
+            _concerns_visible_queryset(
                 request.user,
                 Reflection.objects.filter(id__in=ref_ids),
+                organization=getattr(request, "organization", None),
             ).values_list("id", flat=True),
         )
         allowed = [(rid, fk) for rid, fk in items if rid in visible_ids]
@@ -254,9 +314,10 @@ class ConcernMarkReadView(APIView):
         # Reuse visibility helper so a viewer who can't see the reflection can't
         # cause read-rows to leak it via 200/4xx timing.
         ref = (
-            reflections_visible_for_user(
+            _concerns_visible_queryset(
                 request.user,
                 Reflection.objects.filter(id=reflection_id),
+                organization=getattr(request, "organization", None),
             ).first()
         )
         if ref is None:

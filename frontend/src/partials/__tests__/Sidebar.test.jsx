@@ -97,8 +97,12 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).toContain('/unit-head');
     expect(links.filter((h) => h === '/unit-head')).toHaveLength(2);
     expect(links).not.toContain('/dashboard');
-    expect(links).toContain('/groups/performance');
+    expect(links).not.toContain('/groups/performance');
+    expect(links).not.toContain('/reflect');
+    expect(links).not.toContain('/dashboards/logs');
+    expect(links).not.toContain('/dashboards/reflections');
     expect(links).toContain('/dashboards/concerns');
+    expect(links).toContain('/unit-head/staff-reflections');
     expect(links).not.toContain('/counselor');
   });
 

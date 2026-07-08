@@ -126,12 +126,20 @@ export function responsesBackLink({ dashboard, date, isAdmin }) {
 // flag testid prefix + subject-link href).
 // ---------------------------------------------------------------------------
 
-function SubjectCell({ row, dateQs }) {
+function SubjectCell({ row, dateQs, groupsUnderName = false }) {
   const subjectId = row.subject?.id;
   const linkTo = subjectId
     ? `/profile/${subjectId}${dateQs ?? ''}`
     : null;
-  return <SharedSubjectCell row={row} linkTo={linkTo} />;
+  const rowDate = row.period_end || row.period_start;
+  return (
+    <SharedSubjectCell
+      row={row}
+      linkTo={linkTo}
+      groupsUnderName={groupsUnderName}
+      groupDate={rowDate}
+    />
+  );
 }
 
 // The camper's active groups for the reflection's date. ``row.groups`` is a
@@ -225,6 +233,8 @@ function IndividualTab({
   const { ratingCols: rawRatingCols, flagFields, chipFields, descTextFields } = sections;
   const ratingCols = orderRatingCols(rawRatingCols);
   const dateQs = dateStr ? `?date=${dateStr}` : '';
+  const isSelfReflection = template?.subject_mode === 'self';
+  const showGroupColumn = !isSelfReflection;
 
   if (filteredRows.length === 0) {
     return (
@@ -254,7 +264,9 @@ function IndividualTab({
           <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
             <tr>
               <th className="p-2 text-left border-b border-gray-200 dark:border-gray-700 font-semibold">Name</th>
-              <th className="p-2 text-left border-b border-gray-200 dark:border-gray-700 font-semibold">Bunk</th>
+              {showGroupColumn && (
+                <th className="p-2 text-left border-b border-gray-200 dark:border-gray-700 font-semibold">Bunk</th>
+              )}
               <th className="p-2 text-center border-b border-gray-200 dark:border-gray-700 font-semibold">Date</th>
               {ratingCols.map((c, idx) => (
                 <th
@@ -271,8 +283,8 @@ function IndividualTab({
           <tbody className="text-sm font-medium divide-y divide-gray-200 dark:divide-gray-700/60">
             {filteredRows.map((r) => (
               <tr key={r.id} data-testid={`lt-responses-row-${r.id}`}>
-                <SubjectCell row={r} dateQs={dateQs} />
-                <BunkCell row={r} />
+                <SubjectCell row={r} dateQs={dateQs} groupsUnderName={isSelfReflection} />
+                {showGroupColumn && <BunkCell row={r} />}
                 <td className="px-3 py-3 whitespace-nowrap text-center border border-gray-300 dark:border-gray-700">
                   <div className="text-sm text-gray-800 dark:text-gray-100">
                     {formatShortDate(r.period_end || r.period_start)}
@@ -338,10 +350,24 @@ function IndividualTab({
                       subjectName
                     )}
                   </div>
+                  {isSelfReflection && groups.length > 0 && (
+                    <div className="mt-0.5 space-y-0.5 text-[11px]">
+                      {groups.map((g) => (
+                        <Link
+                          key={g.id}
+                          to={`/dashboards/group/${g.id}${rowDate ? `?date=${rowDate}` : ''}`}
+                          title={g.group_type ? `${g.name} (${g.group_type})` : g.name}
+                          className="block text-slate-600 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-300"
+                        >
+                          {g.name || `Group ${g.id}`}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
                     <span>{formatShortDate(rowDate)}</span>
                     <span>{r.language} · v{r.template_version}</span>
-                    {groups.map((g) => (
+                    {!isSelfReflection && groups.map((g) => (
                       <Link
                         key={g.id}
                         to={`/dashboards/group/${g.id}${rowDate ? `?date=${rowDate}` : ''}`}

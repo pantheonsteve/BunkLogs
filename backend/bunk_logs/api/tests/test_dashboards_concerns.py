@@ -394,6 +394,116 @@ def test_camper_care_concerns_limited_to_caseload_bunks(
     assert "off caseload" not in values
 
 
+def test_unit_head_concerns_limited_to_supervised_bunks(
+    api_client, org, program, setup,
+):
+    bunk, camper, counselor_user, counselor = setup
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Other UH",
+        slug="cn-other-uh", group_type="bunk",
+    )
+    other_camper = _person(org, "Ot", "Her")
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_camper, role_in_group="subject", is_active=True,
+    )
+    other_counselor_user = _user("other-cn@a.com")
+    other_counselor = _person(org, "Al", "Other", other_counselor_user)
+    Membership.all_objects.create(
+        program=program, person=other_counselor, role="counselor", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_counselor, role_in_group="author", is_active=True,
+    )
+    tpl = _bunk_obs(org)
+    today = date.today()
+    _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "on supervised bunk"},
+    )
+    _make_reflection(
+        org, program, tpl, subject=other_camper, author=other_counselor, group=other_bunk,
+        day=today, answers={"overall": 4, "concerns": "off supervised bunk"},
+    )
+    uh_user = _user("uh-cn@a.com")
+    uh_person = _person(org, "Un", "Head", uh_user)
+    uh_membership = Membership.all_objects.create(
+        program=program, person=uh_person, role="unit_head", is_active=True,
+    )
+    counselor_membership = Membership.all_objects.get(
+        program=program, person=counselor, role="counselor",
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=uh_membership,
+        target_type="membership",
+        target_membership=counselor_membership,
+        start_date=date(2026, 1, 1),
+    )
+    api_client.force_authenticate(user=uh_user)
+    r = api_client.get("/api/v1/dashboards/concerns/", **_hdr(org.slug))
+    body = r.json()
+    values = [i["value"] for i in body["items"] if i["kind"] == "open_concern"]
+    assert "on supervised bunk" in values
+    assert "off supervised bunk" not in values
+    bunk_ids = {i["assignment_group"]["id"] for i in body["items"] if i["assignment_group"]}
+    assert bunk_ids == {bunk.id}
+
+
+def test_unit_head_concerns_scoped_without_thread_org_context(
+    api_client, org, program, setup,
+):
+    """UH bunk filter must not depend on thread-local organization context."""
+    from bunk_logs.core.context import organization_context
+
+    bunk, camper, counselor_user, counselor = setup
+    other_bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Other ctx",
+        slug="cn-other-ctx", group_type="bunk",
+    )
+    other_camper = _person(org, "Cx", "Tx")
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_camper, role_in_group="subject", is_active=True,
+    )
+    other_counselor_user = _user("other-ctx@a.com")
+    other_counselor = _person(org, "Al", "Ctx", other_counselor_user)
+    Membership.all_objects.create(
+        program=program, person=other_counselor, role="counselor", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=other_bunk, person=other_counselor, role_in_group="author", is_active=True,
+    )
+    tpl = _bunk_obs(org)
+    today = date.today()
+    _make_reflection(
+        org, program, tpl, subject=camper, author=counselor, group=bunk,
+        day=today, answers={"overall": 4, "concerns": "scoped in threadless ctx"},
+    )
+    _make_reflection(
+        org, program, tpl, subject=other_camper, author=other_counselor, group=other_bunk,
+        day=today, answers={"overall": 4, "concerns": "off bunk threadless ctx"},
+    )
+    uh_user = _user("uh-ctx@a.com")
+    uh_person = _person(org, "Uh", "Ctx", uh_user)
+    uh_membership = Membership.all_objects.create(
+        program=program, person=uh_person, role="unit_head", is_active=True,
+    )
+    counselor_membership = Membership.all_objects.get(
+        program=program, person=counselor, role="counselor",
+    )
+    Supervision.all_objects.create(
+        supervisor_membership=uh_membership,
+        target_type="membership",
+        target_membership=counselor_membership,
+        start_date=date(2026, 1, 1),
+    )
+    api_client.force_authenticate(user=uh_user)
+    with organization_context(None):
+        r = api_client.get("/api/v1/dashboards/concerns/", **_hdr(org.slug))
+    body = r.json()
+    values = [i["value"] for i in body["items"] if i["kind"] == "open_concern"]
+    assert "scoped in threadless ctx" in values
+    assert "off bunk threadless ctx" not in values
+
+
 def test_invisible_concerns_not_listed(api_client, org, program, setup):
     bunk, camper, _, counselor = setup
     tpl = _bunk_obs(org)

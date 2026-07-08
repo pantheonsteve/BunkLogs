@@ -23,7 +23,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.unit_head.common import _is_truthy_yes_no
+from bunk_logs.api.counselor.common import is_truthy_yes_no
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -309,7 +309,7 @@ class SubjectDetailView(APIView):
             tpl_entry["summary"]["total_reflections"] += 1
             for fkey, counts in tpl_entry["summary"]["flag_counts"].items():
                 raw = (r.answers or {}).get(fkey)
-                if _is_truthy_yes_no(raw):
+                if is_truthy_yes_no(raw):
                     counts["yes"] += 1
                     counts["total"] += 1
                 elif raw is not None and str(raw).lower() == "no":

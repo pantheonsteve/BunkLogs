@@ -185,4 +185,20 @@ describe('PerformanceDashboard', () => {
     });
     expect(screen.getByText(/No program is active today/i)).toBeInTheDocument();
   });
+
+  it('hides the standalone page title when embedded', async () => {
+    render(
+      <MemoryRouter initialEntries={['/unit-head?date=2026-07-10&group_type=bunk&program=1']}>
+        <Routes>
+          <Route path="/unit-head" element={<PerformanceDashboard embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-dashboard-embedded')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Group Performance')).not.toBeInTheDocument();
+    expect(screen.getByText('Bunk Maple')).toBeInTheDocument();
+  });
 });

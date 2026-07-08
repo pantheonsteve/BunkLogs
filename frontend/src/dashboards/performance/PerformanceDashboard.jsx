@@ -71,7 +71,7 @@ function defaultDateForPastProgram(program, today) {
   return program.end_date < today ? program.end_date : today;
 }
 
-export default function PerformanceDashboard() {
+export default function PerformanceDashboard({ embedded = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'current';
   const dateParam = searchParams.get('date') || '';
@@ -195,13 +195,22 @@ export default function PerformanceDashboard() {
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <header className="mb-6 flex flex-col gap-4">
+    <div
+      data-testid={embedded ? 'performance-dashboard-embedded' : 'performance-dashboard'}
+      className={
+        embedded
+          ? 'space-y-6'
+          : 'px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto'
+      }
+    >
+      <header className={`flex flex-col gap-4 ${embedded ? '' : 'mb-6'}`}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              Group Performance
-            </h1>
+            {!embedded && (
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                Group Performance
+              </h1>
+            )}
             {selectedProgramMeta && showGroups && (
               <>
                 <p

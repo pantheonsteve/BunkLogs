@@ -25,6 +25,14 @@ export async function fetchUnitHeadDashboard({ noCache = false } = {}) {
   return data;
 }
 
+/** Staff self-reflections across supervised bunks for a date. */
+export async function fetchUnitHeadStaffReflections({ date } = {}) {
+  const params = {};
+  if (date) params.date = date;
+  const { data } = await api.get('/api/v1/unit-head/staff-reflections/', { params });
+  return data;
+}
+
 // NOTE: `fetchBunkDashboard` removed when the bunk dashboard was
 // consolidated under `/api/v1/dashboards/group/<id>/`. Use
 // `frontend/src/api/dashboards.js#fetchGroupDashboard` instead.
