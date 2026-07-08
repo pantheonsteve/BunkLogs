@@ -97,7 +97,13 @@ class Command(BaseCommand):
                         setattr(row, field, new_value)
                         changed += n
                 if changed and self.commit:
-                    row.save(update_fields=["elaboration", "values_reflection"])
+                    # .update() bypasses StaffLog.save()'s full_clean(), which
+                    # would reject these legacy rows via the "no logs older than
+                    # 30 days" rule. This backfill only swaps base64 for URLs.
+                    StaffLog.objects.filter(pk=row.pk).update(
+                        elaboration=row.elaboration,
+                        values_reflection=row.values_reflection,
+                    )
             if changed:
                 totals["rows"] += 1
                 totals["images"] += changed
@@ -112,8 +118,8 @@ class Command(BaseCommand):
             with transaction.atomic():
                 new_value, n = replace_inline_images(value, self._make_uploader())
                 if n and self.commit:
-                    row.description = new_value
-                    row.save(update_fields=["description"])
+                    # .update() bypasses model validation/signals; backfill only.
+                    BunkLog.objects.filter(pk=row.pk).update(description=new_value)
             if n:
                 totals["rows"] += 1
                 totals["images"] += n
@@ -142,8 +148,8 @@ class Command(BaseCommand):
                         answers[key] = new_value
                         changed += n
                 if changed and self.commit:
-                    row.answers = answers
-                    row.save(update_fields=["answers"])
+                    # .update() bypasses model validation/signals; backfill only.
+                    Reflection.all_objects.filter(pk=row.pk).update(answers=answers)
             if changed:
                 totals["rows"] += 1
                 totals["images"] += changed
