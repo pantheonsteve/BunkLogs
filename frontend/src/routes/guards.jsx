@@ -10,6 +10,7 @@ import { useAuth } from '../auth/AuthContext';
 import isSuperAdmin from '../utils/auth/isSuperAdmin';
 import { hasCapability, homePathForUser } from '../utils/auth/capability';
 import DashboardsHub from '../pages/dashboards/DashboardsHub';
+import DevImpersonation from '../dev/DevImpersonation';
 
 /** Fallback shown while a lazily-loaded route chunk is fetched. */
 function RouteFallback() {
@@ -24,6 +25,7 @@ export function RootLayout() {
   return (
     <>
       <RedirectHandler />
+      <DevImpersonation />
       <Suspense fallback={<RouteFallback />}>
         <Outlet />
       </Suspense>

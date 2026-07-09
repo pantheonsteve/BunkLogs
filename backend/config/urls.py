@@ -10,6 +10,9 @@ from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
 
 from config import views
+from config.dev_impersonation import dev_impersonation_login
+from config.dev_impersonation import dev_impersonation_status
+from config.dev_impersonation import dev_impersonation_users
 from config.migration_views import migration_status
 
 urlpatterns = [
@@ -57,6 +60,22 @@ urlpatterns += [
     path("api/auth/google/callback/token/", views.google_login_callback, name="google_login_callback"),
     path("api/get-csrf-token/", views.get_csrf_token, name="get-csrf-token"),
     path("api/migration-status/", migration_status, name="migration-status"),
+    # Local-only impersonation; views return 404 unless DEBUG + local DB host.
+    path(
+        "api/dev/impersonate/status/",
+        dev_impersonation_status,
+        name="dev-impersonate-status",
+    ),
+    path(
+        "api/dev/impersonate/users/",
+        dev_impersonation_users,
+        name="dev-impersonate-users",
+    ),
+    path(
+        "api/dev/impersonate/",
+        dev_impersonation_login,
+        name="dev-impersonate-login",
+    ),
 ]
 
 if settings.DEBUG:

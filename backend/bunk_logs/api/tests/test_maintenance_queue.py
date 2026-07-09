@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
@@ -173,6 +175,61 @@ class TestMaintenanceQueue:
         api.force_authenticate(user=maint_user)
         r = api.get("/api/v1/maintenance/queue/?filter=bogus", **_hdr(org.slug))
         assert r.status_code == 400
+
+    def test_maintenance_sees_operational_program_not_newest_membership(
+        self, api, org,
+    ):
+        """Future-session roster rows must not hide the session running today."""
+        today = timezone.now().date()
+        current_program = Program.all_objects.create(
+            organization=org,
+            name="MQ Org Current Session",
+            slug="mq-current-session",
+            program_type="summer_camp",
+            start_date=today - timedelta(days=7),
+            end_date=today + timedelta(days=7),
+        )
+        future_program = Program.all_objects.create(
+            organization=org,
+            name="MQ Org Future Session",
+            slug="mq-future-session",
+            program_type="summer_camp",
+            start_date=today + timedelta(days=30),
+            end_date=today + timedelta(days=60),
+        )
+        user = User.objects.create_user(email="multi-maint@mq.com", password="pw")
+        person = Person.all_objects.create(
+            organization=org, first_name="Multi", last_name="Maint", user=user,
+        )
+        Membership.all_objects.create(
+            program=current_program, person=person, role="maintenance", is_active=True,
+        )
+        Membership.all_objects.create(
+            program=future_program, person=person, role="maintenance", is_active=True,
+        )
+        with organization_context(org):
+            current_ticket = MaintenanceTicket.objects.create(
+                organization=org,
+                program=current_program,
+                location="Shower house",
+                category=MaintenanceTicket.Category.PLUMBING,
+                description="Running session leak",
+                urgency=MaintenanceTicket.Urgency.NORMAL,
+            )
+            MaintenanceTicket.objects.create(
+                organization=org,
+                program=future_program,
+                location="Future bunk",
+                category=MaintenanceTicket.Category.PLUMBING,
+                description="Not operational yet",
+                urgency=MaintenanceTicket.Urgency.NORMAL,
+            )
+        api.force_authenticate(user=user)
+        r = api.get("/api/v1/maintenance/queue/", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        ids = [t["id"] for t in r.json()["tickets"]]
+        assert str(current_ticket.id) in ids
+        assert r.json()["scope"] == "team"
 
     def test_admin_sees_tickets_from_other_program(
         self, api, org, admin_user, counselor_membership,

@@ -3,7 +3,7 @@
         test test-backend test-frontend test-e2e \
         lint lint-backend lint-frontend \
         frontend-install frontend-dev \
-        sync-prod-db reset-db clean
+        sync-prod-db sync-prod-db-raw reset-db clean
 
 COMPOSE := podman-compose -f backend/docker-compose.local.yml
 DJANGO_EXEC := $(COMPOSE) exec django
@@ -41,7 +41,8 @@ help:
 	@echo "  make lint            Lint backend + frontend"
 	@echo ""
 	@echo "Database:"
-	@echo "  make sync-prod-db    Sync local DB from production (ARGS='--no-scrub' for raw PII)"
+	@echo "  make sync-prod-db       Sync local DB from production (scrubbed PII)"
+	@echo "  make sync-prod-db-raw   Sync local DB from production (unscrubbed prod PII)"
 	@echo "  make reset-db        Drop local DB volume and re-run migrations"
 
 up:
@@ -133,6 +134,12 @@ lint-frontend:
 
 sync-prod-db:
 	./scripts/sync-prod-db.sh $(ARGS)
+
+# Raw prod copy (real emails/passwords). Requires typing 'unscrubbed' at the prompt.
+# Note: `make sync-prod-db --no-scrub` does NOT work — Make does not forward flags
+# to the script; use this target or `make sync-prod-db ARGS='--no-scrub'`.
+sync-prod-db-raw:
+	./scripts/sync-prod-db.sh --no-scrub
 
 reset-db:
 	$(COMPOSE) down -v
