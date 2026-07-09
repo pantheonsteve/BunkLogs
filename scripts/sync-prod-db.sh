@@ -4,9 +4,10 @@
 # local podman Postgres, then immediately scrub PII via the Django command.
 #
 # Pipeline:
-#   1. pg_dump (read-only role)  ->  /tmp/<dump>.dump on host (custom format)
+#   1. pg_dump (read-only role)  ->  /tmp/<dump>/ on host (directory format,
+#      parallel --jobs so big tables dump on their own fresh connections)
 #   2. drop + recreate the local DB inside the podman postgres container
-#   3. pg_restore <dump>         ->  local DB
+#   3. pg_restore <dump>/        ->  local DB (parallel --jobs)
 #   4. python manage.py migrate  (in the django container)
 #   5. python manage.py scrub_pii --confirm  (skipped with --no-scrub)
 #
@@ -40,6 +41,11 @@ LOCAL_DB_NAME="${LOCAL_DB_NAME:-bunk_logs}"
 LOCAL_PG_USER="${LOCAL_PG_USER:-postgres}"
 PG_CONTAINER="${PG_CONTAINER:-bunk_logs_local_postgres}"
 DJANGO_CONTAINER="${DJANGO_CONTAINER:-bunk_logs_local_django}"
+# Parallel jobs for dump/restore. Directory format gives each worker its own
+# connection, so large tables (bunklogs_stafflog carries multi-MB base64 images
+# inlined by the rich-text editor) get a fresh connection instead of failing on
+# an aged single-connection stream that Render's proxy drops mid-COPY.
+PG_JOBS="${PG_JOBS:-4}"
 
 # --- args ------------------------------------------------------------------
 
@@ -157,13 +163,31 @@ CMP="$(compose_cmd)"
 
 # --- ensure containers up --------------------------------------------------
 
+ensure_container_running() {
+    local name="$1"
+    local running
+    running=$(podman inspect -f '{{.State.Running}}' "$name" 2>/dev/null || echo "false")
+    if [[ "$running" == "true" ]]; then
+        return 0
+    fi
+    if podman inspect "$name" >/dev/null 2>&1; then
+        info "starting existing container: $name"
+        podman start "$name" >/dev/null
+        return 0
+    fi
+    return 1
+}
+
 info "ensuring postgres and django containers are running..."
-pg_running=$(podman inspect -f '{{.State.Running}}' "$PG_CONTAINER" 2>/dev/null || echo "false")
-dj_running=$(podman inspect -f '{{.State.Running}}' "$DJANGO_CONTAINER" 2>/dev/null || echo "false")
-if [[ "$pg_running" != "true" || "$dj_running" != "true" ]]; then
+pg_ok=0
+dj_ok=0
+ensure_container_running "$PG_CONTAINER" && pg_ok=1
+ensure_container_running "$DJANGO_CONTAINER" && dj_ok=1
+if [[ "$pg_ok" -ne 1 || "$dj_ok" -ne 1 ]]; then
+    info "creating missing containers via compose..."
     ( cd "$BACKEND_DIR" && $CMP -f docker-compose.local.yml up -d postgres django >/dev/null )
 else
-    info "containers already running, skipping 'up'"
+    info "containers already present, skipping 'up'"
 fi
 
 # wait for postgres
@@ -178,32 +202,35 @@ ok "local postgres ready"
 # --- dump prod -------------------------------------------------------------
 
 ts="$(date +%Y%m%d_%H%M%S)"
-dump_file="/tmp/bunk_logs_prod_${ts}.dump"
+dump_dir="/tmp/bunk_logs_prod_${ts}"
 prod_url="$(prod_url_with_keepalives "$PROD_READONLY_DATABASE_URL")"
 max_dump_attempts=3
 dump_attempt=1
 
 while true; do
-    info "dumping prod -> ${dump_file} (attempt ${dump_attempt}/${max_dump_attempts})"
-    # Custom format + compression is smaller over the wire and more reliable
-    # than plain SQL for large JSON-heavy tables (e.g. core_reflection).
+    info "dumping prod -> ${dump_dir} (attempt ${dump_attempt}/${max_dump_attempts}, jobs=${PG_JOBS})"
+    # Directory format + parallel jobs: each worker uses its own connection so a
+    # single big table (e.g. bunklogs_stafflog with inlined base64 images) is
+    # dumped over a fresh connection. A single-connection custom-format dump ages
+    # while streaming earlier tables and Render then drops the SSL session mid-COPY.
+    rm -rf "$dump_dir"
     if pg_dump \
         --no-owner --no-privileges \
-        --format=custom --compress=6 \
-        --file="$dump_file" \
+        --format=directory --compress=6 --jobs="$PG_JOBS" \
+        --file="$dump_dir" \
         "$prod_url"; then
         break
     fi
-    rm -f "$dump_file"
+    rm -rf "$dump_dir"
     if [[ "$dump_attempt" -ge "$max_dump_attempts" ]]; then
-        die "pg_dump failed after ${max_dump_attempts} attempts (SSL timeout on large tables is common -- retry, or check Render IP allowlist)"
+        die "pg_dump failed after ${max_dump_attempts} attempts (SSL timeout on large tables is common -- retry, lower PG_JOBS, or check Render IP allowlist)"
     fi
     warn "pg_dump failed; retrying in 15s..."
     dump_attempt=$((dump_attempt + 1))
     sleep 15
 done
 
-size=$(du -h "$dump_file" | awk '{print $1}')
+size=$(du -sh "$dump_dir" | awk '{print $1}')
 ok "dump complete (${size})"
 
 # --- recreate local DB -----------------------------------------------------
@@ -218,14 +245,16 @@ $CMP -f "$COMPOSE_FILE" exec -T postgres dropdb -U "$LOCAL_PG_USER" --if-exists 
 $CMP -f "$COMPOSE_FILE" exec -T postgres createdb -U "$LOCAL_PG_USER" "$LOCAL_DB_NAME"
 
 info "copying dump into postgres container..."
-podman cp "$dump_file" "${PG_CONTAINER}:/tmp/restore.dump"
+$CMP -f "$COMPOSE_FILE" exec -T postgres rm -rf /tmp/restore.dir
+podman cp "$dump_dir" "${PG_CONTAINER}:/tmp/restore.dir"
 
-info "restoring into local DB..."
+info "restoring into local DB (jobs=${PG_JOBS})..."
 $CMP -f "$COMPOSE_FILE" exec -T postgres pg_restore \
     --no-owner --no-privileges \
     --dbname="$LOCAL_DB_NAME" \
     --username="$LOCAL_PG_USER" \
-    /tmp/restore.dump
+    --jobs="$PG_JOBS" \
+    /tmp/restore.dir
 
 ok "restore complete"
 
@@ -260,11 +289,11 @@ print(f'  reflections={Reflection.all_objects.count()}')
 # --- cleanup ---------------------------------------------------------------
 
 if [[ "$KEEP_DUMP" -eq 1 ]]; then
-    warn "leaving raw dump on disk: ${dump_file}"
-    warn "this file contains UNSCRUBBED production PII -- delete it when done."
+    warn "leaving raw dump on disk: ${dump_dir}"
+    warn "this directory contains UNSCRUBBED production PII -- delete it when done."
 else
-    rm -f "$dump_file"
-    $CMP -f "$COMPOSE_FILE" exec -T postgres rm -f /tmp/restore.dump
+    rm -rf "$dump_dir"
+    $CMP -f "$COMPOSE_FILE" exec -T postgres rm -rf /tmp/restore.dir
     ok "raw dump removed from host and container"
 fi
 

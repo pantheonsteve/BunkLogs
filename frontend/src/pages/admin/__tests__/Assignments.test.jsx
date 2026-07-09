@@ -83,6 +83,9 @@ describe('AdminAssignments', () => {
   it('passes filter params when listing assignments', async () => {
     render(<AdminAssignments />);
     const select = await screen.findByTestId('assignment-program-select');
+    await waitFor(() => {
+      expect(select).toHaveTextContent('Summer 2026 (Active)');
+    });
 
     fireEvent.change(select, { target: { value: '1' } });
 
@@ -115,6 +118,9 @@ describe('AdminAssignments', () => {
   it('keeps the selected program while browsing groups', async () => {
     render(<AdminAssignments />);
     const select = await screen.findByTestId('assignment-program-select');
+    await waitFor(() => {
+      expect(select).toHaveTextContent('Summer 2026 (Active)');
+    });
     await screen.findByTestId('assignment-group-list');
 
     fireEvent.change(select, { target: { value: '1' } });
@@ -129,9 +135,13 @@ describe('AdminAssignments', () => {
   it('bulk assign posts once per selected person', async () => {
     createAdminAssignment.mockResolvedValue({ id: 1 });
     render(<AdminAssignments />);
+    const select = await screen.findByTestId('assignment-program-select');
+    await waitFor(() => {
+      expect(select).toHaveTextContent('Summer 2026 (Active)');
+    });
     await screen.findByTestId('assignment-group-list');
 
-    fireEvent.change(screen.getByTestId('assignment-program-select'), { target: { value: '1' } });
+    fireEvent.change(select, { target: { value: '1' } });
     await waitFor(() => expect(api.get).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText('Bunk Maple'));

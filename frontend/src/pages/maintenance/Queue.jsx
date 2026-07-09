@@ -360,7 +360,9 @@ function FilterBar({ filter, search, dateFrom, dateTo, showMineFilter, onChange 
 export default function MaintenanceQueue() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isCounselorViewer = user?.role === 'Counselor';
+  const isMaintenanceTeam = Array.isArray(user?.membership_roles)
+    && user.membership_roles.includes('maintenance');
+  const isCounselorViewer = user?.role === 'Counselor' && !isMaintenanceTeam;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

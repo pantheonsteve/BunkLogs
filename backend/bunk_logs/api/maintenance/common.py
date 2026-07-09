@@ -15,6 +15,8 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.permissions import is_super_admin
+from bunk_logs.core.program_scope import operational_memberships_qs
+from bunk_logs.core.program_scope import primary_operational_membership
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -37,6 +39,36 @@ class ViewerContext:
     today: date
 
 
+def _team_memberships_qs(person: Person, user):
+    qs = Membership.objects.filter(
+        person=person, is_active=True,
+    ).select_related("program", "program__organization")
+    if not is_super_admin(user):
+        qs = qs.filter(role__in=("maintenance", "admin"))
+    return qs
+
+
+def _pick_team_membership(person: Person, user, org: Organization) -> Membership | None:
+    """Anchor maintenance actions on the active operational program when possible.
+
+    Staff are often rostered into future sessions before they start; picking the
+    newest Membership row would hide tickets from the session that is running today.
+    """
+    qs = _team_memberships_qs(person, user)
+    admin_membership = qs.filter(role="admin").order_by("-created_at").first()
+    if admin_membership is not None:
+        return admin_membership
+
+    today = get_today(org)
+    maint = primary_operational_membership(
+        person, today=today, role="maintenance",
+    )
+    if maint is not None:
+        return maint
+
+    return qs.filter(role="maintenance").order_by("-created_at").first()
+
+
 def viewer_or_403(request) -> ViewerContext:
     """Resolve viewer Person + org + active Maintenance/Admin Membership, or 403.
 
@@ -57,14 +89,7 @@ def viewer_or_403(request) -> ViewerContext:
         msg = "Person profile required."
         raise PermissionDenied(msg)
 
-    qs = Membership.objects.filter(
-        person=person, is_active=True,
-    ).select_related("program", "program__organization")
-
-    if not is_super_admin(request.user):
-        qs = qs.filter(role__in=("maintenance", "admin"))
-
-    membership = qs.order_by("-created_at").first()
+    membership = _pick_team_membership(person, request.user, org)
     if membership is None:
         msg = "Maintenance role required."
         raise PermissionDenied(msg)
@@ -99,14 +124,7 @@ def resolve_queue_viewer(request) -> tuple[ViewerContext, QueueScope]:
         msg = "Person profile required."
         raise PermissionDenied(msg)
 
-    memberships = Membership.objects.filter(
-        person=person, is_active=True,
-    ).select_related("program", "program__organization")
-
-    team_qs = memberships
-    if not is_super_admin(request.user):
-        team_qs = memberships.filter(role__in=("maintenance", "admin"))
-    team_membership = team_qs.order_by("-created_at").first()
+    team_membership = _pick_team_membership(person, request.user, org)
     if team_membership is not None:
         return ViewerContext(
             person=person,
@@ -116,7 +134,12 @@ def resolve_queue_viewer(request) -> tuple[ViewerContext, QueueScope]:
             today=get_today(org),
         ), "team"
 
-    viewer_membership = memberships.order_by("-created_at").first()
+    viewer_membership = (
+        Membership.objects.filter(person=person, is_active=True)
+        .select_related("program", "program__organization")
+        .order_by("-created_at")
+        .first()
+    )
     if viewer_membership is None:
         msg = "Active membership required."
         raise PermissionDenied(msg)
@@ -137,12 +160,20 @@ def is_org_admin_membership(membership: Membership) -> bool:
 def ticket_scope_q(ctx: ViewerContext) -> Q:
     """Q filter for maintenance tickets visible to ``ctx``.
 
-    Maintenance staff see their program queue. Org admins see every ticket in
-    the organization (they may hold admin Memberships on older programs while
-    counselors submit to the current one). Everyone else is program-scoped.
+    Maintenance staff see tickets for every operational program they are
+    rostered into (not just their newest Membership row). Org admins see every
+    ticket in the organization. Everyone else is program-scoped.
     """
     if is_org_admin_membership(ctx.membership):
         return Q(organization=ctx.organization)
+    if ctx.membership.role == "maintenance":
+        program_ids = list(
+            operational_memberships_qs(
+                ctx.person, today=ctx.today, role="maintenance",
+            ).values_list("program_id", flat=True),
+        )
+        if program_ids:
+            return Q(program_id__in=program_ids)
     return Q(program=ctx.program)
 
 

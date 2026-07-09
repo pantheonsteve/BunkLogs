@@ -168,4 +168,14 @@ describe('MaintenanceQueue', () => {
     await waitFor(() => screen.getByTestId(`ticket-action-fulfilled-${mine.id}`));
     expect(screen.getByTestId(`ticket-action-fulfilled-${mine.id}`)).toHaveTextContent('Mark closed');
   });
+
+  it('defaults maintenance staff with counselor legacy role to the open queue', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { role: 'Counselor', membership_roles: ['maintenance'] },
+    });
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    renderQueue();
+    await waitFor(() => expect(getMock).toHaveBeenCalled());
+    expect(getMock.mock.calls[0][1]?.params?.filter).toBe('open');
+  });
 });
