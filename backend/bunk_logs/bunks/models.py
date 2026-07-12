@@ -1,14 +1,24 @@
+"""DEPRECATED legacy models (strangler-fig step 6_1).
+
+Session, Unit, Cabin, Bunk, UnitStaffAssignment and CounselorBunkAssignment are
+frozen: Crane Lake now runs on the multi-tenant ``core`` models. These tables stay
+readable for historical reporting but reject writes when
+``settings.BUNKLOGS_LEGACY_READ_ONLY`` is True (production). Do not build new
+features on these models. See ``bunk_logs/utils/legacy.py``.
+"""
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.legacy import LegacyReadOnlyModelMixin
+from bunk_logs.utils.legacy import guard_legacy_write
 from bunk_logs.utils.models import TestDataMixin
 
 
-class Cabin(TestDataMixin):
-    """Physical location for a bunk."""
+class Cabin(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Physical location for a bunk. DEPRECATED (read-only); see module docstring."""
 
     name = models.CharField(max_length=100)
     capacity = models.PositiveIntegerField()
@@ -24,8 +34,8 @@ class Cabin(TestDataMixin):
         return self.name
 
 
-class Session(TestDataMixin):
-    """Camp session period."""
+class Session(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Camp session period. DEPRECATED (read-only); see module docstring."""
 
     name = models.CharField(max_length=100)
     start_date = models.DateField()
@@ -41,8 +51,8 @@ class Session(TestDataMixin):
         return f"{self.name}"
 
 
-class UnitStaffAssignment(models.Model):
-    """Staff assignment to units with specific roles."""
+class UnitStaffAssignment(LegacyReadOnlyModelMixin, models.Model):
+    """Staff assignment to units with specific roles. DEPRECATED (read-only)."""
 
     ROLE_CHOICES = [
         ("unit_head", "Unit Head"),
@@ -72,8 +82,8 @@ class UnitStaffAssignment(models.Model):
         return f"{self.unit.name} - {self.staff_member.get_full_name()} ({self.get_role_display()})"
 
 
-class CounselorBunkAssignment(TestDataMixin):
-    """Assignment of counselors to bunks with date tracking."""
+class CounselorBunkAssignment(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Assignment of counselors to bunks with date tracking. DEPRECATED (read-only)."""
 
     # Add error message constants
     OVERLAPPING_ASSIGNMENT_ERROR = "Counselor already has an active bunk assignment during this period."
@@ -151,13 +161,14 @@ class CounselorBunkAssignment(TestDataMixin):
                         raise ValidationError(msg)
 
     def save(self, *args, **kwargs):
+        guard_legacy_write(self)
         # Run validation
         self.clean()
         super().save(*args, **kwargs)
 
 
-class Unit(TestDataMixin):
-    """Group of bunks managed by unit heads."""
+class Unit(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Group of bunks managed by unit heads. DEPRECATED (read-only)."""
 
     name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -224,8 +235,8 @@ class Unit(TestDataMixin):
         return self.all_camper_care
 
 
-class Bunk(TestDataMixin):
-    """Group of campers assigned to counselors for a session."""
+class Bunk(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Group of campers assigned to counselors for a session. DEPRECATED (read-only)."""
 
     cabin = models.ForeignKey(
         Cabin,

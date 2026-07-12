@@ -4,6 +4,7 @@ from django.urls import path
 from django.urls import reverse
 
 from bunk_logs.utils.admin import TestDataAdminMixin
+from bunk_logs.utils.legacy import LegacyReadOnlyAdminMixin
 
 from .models import BunkLogsOrderTypeItemCategory
 from .models import Item
@@ -84,7 +85,7 @@ class CategoryInline(admin.TabularInline):
     verbose_name_plural = "Item Categories"
 
 @admin.register(Order)
-class OrderAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
+class OrderAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
     list_display = ("id", "user", "order_date", "order_bunk", "order_status")
     search_fields = ("user__email", "order_status")
     list_filter = ("order_status", "order_date", "order_type", "order_bunk")
@@ -146,7 +147,7 @@ class OrderAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
         return import_orders(request)
 
 @admin.register(Item)
-class ItemAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
+class ItemAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
     list_display = ("id", "item_name", "available", "item_category")
     search_fields = ("item_name", "item_category__category_name")
     list_filter = ("available", "item_category")
@@ -163,7 +164,7 @@ class ItemAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
         return import_items(request)
 
 @admin.register(OrderType)
-class OrderTypeAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class OrderTypeAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("id", "type_name", "get_categories")
     search_fields = ("type_name",)
     ordering = ("type_name",)
@@ -180,7 +181,7 @@ class OrderTypeAdmin(TestDataAdminMixin, admin.ModelAdmin):
     get_categories.short_description = "Categories"
 
 @admin.register(ItemCategory)
-class ItemCategoryAdmin(TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
+class ItemCategoryAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, ImportAdminMixin, admin.ModelAdmin):
     list_display = ("id", "category_name")
     search_fields = ("category_name",)
     ordering = ("category_name",)

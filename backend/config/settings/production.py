@@ -13,6 +13,13 @@ from .base import env
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 
+# LEGACY MODELS
+# ------------------------------------------------------------------------------
+# Strangler-fig step 6_1: freeze the deprecated single-tenant models
+# (Session/Unit/Bunk/Camper/BunkLog/StaffLog/orders) as read-only in production.
+# Override via env only for a deliberate, supervised backfill window.
+BUNKLOGS_LEGACY_READ_ONLY = env.bool("BUNKLOGS_LEGACY_READ_ONLY", default=True)
+
 # DATABASES
 # ------------------------------------------------------------------------------
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)

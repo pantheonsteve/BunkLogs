@@ -13,6 +13,7 @@ from django.urls import reverse
 
 from bunk_logs.bunklogs.models import BunkLog
 from bunk_logs.utils.admin import TestDataAdminMixin
+from bunk_logs.utils.legacy import LegacyReadOnlyAdminMixin
 
 from .forms import BunkAssignmentCsvImportForm
 from .forms import CamperCsvImportForm
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 @admin.register(Camper)
-class CamperAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class CamperAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("first_name", "last_name", "age")  # Adjust fields as needed
     list_filter = ("last_name", "first_name")
     search_fields = ("first_name", "last_name", "age")
@@ -110,7 +111,7 @@ class CamperAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(CamperBunkAssignment)
-class CamperBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class CamperBunkAssignmentAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("camper", "bunk", "start_date", "end_date", "is_active")
     list_filter = ("is_active", "bunk__session", "bunk__cabin")
     search_fields = ("camper__first_name", "camper__last_name", "bunk__cabin__name")

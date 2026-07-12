@@ -1,11 +1,18 @@
+"""DEPRECATED legacy ``orders`` app (strangler-fig step 6_1).
+
+The order/inventory models have no multi-tenant successor and are scheduled for
+removal. Readable for history; writes are blocked when
+``settings.BUNKLOGS_LEGACY_READ_ONLY`` is True. See ``bunk_logs/utils/legacy.py``.
+"""
 from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.legacy import LegacyReadOnlyModelMixin
 from bunk_logs.utils.models import TestDataMixin
 
 
-class BunkLogsOrderTypeItemCategory(TestDataMixin):
+class BunkLogsOrderTypeItemCategory(LegacyReadOnlyModelMixin, TestDataMixin):
     """
     Explicit through model for the many-to-many relationship between OrderType and ItemCategory.
     Using a unique name to avoid conflicts with any potential 'orders' app outside of bunk_logs.
@@ -20,8 +27,8 @@ class BunkLogsOrderTypeItemCategory(TestDataMixin):
         verbose_name_plural = _("Order Type Item Categories")
         db_table = "bunk_logs_orders_ordertype_itemcategory"
 
-class OrderType(TestDataMixin):
-    """OrderType model for categorizing orders."""
+class OrderType(LegacyReadOnlyModelMixin, TestDataMixin):
+    """OrderType model for categorizing orders. DEPRECATED (read-only)."""
     type_name = models.CharField(max_length=100)
     type_description = models.TextField()
     item_categories = models.ManyToManyField(
@@ -41,8 +48,8 @@ class OrderType(TestDataMixin):
     def __str__(self):
         return self.type_name
 
-class Order(TestDataMixin):
-    """Order model for tracking orders made by users. For example, camper care items and maintenance requests."""
+class Order(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Order model for tracking orders made by users. DEPRECATED (read-only)."""
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -93,8 +100,8 @@ class Order(TestDataMixin):
     def get_order_bunk(self):
         return self.order_bunk
 
-class OrderItem(TestDataMixin):
-    """OrderItem model for tracking individual items within an order."""
+class OrderItem(LegacyReadOnlyModelMixin, TestDataMixin):
+    """OrderItem model for tracking individual items within an order. DEPRECATED (read-only)."""
     item = models.ForeignKey(
         "orders.Item",
         on_delete=models.CASCADE,
@@ -118,8 +125,8 @@ class OrderItem(TestDataMixin):
     def __str__(self):
         return f"{self.item.item_name if self.item else 'Unknown Item'} (x{self.item_quantity})"
 
-class Item(TestDataMixin):
-    """Item model for tracking individual items available for order."""
+class Item(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Item model for tracking individual items available for order. DEPRECATED (read-only)."""
     item_name = models.CharField(max_length=100)
     item_description = models.TextField()
     available = models.BooleanField(default=True)
@@ -138,8 +145,8 @@ class Item(TestDataMixin):
     def __str__(self):
         return self.item_name
 
-class ItemCategory(TestDataMixin):
-    """ItemCategory model for categorizing items available for order."""
+class ItemCategory(LegacyReadOnlyModelMixin, TestDataMixin):
+    """ItemCategory model for categorizing items available for order. DEPRECATED (read-only)."""
     category_name = models.CharField(max_length=100)
     category_description = models.TextField()
 
