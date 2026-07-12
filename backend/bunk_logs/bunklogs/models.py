@@ -1,3 +1,10 @@
+"""DEPRECATED legacy models (strangler-fig step 6_1).
+
+BunkLog and StaffLog (and its CounselorLog/LeadershipLog/KitchenStaffLog proxies)
+are frozen in favour of the multi-tenant ``core`` Reflection model. Readable for
+history; writes are blocked when ``settings.BUNKLOGS_LEGACY_READ_ONLY`` is True.
+See ``bunk_logs/utils/legacy.py``.
+"""
 from django.conf import settings
 from django.core.validators import MaxValueValidator
 from django.core.validators import MinValueValidator
@@ -5,11 +12,13 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from bunk_logs.utils.legacy import LegacyReadOnlyModelMixin
+from bunk_logs.utils.legacy import guard_legacy_write
 from bunk_logs.utils.models import TestDataMixin
 
 
-class BunkLog(TestDataMixin):
-    """Daily report for each camper."""
+class BunkLog(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Daily report for each camper. DEPRECATED (read-only); see module docstring."""
 
     bunk_assignment = models.ForeignKey(
         "campers.CamperBunkAssignment",
@@ -189,6 +198,7 @@ class BunkLog(TestDataMixin):
 
     def save(self, *args, **kwargs):
         """Override save method to set default date for new records."""
+        guard_legacy_write(self)
         # For new records without a date, use today's date
         if not self.pk and not self.date:
             self.date = timezone.localtime().date()
@@ -200,8 +210,8 @@ class BunkLog(TestDataMixin):
         super().save(*args, **kwargs)
 
 
-class StaffLog(TestDataMixin):
-    """Daily personal reflection log for any staff member.
+class StaffLog(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Daily personal reflection log for any staff member. DEPRECATED (read-only).
 
     This is the concrete base model shared by all staff reflection types.
     Counselors, Leadership Team, and Kitchen Staff all write to this single table.
@@ -336,6 +346,7 @@ class StaffLog(TestDataMixin):
 
     def save(self, *args, **kwargs):
         """Override save to set default date for new records."""
+        guard_legacy_write(self)
         if not self.pk and not self.date:
             self.date = timezone.localtime().date()
 

@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 
 from bunk_logs.campers.models import CamperBunkAssignment
 from bunk_logs.utils.admin import TestDataAdminMixin
+from bunk_logs.utils.legacy import LegacyReadOnlyAdminMixin
 
 from .forms import BunkLogAdminForm
 from .forms import BunkLogCsvImportForm
@@ -25,7 +26,7 @@ from .services.imports import import_bunk_logs_from_csv
 
 
 @admin.register(BunkLog)
-class BunkLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class BunkLogAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     form = BunkLogAdminForm
 
     def get_form(self, request, obj=None, **kwargs):
@@ -213,7 +214,7 @@ _SELF_VIEW_ROLES = ["Counselor", "Leadership", "Kitchen Staff"]
 _ADMIN_WRITE_ROLES = ["Counselor", "Leadership", "Kitchen Staff", "Admin"]
 
 
-class StaffLogAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class StaffLogAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     """Base admin for StaffLog and its proxy models."""
 
     list_display = (

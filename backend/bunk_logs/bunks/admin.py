@@ -9,6 +9,7 @@ from django.urls import path
 from django.urls import reverse
 
 from bunk_logs.utils.admin import TestDataAdminMixin
+from bunk_logs.utils.legacy import LegacyReadOnlyAdminMixin
 
 from .forms import BunkCsvImportForm
 from .forms import CabinCsvImportForm
@@ -29,7 +30,7 @@ from .services.imports import import_units_from_csv
 
 
 @admin.register(Unit)
-class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class UnitAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = (
         "name",
         "get_primary_unit_head",
@@ -124,7 +125,7 @@ class UnitAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(UnitStaffAssignment)
-class UnitStaffAssignmentAdmin(admin.ModelAdmin):
+class UnitStaffAssignmentAdmin(LegacyReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = (
         "unit",
         "staff_member",
@@ -218,7 +219,7 @@ class UnitStaffAssignmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(Cabin)
-class CabinAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class CabinAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("name", "capacity", "location", "notes")  # Adjust fields as needed
     search_fields = ("name", "location")
 
@@ -289,7 +290,7 @@ class CabinAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(Session)
-class SessionAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class SessionAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("name", "start_date", "end_date")  # Adjust fields as needed
     search_fields = ("name", "start_date", "end_date")
 
@@ -302,7 +303,7 @@ class CounselorBunkAssignmentInline(admin.TabularInline):
 
 
 @admin.register(Bunk)
-class BunkAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class BunkAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = ("name", "cabin", "session", "unit", "is_active", "get_current_counselors_display", "is_test_data_colored")
     list_filter = ("is_active", "session", "cabin", "unit")
     search_fields = ("cabin__name", "session__name")
@@ -393,7 +394,7 @@ class BunkAdmin(TestDataAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(CounselorBunkAssignment)
-class CounselorBunkAssignmentAdmin(TestDataAdminMixin, admin.ModelAdmin):
+class CounselorBunkAssignmentAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
     list_display = (
         "counselor",
         "bunk",

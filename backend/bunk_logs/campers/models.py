@@ -1,3 +1,9 @@
+"""DEPRECATED legacy models (strangler-fig step 6_1).
+
+Camper and CamperBunkAssignment are frozen in favour of the multi-tenant ``core``
+models (Person / Membership). Readable for history; writes are blocked when
+``settings.BUNKLOGS_LEGACY_READ_ONLY`` is True. See ``bunk_logs/utils/legacy.py``.
+"""
 from datetime import datetime
 
 from django.core.exceptions import ValidationError
@@ -6,11 +12,13 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from bunk_logs.bunks.models import Bunk
+from bunk_logs.utils.legacy import LegacyReadOnlyModelMixin
+from bunk_logs.utils.legacy import guard_legacy_write
 from bunk_logs.utils.models import TestDataMixin
 
 
-class Camper(TestDataMixin):
-    """Camper information."""
+class Camper(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Camper information. DEPRECATED (read-only); see module docstring."""
 
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
@@ -54,8 +62,8 @@ class Camper(TestDataMixin):
         )
 
 
-class CamperBunkAssignment(TestDataMixin):
-    """Assignment of campers to bunks for a specific session."""
+class CamperBunkAssignment(LegacyReadOnlyModelMixin, TestDataMixin):
+    """Assignment of campers to bunks for a specific session. DEPRECATED (read-only)."""
 
     # Add error message constant
     BUNK_LOGS_DELETE_ERROR = "Cannot delete bunk assignment with associated bunk logs."
@@ -121,6 +129,7 @@ class CamperBunkAssignment(TestDataMixin):
                 raise ValidationError(msg)
 
     def save(self, *args, **kwargs):
+        guard_legacy_write(self)
         # Automatically set start and end dates based on the session of the bunk
         if not self.start_date and self.bunk and self.bunk.session:
             self.start_date = self.bunk.session.start_date
@@ -133,6 +142,7 @@ class CamperBunkAssignment(TestDataMixin):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
+        guard_legacy_write(self)
         # Check for associated bunk logs before deletion
         from bunk_logs.bunklogs.models import BunkLog  # Changed to match the import used in admin.py
         if BunkLog.objects.filter(bunk_assignment=self).exists():
