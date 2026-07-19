@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { ErrorBoundary } from '@datadog/browser-rum-react';
 import { AuthProvider } from './auth/AuthContext';
 import { AllAuthProvider } from './context/AllAuthContext';
-import { BunkProvider } from './contexts/BunkContext';
 import SubmissionQueueProvider from './lib/submissionQueue/SubmissionQueueProvider';
 import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
@@ -59,9 +58,7 @@ function App() {
       <AllAuthProvider>
         <AuthProvider>
           <SubmissionQueueProvider>
-            <BunkProvider>
               <Router />
-            </BunkProvider>
           </SubmissionQueueProvider>
         </AuthProvider>
       </AllAuthProvider>

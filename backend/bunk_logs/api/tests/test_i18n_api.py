@@ -181,6 +181,40 @@ class TestMePreferencesEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# /api/v1/me/date-range/
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestMeDateRangeEndpoint:
+    URL = "/api/v1/me/date-range/"
+
+    def test_get_requires_authentication(self, api):
+        assert api.get(self.URL).status_code in (401, 403)
+
+    def test_get_returns_membership_window(self, api, user_with_person, org, program):
+        from datetime import timedelta
+
+        user, person = user_with_person
+        today = date.today()
+        membership = Membership.all_objects.get(
+            program=program,
+            person=person,
+            role="counselor",
+        )
+        membership.start_date = today - timedelta(days=7)
+        membership.end_date = today + timedelta(days=7)
+        membership.save(update_fields=["start_date", "end_date"])
+
+        api.force_authenticate(user=user)
+        resp = api.get(self.URL, **_hdr_org(org.slug))
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["start_date"] == (today - timedelta(days=7)).isoformat()
+        assert body["end_date"] == (today + timedelta(days=7)).isoformat()
+
+
+# ---------------------------------------------------------------------------
 # Reflection retry-translation endpoint
 # ---------------------------------------------------------------------------
 

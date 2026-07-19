@@ -229,6 +229,7 @@ urlpatterns = [
 
     # Per-user i18n preferences (Step 7_5)
     path("me/preferences/", me_api.MePreferencesView.as_view(), name="me-preferences"),
+    path("me/date-range/", me_api.MeDateRangeView.as_view(), name="me-date-range"),
 
     # User lookup by email (used by several frontend components)
     path("users/email/<str:email>/", views.get_user_by_email, name="user-by-email"),

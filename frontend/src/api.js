@@ -180,19 +180,9 @@ api.interceptors.response.use(
 
 // Helper functions for common API operations
 
-// Safely fetch staff assignment - returns null if user doesn't have assignment (e.g., admin)
-export const fetchStaffAssignmentSafe = async (userId) => {
-  try {
-    const response = await api.get(`/api/v1/unit-staff-assignments/${userId}/`);
-    return response.data;
-  } catch (error) {
-    if (error.response?.status === 404) {
-      // User doesn't have staff assignment - likely admin
-      console.log('No staff assignment found for user - likely admin or user without assignment');
-      return null;
-    }
-    throw error;
-  }
+export const fetchMeDateRange = async () => {
+  const response = await api.get('/api/v1/me/date-range/');
+  return response.data;
 };
 
 // Get appropriate date range based on user role
