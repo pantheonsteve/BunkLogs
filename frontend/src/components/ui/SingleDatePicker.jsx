@@ -4,7 +4,7 @@ import { cn } from "../../lib/utils"
 import { Calendar } from "./calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { useAuth } from '../../auth/AuthContext'
-import api, { fetchStaffAssignmentSafe, getDateRangeForUser } from '../../api'
+import api, { fetchMeDateRange, getDateRangeForUser } from '../../api'
 import isSuperAdmin from '../../utils/auth/isSuperAdmin'
 
 export default function SingleDatePicker({ className, date, setDate }) {
@@ -172,26 +172,16 @@ export default function SingleDatePicker({ className, date, setDate }) {
           return;
         }
         
-        // Try to get staff assignment safely
-        const assignmentData = await fetchStaffAssignmentSafe(user.id);
+        // Try membership-backed date range from the API
+        const rangeData = await fetchMeDateRange();
         
-        if (assignmentData && assignmentData.start_date) {
-          // Set the allowed date range based on the response
-          const rangeData = {
-            start_date: assignmentData.start_date,
-            end_date: assignmentData.end_date // Keep null if ongoing assignment
-          };
-          console.log('Setting allowed range from assignment:', rangeData);
-          setAllowedRange(rangeData);
-        } else if (assignmentData === null) {
-          // No staff assignment found - user is likely admin
-          console.log('No staff assignment found - treating as admin user');
-          const adminRange = getDateRangeForUser(user);
-          setAllowedRange(adminRange);
-          console.log('Set admin date range:', adminRange);
+        if (rangeData?.start_date) {
+          console.log('Setting allowed range from /me/date-range:', rangeData);
+          setAllowedRange({
+            start_date: rangeData.start_date,
+            end_date: rangeData.end_date ?? null,
+          });
         } else {
-          console.error('Invalid assignment data - missing start_date:', assignmentData);
-          // If data is invalid, use restrictive fallback
           const fallbackRange = getDateRangeForUser(user);
           console.log('Using fallback range:', fallbackRange);
           setAllowedRange(fallbackRange);

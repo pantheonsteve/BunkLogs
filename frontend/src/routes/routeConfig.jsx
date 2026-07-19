@@ -25,23 +25,12 @@ import Signin from '../pages/Signin';
 // behind the <Suspense> boundary in RootLayout (see ./guards.jsx).
 const Signup = lazy(() => import('../pages/Signup'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
-const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
-const BunkDashboard = lazy(() => import('../pages/BunkDashboard'));
-const CamperDashboard = lazy(() => import('../pages/CamperDashboard'));
-const CounselorDashboard = lazy(() => import('../pages/CounselorDashboard'));
-const UnitHeadDashboard = lazy(() => import('../pages/UnitHeadDashboard'));
-const CamperCareDashboard = lazy(() => import('../pages/CamperCareDashboard'));
 const DatePickerTest = lazy(() => import('../pages/DatePickerTest'));
 const AuthCallback = lazy(() => import('../pages/AuthCallback'));
 const CallbackPage = lazy(() => import('../pages/CallbackPage'));
 const ResetPassword = lazy(() => import('../pages/ResetPassword'));
 const ResetPasswordConfirm = lazy(() => import('../pages/ResetPasswordConfirm'));
 const AuthSuccess = lazy(() => import('../pages/AuthSuccess'));
-const Orders = lazy(() => import('../pages/Orders'));
-const OrderDetail = lazy(() => import('../pages/OrderDetail'));
-const OrderEdit = lazy(() => import('../pages/OrderEdit'));
-const AdminBunkLogs = lazy(() => import('../pages/AdminBunkLogs'));
-const StaffMemberHistory = lazy(() => import('../pages/StaffMemberHistory'));
 const MigrationDashboard = lazy(() => import('../pages/MigrationDashboard'));
 const MyReflectionsPage = lazy(() => import('../pages/MyReflectionsPage'));
 const ReflectionDetailPage = lazy(() => import('../pages/ReflectionDetailPage'));
@@ -128,24 +117,6 @@ export const routeConfig = [
   { path: '/auth/success', element: <AuthSuccess /> },
 
   { path: '/dashboard', element: protect(<Dashboard />) },
-  { path: '/admin-dashboard', element: protect(<AdminDashboard />) },
-  { path: '/admin-dashboard/:date', element: protect(<AdminDashboard />) },
-  { path: '/admin-bunk-logs', element: protect(<AdminBunkLogs />) },
-  { path: '/admin-bunk-logs/:date', element: protect(<AdminBunkLogs />) },
-  { path: '/dashboard/unithead', element: protect(<UnitHeadDashboard />) },
-  { path: '/unithead/:id/:date', element: protect(<UnitHeadDashboard />) },
-  { path: '/dashboard/campercare', element: protect(<CamperCareDashboard />) },
-  { path: '/counselor-dashboard', element: protect(<CounselorDashboard />) },
-  { path: '/counselor-dashboard/:date', element: protect(<CounselorDashboard />) },
-  { path: '/campercare/:id/:date', element: protect(<CamperCareDashboard />) },
-  { path: '/bunk/:bunk_id/:date', element: protect(<BunkDashboard />) },
-  { path: '/bunk/:bunk_id/:date/orders/:orderId', element: protect(<BunkDashboard />) },
-  { path: '/bunk/:bunk_id/:date/orders/:orderId/edit', element: protect(<BunkDashboard />) },
-  { path: '/camper/:camper_id/:date', element: protect(<CamperDashboard />) },
-  { path: '/orders', element: protect(<Orders />) },
-  { path: '/orders/:orderId', element: protect(<OrderDetail />) },
-  { path: '/orders/:orderId/edit', element: protect(<OrderEdit />) },
-  { path: '/admin-staff/:staffId', element: protect(<StaffMemberHistory />) },
   { path: '/test-datepicker', element: <DatePickerTest /> },
   { path: '/migration-dashboard', element: protect(<MigrationDashboard />) },
 
