@@ -19,18 +19,17 @@ state), so we deliberately do NOT emit ``AuditEvent`` rows — see
 """
 from __future__ import annotations
 
+from datetime import date
+
+from django.db.models import Max
+from django.db.models import Min
+from django.utils import timezone
 from rest_framework import permissions
 from rest_framework import serializers
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from datetime import date
-
-from django.db.models import Max
-from django.db.models import Min
-from django.utils import timezone
 
 from bunk_logs.core.context import get_current_organization
 from bunk_logs.core.models import Membership
