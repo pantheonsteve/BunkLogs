@@ -514,6 +514,11 @@ urlpatterns = [
         name="camper-care-orders-bulk-transition",
     ),
     path(
+        "camper-care/orders/<uuid:order_id>/",
+        cc_orders.CamperCareOrderDetailView.as_view(),
+        name="camper-care-order-detail",
+    ),
+    path(
         "camper-care/orders/<uuid:order_id>/transition/",
         cc_orders.CamperCareOrderTransitionView.as_view(),
         name="camper-care-order-transition",

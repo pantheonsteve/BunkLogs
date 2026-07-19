@@ -34,6 +34,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import RequestLineItem
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.time_utils import get_today
 from bunk_logs.notes.models import Observation
@@ -667,6 +668,86 @@ class TestCamperCareOrdersTeamShared:
         assert r.status_code == 200, r.content
         order.refresh_from_db()
         assert order.status == "in_progress"
+
+    def test_order_detail_returns_full_payload(
+        self, api, org, program, cc_person_user, cc_membership,
+        counselor_person_user, counselor_membership, camper, bunk,
+    ):
+        counselor_person, _ = counselor_person_user
+        AssignmentGroupMembership.all_objects.create(
+            group=bunk,
+            person=counselor_person,
+            role_in_group="author",
+            is_active=True,
+        )
+        order = Order.all_objects.create(
+            organization=org,
+            program=program,
+            subject=camper,
+            submitted_by=counselor_membership,
+            item="Sunscreen",
+            item_note="SPF 50",
+            description="For Tuesday hike.",
+        )
+        RequestLineItem.all_objects.create(
+            organization=org,
+            order=order,
+            item_label="Sunscreen",
+            quantity=2,
+            note="SPF 50",
+        )
+        RequestLineItem.all_objects.create(
+            organization=org,
+            order=order,
+            item_label="Bug spray",
+            quantity=1,
+            note="Travel size",
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/orders/{order.id}/",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["scope"] == "team"
+        assert body["order"]["item"] == "Sunscreen"
+        assert body["order"]["description"] == "For Tuesday hike."
+        assert len(body["order"]["line_items"]) == 2
+        assert body["order"]["line_items"][0]["item_label"] == "Sunscreen"
+        assert body["order"]["line_items"][0]["quantity"] == 2
+        assert body["order"]["line_items"][1]["note"] == "Travel size"
+        assert body["order"]["bunk"] == {"id": bunk.id, "name": bunk.name}
+        assert body["order"]["available_transitions"]
+        assert isinstance(body["activity"], list)
+
+    def test_order_detail_404_outside_scope(
+        self, api, org, program, cc_person_user, cc_membership, camper,
+    ):
+        other_program = Program.all_objects.create(
+            organization=org,
+            name="CC Org Other Session",
+            slug="cc-other-session-detail",
+            program_type="summer_camp",
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 8, 15),
+        )
+        order = Order.all_objects.create(
+            organization=org,
+            program=other_program,
+            subject=camper,
+            item="Soap",
+        )
+        _, user = cc_person_user
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            r = api.get(
+                f"/api/v1/camper-care/orders/{order.id}/",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 404
 
     def test_bulk_fulfill(
         self, api, org, program, cc_person_user, cc_membership, camper,

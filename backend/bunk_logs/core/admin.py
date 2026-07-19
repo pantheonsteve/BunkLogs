@@ -17,16 +17,21 @@ from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
 from .models import CatalogItem
 from .models import FieldKey
+from .models import MaintenanceTicket
 from .models import Membership
+from .models import Order
+from .models import OrderActivityEvent
 from .models import Organization
 from .models import Person
 from .models import Program
 from .models import Reflection
 from .models import ReflectionTemplate
+from .models import RequestLineItem
 from .models import RequestType
 from .models import RosterImportLog
 from .models import Store
 from .models import TemplateAssignment
+from .models import TicketPhoto
 
 
 class ProgramAdminForm(forms.ModelForm):
@@ -1003,3 +1008,292 @@ class CatalogItemAdmin(admin.ModelAdmin):
                 RequestType.all_objects.select_related("organization", "store"),
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Camper Care orders & Maintenance tickets
+# ---------------------------------------------------------------------------
+# Primary workflow is the React app; Django admin is a cross-tenant support
+# surface. Lifecycle fields are read-only so status changes stay on the
+# state machine (transition_to) and activity log stays trustworthy.
+
+
+class _ReadOnlySubmittedDataInline(admin.TabularInline):
+    """Line items and photos are submission snapshots — view-only in admin."""
+
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class OrderLineItemInline(_ReadOnlySubmittedDataInline):
+    model = RequestLineItem
+    fk_name = "order"
+    fields = ("item_label", "quantity", "note", "item", "created_at")
+    readonly_fields = fields
+
+    def get_queryset(self, request):
+        return RequestLineItem.all_objects.select_related("item")
+
+
+class TicketLineItemInline(_ReadOnlySubmittedDataInline):
+    model = RequestLineItem
+    fk_name = "ticket"
+    fields = ("item_label", "quantity", "note", "item", "created_at")
+    readonly_fields = fields
+
+    def get_queryset(self, request):
+        return RequestLineItem.all_objects.select_related("item")
+
+
+class TicketPhotoInline(_ReadOnlySubmittedDataInline):
+    model = TicketPhoto
+    fields = ("image", "caption", "uploaded_by", "is_followup", "created_at")
+    readonly_fields = fields
+
+    def get_queryset(self, request):
+        return TicketPhoto.all_objects.select_related("uploaded_by__person")
+
+
+class _OrderableContentAdmin(admin.ModelAdmin):
+    """Shared admin behavior for Order and MaintenanceTicket."""
+
+    date_hierarchy = "created_at"
+
+    def get_queryset(self, request):
+        return self.model.all_objects.select_related(
+            "organization",
+            "program",
+            "submitted_by__person",
+            "last_transition_by__person",
+        )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "organization":
+            kwargs.setdefault("queryset", Organization.objects.all())
+        elif db_field.name == "program":
+            kwargs.setdefault("queryset", Program.all_objects.select_related("organization"))
+        elif db_field.name == "subject":
+            kwargs.setdefault("queryset", Person.all_objects.select_related("organization"))
+        elif db_field.name in {"submitted_by", "last_transition_by"}:
+            kwargs.setdefault(
+                "queryset",
+                Membership.all_objects.select_related("person", "program__organization"),
+            )
+        elif db_field.name == "submitted_from_bunk":
+            kwargs.setdefault(
+                "queryset",
+                AssignmentGroup.all_objects.select_related("organization", "program"),
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(Order)
+class OrderAdmin(_OrderableContentAdmin):
+    list_display = [
+        "id",
+        "item",
+        "status",
+        "organization",
+        "program",
+        "subject",
+        "submitted_by",
+        "created_at",
+    ]
+    list_filter = ["status", "organization", "program", "created_at"]
+    search_fields = [
+        "id",
+        "item",
+        "item_note",
+        "description",
+        "subject__first_name",
+        "subject__last_name",
+        "subject__preferred_name",
+    ]
+    autocomplete_fields = [
+        "organization",
+        "program",
+        "subject",
+        "submitted_by",
+        "submitted_from_bunk",
+        "last_transition_by",
+    ]
+    readonly_fields = [
+        "id",
+        "status",
+        "urgency",
+        "last_transition_at",
+        "last_transition_by",
+        "client_submission_id",
+        "created_at",
+        "updated_at",
+    ]
+    inlines = [OrderLineItemInline]
+    fieldsets = (
+        (None, {"fields": ("id", "status", "urgency", "item", "item_note", "description")}),
+        (
+            "Scope",
+            {
+                "fields": (
+                    "organization",
+                    "program",
+                    "subject",
+                    "submitted_from_bunk",
+                    "submitted_by",
+                ),
+            },
+        ),
+        (
+            "Lifecycle",
+            {
+                "fields": (
+                    "last_transition_at",
+                    "last_transition_by",
+                    "client_submission_id",
+                    "created_at",
+                    "updated_at",
+                ),
+            },
+        ),
+    )
+
+
+@admin.register(MaintenanceTicket)
+class MaintenanceTicketAdmin(_OrderableContentAdmin):
+    list_display = [
+        "id",
+        "location",
+        "category",
+        "status",
+        "urgency",
+        "organization",
+        "program",
+        "submitted_by",
+        "created_at",
+    ]
+    list_filter = ["status", "urgency", "category", "organization", "program", "created_at"]
+    search_fields = [
+        "id",
+        "title",
+        "location",
+        "description",
+        "urgent_reason",
+        "category",
+    ]
+    autocomplete_fields = [
+        "organization",
+        "program",
+        "submitted_by",
+        "last_transition_by",
+    ]
+    readonly_fields = [
+        "id",
+        "status",
+        "urgency",
+        "last_transition_at",
+        "last_transition_by",
+        "client_submission_id",
+        "created_at",
+        "updated_at",
+    ]
+    inlines = [TicketLineItemInline, TicketPhotoInline]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "id",
+                    "status",
+                    "urgency",
+                    "title",
+                    "location",
+                    "category",
+                    "description",
+                    "urgent_reason",
+                ),
+            },
+        ),
+        ("Scope", {"fields": ("organization", "program", "submitted_by")}),
+        (
+            "Lifecycle",
+            {
+                "fields": (
+                    "last_transition_at",
+                    "last_transition_by",
+                    "client_submission_id",
+                    "created_at",
+                    "updated_at",
+                ),
+            },
+        ),
+    )
+
+
+@admin.register(OrderActivityEvent)
+class OrderActivityEventAdmin(admin.ModelAdmin):
+    list_display = [
+        "event_type",
+        "content_type",
+        "content_id",
+        "from_state",
+        "to_state",
+        "actor_membership",
+        "created_at",
+    ]
+    list_filter = ["event_type", "content_type", "organization", "created_at"]
+    search_fields = ["content_id", "note", "reason"]
+    readonly_fields = [
+        "id",
+        "organization",
+        "program",
+        "actor_membership",
+        "actor_user",
+        "event_type",
+        "content_type",
+        "content_id",
+        "from_state",
+        "to_state",
+        "note",
+        "reason",
+        "correction_of",
+        "metadata",
+        "created_at",
+    ]
+    autocomplete_fields = ["organization", "program", "actor_membership", "correction_of"]
+
+    def get_queryset(self, request):
+        return OrderActivityEvent.all_objects.select_related(
+            "organization",
+            "program",
+            "actor_membership__person",
+            "actor_user",
+            "correction_of",
+        )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "organization":
+            kwargs.setdefault("queryset", Organization.objects.all())
+        elif db_field.name == "program":
+            kwargs.setdefault("queryset", Program.all_objects.select_related("organization"))
+        elif db_field.name == "actor_membership":
+            kwargs.setdefault(
+                "queryset",
+                Membership.all_objects.select_related("person", "program__organization"),
+            )
+        elif db_field.name == "correction_of":
+            kwargs.setdefault(
+                "queryset",
+                OrderActivityEvent.all_objects.select_related("organization"),
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   bulkTransitionOrders, fetchOrders, transitionOrder,
 } from '../../api/camperCare';
@@ -60,20 +61,42 @@ function formatAge(seconds) {
   return `${d}d ago`;
 }
 
-function OrderRow({ order, selectable, selected, onSelectToggle, onTransition }) {
+function orderItemSummary(order) {
+  const lines = order.line_items || [];
+  if (lines.length > 1) {
+    return lines
+      .map((line) => {
+        const qty = line.quantity > 1 ? ` ×${line.quantity}` : '';
+        const note = line.note ? ` — ${line.note}` : '';
+        return `${line.item_label}${qty}${note}`;
+      })
+      .join('; ');
+  }
+  if (lines.length === 1) {
+    const line = lines[0];
+    const qty = line.quantity > 1 ? ` ×${line.quantity}` : '';
+    const note = line.note || order.item_note;
+    return `${line.item_label}${qty}${note ? ` — ${note}` : ''}`;
+  }
+  return `${order.item}${order.item_note ? ` — ${order.item_note}` : ''}`;
+}
+
+function OrderRow({ order, selectable, selected, onSelectToggle, onTransition, onClick }) {
   const aged = order.age_seconds != null && order.age_seconds >= AGE_THRESHOLD_SECONDS;
   return (
     <li
       data-testid={`order-row-${order.id}`}
       data-status={order.status}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
+      onClick={() => onClick(order.id)}
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
     >
       <div className="flex items-start gap-3">
         {selectable && (
           <input
             type="checkbox"
             checked={selected}
-            onChange={() => onSelectToggle(order.id)}
+            onChange={(e) => { e.stopPropagation(); onSelectToggle(order.id); }}
+            onClick={(e) => e.stopPropagation()}
             aria-label={`Select order for ${camperLabel(order.subject)}`}
             data-testid={`order-select-${order.id}`}
             className="mt-1 h-4 w-4 rounded border-gray-300"
@@ -83,8 +106,7 @@ function OrderRow({ order, selectable, selected, onSelectToggle, onTransition })
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                {order.item}
-                {order.item_note ? ` — ${order.item_note}` : ''}
+                {orderItemSummary(order)}
               </h3>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 {order.bunk?.name ? (
@@ -127,7 +149,10 @@ function OrderRow({ order, selectable, selected, onSelectToggle, onTransition })
             </span>
           </div>
           {order.available_transitions?.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div
+              className="flex flex-wrap gap-2 mt-3"
+              onClick={(e) => e.stopPropagation()}
+            >
               {order.available_transitions.map((next) => (
                 <button
                   key={next}
@@ -294,6 +319,7 @@ function FilterBar({ filter, bunkId, item, onChange, showAdvancedFilters }) {
 }
 
 export default function CamperCareOrders() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -328,6 +354,10 @@ export default function CamperCareOrders() {
   }, [filter, bunkId, item]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleOrderClick = (id) => {
+    navigate(`/camper-care/orders/${id}`);
+  };
 
   const handleFilterChange = ({ filter: f, bunkId: b, item: i }) => {
     setFilter(f);
@@ -461,6 +491,7 @@ export default function CamperCareOrders() {
                 order={o}
                 selectable={false}
                 onTransition={handleTransition}
+                onClick={handleOrderClick}
               />
             ))}
           </ul>
@@ -485,6 +516,7 @@ export default function CamperCareOrders() {
                 selected={selected.has(o.id)}
                 onSelectToggle={handleSelectToggle}
                 onTransition={handleTransition}
+                onClick={handleOrderClick}
               />
             ))}
           </ul>
@@ -551,6 +583,7 @@ export default function CamperCareOrders() {
                   order={o}
                   selectable={false}
                   onTransition={handleTransition}
+                  onClick={handleOrderClick}
                 />
               ))}
             </ul>

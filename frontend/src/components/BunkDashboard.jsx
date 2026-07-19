@@ -137,13 +137,26 @@ const STATUS_TONES = {
   unable_to_fulfill: 'text-gray-500 dark:text-gray-400',
 };
 
+function orderDetailHref(order) {
+  if (order.kind === 'maintenance') {
+    return `/maintenance/tickets/${order.id}`;
+  }
+  return `/camper-care/orders/${order.id}`;
+}
+
 function OrderRow({ order }) {
   const isMaintenance = order.kind === 'maintenance';
+  const href = orderDetailHref(order);
   return (
     <li
       data-testid={`order-${order.id}`}
-      className="rounded-lg border border-gray-100 dark:border-gray-800 px-3 py-2.5"
+      className="rounded-lg border border-gray-100 dark:border-gray-800 px-3 py-2.5 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
     >
+      <Link
+        to={href}
+        data-testid={`order-link-${order.id}`}
+        className="block text-inherit no-underline"
+      >
       <div className="flex items-center justify-between gap-2">
         <span
           className={`inline-block text-[10px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded ${
@@ -165,6 +178,7 @@ function OrderRow({ order }) {
         by {order.submitter || 'unknown'}
         {order.submitted_at ? ` · ${new Date(order.submitted_at).toLocaleString()}` : ''}
       </p>
+      </Link>
     </li>
   );
 }

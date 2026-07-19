@@ -124,6 +124,12 @@ export async function fetchOrders({
   return data;
 }
 
+/** Full order detail + activity timeline (Stories 22.4 + 23.1). */
+export async function fetchOrderDetail(orderId) {
+  const { data } = await api.get(`/api/v1/camper-care/orders/${orderId}/`);
+  return data;
+}
+
 /** Single-order transition via the camper-care alias to the shared state machine. */
 export async function transitionOrder(orderId, { toState, note, reason } = {}) {
   const payload = { to_state: toState };

@@ -82,6 +82,7 @@ const CamperCareDashboardV2 = lazy(() => import('../pages/camper-care/Dashboard'
 const CamperCareCamperDashboardPage = lazy(() => import('../pages/camper-care/CamperDashboardPage'));
 const CamperCareFlagsPage = lazy(() => import('../pages/camper-care/Flags'));
 const CamperCareOrdersPage = lazy(() => import('../pages/camper-care/Orders'));
+const CamperCareOrderDetailPage = lazy(() => import('../pages/camper-care/OrderDetail'));
 const CamperCareSelfReflectionPage = lazy(() => import('../pages/camper-care/SelfReflectionPage'));
 const CamperCareSelfReflectionHistoryPage = lazy(() => import('../pages/camper-care/SelfReflectionHistoryPage'));
 const KitchenStaffDashboard = lazy(() => import('../pages/kitchen-staff/Dashboard'));
@@ -203,6 +204,7 @@ export const routeConfig = [
       { path: '/camper-care/campers/:camperId', element: <CamperCareCamperDashboardPage /> },
       { path: '/camper-care/flags', element: <CamperCareFlagsPage /> },
       { path: '/camper-care/orders', element: <CamperCareOrdersPage /> },
+      { path: '/camper-care/orders/:orderId', element: <CamperCareOrderDetailPage /> },
       { path: '/camper-care/notes/*', element: <Navigate to="/camper-care" replace /> },
       { path: '/camper-care/self-reflection', element: <CamperCareSelfReflectionPage /> },
       { path: '/camper-care/self-reflection/history', element: <CamperCareSelfReflectionHistoryPage /> },
