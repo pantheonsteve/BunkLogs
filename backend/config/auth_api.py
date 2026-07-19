@@ -1,15 +1,11 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
-from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from bunk_logs.api.views import _active_membership_roles
-from bunk_logs.bunks.models import CounselorBunkAssignment
-from bunk_logs.bunks.models import UnitStaffAssignment
 
 User = get_user_model()
 
@@ -75,37 +71,9 @@ def get_auth_status(request):
                 "name": request.user.name,
                 "role": request.user.role,
                 "profileComplete": request.user.profile_complete,
+                "membership_roles": _active_membership_roles(request.user),
             },
         }
-
-        # Add bunk information for counselors
-        if request.user.role == "Counselor":
-            today = timezone.now().date()
-            assignments = CounselorBunkAssignment.objects.filter(
-                counselor=request.user,
-                start_date__lte=today,
-            ).filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=today),
-            ).select_related("bunk__cabin", "bunk__session")
-            response_data["user"]["bunks"] = [{
-                "id": str(a.bunk.id),
-                "name": a.bunk.name,
-            } for a in assignments]
-
-        # For Unit Heads, include their managed units
-        elif request.user.role == "Unit Head":
-            today = timezone.now().date()
-            unit_assignments = UnitStaffAssignment.objects.filter(
-                staff_member=request.user,
-                role="unit_head",
-                start_date__lte=today,
-            ).filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=today),
-            ).select_related("unit")
-            response_data["user"]["units"] = [{
-                "id": str(a.unit.id),
-                "name": a.unit.name,
-            } for a in unit_assignments]
 
         return JsonResponse(response_data)
     return JsonResponse({

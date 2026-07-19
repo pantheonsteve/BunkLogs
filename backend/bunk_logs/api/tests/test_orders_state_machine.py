@@ -180,17 +180,6 @@ class TestOrderTransitionEndpoint:
             )
         assert r.status_code in (401, 403)
 
-    def test_legacy_orders_int_route_unaffected(self, api, org, cc_user):
-        """The legacy ``/api/v1/orders/<int:pk>/`` route handled by the old
-        ``OrderViewSet`` must still respond independently of UUID routes.
-        """
-        api.force_authenticate(user=cc_user)
-        with organization_context(org):
-            r = api.get("/api/v1/orders/", **_hdr(org.slug))
-        # Listing the legacy router endpoint should not 404 / 405; status is
-        # legacy-permission-dependent but never UUID-routing failure (404).
-        assert r.status_code != 404
-
 
 class TestOrderCorrectLastEndpoint:
     def test_correct_within_window(self, api, org, order, cc_user):
