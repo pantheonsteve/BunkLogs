@@ -3,6 +3,7 @@
 Endpoints:
 
 * ``GET  /api/v1/camper-care/orders/`` — three-section workspace
+* ``GET  /api/v1/camper-care/orders/<id>/`` — full order detail + activity
 * ``POST /api/v1/camper-care/orders/<id>/transition/`` — state transition
 * ``POST /api/v1/camper-care/orders/bulk-transition/`` — bulk fulfillment
 
@@ -22,11 +23,13 @@ criterion 6).
 from __future__ import annotations
 
 from django.utils.dateparse import parse_date
+from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.counselor.responses import line_item_response
 from bunk_logs.api.orders_state_machine import OrderBulkTransitionView
 from bunk_logs.api.orders_state_machine import OrderTransitionView
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -71,7 +74,7 @@ class CamperCareOrdersListView(APIView):
 
         qs = orders_base_queryset(ctx).select_related(
             "subject", "submitted_by__person", "submitted_from_bunk",
-        )
+        ).prefetch_related("line_items")
         if filt == "my_caseload":
             camper_ids = caseload_camper_ids(ctx.membership)
             qs = qs.filter(subject_id__in=camper_ids)
@@ -159,6 +162,82 @@ class CamperCareOrdersListView(APIView):
                 "in_progress": len(in_progress),
                 "resolved": len(resolved),
             },
+            "scope": ctx.scope,
+        })
+
+
+class CamperCareOrderDetailView(APIView):
+    """``GET /api/v1/camper-care/orders/<id>/`` — full order detail.
+
+    Returns the order header, description, and the full activity timeline
+    so Camper Care can triage from the workspace list then drill into a
+    single request (Stories 22.4 + 23.1). Visibility follows the same
+    ``orders_base_queryset`` rules as the list endpoint; ``scope`` gates
+    whether transition affordances are exposed in the payload.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id, *args, **kwargs):
+        ctx = resolve_orders_viewer(request)
+        order = (
+            orders_base_queryset(ctx)
+            .filter(pk=order_id)
+            .select_related(
+                "subject", "submitted_by__person", "submitted_from_bunk",
+            )
+            .prefetch_related("line_items")
+            .first()
+        )
+        if order is None:
+            msg = "Order not found."
+            raise NotFound(msg)
+
+        org_wide = ctx.scope == "team" and ctx.membership.role == "admin"
+        if org_wide:
+            bunk_by_subject = _bunk_by_subject_ids_org(
+                subject_ids={order.subject_id} if order.subject_id else set(),
+                organization_id=ctx.organization.id,
+            )
+            submitter_person_id = (
+                order.submitted_by.person_id
+                if order.submitted_by_id and order.submitted_by.person_id
+                else None
+            )
+            bunk_by_submitter = _bunk_by_author_person_ids_org(
+                person_ids={submitter_person_id} if submitter_person_id else set(),
+                organization_id=ctx.organization.id,
+            )
+        else:
+            bunk_by_subject = _bunk_by_subject_ids(
+                subject_ids={order.subject_id} if order.subject_id else set(),
+                program_id=ctx.program.id,
+            )
+            submitter_person_id = (
+                order.submitted_by.person_id
+                if order.submitted_by_id and order.submitted_by.person_id
+                else None
+            )
+            bunk_by_submitter = _bunk_by_author_person_ids(
+                person_ids={submitter_person_id} if submitter_person_id else set(),
+                program_id=ctx.program.id,
+            )
+
+        activity = list(
+            OrderActivityEvent.objects.filter(
+                content_type="order", content_id=order.id,
+            )
+            .select_related("actor_membership__person")
+            .order_by("created_at"),
+        )
+        return Response({
+            "order": _order_detail_payload(
+                order,
+                bunk_by_subject=bunk_by_subject,
+                bunk_by_submitter=bunk_by_submitter,
+                scope=ctx.scope,
+            ),
+            "activity": [_activity_payload(event) for event in activity],
             "scope": ctx.scope,
         })
 
@@ -328,6 +407,48 @@ def _resolve_order_bunk(
     return None
 
 
+def _order_detail_payload(
+    order: Order,
+    *,
+    bunk_by_subject: dict[int, dict] | None = None,
+    bunk_by_submitter: dict[int, dict] | None = None,
+    scope: str = "team",
+) -> dict:
+    """Full order header for the detail view (Story 23.1)."""
+    payload = _order_payload(
+        order,
+        bunk_by_subject=bunk_by_subject,
+        bunk_by_submitter=bunk_by_submitter,
+        scope=scope,
+    )
+    payload["status_label"] = order.get_status_display()
+    payload["last_transition_at"] = (
+        order.last_transition_at.isoformat()
+        if order.last_transition_at
+        else None
+    )
+    return payload
+
+
+def _activity_payload(event: OrderActivityEvent) -> dict:
+    actor_person = None
+    if event.actor_membership_id and event.actor_membership:
+        actor_person = event.actor_membership.person
+    actor_name = None
+    if actor_person:
+        actor_name = f"{actor_person.first_name} {actor_person.last_name}".strip()
+    return {
+        "id": str(event.id),
+        "event_type": event.event_type,
+        "from_state": event.from_state,
+        "to_state": event.to_state,
+        "note": event.note,
+        "reason": event.reason,
+        "actor_name": actor_name,
+        "created_at": event.created_at.isoformat() if event.created_at else None,
+    }
+
+
 def _order_payload(
     order: Order,
     *,
@@ -364,6 +485,7 @@ def _order_payload(
         "bunk": bunk,
         "item": order.item,
         "item_note": order.item_note,
+        "line_items": [line_item_response(li) for li in order.line_items.all()],
         "description": order.description,
         "submitter": {
             "membership_id": submitter.id if submitter else None,

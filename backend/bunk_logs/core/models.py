@@ -1490,6 +1490,8 @@ class Order(OrderableContent):
     all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
+        verbose_name = "Camper Care order"
+        verbose_name_plural = "Camper Care orders"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["organization", "program", "status"]),
@@ -1797,6 +1799,8 @@ class MaintenanceTicket(OrderableContent):
     all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
+        verbose_name = "Maintenance ticket"
+        verbose_name_plural = "Maintenance tickets"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["organization", "program", "status"]),

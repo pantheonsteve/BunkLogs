@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CamperCareOrders from '../Orders';
 
 const getMock = vi.fn();
@@ -147,6 +147,29 @@ describe('CamperCareOrders', () => {
       'cccc3333-cccc-3333-cccc-333333333333',
     ]);
     expect(payload.note).toBe('Distributed at line-up.');
+  });
+
+  it('navigates to order detail when a row is clicked', async () => {
+    getMock.mockResolvedValueOnce({ data: samplePayload });
+    render(
+      <MemoryRouter initialEntries={['/camper-care/orders']}>
+        <Routes>
+          <Route path="/camper-care/orders" element={<CamperCareOrders />} />
+          <Route
+            path="/camper-care/orders/:orderId"
+            element={<div data-testid="order-detail-landed" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByTestId('order-row-aaaa1111-aaaa-1111-aaaa-111111111111')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('order-row-aaaa1111-aaaa-1111-aaaa-111111111111'));
+    await waitFor(() => {
+      expect(screen.getByTestId('order-detail-landed')).toBeInTheDocument();
+    });
   });
 
   it('switches filter and refetches with my_caseload', async () => {
