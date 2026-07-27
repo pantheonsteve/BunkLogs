@@ -10,9 +10,11 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 
 from bunk_logs.core.campminder_csv import build_import_template_csv
+from bunk_logs.core.campminder_csv import decode_csv_bytes
 from bunk_logs.core.campminder_csv import infer_role_from_position
 from bunk_logs.core.campminder_csv import normalize_campminder_row
 from bunk_logs.core.campminder_csv import normalize_role_value
+from bunk_logs.core.campminder_csv import read_campminder_csv_rows
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -191,6 +193,21 @@ class TestCampminderCsvNormalization:
         assert "PersonID,Last Name,First Name,Login/Email,Role" in csv_text.splitlines()[0]
         assert "camper_care" in csv_text
 
+    def test_decode_csv_bytes_accepts_windows_1252(self):
+        raw = "Last Name,Preferred Name,PersonID\r\nGarc\xeda,Jos\xe9,20476517\r\n".encode("cp1252")
+        text = decode_csv_bytes(raw)
+        assert "José" in text
+        assert "García" in text
+
+    def test_read_campminder_csv_rows_accepts_windows_1252_file(self, tmp_path):
+        raw = "Last Name,Preferred Name,PersonID\r\nGarc\xeda,Jos\xe9,20476517\r\n".encode("cp1252")
+        csv_path = tmp_path / "campers.csv"
+        csv_path.write_bytes(raw)
+        rows = read_campminder_csv_rows(csv_path)
+        assert len(rows) == 1
+        assert normalize_campminder_row(rows[0])["preferred_name"] == "José"
+        assert normalize_campminder_row(rows[0])["last_name"] == "García"
+
 
 @pytest.mark.django_db
 class TestCampminderCamperExport:
@@ -225,6 +242,23 @@ class TestCampminderCamperExport:
         allie = Person.all_objects.get(external_ids__campminder_id="20476515")
         assert allie.last_name == "Abraham"
         assert allie.preferred_name == "Allie"
+
+    def test_imports_windows_1252_camper_export(self, tmp_path, program):
+        raw = "Last Name,Preferred Name,PersonID\r\nGarc\xeda,Jos\xe9,20476517\r\n".encode("cp1252")
+        csv_path = tmp_path / "campers.csv"
+        csv_path.write_bytes(raw)
+        out = StringIO()
+        call_command(
+            "import_campminder_roster",
+            csv_path=str(csv_path),
+            org_slug="test-camp",
+            program_slug="summer-2026",
+            stdout=out,
+        )
+        jose = Person.all_objects.get(external_ids__campminder_id="20476517")
+        assert jose.last_name == "García"
+        assert jose.preferred_name == "José"
+        assert jose.first_name == "José"
 
 
 @pytest.mark.django_db

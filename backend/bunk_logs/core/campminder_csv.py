@@ -266,17 +266,28 @@ def normalize_campminder_row(row: dict) -> dict:
     }
 
 
+_CSV_ENCODINGS = ("utf-8-sig", "cp1252", "latin-1")
+
+
+def decode_csv_bytes(raw_bytes: bytes) -> str:
+    """Decode CSV export bytes; Campminder/Excel exports are often Windows-1252."""
+    for encoding in _CSV_ENCODINGS:
+        try:
+            return raw_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("utf-8-sig", errors="replace")
+
+
 def read_campminder_csv_rows(source) -> list[dict]:
     """Read a Campminder CSV from a path or text stream, sniffing comma/tab delimiters."""
     if isinstance(source, (str, Path)):
-        with Path(source).open(newline="", encoding="utf-8-sig") as handle:
-            return _read_dict_rows(handle)
+        return _read_dict_rows(io.StringIO(decode_csv_bytes(Path(source).read_bytes())))
     return _read_dict_rows(source)
 
 
 def read_campminder_csv_bytes(raw_bytes: bytes) -> list[dict]:
-    text = raw_bytes.decode("utf-8-sig", errors="replace")
-    return _read_dict_rows(io.StringIO(text))
+    return _read_dict_rows(io.StringIO(decode_csv_bytes(raw_bytes)))
 
 
 def _read_dict_rows(handle) -> list[dict]:

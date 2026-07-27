@@ -51,6 +51,30 @@ export const HELP_ARTICLE_META = [
     tags: ['dashboards', 'supervise'],
     sortOrder: 50,
   },
+  {
+    slug: 'assign-campers-to-bunks',
+    title: 'Assigning campers to bunks',
+    summary:
+      'Bulk-place campers into bunks via CSV import or per-bunk roster upload.',
+    tags: ['assignments', 'getting-started'],
+    sortOrder: 60,
+  },
+  {
+    slug: 'assign-counselors-to-bunks',
+    title: 'Assigning counselors to bunks',
+    summary:
+      'Place counselors on bunks as authors via CSV import or the Assignments UI.',
+    tags: ['assignments', 'getting-started'],
+    sortOrder: 70,
+  },
+  {
+    slug: 'assign-camper-care-caseloads',
+    title: 'Assigning Camper Care to caseloads',
+    summary:
+      'Build a Camper Care member\'s caseload of supervised bunks that drives their dashboard.',
+    tags: ['assignments', 'supervise'],
+    sortOrder: 80,
+  },
 ];
 
 const contentBySlug = Object.fromEntries(
