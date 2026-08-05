@@ -58,6 +58,7 @@ const PerformanceDashboardPage = lazy(() => import('../pages/groups/PerformanceD
 const CoverageDashboardPage = lazy(() => import('../pages/dashboards/CoverageDashboardPage'));
 const SubjectTrendsPage = lazy(() => import('../pages/dashboards/SubjectTrendsPage'));
 const SubjectDetailPage = lazy(() => import('../pages/dashboards/SubjectDetailPage'));
+const SubjectEntriesPage = lazy(() => import('../pages/dashboards/SubjectEntriesPage'));
 const AuthorAttributionPage = lazy(() => import('../pages/dashboards/AuthorAttributionPage'));
 const ConcernsInboxPage = lazy(() => import('../pages/dashboards/ConcernsInboxPage'));
 const GroupDashboardPage = lazy(() => import('../pages/dashboards/GroupDashboardPage'));
@@ -214,6 +215,7 @@ export const routeConfig = [
   { path: '/dashboards', element: protect(<DashboardsIndex />) },
   { path: '/dashboards/coverage', element: protect(<CoverageDashboardPage />) },
   { path: '/profile/:personId', element: protect(<SubjectDetailPage />) },
+  { path: '/profile/:personId/entries', element: protect(<SubjectEntriesPage />) },
   { path: '/dashboards/subject/:personId', element: <SubjectProfileRedirect /> },
   { path: '/dashboards/authors', element: protect(<AuthorAttributionPage />) },
   { path: '/dashboards/concerns', element: protect(<ConcernsInboxPage />) },

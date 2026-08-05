@@ -300,6 +300,11 @@ urlpatterns = [
         subject_dashboard.SubjectDetailView.as_view(),
         name="dashboard-subject-detail",
     ),
+    path(
+        "dashboards/subject/<int:person_id>/export/",
+        subject_dashboard.SubjectEntriesExportView.as_view(),
+        name="dashboard-subject-entries-export",
+    ),
 
     # Unified per-group dashboard. Role + group-type-resolving
     # endpoint that replaces /api/v1/unit-head/bunks/<id>/ and
