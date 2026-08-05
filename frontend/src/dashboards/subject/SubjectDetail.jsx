@@ -22,6 +22,7 @@ import {
   profileBackLabel,
   resolveProfileBackGroup,
 } from '../../utils/dashboardLinks';
+import { subjectEntriesPageLink } from './flattenSubjectEntries';
 import { sensitivityAudience } from '../../api/observations';
 import ObservationComposer, { dateOnlyToLocalDatetime } from '../../components/observations/ObservationComposer';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
@@ -76,7 +77,7 @@ function ProfileBackLink({ groupIdParam, backDate, profile }) {
   );
 }
 
-function ProfileHeader({ subject, profile }) {
+export function ProfileHeader({ subject, profile }) {
   const displayName = subject?.name ?? profile?.full_name ?? 'Unknown';
   const preferred = profile?.preferred_name && profile.preferred_name !== displayName
     ? ` (${profile.preferred_name})`
@@ -197,7 +198,7 @@ function HelpRequestBadges({ templates, language = 'en' }) {
 
 const PRESET_DAYS = [7, 30, 90];
 
-function PeriodStepper({ period, rangeStart, rangeEnd, onRangeChange, refreshing }) {
+export function PeriodStepper({ period, rangeStart, rangeEnd, onRangeChange, refreshing }) {
   if (!period) return null;
 
   const inputStart = rangeStart || period.start;
@@ -477,6 +478,17 @@ export default function SubjectDetail({
         onRangeChange={onRangeChange}
         refreshing={refreshing}
       />
+      {personId && (
+        <div className="mb-6 flex justify-end">
+          <Link
+            to={subjectEntriesPageLink(personId, { start: rangeStart, end: rangeEnd })}
+            className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+            data-testid="subject-all-entries-link"
+          >
+            All entries →
+          </Link>
+        </div>
+      )}
 
       {(!templates || templates.length === 0) ? (
         <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="subject-empty">

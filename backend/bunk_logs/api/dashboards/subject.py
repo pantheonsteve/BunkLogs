@@ -1,6 +1,7 @@
 """Per-subject detail dashboard.
 
 GET /api/v1/dashboards/subject/{person_id}/?date_start=&date_end=
+GET /api/v1/dashboards/subject/{person_id}/export/?date_start=&date_end=
 
 Returns all reflections about ``person_id`` (visible to viewer), grouped by
 template, plus per-rating-field time series, recent text responses, and a
@@ -12,18 +13,26 @@ No scipy dependency: trend detection is a simple two-window average compare.
 
 from __future__ import annotations
 
+import csv
+import io
+import re
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from typing import Any
 
+from django.http import HttpResponse
+from django.utils import timezone
+from django.utils.html import strip_tags
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.api.counselor.common import is_truthy_yes_no
+from bunk_logs.core import audit
 from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -42,6 +51,12 @@ TREND_LOOKBACK_DAYS = 14
 TREND_DELTA_THRESHOLD = 0.5
 MIN_REFLECTIONS_PER_HALF_FOR_TREND = 3
 RECENT_TEXT_LIMIT = 30
+MAX_OBSERVATIONS_PER_SUBJECT = 200
+TEXT_FIELD_TYPES = frozenset({"text", "textarea", "long_text"})
+SCORE_CATEGORY_KEYS = ("behavior", "participation", "social")
+NARRATIVE_FIELD_KEYS = frozenset({"daily_report", "description"})
+NARRATIVE_DASHBOARD_ROLES = frozenset({"open_concern"})
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 
 def _parse_date(s: str | None, default: date) -> date:
@@ -58,6 +73,260 @@ def _parse_date(s: str | None, default: date) -> date:
 # file. New callers should import directly from
 # ``bunk_logs.core.reflection_scores``.
 from bunk_logs.core.reflection_scores import resolve_rating_cells as _resolve_rating
+
+
+@dataclass(frozen=True)
+class SubjectDashboardContext:
+    subject: Person
+    viewer_person: Person | None
+    org: Any
+    cur_start: date
+    cur_end: date
+
+
+def _parse_period_from_request(request) -> tuple[date, date]:
+    today = date.today()
+    cur_end = _parse_date(request.query_params.get("date_end"), today)
+    cur_start = _parse_date(
+        request.query_params.get("date_start"),
+        cur_end - timedelta(days=DEFAULT_WINDOW_DAYS - 1),
+    )
+    if cur_end < cur_start:
+        cur_start, cur_end = cur_end, cur_start
+    if (cur_end - cur_start).days > MAX_WINDOW_DAYS - 1:
+        cur_start = cur_end - timedelta(days=MAX_WINDOW_DAYS - 1)
+    return cur_start, cur_end
+
+
+def _get_subject_dashboard_context(
+    request,
+    person_id: int,
+) -> tuple[SubjectDashboardContext | None, Response | None]:
+    org = getattr(request, "organization", None)
+    if org is None:
+        return None, Response({"detail": "Organization context required."}, status=403)
+
+    subject = Person.objects.filter(id=person_id).first()
+    if subject is None:
+        return None, Response({"detail": "Subject not found."}, status=404)
+
+    if subject.organization_id != org.id:
+        return None, Response({"detail": "Subject not found."}, status=404)
+
+    viewer_person = Person.all_objects.filter(user=request.user).first()
+    if not can_view_subject_dashboard(viewer_person, subject, org, request.user):
+        return None, Response(
+            {"detail": "You do not have permission to view this subject's dashboard."},
+            status=403,
+        )
+
+    cur_start, cur_end = _parse_period_from_request(request)
+    return SubjectDashboardContext(
+        subject=subject,
+        viewer_person=viewer_person,
+        org=org,
+        cur_start=cur_start,
+        cur_end=cur_end,
+    ), None
+
+
+def _reflections_for_subject(
+    user,
+    person_id: int,
+    cur_start: date,
+    cur_end: date,
+) -> list[Reflection]:
+    return list(
+        reflections_visible_for_user(
+            user,
+            Reflection.objects.filter(
+                subject_id=person_id,
+                period_end__gte=cur_start,
+                period_end__lte=cur_end,
+                is_complete=True,
+            ).select_related("template", "author", "assignment_group"),
+        ).order_by("period_end")[:MAX_REFLECTIONS_PER_SUBJECT],
+    )
+
+
+def _normalize_csv_cell(value: str) -> str:
+    """Collapse whitespace/newlines so each CSV row stays on one physical line."""
+    if not value:
+        return ""
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _narrative_text_fields(schema_fields: list, language: str) -> list[dict]:
+    """Fields whose answers belong in the export ``full_text`` column.
+
+    Prefer the main daily narrative (``daily_report`` / ``open_concern``) and
+    skip short supplementary prompts such as "elaborate on why …".
+    """
+    text_fields = [
+        f for f in schema_fields
+        if isinstance(f, dict) and f.get("type") in TEXT_FIELD_TYPES
+    ]
+    daily = [f for f in text_fields if f.get("key") in NARRATIVE_FIELD_KEYS]
+    if daily:
+        return daily
+    concern = [
+        f for f in text_fields
+        if f.get("dashboard_role") in NARRATIVE_DASHBOARD_ROLES
+    ]
+    if concern:
+        return concern
+    return [
+        f for f in text_fields
+        if "elaborate" not in _field_label(f, language).lower()
+    ] or text_fields
+
+
+def _strip_html(value: str) -> str:
+    if not value:
+        return ""
+    text = strip_tags(value)
+    text = _HTML_TAG_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _localized_label(labels: dict | str | None, language: str, fallback: str = "") -> str:
+    if not labels:
+        return fallback
+    if isinstance(labels, str):
+        return labels
+    return labels.get(language) or labels.get("en") or next(iter(labels.values()), fallback)
+
+
+def _field_label(field: dict, language: str) -> str:
+    return _localized_label(
+        field.get("prompts") or field.get("labels"),
+        language,
+        field.get("key", ""),
+    )
+
+
+def _format_reflection_flags(schema_fields: list, answers: dict, language: str) -> str:
+    parts: list[str] = []
+    for field in schema_fields:
+        if isinstance(field, dict) and _is_yes_no_field(field):
+            if is_truthy_yes_no(answers.get(field.get("key"))):
+                parts.append(_field_label(field, language))
+    return "; ".join(parts)
+
+
+def _extract_category_scores(schema_fields: list, answers: dict) -> dict[str, Any]:
+    """Pull behavior / participation / social from rating_group answers."""
+    scores = {key: "" for key in SCORE_CATEGORY_KEYS}
+    for field in schema_fields:
+        if not isinstance(field, dict):
+            continue
+        if field.get("type") != "rating_group":
+            continue
+        block = answers.get(field.get("key")) or {}
+        if not isinstance(block, dict):
+            continue
+        for cat_key in SCORE_CATEGORY_KEYS:
+            val = block.get(cat_key)
+            if val is not None and val != "":
+                scores[cat_key] = val
+    return scores
+
+
+def _format_reflection_full_text(schema_fields: list, answers: dict, language: str) -> str:
+    chunks: list[str] = []
+    for field in _narrative_text_fields(schema_fields, language):
+        raw = answers.get(field.get("key"))
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        plain = _strip_html(raw.strip())
+        if plain:
+            chunks.append(plain)
+    return _normalize_csv_cell("\n\n".join(chunks))
+
+
+def _sortable_datetime(d: date, dt: datetime | None) -> datetime:
+    if dt is not None and dt.tzinfo is not None:
+        return dt
+    naive = dt if dt is not None else datetime.combine(d, time.min)
+    return timezone.make_aware(naive, timezone.get_current_timezone())
+
+
+def _build_subject_entries_csv(
+    *,
+    subject_name: str,
+    reflections: list[Reflection],
+    observations: list[Observation],
+) -> str:
+    rows: list[tuple[date, datetime, list[Any]]] = []
+
+    for r in reflections:
+        schema_fields = (r.template.schema or {}).get("fields") or []
+        language = r.language or "en"
+        category_scores = _extract_category_scores(schema_fields, r.answers or {})
+        rows.append((
+            r.period_end,
+            datetime.combine(r.period_end, time.min),
+            [
+                r.period_end.isoformat(),
+                subject_name,
+                "reflection",
+                r.template.name if r.template else "",
+                r.author.full_name if r.author else "",
+                r.assignment_group.name if r.assignment_group else "",
+                language,
+                category_scores["behavior"],
+                category_scores["participation"],
+                category_scores["social"],
+                _format_reflection_flags(schema_fields, r.answers or {}, language),
+                _format_reflection_full_text(schema_fields, r.answers or {}, language),
+                r.id,
+            ],
+        ))
+
+    for o in observations:
+        obs_date = o.observed_at.date() if o.observed_at else date.min
+        rows.append((
+            obs_date,
+            o.observed_at or datetime.combine(obs_date, time.min),
+            [
+                obs_date.isoformat() if o.observed_at else "",
+                subject_name,
+                "observation",
+                "",
+                o.author.full_name if o.author else "",
+                "",
+                o.language or "",
+                "",
+                "",
+                "",
+                "",
+                _normalize_csv_cell(_strip_html(o.body or "")),
+                o.id,
+            ],
+        ))
+
+    rows.sort(key=lambda item: _sortable_datetime(item[0], item[1]))
+
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow([
+        "date",
+        "subject_name",
+        "entry_type",
+        "template_name",
+        "author_name",
+        "assignment_group",
+        "language",
+        "behavior",
+        "participation",
+        "social",
+        "flags",
+        "full_text",
+        "entry_id",
+    ])
+    for _, __, row in rows:
+        writer.writerow(row)
+    return "\ufeff" + out.getvalue()
 
 
 def _subject_profile(subject: Person, organization) -> dict[str, Any]:
@@ -127,7 +396,7 @@ def _observations_for_viewer(
     *,
     start: date,
     end: date,
-    limit: int = 50,
+    limit: int | None = MAX_OBSERVATIONS_PER_SUBJECT,
 ) -> list[dict[str, Any]]:
     """Return Observations about ``subject`` the viewer may read, newest first.
 
@@ -147,9 +416,10 @@ def _observations_for_viewer(
         .select_related("author")
         .prefetch_related("subject_links__subject")
     )
-    observations = list(
-        filter_observations_readable(base, viewer_person, org, user).order_by("-observed_at")[:limit],
-    )
+    qs = filter_observations_readable(base, viewer_person, org, user).order_by("-observed_at")
+    if limit is not None:
+        qs = qs[:limit]
+    observations = list(qs)
     return [
         {
             "id": o.id,
@@ -221,50 +491,18 @@ class SubjectDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, person_id: int, *args, **kwargs):
-        org = getattr(request, "organization", None)
-        if org is None:
-            return Response({"detail": "Organization context required."}, status=403)
-
-        subject = Person.objects.filter(id=person_id).first()
-        if subject is None:
-            return Response({"detail": "Subject not found."}, status=404)
-
-        # Defense-in-depth: OrgScopedManager already enforces this, but be explicit.
-        if subject.organization_id != org.id:
-            return Response({"detail": "Subject not found."}, status=404)
-
-        viewer_person = Person.all_objects.filter(user=request.user).first()
-        if not can_view_subject_dashboard(viewer_person, subject, org, request.user):
-            return Response(
-                {"detail": "You do not have permission to view this subject's dashboard."},
-                status=403,
-            )
-
+        ctx, err = _get_subject_dashboard_context(request, person_id)
+        if err is not None:
+            return err
+        assert ctx is not None
+        subject = ctx.subject
+        viewer_person = ctx.viewer_person
+        org = ctx.org
+        cur_start = ctx.cur_start
+        cur_end = ctx.cur_end
         today = date.today()
-        cur_end = _parse_date(request.query_params.get("date_end"), today)
-        cur_start = _parse_date(
-            request.query_params.get("date_start"),
-            cur_end - timedelta(days=DEFAULT_WINDOW_DAYS - 1),
-        )
-        if cur_end < cur_start:
-            cur_start, cur_end = cur_end, cur_start
-        if (cur_end - cur_start).days > MAX_WINDOW_DAYS - 1:
-            cur_start = cur_end - timedelta(days=MAX_WINDOW_DAYS - 1)
 
-        # Pull reflections about this subject within window, scoped to viewer.
-        # Cap at MAX_REFLECTIONS_PER_SUBJECT to prevent unbounded queries on
-        # subjects with long histories; the 90-day window already constrains most cases.
-        refs = list(
-            reflections_visible_for_user(
-                request.user,
-                Reflection.objects.filter(
-                    subject_id=person_id,
-                    period_end__gte=cur_start,
-                    period_end__lte=cur_end,
-                    is_complete=True,
-                ).select_related("template", "author", "assignment_group"),
-            ).order_by("period_end")[:MAX_REFLECTIONS_PER_SUBJECT],
-        )
+        refs = _reflections_for_subject(request.user, person_id, cur_start, cur_end)
 
         if not refs:
             # 403 vs empty: if viewer has zero visible reflections of any kind for this
@@ -403,3 +641,59 @@ class SubjectDetailView(APIView):
             # TODO(7_23): legacy "notes" key removed; observations is the Profile feed.
             "observations": observations,
         })
+
+
+class SubjectEntriesExportView(APIView):
+    """CSV export of all visible reflections + observations for one subject."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, person_id: int, *args, **kwargs):
+        ctx, err = _get_subject_dashboard_context(request, person_id)
+        if err is not None:
+            return err
+        assert ctx is not None
+
+        refs = _reflections_for_subject(
+            request.user, person_id, ctx.cur_start, ctx.cur_end,
+        )
+        tz = get_org_timezone(ctx.org)
+        range_start = datetime.combine(ctx.cur_start, time.min, tzinfo=tz)
+        range_end = datetime.combine(ctx.cur_end, time.min, tzinfo=tz) + timedelta(days=1)
+        obs_base = (
+            Observation.all_objects.filter(
+                organization=ctx.org,
+                subject_links__subject=ctx.subject,
+                observed_at__gte=range_start,
+                observed_at__lt=range_end,
+            )
+            .select_related("author")
+        )
+        observations = list(
+            filter_observations_readable(
+                obs_base, ctx.viewer_person, ctx.org, request.user,
+            ).order_by("observed_at"),
+        )
+
+        csv_text = _build_subject_entries_csv(
+            subject_name=ctx.subject.full_name,
+            reflections=refs,
+            observations=observations,
+        )
+        name_part = ctx.subject.full_name or ctx.subject.preferred_name or str(ctx.subject.id)
+        slug = re.sub(r"[^\w\-]+", "_", name_part.strip()) or str(ctx.subject.id)
+        filename = f"{slug}_entries_{ctx.cur_start}_{ctx.cur_end}.csv"
+        response = HttpResponse(csv_text, content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        audit.export(
+            actor=request.user,
+            content_query={
+                "endpoint": "dashboards.subject_entries_export",
+                "person_id": person_id,
+                "date_start": ctx.cur_start.isoformat(),
+                "date_end": ctx.cur_end.isoformat(),
+            },
+            organization=ctx.org,
+        )
+        return response

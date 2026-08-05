@@ -79,10 +79,26 @@ def _bunk_pulse_template(org):
                     "required": True,
                 },
                 {
+                    "key": "camper_scores",
+                    "type": "rating_group",
+                    "scale": [1, 5],
+                    "categories": [
+                        {"key": "behavior", "labels": {"en": "Behavior"}},
+                        {"key": "participation", "labels": {"en": "Participation"}},
+                        {"key": "social", "labels": {"en": "Social"}},
+                    ],
+                },
+                {
                     "key": "concerns",
                     "type": "textarea",
                     "dashboard_role": "open_concern",
                     "prompts": {"en": "Concerns?"},
+                    "required": False,
+                },
+                {
+                    "key": "elaborate_why",
+                    "type": "textarea",
+                    "prompts": {"en": "Elaborate on why (positive or negative)"},
                     "required": False,
                 },
             ],
@@ -598,3 +614,105 @@ def test_subject_dashboard_observations_bucketed_by_observed_at_date(
     assert obs_yesterday.id not in today_ids
     assert obs_yesterday.id in yest_ids
     assert obs_today.id not in yest_ids
+
+
+def test_subject_entries_export_csv(api_client, org, program, setup):
+    _, camper, counselor_user, counselor = setup
+    pulse = _bunk_pulse_template(org)
+    today = date.today()
+    _make_reflection(
+        org, program, pulse, subject=camper, author=counselor,
+        day=today,
+        answers={
+            "overall": 4,
+            "concerns": "<p>missed mom</p>",
+            "elaborate_why": "short aside",
+            "camper_scores": {"behavior": 4, "participation": 5, "social": 3},
+        },
+    )
+    tz = get_org_timezone(org)
+    obs = Observation.all_objects.create(
+        organization=org,
+        program=program,
+        author=counselor,
+        author_role_at_write="counselor",
+        body="<p>Follow-up note</p>",
+        observed_at=datetime.combine(today, time(14, 0), tzinfo=tz),
+    )
+    ObservationSubject.objects.create(observation=obs, subject=camper)
+
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/export/"
+        f"?date_start={today.isoformat()}&date_end={today.isoformat()}",
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 200, r.content
+    assert r["Content-Type"] == "text/csv"
+    assert "attachment" in r["Content-Disposition"]
+    assert "Sarah_Levin" in r["Content-Disposition"]
+    text = r.content.decode("utf-8")
+    assert "subject_name" in text
+    assert "behavior" in text
+    assert "participation" in text
+    assert "social" in text
+    assert "Sarah Levin" in text
+    assert "reflection" in text
+    assert "observation" in text
+    assert "missed mom" in text
+    assert "short aside" not in text
+    assert "Concerns?" not in text
+    assert "Elaborate on why" not in text
+    assert "Follow-up note" in text
+    assert "<p>" not in text
+    assert text.startswith("\ufeff")
+    lines = text.strip().splitlines()
+    assert lines[0].endswith("entry_id") or "entry_id" in lines[0]
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        assert line.startswith("202"), f"multiline cell broke CSV row: {line[:80]!r}"
+    data_lines = [line for line in lines[1:] if line.startswith("202")]
+    assert data_lines, "expected at least one data row"
+    assert ",4,5,3," in data_lines[0] or ",4,5,3," in text
+
+
+def test_subject_entries_export_respects_date_range(api_client, org, program, setup):
+    _, camper, counselor_user, counselor = setup
+    pulse = _bunk_pulse_template(org)
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    _make_reflection(
+        org, program, pulse, subject=camper, author=counselor,
+        day=today, answers={"overall": 4, "concerns": "today only"},
+    )
+    _make_reflection(
+        org, program, pulse, subject=camper, author=counselor,
+        day=yesterday, answers={"overall": 3, "concerns": "yesterday only"},
+    )
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/export/"
+        f"?date_start={today.isoformat()}&date_end={today.isoformat()}",
+        **_hdr(org.slug),
+    )
+    assert r.status_code == 200, r.content
+    text = r.content.decode("utf-8")
+    assert "today only" in text
+    assert "yesterday only" not in text
+
+
+def test_subject_entries_export_forbidden_for_unauthorized_viewer(
+    api_client, org, program, setup,
+):
+    _, camper, _, _ = setup
+    stranger_user = _user("stranger-sd@a.com")
+    stranger = _person(org, "Str", "Anger", stranger_user)
+    Membership.all_objects.create(
+        program=program, person=stranger, role="counselor", is_active=True,
+    )
+    api_client.force_authenticate(user=stranger_user)
+    r = api_client.get(
+        f"/api/v1/dashboards/subject/{camper.id}/export/", **_hdr(org.slug),
+    )
+    assert r.status_code == 403
