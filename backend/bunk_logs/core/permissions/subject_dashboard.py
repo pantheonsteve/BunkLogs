@@ -42,18 +42,6 @@ def _has_org_admin_membership(person: Person, org) -> bool:
     ).exists()
 
 
-def _has_legacy_user_role_admin(user, person: Person, org) -> bool:
-    """Bridge legacy ``User.role`` until auth exposes ``Membership.capability``."""
-    role = (getattr(user, "role", None) or "").strip().lower()
-    if role != "admin":
-        return False
-    return Membership.all_objects.filter(
-        person=person,
-        is_active=True,
-        program__organization=org,
-    ).exists()
-
-
 def viewer_capability(person: Person, org) -> str | None:
     """Highest-privilege capability the person holds in this org."""
     caps = _membership_capabilities(person, org)
@@ -105,8 +93,6 @@ def can_view_subject_dashboard(
     if viewer_person is None:
         return False
     if _has_org_admin_membership(viewer_person, org):
-        return True
-    if _has_legacy_user_role_admin(user, viewer_person, org):
         return True
     cap = viewer_capability(viewer_person, org)
     if cap in ("admin", "program_lead", "domain_specialist"):

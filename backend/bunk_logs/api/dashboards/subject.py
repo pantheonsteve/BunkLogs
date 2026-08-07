@@ -34,6 +34,7 @@ from rest_framework.views import APIView
 from bunk_logs.api.counselor.common import is_truthy_yes_no
 from bunk_logs.core import audit
 from bunk_logs.core.filters import reflections_visible_for_user
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
@@ -113,7 +114,7 @@ def _get_subject_dashboard_context(
     if subject.organization_id != org.id:
         return None, Response({"detail": "Subject not found."}, status=404)
 
-    viewer_person = Person.all_objects.filter(user=request.user).first()
+    viewer_person = person_for_user(request.user, organization=org)
     if not can_view_subject_dashboard(viewer_person, subject, org, request.user):
         return None, Response(
             {"detail": "You do not have permission to view this subject's dashboard."},

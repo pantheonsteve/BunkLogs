@@ -8,9 +8,13 @@ vi.mock('../../../api', () => ({
   default: { get: (...args) => getMock(...args) },
 }));
 
+const orgUser = (capability, roles = []) => ({
+  organizations: [{ slug: 'clc', capability, roles }],
+});
+
 const authState = vi.hoisted(() => ({
   orgSlug: 'test-org',
-  user: { role: 'Leadership Team' },
+  user: { organizations: [{ slug: 'clc', capability: 'program_lead', roles: ['leadership_team'] }] },
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
@@ -167,7 +171,7 @@ const aggregatePayload = {
 
 beforeEach(() => {
   getMock.mockReset();
-  authState.user = { role: 'Leadership Team' };
+  authState.user = orgUser('program_lead', ['leadership_team']);
 });
 
 function renderAt(route) {
@@ -302,7 +306,7 @@ describe('LeadershipTeamResponses', () => {
   });
 
   it('routes admin back link to reflections dashboard preserving date', async () => {
-    authState.user = { role: 'Admin' };
+    authState.user = orgUser('admin', ['admin']);
     getMock.mockImplementation((url) => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
       return Promise.resolve({ data: templatePayload });
@@ -314,7 +318,7 @@ describe('LeadershipTeamResponses', () => {
   });
 
   it('routes admin to bunk logs dashboard when opened from logs hub', async () => {
-    authState.user = { role: 'Admin' };
+    authState.user = orgUser('admin', ['admin']);
     getMock.mockImplementation((url) => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
       return Promise.resolve({ data: templatePayload });

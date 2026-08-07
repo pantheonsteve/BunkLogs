@@ -34,9 +34,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Order
-from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
@@ -65,7 +65,7 @@ class AdminGlobalSearchView(APIView):
                 {"detail": f"q must be at least {MIN_QUERY_LEN} characters."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        viewer = Person.all_objects.filter(user=request.user).first()
+        viewer = person_for_user(request.user, organization=org)
         query = SearchQuery(q)
         groups: dict[str, list[dict]] = {
             "people": _search_people(org, viewer, request.user, query, q),

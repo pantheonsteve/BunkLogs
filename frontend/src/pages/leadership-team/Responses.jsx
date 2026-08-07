@@ -40,6 +40,7 @@ import {
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
 import isSuperAdmin from '../../utils/auth/isSuperAdmin';
+import { hasCapability } from '../../utils/auth/capability';
 import SingleDatePicker from '../../components/ui/SingleDatePicker';
 import {
   deriveSchemaSections,
@@ -813,7 +814,7 @@ function buildApiParams(urlParams, activeTab) {
 export default function LeadershipTeamResponses() {
   const { id } = useParams();
   const { orgSlug, user } = useAuth();
-  const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
+  const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') || 'individual').toLowerCase();
   const language = params.get('language') || 'en';

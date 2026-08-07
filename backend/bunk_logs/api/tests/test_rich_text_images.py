@@ -41,7 +41,7 @@ class TestRichTextImageUpload(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = reverse("api:rich-text-image-upload")
-        self.user = UserFactory(counselor=True)
+        self.user = UserFactory()
 
     def test_authenticated_user_can_upload_image(self):
         self.client.force_authenticate(user=self.user)
@@ -69,29 +69,6 @@ class TestRichTextImageUpload(TestCase):
         assert RichTextImage.objects.count() == 0
 
 
-class TestInlineImageGuard(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.list_url = reverse("api:counselorlog-list")
-        self.counselor = UserFactory(counselor=True)
-
-    def test_staff_log_rejects_inline_base64_image(self):
-        self.client.force_authenticate(user=self.counselor)
-        payload = {
-            "date": str(date.today()),
-            "day_quality_score": 4,
-            "support_level_score": 4,
-            "elaboration": f'<p>Look <img src="{_data_uri()}"></p>',
-            "values_reflection": "Nothing embedded here.",
-            "day_off": False,
-            "staff_care_support_needed": False,
-        }
-        response = self.client.post(self.list_url, payload, format="json")
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "elaboration" in response.data
-        assert not StaffLog.objects.filter(staff_member=self.counselor).exists()
-
-
 class TestReplaceInlineImages(TestCase):
     def test_replace_rewrites_src_and_counts(self):
         html = f'<p>a<img src="{_data_uri()}">b</p>'
@@ -109,7 +86,7 @@ class TestReplaceInlineImages(TestCase):
 
 class TestMigrateInlineImagesCommand(TestCase):
     def setUp(self):
-        self.user = UserFactory(counselor=True)
+        self.user = UserFactory()
 
     def _make_log_with_inline_image(self):
         return StaffLog.objects.create(

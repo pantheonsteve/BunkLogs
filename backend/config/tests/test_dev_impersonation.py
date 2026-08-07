@@ -19,7 +19,6 @@ def counselor():
     return User.objects.create_user(
         email="counselor@dev.test",
         password="pw",
-        role=User.COUNSELOR,
         first_name="Casey",
         last_name="Counselor",
     )
@@ -49,7 +48,6 @@ def test_users_search_returns_matches(api, counselor):
     User.objects.create_user(
         email="unithead@dev.test",
         password="pw",
-        role=User.UNIT_HEAD,
         first_name="Uma",
         last_name="Head",
     )
@@ -71,7 +69,8 @@ def test_login_mints_tokens_for_user(api, counselor):
     assert body["access"]
     assert body["refresh"]
     assert body["user"]["email"] == counselor.email
-    assert body["user"]["role"] == User.COUNSELOR
+    assert "membership_roles" in body["user"]
+    assert "organizations" in body["user"]
 
 
 @override_settings(DEBUG=True, DATABASES={"default": {"HOST": "postgres"}})

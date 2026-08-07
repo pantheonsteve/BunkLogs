@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from rest_framework.exceptions import PermissionDenied
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions import is_super_admin
@@ -57,7 +58,7 @@ def viewer_or_403(request) -> AdminContext:
         msg = "Authentication required."
         raise PermissionDenied(msg)
     super_admin = is_super_admin(request.user)
-    person = Person.all_objects.filter(user=request.user).first()
+    person = person_for_user(request.user, organization=org)
     membership = None
     if person is not None:
         membership = (

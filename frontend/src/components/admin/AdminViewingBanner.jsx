@@ -1,5 +1,6 @@
 import { useAuth } from '../../auth/AuthContext';
 import isSuperAdmin from '../../utils/auth/isSuperAdmin';
+import { hasCapability } from '../../utils/auth/capability';
 
 /**
  * Step 7_13 — Story 59 criterion 2.
@@ -16,7 +17,7 @@ import isSuperAdmin from '../../utils/auth/isSuperAdmin';
  */
 export default function AdminViewingBanner({ roleLabel }) {
   const { user } = useAuth();
-  const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
+  const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
   if (!isAdmin) return null;
   return (
     <div

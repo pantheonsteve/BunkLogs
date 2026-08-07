@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from django.db.models import Q
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentDashboardGrant
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -34,9 +35,7 @@ if TYPE_CHECKING:
 
 
 def _person_for_user(user) -> Person | None:
-    if user is None or not getattr(user, "is_authenticated", False):
-        return None
-    return Person.all_objects.filter(user=user).first()
+    return person_for_user(user)
 
 
 def _active_supervisions(person: Person, organization_id: int):

@@ -542,7 +542,6 @@ def google_callback(request):
                     email=email,
                     first_name=userinfo.get("given_name", ""),
                     last_name=userinfo.get("family_name", ""),
-                    role="Counselor",  # Default role
                 )
 
                 # Create social account

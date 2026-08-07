@@ -119,7 +119,7 @@ export function AuthProvider({ children }) {
       if (tokens.user) {
         console.log('Setting user from API response:', tokens.user);
         let profile = tokens.user;
-        if (!Array.isArray(profile.membership_roles) && profile.email) {
+        if ((!Array.isArray(profile.membership_roles) || !Array.isArray(profile.organizations)) && profile.email) {
           try {
             const response = await api.get(`/api/v1/users/email/${profile.email}/`);
             profile = response.data;
@@ -195,12 +195,15 @@ export function AuthProvider({ children }) {
         }
       }
       
-      // As a last resort, set minimal user info from token
+      // As a last resort, set minimal user info from token. Do NOT invent
+      // roles: membership data comes from the profile endpoint, and routing
+      // treats a user without org context as unresolved (-> /no-access).
       userProfile = {
         id: decoded.user_id,
         email: decoded.email,
         name: decoded.name || decoded.email,
-        role: decoded.role || 'Counselor'
+        membership_roles: [],
+        organizations: [],
       };
       
       setUser(userProfile);
@@ -219,7 +222,8 @@ export function AuthProvider({ children }) {
           id: decoded.user_id,
           email: decoded.email,
           name: decoded.name || decoded.email,
-          role: decoded.role || 'Counselor'
+          membership_roles: [],
+          organizations: [],
         };
         setUser(fallbackUser);
         localStorage.setItem('user_profile', JSON.stringify(fallbackUser));

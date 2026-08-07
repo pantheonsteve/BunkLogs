@@ -157,17 +157,15 @@ def _resolve_person_and_membership(
     """Return the viewer's ``Person`` + best counselor ``Membership`` if any.
 
     "Best" = active ``counselor`` or ``junior_counselor`` Membership,
-    newest-first. We do NOT scope by organization slug — legacy
-    StaffLog rows don't carry an org, and Crane Lake is the only
-    Reflection-emitting tenant for now. If a person ever ends up with
-    multiple counselor memberships across orgs, we'd need to revisit.
+    newest-first. Legacy StaffLog rows don't carry an org, and a user may
+    now hold Persons in several orgs, so we select the Person *through*
+    their counselor membership — a TBE madrich profile can't shadow the
+    Crane Lake counselor profile this bridge is meant for.
     """
-    person = Person.all_objects.filter(user_id=user_id).first()
-    if person is None:
-        return None, None
+    people = Person.all_objects.filter(user_id=user_id)
     membership = (
         Membership.all_objects.filter(
-            person=person,
+            person__in=people,
             role__in=("counselor", "junior_counselor"),
             is_active=True,
         )
@@ -175,7 +173,9 @@ def _resolve_person_and_membership(
         .order_by("-created_at")
         .first()
     )
-    return person, membership
+    if membership is not None:
+        return membership.person, membership
+    return people.first(), None
 
 
 def _resolve_template(

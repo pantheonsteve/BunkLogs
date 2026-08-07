@@ -586,7 +586,6 @@ SPECTACULAR_SETTINGS = {
     "CAMELIZE_NAMES": True,
     # Fix enum naming collisions by providing specific names for different role enums
     "ENUM_NAME_OVERRIDES": {
-        "UserRoleEnum": "bunk_logs.users.models.User.ROLE_CHOICES",
         "UnitStaffRoleEnum": "bunk_logs.bunks.models.UnitStaffAssignment.ROLE_CHOICES",
     },
     "APPEND_COMPONENTS": {

@@ -22,7 +22,6 @@ def test_migration_status_forbidden_for_non_staff():
     user = User.objects.create_user(
         email="counselor@example.com",
         password="pass12345",
-        role=User.COUNSELOR,
         is_staff=False,
     )
     client.force_authenticate(user=user)
@@ -36,7 +35,6 @@ def test_migration_status_ok_for_staff():
     user = User.objects.create_user(
         email="admin@example.com",
         password="pass12345",
-        role=User.ADMIN,
         is_staff=True,
     )
     client.force_authenticate(user=user)
@@ -67,7 +65,6 @@ def test_migration_status_marks_1_5_complete_via_artifact_on_main(monkeypatch, t
     user = User.objects.create_user(
         email="admin2@example.com",
         password="pass12345",
-        role=User.ADMIN,
         is_staff=True,
     )
     client.force_authenticate(user=user)

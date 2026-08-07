@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 from typing import Any
 
-import factory
 from factory import Faker
 from factory import post_generation
 from factory.django import DjangoModelFactory
@@ -39,11 +38,3 @@ class UserFactory(DjangoModelFactory[User]):
     class Meta:
         model = User
         django_get_or_create = ["email"]
-
-    class Params:
-        counselor = factory.Trait(role=User.COUNSELOR)
-        leadership = factory.Trait(role=User.LEADERSHIP)
-        kitchen = factory.Trait(role=User.KITCHEN_STAFF)
-        unit_head = factory.Trait(role=User.UNIT_HEAD)
-        camper_care = factory.Trait(role=User.CAMPER_CARE)
-        admin = factory.Trait(role=User.ADMIN)

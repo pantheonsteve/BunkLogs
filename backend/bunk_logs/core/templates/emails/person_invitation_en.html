@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>You're invited</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <p>Hi {{ person.full_name }},</p>
+
+  <p>
+    You've been invited to join <strong>{{ organization.name }}</strong>
+    on {{ site_name }}.
+  </p>
+
+  <p>
+    <a href="{{ signin_url }}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 4px; text-decoration: none;">
+      Sign in to get started
+    </a>
+  </p>
+
+  <p>
+    Sign in with this email address ({{ person.email }}). If you use Google,
+    choose "Sign in with Google". Otherwise, use the "Forgot password" link
+    on the sign-in page to set your password.
+  </p>
+
+  <p>Thank you,<br>The {{ site_name }} Team</p>
+</body>
+</html>

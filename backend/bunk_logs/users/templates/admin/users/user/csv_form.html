@@ -26,13 +26,12 @@
                 <li><strong>email</strong> (required) - User's email address</li>
                 <li><strong>first_name</strong> (required) - User's first name</li>
                 <li><strong>last_name</strong> (required) - User's last name</li>
-                <li><strong>role</strong> (optional) - One of: Admin, Camper Care, Unit Head, Counselor (defaults to Counselor)</li>
                 <li><strong>password</strong> (optional) - User's password (if not provided, a random password will be generated)</li>
                 <li><strong>is_active</strong> (optional) - true/false (defaults to true)</li>
                 <li><strong>is_staff</strong> (optional) - true/false (defaults to false)</li>
               </ul>
               <p><strong>Example CSV:</strong></p>
-              <pre>email,first_name,last_name,role,is_active,is_staff
+              <pre>email,first_name,last_name,is_active,is_staff
 john.doe@example.com,John,Doe,Counselor,true,false
 jane.smith@example.com,Jane,Smith,Unit Head,true,false
 admin@example.com,Admin,User,Admin,true,true</pre>

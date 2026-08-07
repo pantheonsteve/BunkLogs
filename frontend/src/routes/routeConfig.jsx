@@ -25,6 +25,7 @@ import Signin from '../pages/Signin';
 // behind the <Suspense> boundary in RootLayout (see ./guards.jsx).
 const Signup = lazy(() => import('../pages/Signup'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
+const NoAccess = lazy(() => import('../pages/NoAccess'));
 const DatePickerTest = lazy(() => import('../pages/DatePickerTest'));
 const AuthCallback = lazy(() => import('../pages/AuthCallback'));
 const CallbackPage = lazy(() => import('../pages/CallbackPage'));
@@ -118,6 +119,7 @@ export const routeConfig = [
   { path: '/auth/success', element: <AuthSuccess /> },
 
   { path: '/dashboard', element: protect(<Dashboard />) },
+  { path: '/no-access', element: protect(<NoAccess />) },
   { path: '/test-datepicker', element: <DatePickerTest /> },
   { path: '/migration-dashboard', element: protect(<MigrationDashboard />) },
 

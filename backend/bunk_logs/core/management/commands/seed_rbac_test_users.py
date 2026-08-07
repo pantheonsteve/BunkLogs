@@ -158,7 +158,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-counselor@example.test",
         "first_name": "RBAC",
         "last_name": "Counselor",
-        "user_role": "Counselor",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -171,7 +170,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-kitchen@example.test",
         "first_name": "RBAC",
         "last_name": "Kitchen",
-        "user_role": "Counselor",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -184,7 +182,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-unit-head@example.test",
         "first_name": "RBAC",
         "last_name": "UnitHead",
-        "user_role": "Unit Head",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -197,7 +194,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-leadership@example.test",
         "first_name": "RBAC",
         "last_name": "Leadership",
-        "user_role": "Leadership",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -210,7 +206,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-camper-care@example.test",
         "first_name": "RBAC",
         "last_name": "CamperCare",
-        "user_role": "Camper Care",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -223,7 +218,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-health-center@example.test",
         "first_name": "RBAC",
         "last_name": "HealthCenter",
-        "user_role": "Camper Care",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -236,7 +230,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-admin@example.test",
         "first_name": "RBAC",
         "last_name": "Admin",
-        "user_role": "Admin",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -249,7 +242,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-superuser@example.test",
         "first_name": "RBAC",
         "last_name": "Superuser",
-        "user_role": "Admin",
         "is_staff": True,
         "is_superuser": True,
         "org_slug": None,
@@ -262,7 +254,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-no-membership@example.test",
         "first_name": "RBAC",
         "last_name": "NoMembership",
-        "user_role": "",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": None,
@@ -275,7 +266,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-tbe-admin@example.test",
         "first_name": "RBAC",
         "last_name": "TbeAdmin",
-        "user_role": "Admin",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": TBE_ORG_SLUG,
@@ -288,7 +278,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-specialist@example.test",
         "first_name": "RBAC",
         "last_name": "Specialist",
-        "user_role": "Counselor",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -302,7 +291,6 @@ TEST_USERS: list[dict[str, Any]] = [
         "email": "rbac-maintenance@example.test",
         "first_name": "RBAC",
         "last_name": "Maintenance",
-        "user_role": "Counselor",
         "is_staff": False,
         "is_superuser": False,
         "org_slug": CLC_ORG_SLUG,
@@ -542,7 +530,6 @@ class Command(BaseCommand):
             defaults={
                 "first_name": spec["first_name"],
                 "last_name": spec["last_name"],
-                "role": spec["user_role"],
                 "is_staff": spec["is_staff"],
                 "is_superuser": spec["is_superuser"],
                 "is_active": True,
@@ -553,7 +540,6 @@ class Command(BaseCommand):
         user.set_password(SHARED_PASSWORD)
         user.first_name = spec["first_name"]
         user.last_name = spec["last_name"]
-        user.role = spec["user_role"]
         user.is_staff = spec["is_staff"]
         user.is_superuser = spec["is_superuser"]
         user.is_active = True
@@ -565,7 +551,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  {verb} user {spec['email']} (no Person/Membership).")
             return user, None, None
 
-        person = Person.all_objects.filter(user=user).first()
+        person = Person.all_objects.filter(user=user, organization=org).first()
         if person is None:
             person = Person.all_objects.filter(
                 organization=org, email=spec["email"], user__isnull=True,

@@ -22,7 +22,11 @@ vi.mock('../../api', () => ({
 vi.mock('../../partials/Header', () => ({ default: () => <div data-testid="header" /> }));
 vi.mock('../../partials/Sidebar', () => ({ default: () => <div data-testid="sidebar" /> }));
 
-const authState = { user: { role: 'Counselor' } };
+const orgUser = (capability, roles = []) => ({
+  organizations: [{ slug: 'clc', capability, roles }],
+});
+
+const authState = { user: orgUser('participant', ['counselor']) };
 vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => authState,
 }));
@@ -71,7 +75,7 @@ describe('ObservationsInbox', () => {
   beforeEach(() => {
     getMock.mockReset();
     postMock.mockReset();
-    authState.user = { role: 'Counselor' };
+    authState.user = orgUser('participant', ['counselor']);
   });
 
   it('renders inbox items with subject summary', async () => {
@@ -119,7 +123,7 @@ describe('ObservationsInbox', () => {
   });
 
   it('shows an All tab for admins with every observation', async () => {
-    authState.user = { role: 'Admin' };
+    authState.user = orgUser('admin', ['admin']);
     getMock.mockImplementation((url) => {
       if (url.includes('/all/')) {
         return Promise.resolve({

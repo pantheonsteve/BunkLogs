@@ -9,6 +9,7 @@ from typing import Literal
 from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
@@ -84,7 +85,7 @@ def viewer_or_403(request) -> ViewerContext:
     if not request.user.is_authenticated:
         msg = "Authentication required."
         raise PermissionDenied(msg)
-    person = Person.all_objects.filter(user=request.user).first()
+    person = person_for_user(request.user, organization=org)
     if person is None:
         msg = "Person profile required."
         raise PermissionDenied(msg)
@@ -119,7 +120,7 @@ def resolve_queue_viewer(request) -> tuple[ViewerContext, QueueScope]:
     if not request.user.is_authenticated:
         msg = "Authentication required."
         raise PermissionDenied(msg)
-    person = Person.all_objects.filter(user=request.user).first()
+    person = person_for_user(request.user, organization=org)
     if person is None:
         msg = "Person profile required."
         raise PermissionDenied(msg)

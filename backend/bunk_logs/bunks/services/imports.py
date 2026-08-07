@@ -364,7 +364,7 @@ def import_counselor_bunk_assignments_from_csv(file_path, *, dry_run=False):
                     # Find counselor
                     counselor_email = row["counselor_email"].strip()
                     try:
-                        counselor = User.objects.get(email=counselor_email, role="Counselor")
+                        counselor = User.objects.get(email=counselor_email)
                     except User.DoesNotExist:
                         msg = f"{CounselorBunkAssignmentImportError.COUNSELOR_NOT_FOUND}: {counselor_email}"
                         raise CounselorBunkAssignmentImportError(

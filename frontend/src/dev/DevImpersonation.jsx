@@ -206,10 +206,9 @@ export default function DevImpersonation() {
                 <div className="text-sm font-medium">{displayName(user)}</div>
                 <div className="text-xs text-gray-400">{user.email}</div>
                 <div className="text-xs text-violet-300">
-                  {user.role || 'No legacy role'}
                   {user.membership_roles?.length
-                    ? ` · ${user.membership_roles.join(', ')}`
-                    : ''}
+                    ? user.membership_roles.join(', ')
+                    : 'No membership roles'}
                 </div>
               </button>
             ))}

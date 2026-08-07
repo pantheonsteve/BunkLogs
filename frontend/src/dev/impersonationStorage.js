@@ -43,7 +43,7 @@ export function markImpersonationActive(targetUser) {
         name:
           `${targetUser.first_name || ''} ${targetUser.last_name || ''}`.trim()
           || targetUser.email,
-        role: targetUser.role || '',
+        role: (targetUser.membership_roles || []).join(', '),
       }),
     );
   } catch (error) {

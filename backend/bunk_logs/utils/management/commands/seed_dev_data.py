@@ -103,12 +103,11 @@ class Command(BaseCommand):
                 self._reset_test_data()
 
             superuser = self._ensure_superuser()
-            unit_heads = self._create_users(fake, count=4, role=User.UNIT_HEAD, label="unit-head")
-            camper_care = self._create_users(fake, count=2, role=User.CAMPER_CARE, label="camper-care")
-            counselors = self._create_users(fake, count=32, role=User.COUNSELOR, label="counselor")
+            unit_heads = self._create_users(fake, count=4, label="unit-head")
+            camper_care = self._create_users(fake, count=2, label="camper-care")
+            counselors = self._create_users(fake, count=32, label="counselor")
             leadership = self._create_titled_users(
                 fake,
-                role=User.LEADERSHIP,
                 specs=[
                     ("leadership-1", "Program Director"),
                     ("leadership-2", "Associate Director"),
@@ -116,7 +115,6 @@ class Command(BaseCommand):
             )
             kitchen_staff = self._create_titled_users(
                 fake,
-                role=User.KITCHEN_STAFF,
                 specs=[
                     ("kitchen-staff-1", "Executive Chef"),
                     ("kitchen-staff-2", "Sous Chef"),
@@ -245,7 +243,6 @@ class Command(BaseCommand):
                 "last_name": "Admin",
                 "is_staff": True,
                 "is_superuser": True,
-                "role": User.ADMIN,
                 "is_test_data": True,
             },
         )
@@ -254,7 +251,7 @@ class Command(BaseCommand):
             user.save(update_fields=["password"])
         return user
 
-    def _create_users(self, fake: Faker, *, count: int, role: str, label: str) -> list[User]:
+    def _create_users(self, fake: Faker, *, count: int, label: str) -> list[User]:
         users: list[User] = []
         for i in range(1, count + 1):
             email = f"{label}-{i}@example.test"
@@ -263,7 +260,6 @@ class Command(BaseCommand):
                 defaults={
                     "first_name": fake.first_name(),
                     "last_name": fake.last_name(),
-                    "role": role,
                     "is_test_data": True,
                     "is_active": True,
                 },
@@ -278,7 +274,6 @@ class Command(BaseCommand):
         self,
         fake: Faker,
         *,
-        role: str,
         specs: list[tuple[str, str]],
     ) -> list[User]:
         """Create users with specific labels and job titles."""
@@ -290,7 +285,6 @@ class Command(BaseCommand):
                 defaults={
                     "first_name": fake.first_name(),
                     "last_name": fake.last_name(),
-                    "role": role,
                     "title": title,
                     "is_test_data": True,
                     "is_active": True,

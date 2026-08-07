@@ -293,12 +293,14 @@ class Person(models.Model):
             "rendering when the content's language differs from English."
         ),
     )
-    user = models.OneToOneField(
+    # ForeignKey (not OneToOne): one human can hold a Person record in
+    # several organizations, but at most one per org (see UniqueConstraint).
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name="person_record",
+        related_name="person_records",
     )
     external_ids = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
@@ -309,6 +311,13 @@ class Person(models.Model):
 
     class Meta:
         ordering = ["last_name", "first_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user"],
+                condition=Q(user__isnull=False),
+                name="uniq_person_org_user",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.full_name

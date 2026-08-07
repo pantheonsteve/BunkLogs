@@ -87,10 +87,6 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 if last_name := data.get("last_name"):
                     user.last_name = last_name
 
-        # Set role for new social users
-        if not getattr(user, "pk", None):  # Only for new users
-            user.role = "Counselor"  # Default role
-
         return user
 
     def get_login_redirect_url(self, request, user):

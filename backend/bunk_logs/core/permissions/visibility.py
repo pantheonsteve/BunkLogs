@@ -17,6 +17,7 @@ from django.db.models import Q
 from django.db.models import QuerySet
 
 from bunk_logs.core.context import get_current_organization
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -55,9 +56,7 @@ WELLNESS_TEMPLATE_ROLES = frozenset({
 
 
 def _person_for_user(user) -> Person | None:
-    if user is None or not getattr(user, "is_authenticated", False):
-        return None
-    return Person.all_objects.filter(user=user).first()
+    return person_for_user(user)
 
 
 def _has_org_admin_membership(person: Person, organization_id: int | None) -> bool:

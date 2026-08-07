@@ -44,23 +44,16 @@ class UserSignupForm(SignupForm):
 class UserSocialSignupForm(SocialSignupForm):
     """
     Form for social signup in case auto-signup is disabled.
+
+    Roles come from org Memberships (via the linked Person), so signup
+    does not assign any.
     """
-
-    def save(self, request):
-        # Initialize the user
-        user = super().save(request)
-
-        # Set default role for social signups
-        user.role = "Counselor"
-        user.save()
-
-        return user
 
 
 class UserCsvImportForm(forms.Form):
     csv_file = forms.FileField(
         label="CSV File",
-        help_text="Upload a CSV with user data. Required columns: email, first_name, last_name. Optional: role, password, is_active, is_staff",
+        help_text="Upload a CSV with user data. Required columns: email, first_name, last_name. Optional: password, is_active, is_staff",
     )
     dry_run = forms.BooleanField(
         required=False,

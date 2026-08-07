@@ -2,6 +2,7 @@ import axios from 'axios';
 import { getCSRFToken } from './django';
 import { trackApiSuccess } from './lib/datadog';
 import isSuperAdmin from './utils/auth/isSuperAdmin';
+import { membershipRolesForUser } from './utils/auth/orgRoles';
 import { resolveOrganizationSlug } from './utils/orgSlug';
 
 // Get and clean the API URL
@@ -185,7 +186,10 @@ export const fetchMeDateRange = async () => {
   return response.data;
 };
 
-// Get appropriate date range based on user role
+// Membership roles that get the broad (start-of-year, open-ended) range.
+const BROAD_DATE_RANGE_ROLES = ['admin', 'camper_care', 'health_center', 'medical', 'special_diets'];
+
+// Get appropriate date range based on the user's membership roles
 export const getDateRangeForUser = (user) => {
   // Use local timezone date to avoid off-by-one errors
   const today = new Date();
@@ -193,9 +197,10 @@ export const getDateRangeForUser = (user) => {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   const todayStr = `${year}-${month}-${day}`;
-  
+
+  const roles = membershipRolesForUser(user);
   // For admin users and camper care team, allow a broader range
-  if (user?.role === 'Admin' || user?.role === 'Camper Care' || isSuperAdmin(user)) {
+  if (BROAD_DATE_RANGE_ROLES.some((r) => roles.includes(r)) || isSuperAdmin(user)) {
     const startOfYearStr = `${year}-01-01`;
     return {
       start_date: startOfYearStr,

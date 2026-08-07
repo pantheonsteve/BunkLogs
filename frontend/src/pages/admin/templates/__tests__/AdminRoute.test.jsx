@@ -4,24 +4,27 @@ import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 import isSuperAdmin from '../../../../utils/auth/isSuperAdmin';
 import { hasCapability } from '../../../../utils/auth/capability';
 
+const orgUser = (capability, roles = []) => ({
+  organizations: [{ slug: 'clc', capability, roles }],
+});
+
 // Minimal re-implementation of AdminRoute that matches the production check in
-// frontend/src/Router.jsx -- both share the canonical isSuperAdmin helper.
+// frontend/src/routes/guards.jsx -- both share the canonical helpers.
 function AdminRoute({ user, loading, isAuthenticated, children }) {
   if (loading) return <div>Loading...</div>;
   if (!isAuthenticated) return <Navigate to="/signin" replace />;
-  const isAdmin = isSuperAdmin(user) || user?.role === 'admin';
+  const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
   if (!isAdmin) return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   return children;
 }
 
-// Mirrors LeadershipTemplatesRoute in Router.jsx.
+// Mirrors LeadershipTemplatesRoute in routes/guards.jsx.
 function LeadershipTemplatesRoute({ user, loading, isAuthenticated, children }) {
   if (loading) return <div>Loading...</div>;
   if (!isAuthenticated) return <Navigate to="/signin" replace />;
   const canAccess =
     isSuperAdmin(user)
-    || user?.role?.toLowerCase() === 'admin'
-    || hasCapability(user, 'program_lead');
+    || hasCapability(user, ['program_lead', 'admin']);
   if (!canAccess) return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   return children;
 }
@@ -56,13 +59,13 @@ describe('AdminRoute permission gate', () => {
     expect(screen.getByTestId('admin-content')).toBeInTheDocument();
   });
 
-  it('renders children for role=admin user', () => {
-    renderWithRoute({ role: 'admin' });
+  it('renders children for admin-capability user', () => {
+    renderWithRoute(orgUser('admin', ['admin']));
     expect(screen.getByTestId('admin-content')).toBeInTheDocument();
   });
 
   it('redirects to / for non-admin authenticated user', () => {
-    renderWithRoute({ role: 'counselor' });
+    renderWithRoute(orgUser('participant', ['counselor']));
     expect(screen.getByTestId('home')).toBeInTheDocument();
     expect(screen.queryByTestId('admin-content')).not.toBeInTheDocument();
   });
@@ -94,13 +97,13 @@ function renderTemplatesRoute(user, authenticated = true) {
 }
 
 describe('LeadershipTemplatesRoute permission gate', () => {
-  it('renders children for role=Leadership (program_lead)', () => {
-    renderTemplatesRoute({ role: 'Leadership' });
+  it('renders children for program_lead capability', () => {
+    renderTemplatesRoute(orgUser('program_lead', ['leadership_team']));
     expect(screen.getByTestId('templates-content')).toBeInTheDocument();
   });
 
-  it('renders children for role=admin user', () => {
-    renderTemplatesRoute({ role: 'admin' });
+  it('renders children for admin-capability user', () => {
+    renderTemplatesRoute(orgUser('admin', ['admin']));
     expect(screen.getByTestId('templates-content')).toBeInTheDocument();
   });
 
@@ -110,7 +113,7 @@ describe('LeadershipTemplatesRoute permission gate', () => {
   });
 
   it('redirects to / for non-admin, non-leadership authenticated user', () => {
-    renderTemplatesRoute({ role: 'Counselor' });
+    renderTemplatesRoute(orgUser('participant', ['counselor']));
     expect(screen.getByTestId('home')).toBeInTheDocument();
     expect(screen.queryByTestId('templates-content')).not.toBeInTheDocument();
   });

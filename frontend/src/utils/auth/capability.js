@@ -1,33 +1,28 @@
 /**
- * Frontend capability helper (3.32).
+ * Frontend capability helper.
  *
- * The backend RBAC story moved to `Membership.capability` with five
- * tiers (participant / supervisor / program_lead / domain_specialist
- * / admin), but the frontend has been gating nav on legacy
- * `User.role` strings (Title Case 'Admin' / 'Counselor' / ...). This
- * helper bridges the two so callers can write
+ * Roles and capabilities come from active Memberships, delivered per
+ * organization on the auth payload:
  *
- *   if (hasCapability(user, 'supervisor')) { ... }
+ *   user.organizations = [
+ *     { slug: 'tbe', name: 'Temple Beth-El', capability: 'participant', roles: ['madrich'] },
+ *   ]
  *
- * today and we can swap the underlying source from `user.role` to a
- * real `Membership.capability` field in one place when the
- * `/api/v1/memberships/me/` payload lands on the auth context.
+ * The "current" organization is the tenant subdomain (clc.bunklogs.net ->
+ * "clc") or the VITE_DEV_ORGANIZATION_SLUG dev override; when neither is
+ * set and the user belongs to exactly one org we fall back to it so
+ * localhost keeps working without configuration.
  *
- * Mirror of backend `bunk_logs.core.models.ROLE_TO_CAPABILITY`
- * (core/models.py:28-45). Kept in sync by manual review when either
- * side changes; the unit tests assert coverage of every legacy
- * User.role value enumerated in `users.models.User.ROLE_CHOICES`.
- *
- * Known limitation: today's `user.role` is Title Case and cannot
- * distinguish `health_center` from `camper_care` (both surface as
- * 'Camper Care'). That means a health_center membership renders the
- * supervisor-tier sidebar instead of the domain_specialist tier --
- * matches current behavior, fixed when memberships flow into
- * useAuth().
+ * `capability` mirrors backend `Membership.capability` (derived from
+ * `ROLE_TO_CAPABILITY` in core/models.py): the highest tier across the
+ * user's active memberships in that org.
  */
 
 import { useAuth } from '../../auth/AuthContext';
 import isSuperAdmin from './isSuperAdmin';
+import { currentOrgContext, membershipRolesForUser } from './orgRoles';
+
+export { currentOrgContext, membershipRolesForUser };
 
 /**
  * Capability tiers in order of increasing privilege. Higher tiers
@@ -50,32 +45,17 @@ const DOMAIN_SPECIALIST_RANK = CAPABILITIES.indexOf('domain_specialist');
 const ADMIN_RANK = CAPABILITIES.indexOf('admin');
 
 /**
- * Map of legacy `User.role` (Title Case strings from
- * users.models.User.ROLE_CHOICES) to capability. The empty string and
- * missing role both surface as null.
- */
-const LEGACY_USER_ROLE_TO_CAPABILITY = Object.freeze({
-  Counselor: 'participant',
-  'Kitchen Staff': 'participant',
-  'Unit Head': 'supervisor',
-  'Camper Care': 'supervisor',
-  Leadership: 'program_lead',
-  Admin: 'admin',
-});
-
-/**
- * Resolve the user's capability tier. Super admins (Django
- * is_staff/is_superuser) always come back as 'admin' regardless of
- * their `user.role` so the nav surfaces admin sections for them.
+ * Resolve the user's capability tier in the current organization.
+ * Super admins (Django is_staff/is_superuser) always come back as
+ * 'admin' so the nav surfaces admin sections for them.
  *
- * Returns null when the user has no role and is not a super admin.
+ * Returns null when the user has no capability here and is not a
+ * super admin.
  */
 export function userCapability(user) {
   if (!user) return null;
   if (isSuperAdmin(user)) return 'admin';
-  const role = user.role;
-  if (typeof role !== 'string' || role === '') return null;
-  return LEGACY_USER_ROLE_TO_CAPABILITY[role] || null;
+  return currentOrgContext(user)?.capability || null;
 }
 
 function rankOf(cap) {
@@ -120,17 +100,10 @@ export function hasCapability(user, capOrList) {
   });
 }
 
-/**
- * React hook flavor of {@link userCapability}. Reads from the
- * existing useAuth context so call sites stay short:
- *
- *   const cap = useCapability();
- *   if (cap === 'admin') ...
- */
 /** Maintenance membership with no admin role — stripped nav + /maintenance home. */
 export function isMaintenanceOnlyMember(user) {
   if (!user) return false;
-  const roles = Array.isArray(user.membership_roles) ? user.membership_roles : [];
+  const roles = membershipRolesForUser(user);
   return (
     roles.includes('maintenance')
     && !roles.includes('admin')
@@ -139,36 +112,59 @@ export function isMaintenanceOnlyMember(user) {
   );
 }
 
-const ROLE_HOME_PATHS = Object.freeze({
-  Admin: '/admin/home',
-  Counselor: '/counselor',
-  'Unit Head': '/unit-head',
-  'Camper Care': '/camper-care',
-  Leadership: '/leadership-team',
-  'Leadership Team': '/leadership-team',
-  'Kitchen Staff': '/kitchen-staff',
-  Specialist: '/specialist',
-  Madrich: '/madrich',
-  Maintenance: '/maintenance',
-});
+/**
+ * Membership.role -> workspace home, in priority order for people who
+ * hold several roles. Roles without a dedicated workspace (faculty,
+ * administrative_staff) land on the dashboards hub.
+ */
+const MEMBERSHIP_ROLE_HOME_PATHS = Object.freeze([
+  ['admin', '/admin/home'],
+  ['leadership_team', '/leadership-team'],
+  ['unit_head', '/unit-head'],
+  ['camper_care', '/camper-care'],
+  ['health_center', '/camper-care'],
+  ['medical', '/camper-care'],
+  ['special_diets', '/camper-care'],
+  ['counselor', '/counselor'],
+  ['junior_counselor', '/counselor'],
+  ['general_counselor', '/counselor'],
+  ['specialist', '/specialist'],
+  ['madrich', '/madrich'],
+  ['kitchen_staff', '/kitchen-staff'],
+  ['housekeeping', '/kitchen-staff'],
+  ['maintenance', '/maintenance'],
+  ['faculty', '/dashboards'],
+  ['administrative_staff', '/dashboards'],
+]);
 
-/** Post-login and logo home target for the signed-in user. */
+/**
+ * Post-login and logo home target for the signed-in user.
+ *
+ * Users with no membership in the current organization get the terminal
+ * /no-access page instead of a redirect cycle through /dashboard.
+ */
 export function homePathForUser(user) {
   if (!user) return '/dashboard';
   if (isMaintenanceOnlyMember(user)) return '/maintenance';
   if (isSuperAdmin(user)) return '/admin/home';
-  const rolePath = user.role && ROLE_HOME_PATHS[user.role];
-  return rolePath || '/dashboard';
+  const roles = membershipRolesForUser(user);
+  for (const [role, path] of MEMBERSHIP_ROLE_HOME_PATHS) {
+    if (roles.includes(role)) return path;
+  }
+  return '/no-access';
 }
 
+/**
+ * React hook flavor of {@link userCapability}. Reads from the
+ * existing useAuth context so call sites stay short:
+ *
+ *   const cap = useCapability();
+ *   if (cap === 'admin') ...
+ */
 export function useCapability() {
   const { user } = useAuth();
   return userCapability(user);
 }
-
-// Re-exported so tests can assert against the canonical mapping
-// without reaching into a private symbol.
-export const _LEGACY_USER_ROLE_TO_CAPABILITY = LEGACY_USER_ROLE_TO_CAPABILITY;
 
 // Used by tests + ranking math; not part of the public API.
 export const _RANKS = Object.freeze({

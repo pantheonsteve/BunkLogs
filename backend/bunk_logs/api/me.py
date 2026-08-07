@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.context import get_current_organization
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
@@ -56,11 +57,9 @@ class MePreferencesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def _get_person(self, request) -> Person:
-        person = (
-            Person.all_objects.filter(user=request.user)
-            .order_by("created_at")
-            .first()
-        )
+        # Org-scoped when the request carries tenant context; otherwise only
+        # resolves for single-org users (multi-org users must send a slug).
+        person = person_for_user(request.user)
         if person is None:
             raise NotFound(
                 detail=(
@@ -100,11 +99,7 @@ class MeDateRangeView(APIView):
         if user.is_staff or user.is_superuser:
             return Response(_permissive_date_range())
 
-        person = (
-            Person.all_objects.filter(user=user)
-            .order_by("created_at")
-            .first()
-        )
+        person = person_for_user(user)
         if person is None:
             today = timezone.localdate().isoformat()
             return Response({"start_date": today, "end_date": None})

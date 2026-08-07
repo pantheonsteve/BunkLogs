@@ -8,7 +8,6 @@ from datetime import date
 from datetime import timedelta
 from typing import Any
 
-from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -22,8 +21,6 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
-
-User = get_user_model()
 
 TREND_EPS = 0.02
 MAX_TEXT_ITEMS = 50
@@ -54,8 +51,7 @@ def _viewer_can_access_template(viewer: Person, user, template: ReflectionTempla
     needing reflections to actually exist (so admins of a fresh template still
     get an empty dashboard rather than 403).
     """
-    user_role = getattr(user, "role", "") or ""
-    if is_super_admin(user) or user_role == User.ADMIN:
+    if is_super_admin(user):
         return True
     if Membership.objects.filter(
         person=viewer, role="admin", is_active=True,
