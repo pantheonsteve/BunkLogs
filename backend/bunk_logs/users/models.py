@@ -44,32 +44,6 @@ class User(AbstractUser, TestDataMixin):
         self.first_name = parts[0]
         self.last_name = parts[1] if len(parts) > 1 else ""
 
-    ADMIN = "Admin"
-    CAMPER_CARE = "Camper Care"
-    UNIT_HEAD = "Unit Head"
-    COUNSELOR = "Counselor"
-    LEADERSHIP = "Leadership"
-    KITCHEN_STAFF = "Kitchen Staff"
-
-    ROLE_CHOICES = [
-        (ADMIN, "Admin"),
-        (CAMPER_CARE, "Camper Care"),
-        (UNIT_HEAD, "Unit Head"),
-        (COUNSELOR, "Counselor"),
-        (LEADERSHIP, "Leadership"),
-        (KITCHEN_STAFF, "Kitchen Staff"),
-    ]
-
-    # Roles that are permitted to author StaffLog reflections
-    STAFF_LOG_ROLES = [COUNSELOR, LEADERSHIP, KITCHEN_STAFF, UNIT_HEAD, CAMPER_CARE]
-
-    role = models.CharField(
-        max_length=255,
-        choices=ROLE_CHOICES,
-        blank=True,
-        default="",
-    )
-
     title = models.CharField(
         max_length=100,
         blank=True,
