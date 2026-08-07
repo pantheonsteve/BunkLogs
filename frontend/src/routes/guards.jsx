@@ -79,7 +79,7 @@ export function AdminRoute({ children }) {
     return <Navigate to={`/signin?next=${encodeURIComponent(next)}`} replace />;
   }
 
-  const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
+  const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
   if (!isAdmin) {
     return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   }
@@ -102,8 +102,7 @@ export function LeadershipTemplatesRoute({ children }) {
 
   const canAccess =
     isSuperAdmin(user)
-    || user?.role?.toLowerCase() === 'admin'
-    || hasCapability(user, 'program_lead');
+    || hasCapability(user, ['program_lead', 'admin']);
   if (!canAccess) {
     return <Navigate to="/" replace state={{ toast: 'Admin access required' }} />;
   }

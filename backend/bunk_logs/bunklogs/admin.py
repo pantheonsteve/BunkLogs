@@ -17,9 +17,6 @@ from .forms import BunkLogAdminForm
 from .forms import BunkLogCsvImportForm
 from .forms import BunkSelectionForm
 from .models import BunkLog
-from .models import CounselorLog
-from .models import KitchenStaffLog
-from .models import LeadershipLog
 from .models import StaffLog
 from .services.imports import generate_sample_csv
 from .services.imports import import_bunk_logs_from_csv
@@ -209,19 +206,18 @@ class BunkLogAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmi
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
-# Roles allowed to view their own staff logs in the admin
-_SELF_VIEW_ROLES = ["Counselor", "Leadership", "Kitchen Staff"]
-_ADMIN_WRITE_ROLES = ["Counselor", "Leadership", "Kitchen Staff", "Admin"]
-
-
 class StaffLogAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdmin):
-    """Base admin for StaffLog and its proxy models."""
+    """Base admin for StaffLog and its proxy models.
+
+    Only ``is_staff`` users can reach the Django admin, so the old
+    ``User.role``-based row filtering was dead weight and has been removed
+    with the legacy role field.
+    """
 
     list_display = (
         "date",
         "get_local_creation_date",
         "staff_member",
-        "get_staff_role",
         "day_quality_score",
         "support_level_score",
         "day_off",
@@ -229,7 +225,6 @@ class StaffLogAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdm
     )
     list_filter = (
         "date",
-        "staff_member__role",
         "day_off",
         "staff_care_support_needed",
         "day_quality_score",
@@ -273,95 +268,12 @@ class StaffLogAdmin(LegacyReadOnlyAdminMixin, TestDataAdminMixin, admin.ModelAdm
         local_created = timezone.localtime(obj.created_at)
         return local_created.strftime("%Y-%m-%d %H:%M")
 
-    @admin.display(description=_("Role"))
-    def get_staff_role(self, obj):
-        return obj.staff_member.role
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-
-        if request.user.is_staff or request.user.role == "Admin":
-            return qs
-
-        if request.user.role in ["Unit Head", "Camper Care"]:
-            from django.utils import timezone
-
-            from bunk_logs.bunks.models import UnitStaffAssignment
-            from bunk_logs.users.models import User
-
-            role_map = {"Unit Head": "unit_head", "Camper Care": "camper_care"}
-            unit_assignments = UnitStaffAssignment.objects.filter(
-                staff_member=request.user,
-                role=role_map[request.user.role],
-                start_date__lte=timezone.now().date(),
-                end_date__isnull=True,
-            ).values_list("unit_id", flat=True)
-
-            counselor_ids = User.objects.filter(
-                role="Counselor",
-                bunk_assignments__bunk__unit_id__in=set(unit_assignments),
-            ).values_list("id", flat=True)
-
-            return qs.filter(staff_member_id__in=counselor_ids)
-
-        if request.user.role in _SELF_VIEW_ROLES:
-            return qs.filter(staff_member=request.user)
-
-        return qs.none()
-
-    def has_change_permission(self, request, obj=None):
-        if not super().has_change_permission(request, obj):
-            return False
-
-        if request.user.is_staff or request.user.role == "Admin":
-            return True
-
-        if request.user.role in ["Unit Head", "Camper Care"]:
-            return False
-
-        if request.user.role in _SELF_VIEW_ROLES and obj:
-            from django.utils import timezone
-            today = timezone.now().date()
-            log_created_date = obj.created_at.date() if obj.created_at else obj.date
-            return obj.staff_member == request.user and today == log_created_date
-
-        return False
-
-    def has_add_permission(self, request):
-        if not super().has_add_permission(request):
-            return False
-        return request.user.role in _ADMIN_WRITE_ROLES or request.user.is_staff
-
-    def has_delete_permission(self, request, obj=None):
-        if not super().has_delete_permission(request, obj):
-            return False
-        return request.user.is_staff or request.user.role == "Admin"
-
 
 @admin.register(StaffLog)
 class StaffLogMainAdmin(StaffLogAdmin):
-    """Admin for all staff logs (combined view)."""
+    """Admin for all staff logs (combined view).
 
-
-@admin.register(CounselorLog)
-class CounselorLogAdmin(StaffLogAdmin):
-    """Admin for Counselor logs only."""
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(staff_member__role="Counselor")
-
-
-@admin.register(LeadershipLog)
-class LeadershipLogAdmin(StaffLogAdmin):
-    """Admin for Leadership Team logs only."""
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(staff_member__role="Leadership")
-
-
-@admin.register(KitchenStaffLog)
-class KitchenStaffLogAdmin(StaffLogAdmin):
-    """Admin for Kitchen Staff logs only."""
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(staff_member__role="Kitchen Staff")
+    CounselorLog / LeadershipLog / KitchenStaffLog proxies remain on the model
+    layer for scripts and tests but are not registered here — they duplicated
+    this list after ``User.role``-based filtering was removed.
+    """

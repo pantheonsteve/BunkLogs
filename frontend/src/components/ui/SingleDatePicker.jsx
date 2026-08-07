@@ -6,9 +6,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { useAuth } from '../../auth/AuthContext'
 import api, { fetchMeDateRange, getDateRangeForUser } from '../../api'
 import isSuperAdmin from '../../utils/auth/isSuperAdmin'
+import { hasCapability, membershipRolesForUser } from '../../utils/auth/capability'
+
+const CAMPER_CARE_ROLES = ['camper_care', 'health_center', 'medical', 'special_diets'];
+const COUNSELOR_ROLES = ['counselor', 'junior_counselor', 'general_counselor'];
 
 export default function SingleDatePicker({ className, date, setDate }) {
   const { user, token } = useAuth();
+  const membershipRoles = membershipRolesForUser(user);
+  const isAdminUser = hasCapability(user, 'admin');
+  const isCamperCareUser = CAMPER_CARE_ROLES.some((r) => membershipRoles.includes(r));
+  const isCounselorUser = COUNSELOR_ROLES.some((r) => membershipRoles.includes(r));
   
   // Initialize with today's date if no date is provided
   React.useEffect(() => {
@@ -32,7 +40,7 @@ export default function SingleDatePicker({ className, date, setDate }) {
     
     console.log('🚀 SingleDatePicker initialized with user:', {
       userId: user?.id,
-      userRole: user?.role,
+      membershipRoles,
       hasToken: !!token,
       tokenPreview: token ? `${token.substring(0, 10)}...` : 'none',
       hasAccessToken: !!accessToken,
@@ -128,14 +136,14 @@ export default function SingleDatePicker({ className, date, setDate }) {
         }
 
         // Admin users should have unrestricted access to all dates
-        if (user?.role === 'Admin') {
+        if (isAdminUser) {
           console.log('Admin user detected - allowing all dates');
           setAllowedRange(null);
           return;
         }
 
         // Check if user is camper care - if so, set a reasonable date range without API call
-        if (user?.role === 'Camper Care' || isSuperAdmin(user)) {
+        if (isCamperCareUser || isSuperAdmin(user)) {
           console.log('User is camper care, setting broad date range without API call');
           const adminRange = getDateRangeForUser(user);
           setAllowedRange(adminRange);
@@ -234,11 +242,11 @@ export default function SingleDatePicker({ className, date, setDate }) {
       date: date,
       dateString: date?.toString(),
       allowedRange: allowedRange,
-      userRole: user?.role
+      membershipRoles
     });
     
     // For counselors, only prevent selection of future dates - allow all past dates
-    if (user?.role === 'Counselor') {
+    if (isCounselorUser) {
       const today = new Date();
       // Use local date comparison to avoid timezone issues
       const todayYear = today.getFullYear();
@@ -276,7 +284,7 @@ export default function SingleDatePicker({ className, date, setDate }) {
     }
     
     // For camper care team members, allow all dates (like admins)
-    if (user?.role === 'Camper Care') {
+    if (isCamperCareUser) {
       console.log('✅ Camper Care role - allowing all dates');
       return false;
     }

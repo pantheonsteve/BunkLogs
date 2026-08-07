@@ -1,9 +1,11 @@
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
 
 
 class BunklogsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "bunk_logs.bunklogs"
+    verbose_name = _("Legacy — Bunk logs (read-only)")
 
     def ready(self):
         # Wire up the StaffLog → core.Reflection dual-write signal

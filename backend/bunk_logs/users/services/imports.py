@@ -16,7 +16,6 @@ class UserImportError(ValueError):
     MISSING_FIRST_NAME = "First name is required"
     MISSING_LAST_NAME = "Last name is required"
     INVALID_EMAIL = "Invalid email format"
-    INVALID_ROLE = "Invalid role. Must be one of: Admin, Camper Care, Unit Head, Counselor"
     DUPLICATE_EMAIL = "User with this email already exists"
 
 
@@ -25,7 +24,6 @@ def _validate_user_data(row: dict[str, str]) -> None:
     email = row.get("email", "").strip()
     first_name = row.get("first_name", "").strip()
     last_name = row.get("last_name", "").strip()
-    role = row.get("role", "").strip()
 
     if not email:
         raise UserImportError(UserImportError.MISSING_EMAIL)
@@ -40,17 +38,13 @@ def _validate_user_data(row: dict[str, str]) -> None:
     if "@" not in email or "." not in email:
         raise UserImportError(UserImportError.INVALID_EMAIL)
 
-    # Validate role if provided
-    if role and role not in [choice[0] for choice in User.ROLE_CHOICES]:
-        raise UserImportError(UserImportError.INVALID_ROLE)
-
 
 def import_users_from_csv(file_path, *, dry_run=False, batch_size=25, use_fast_hashing=True):
     """
     Import users from CSV file with optimizations for large datasets.
 
     Expected CSV format:
-    email,first_name,last_name,role,password,is_active,is_staff
+    email,first_name,last_name,password,is_active,is_staff
 
     Args:
         file_path: Path to the CSV file
@@ -95,7 +89,6 @@ def import_users_from_csv(file_path, *, dry_run=False, batch_size=25, use_fast_h
                             email = row["email"].strip()
                             first_name = row["first_name"].strip()
                             last_name = row["last_name"].strip()
-                            role = row.get("role", "Counselor").strip() or "Counselor"  # Default to Counselor
                             password = row.get("password", "").strip()
                             is_active = row.get("is_active", "true").lower() in ["true", "yes", "1", "t", "y"]
                             is_staff = row.get("is_staff", "false").lower() in ["true", "yes", "1", "t", "y"]
@@ -110,7 +103,6 @@ def import_users_from_csv(file_path, *, dry_run=False, batch_size=25, use_fast_h
                                 "email": email,
                                 "first_name": first_name,
                                 "last_name": last_name,
-                                "role": role,
                                 "is_active": is_active,
                                 "is_staff": is_staff,
                             }

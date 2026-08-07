@@ -32,17 +32,21 @@ from typing import Any
 
 from django.db import transaction
 from django.db.models.functions import Trim
+from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core import audit as audit_module
+from bunk_logs.core.campminder_user_link import UserLinkAction
+from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
+from bunk_logs.messaging.services.email_service import get_email_service
 
 from .common import viewer_or_403
 
@@ -287,6 +291,9 @@ class AdminPeopleListCreateView(APIView):
             audit_module.created(
                 actor, membership, after_state=_membership_snapshot(membership),
             )
+            # Staff get a login provisioned automatically; campers never do.
+            if role != "camper":
+                ensure_user_for_imported_person(person, membership_role=role)
         return Response(
             _serialize_person(person, include_memberships=True),
             status=status.HTTP_201_CREATED,
@@ -560,12 +567,11 @@ def _get_membership_or_404(ctx, membership_id) -> Membership | None:
 
 
 class AdminPersonInviteView(APIView):
-    """Trigger an invitation email for a Person (Story 55).
+    """Provision a login (if needed) and send an invitation email for a Person.
 
-    PR2 ships the audited affordance + payload contract; actual email
-    delivery is wired up in a follow-up by reusing the messaging app.
-    The audit row is enough to satisfy "we know who invited who when"
-    and lets the UI surface a "Sent" confirmation immediately.
+    Ensures the Person has a linked User via the shared campminder link
+    helper, then delivers the invitation through the messaging app's
+    email service. The audit row records who invited whom and when.
     """
 
     permission_classes = [IsOrgAdminOrSuperuser]
@@ -580,12 +586,51 @@ class AdminPersonInviteView(APIView):
                 {"detail": "Person has no email -- cannot send invitation."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        staff_membership = (
+            Membership.all_objects.filter(person=person, is_active=True)
+            .exclude(role="camper")
+            .order_by("-created_at")
+            .first()
+        )
+        if staff_membership is None:
+            return Response(
+                {"detail": "Person has no active staff membership -- cannot invite."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        link = ensure_user_for_imported_person(
+            person, membership_role=staff_membership.role,
+        )
+        if link.action == UserLinkAction.CONFLICT:
+            return Response(
+                {"detail": f"Cannot provision login: {link.message}"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        org = ctx.organization
+        context = {
+            "person": person,
+            "organization": org,
+            "signin_url": f"https://{org.slug}.bunklogs.net/signin",
+            "site_name": "BunkLogs",
+        }
+        sent = get_email_service().send_email(
+            recipients=[person.email],
+            subject=f"You're invited to {org.name} on BunkLogs",
+            html_content=render_to_string("emails/person_invitation_en.html", context),
+            text_content=render_to_string("emails/person_invitation_en.txt", context),
+            template_name="person_invitation",
+        )
+
         actor = ctx.membership or request.user
         audit_module.created(
             actor, person,
             after_state={
-                "invitation_sent": True,
+                "invitation_sent": sent,
                 "recipient_email": person.email,
+                "user_id": person.user_id,
+                "user_link_action": link.action.value,
             },
             content_type="person_invitation",
             metadata={
@@ -593,7 +638,13 @@ class AdminPersonInviteView(APIView):
                 "scheduled": bool(request.data.get("scheduled")),
             },
         )
+        if not sent:
+            return Response(
+                {"detail": "Login provisioned but the invitation email failed to send."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         return Response({
-            "status": "queued",
+            "status": "sent",
             "recipient_email": person.email,
+            "user_id": person.user_id,
         })

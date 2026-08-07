@@ -8,6 +8,10 @@ vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+const orgUser = (capability, roles = []) => ({
+  organizations: [{ slug: 'clc', capability, roles }],
+});
+
 function renderAt(path, user) {
   mockUseAuth.mockReturnValue({ user, isAuthenticated: !!user, loading: false });
   return render(
@@ -34,17 +38,17 @@ beforeEach(() => {
 
 describe('HelpRoute', () => {
   it('allows program leads', () => {
-    renderAt('/help', { role: 'Leadership' });
+    renderAt('/help', orgUser('program_lead', ['leadership_team']));
     expect(screen.getByTestId('help-content')).toBeInTheDocument();
   });
 
   it('allows admins', () => {
-    renderAt('/help', { role: 'Admin' });
+    renderAt('/help', orgUser('admin', ['admin']));
     expect(screen.getByTestId('help-content')).toBeInTheDocument();
   });
 
   it('redirects counselors', () => {
-    renderAt('/help', { role: 'Counselor' });
+    renderAt('/help', orgUser('participant', ['counselor']));
     expect(screen.getByTestId('home')).toBeInTheDocument();
   });
 });

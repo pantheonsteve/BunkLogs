@@ -7,29 +7,10 @@ from enum import Enum
 
 from django.contrib.auth import get_user_model
 
+from bunk_logs.core.context import get_current_organization
 from bunk_logs.core.models import Person
 
 User = get_user_model()
-
-MEMBERSHIP_TO_USER_ROLE: dict[str, str] = {
-    "admin": User.ADMIN,
-    "leadership_team": User.LEADERSHIP,
-    "unit_head": User.UNIT_HEAD,
-    "counselor": User.COUNSELOR,
-    "junior_counselor": User.COUNSELOR,
-    "general_counselor": User.COUNSELOR,
-    "specialist": User.COUNSELOR,
-    "camper_care": User.CAMPER_CARE,
-    "health_center": User.CAMPER_CARE,
-    "medical": User.CAMPER_CARE,
-    "special_diets": User.CAMPER_CARE,
-    "kitchen_staff": User.KITCHEN_STAFF,
-    "maintenance": User.KITCHEN_STAFF,
-    "administrative_staff": User.COUNSELOR,
-    "housekeeping": User.KITCHEN_STAFF,
-    "madrich": User.COUNSELOR,
-    "faculty": User.LEADERSHIP,
-}
 
 
 class UserLinkAction(str, Enum):
@@ -46,6 +27,18 @@ class UserLinkResult:
     action: UserLinkAction
     user_id: int | None = None
     message: str = ""
+
+
+def _linked_person_in_org(user, organization) -> Person | None:
+    """The Person already linked to ``user`` within ``organization`` (if any).
+
+    Linking one User to Persons in *different* orgs is allowed (multi-org
+    staff); a conflict only exists when the User is already attached to a
+    different Person in the same org.
+    """
+    if organization is None:
+        return None
+    return Person.all_objects.filter(user=user, organization=organization).first()
 
 
 def preview_user_link(
@@ -71,7 +64,11 @@ def preview_user_link(
     if user is None:
         return UserLinkResult(UserLinkAction.CREATED)
 
-    linked_person = Person.all_objects.filter(user=user).first()
+    organization = (
+        existing_person.organization if existing_person is not None
+        else get_current_organization()
+    )
+    linked_person = _linked_person_in_org(user, organization)
     if linked_person is not None and (
         existing_person is None or linked_person.pk != existing_person.pk
     ):
@@ -79,7 +76,8 @@ def preview_user_link(
             UserLinkAction.CONFLICT,
             user_id=user.id,
             message=(
-                f"User {user.id} is already linked to Person {linked_person.id}"
+                f"User {user.id} is already linked to Person {linked_person.id} "
+                f"in this organization"
             ),
         )
     return UserLinkResult(UserLinkAction.LINKED, user_id=user.id)
@@ -105,24 +103,25 @@ def ensure_user_for_imported_person(
 
     user = User.objects.filter(email__iexact=email).first()
     if user is not None:
-        linked_person = Person.all_objects.filter(user=user).first()
+        linked_person = _linked_person_in_org(user, person.organization)
         if linked_person is not None and linked_person.pk != person.pk:
             return UserLinkResult(
                 UserLinkAction.CONFLICT,
                 user_id=user.id,
                 message=(
-                    f"User {user.id} is already linked to Person {linked_person.id}"
+                    f"User {user.id} is already linked to Person {linked_person.id} "
+                    f"in this organization"
                 ),
             )
         person.user = user
         person.save(update_fields=["user"])
         return UserLinkResult(UserLinkAction.LINKED, user_id=user.id)
 
+    # Roles/capabilities live on the Membership, not the User.
     user = User(
         email=email,
         first_name=person.first_name,
         last_name=person.last_name,
-        role=MEMBERSHIP_TO_USER_ROLE.get(membership_role, User.COUNSELOR),
         is_active=True,
     )
     user.set_unusable_password()

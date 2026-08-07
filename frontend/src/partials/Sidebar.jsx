@@ -2,37 +2,29 @@ import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import isSuperAdmin from "../utils/auth/isSuperAdmin";
-import { hasCapability, homePathForUser, isMaintenanceOnlyMember } from "../utils/auth/capability";
+import {
+  hasCapability,
+  homePathForUser,
+  isMaintenanceOnlyMember,
+  membershipRolesForUser,
+} from "../utils/auth/capability";
 import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 
 import CampLogo from "../../src/images/clc-logo.jpeg";
 
-// Legacy User.role values that can author a /reflect submission today.
-// Re-derived via capability for the new sections; kept here only to
-// preserve the existing top-level "Program reflection" / "My
-// reflections" gates while we still trigger reflection assignments
-// off legacy role.
-const REFLECTION_FORM_ROLES = ['Counselor', 'Admin', 'Unit Head', 'Camper Care'];
+// Membership roles that can author a /reflect submission today; kept to
+// preserve the existing top-level "Program reflection" / "My reflections"
+// gates.
+const REFLECTION_FORM_ROLES = [
+  'counselor', 'junior_counselor', 'general_counselor',
+  'admin', 'unit_head',
+  'camper_care', 'health_center', 'medical', 'special_diets',
+];
 
-// Direct home targets for roles that have a dedicated workspace (mirrors
-// Dashboard.jsx ROLE_DESTINATIONS). Everyone else keeps /dashboard.
-const ROLE_HOME_PATH = {
-  Counselor: '/counselor',
-  'Unit Head': '/unit-head',
-  'Camper Care': '/camper-care',
-  Leadership: '/leadership-team',
-  'Leadership Team': '/leadership-team',
-  'Kitchen Staff': '/kitchen-staff',
-  Specialist: '/specialist',
-  Madrich: '/madrich',
-  Maintenance: '/maintenance',
-};
-
-function homePathFor(role) {
-  return ROLE_HOME_PATH[role] ?? '/dashboard';
-}
+const COUNSELOR_ROLES = ['counselor', 'junior_counselor', 'general_counselor'];
+const CAMPER_CARE_ROLES = ['camper_care', 'health_center', 'medical', 'special_diets'];
 
 // Capability shortcuts. SUPERVISOR_PLUS == "supervisor or stronger"
 // because hasCapability(user, 'supervisor') is already inclusive of
@@ -92,9 +84,9 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * Camper Care also gets Flagged campers + Camper Care orders in the global
  * nav (dashboard cards remain secondary entry points with counts).
  * Gates use
- * hasCapability(user, [...]) || isSuperAdmin(user); direct `user.role`
- * references remain only for reflection-form access. Role workspaces are the
- * Home link target (no duplicate "Counselor home" entries).
+ * hasCapability(user, [...]) || isSuperAdmin(user); membership roles (from
+ * the per-org auth payload) drive reflection-form access. Role workspaces
+ * are the Home link target (no duplicate "Counselor home" entries).
  */
 function Sidebar({
   sidebarOpen,
@@ -173,10 +165,11 @@ function Sidebar({
   const useLeadershipAdminNav = canSeeDashboards && !canAdmin;
   const useAdminStyleNav = canAdmin || useLeadershipAdminNav;
   const adminStyleHomePath = canAdmin ? '/admin/home' : '/leadership-team';
-  const canFileReflection = REFLECTION_FORM_ROLES.includes(user.role);
-  const isCounselor = user.role === 'Counselor';
-  const isUnitHead = user.role === 'Unit Head';
-  const isCamperCare = user.role === 'Camper Care';
+  const membershipRoles = membershipRolesForUser(user);
+  const canFileReflection = REFLECTION_FORM_ROLES.some((r) => membershipRoles.includes(r));
+  const isCounselor = COUNSELOR_ROLES.some((r) => membershipRoles.includes(r));
+  const isUnitHead = membershipRoles.includes('unit_head');
+  const isCamperCare = CAMPER_CARE_ROLES.some((r) => membershipRoles.includes(r));
   const canSeeFileReflectionNav = canFileReflection && !isCounselor && !isCamperCare && !isUnitHead;
   const canSeeLogs = canSupervise || canAdmin;
   // Counselors see assigned/submitted work via My tasks + My reflections, not the org-wide dashboard.
@@ -321,7 +314,7 @@ function Sidebar({
           ) : (
           <>
           <Section heading="My work">
-            <NavItem to={homePathFor(user.role)} label="Home" icon={IconHome} end />
+            <NavItem to={homePath} label="Home" icon={IconHome} end />
             {canSeeHelp && (
               <NavItem to="/help" label="Help" icon={IconHelp} />
             )}

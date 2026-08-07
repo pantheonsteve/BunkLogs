@@ -16,6 +16,7 @@ from rest_framework import status as http_status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
@@ -34,9 +35,10 @@ if TYPE_CHECKING:
 
 
 def _person_for_request(request) -> Person | None:
-    if not request.user.is_authenticated or not getattr(request, "organization", None):
+    org = getattr(request, "organization", None)
+    if not request.user.is_authenticated or org is None:
         return None
-    return Person.all_objects.filter(user=request.user).first()
+    return person_for_user(request.user, organization=org)
 
 
 def _actor_membership_for(request, *, content) -> Membership | None:

@@ -92,7 +92,6 @@ class CounselorBunkAssignment(LegacyReadOnlyModelMixin, TestDataMixin):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="bunk_assignments",
-        limit_choices_to={"role": "Counselor"},
     )
     bunk = models.ForeignKey(
         "Bunk",

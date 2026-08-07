@@ -17,9 +17,13 @@ beforeEach(() => {
   useAuth.mockReset();
 });
 
+const orgUser = (capability, roles = []) => ({
+  organizations: [{ slug: 'clc', capability, roles }],
+});
+
 describe('EditAsAdminButton', () => {
   it('renders nothing for non-admin viewers', () => {
-    useAuth.mockReturnValue({ user: { role: 'counselor' } });
+    useAuth.mockReturnValue({ user: orgUser('participant', ['counselor']) });
     const { container } = render(
       <EditAsAdminButton contentType="reflection" contentId="abc" />,
     );
@@ -27,7 +31,7 @@ describe('EditAsAdminButton', () => {
   });
 
   it('requires a reason before submitting', async () => {
-    useAuth.mockReturnValue({ user: { role: 'admin' } });
+    useAuth.mockReturnValue({ user: orgUser('admin', ['admin']) });
     render(<EditAsAdminButton contentType="reflection" contentId="abc" patchBuilder={() => ({ answers: { x: 1 } })} />);
     fireEvent.click(screen.getByTestId('edit-as-admin-button'));
     fireEvent.click(screen.getByTestId('edit-as-admin-submit'));

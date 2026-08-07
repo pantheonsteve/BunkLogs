@@ -17,6 +17,8 @@ from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils.text import slugify
 
+from bunk_logs.core.campminder_user_link import UserLinkAction
+from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
 from bunk_logs.core.group_roster_import import load_target_group
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -213,6 +215,7 @@ class Command(BaseCommand):
 
         persons_created = persons_updated = persons_skipped = 0
         memberships_created = 0
+        users_created = users_linked = 0
         warnings: list[str] = []
 
         for i, row in enumerate(rows, start=2):
@@ -269,6 +272,17 @@ class Command(BaseCommand):
                     membership.grade_level = grade_level
                     membership.save(update_fields=["grade_level"])
 
+                user_link = ensure_user_for_imported_person(person, membership_role=role)
+                if user_link.action == UserLinkAction.CREATED:
+                    users_created += 1
+                elif user_link.action == UserLinkAction.LINKED:
+                    users_linked += 1
+                elif user_link.action == UserLinkAction.CONFLICT:
+                    warnings.append(
+                        f"Row {i} ({first_name} {last_name}): could not link user "
+                        f"— {user_link.message}",
+                    )
+
                 classroom = target_group if target_group is not None else _get_or_create_classroom(program, classroom_name)
 
                 if bulk_role_in_group in {"subject", "author"}:
@@ -324,6 +338,8 @@ class Command(BaseCommand):
             "persons_updated": persons_updated,
             "persons_unchanged": persons_skipped,
             "memberships_created": memberships_created,
+            "users_created": users_created,
+            "users_linked": users_linked,
             "warnings": warnings,
         }
 
@@ -340,7 +356,8 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Done. Persons created: {persons_created}  updated: {persons_updated}  "
-                    f"unchanged: {persons_skipped} | Memberships created: {memberships_created}",
+                    f"unchanged: {persons_skipped} | Memberships created: {memberships_created} "
+                    f"| Users created: {users_created}  linked: {users_linked}",
                 ),
             )
         for w in warnings:

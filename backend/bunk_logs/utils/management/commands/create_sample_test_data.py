@@ -49,7 +49,6 @@ class Command(BaseCommand):
                 password="testpass123",
                 first_name="Test",
                 last_name="Counselor",
-                role=User.COUNSELOR,
                 is_test_data=True,
             )
 
@@ -58,7 +57,6 @@ class Command(BaseCommand):
                 password="testpass123",
                 first_name="Test",
                 last_name="Unit Head",
-                role=User.UNIT_HEAD,
                 is_test_data=True,
             )
 

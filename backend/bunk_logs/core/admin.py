@@ -247,9 +247,53 @@ class ProgramMembershipInline(MembershipInline):
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
     inlines = [MembershipInline]
+    actions = ["create_login"]
 
     def get_queryset(self, request):
         return Person.all_objects.all()
+
+    @admin.action(description="Create login (link or create a User)")
+    def create_login(self, request, queryset):
+        from .campminder_user_link import UserLinkAction
+        from .campminder_user_link import ensure_user_for_imported_person
+
+        created = linked = skipped = 0
+        for person in queryset:
+            membership = (
+                Membership.all_objects.filter(person=person, is_active=True)
+                .exclude(role="camper")
+                .order_by("-created_at")
+                .first()
+            )
+            if membership is None:
+                skipped += 1
+                self.message_user(
+                    request,
+                    f"{person}: no active staff membership -- skipped.",
+                    level=messages.WARNING,
+                )
+                continue
+            result = ensure_user_for_imported_person(
+                person, membership_role=membership.role,
+            )
+            if result.action == UserLinkAction.CREATED:
+                created += 1
+            elif result.action == UserLinkAction.LINKED:
+                linked += 1
+            elif result.action == UserLinkAction.ALREADY_LINKED:
+                skipped += 1
+            else:
+                skipped += 1
+                self.message_user(
+                    request,
+                    f"{person}: {result.action.value} -- {result.message or 'skipped'}.",
+                    level=messages.WARNING,
+                )
+        self.message_user(
+            request,
+            f"Logins created: {created}, linked: {linked}, skipped: {skipped}.",
+            level=messages.SUCCESS,
+        )
 
     fieldsets = (
         (

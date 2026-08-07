@@ -10,6 +10,7 @@ from rest_framework.filters import BaseFilterBackend
 from bunk_logs.core.content_visibility import reflection_content_type
 from bunk_logs.core.content_visibility import reflection_is_private
 from bunk_logs.core.content_visibility import viewer_can_read
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
@@ -20,9 +21,7 @@ User = get_user_model()
 
 
 def _person_for_user(user) -> Person | None:
-    if user is None or not getattr(user, "is_authenticated", False):
-        return None
-    return Person.all_objects.filter(user=user).first()
+    return person_for_user(user)
 
 
 def _viewer_roles(person: Person, program_id: int | None = None) -> frozenset[str]:

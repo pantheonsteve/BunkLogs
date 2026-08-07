@@ -75,16 +75,21 @@ def _user_from_bearer_jwt(request: HttpRequest):
 
 
 def _org_from_linked_person(user) -> Organization | None:
+    """Fallback tenant when neither subdomain nor header resolved one.
+
+    A user may hold a Person in several orgs; guessing would route them to
+    the wrong tenant, so only resolve when exactly one linked Person exists.
+    Multi-org users must send an explicit slug (subdomain or header).
+    """
     from bunk_logs.core.models import Person
 
-    person = (
+    people = list(
         Person.all_objects.select_related("organization")
-        .filter(user=user)
-        .first()
+        .filter(user=user)[:2],
     )
-    if person is None:
+    if len(people) != 1:
         return None
-    org = person.organization
+    org = people[0].organization
     return org if org.is_active else None
 
 

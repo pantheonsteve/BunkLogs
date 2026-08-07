@@ -37,7 +37,6 @@ class BunkLogDateSyncTestCase(TestCase):
             email="testcounselor@example.com",
             first_name="Test",
             last_name="Counselor",
-            role="Counselor",
         )
 
         # Create test data first
@@ -204,7 +203,6 @@ class CounselorLogDateSyncTestCase(TestCase):
             email="testcounselor2@example.com",
             first_name="Test",
             last_name="Counselor2",
-            role="Counselor",
         )
 
     def test_counselorlog_date_sync_normal_time(self):
@@ -266,7 +264,6 @@ class DateSyncIntegrationTestCase(TestCase):
             email="integration@example.com",
             first_name="Integration",
             last_name="Test",
-            role="Counselor",
         )
 
         # Create test data first

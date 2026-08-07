@@ -2,6 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Transition from '../utils/Transition';
 import { useAuth } from '../auth/AuthContext';
+import { membershipRolesForUser } from '../utils/auth/capability';
+
+function roleLabel(user) {
+  const roles = membershipRolesForUser(user);
+  if (roles.length === 0) return 'User';
+  return roles
+    .map((r) => r.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
+    .join(', ');
+}
 
 import UserAvatar from '../images/user-avatar-32.png';
 
@@ -75,7 +84,7 @@ function DropdownProfile({
             <div className="font-medium text-gray-800 dark:text-gray-100">
               {userProfile?.first_name ? `${userProfile.first_name} ${userProfile.last_name || ''}` : userProfile?.email || 'User'}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 italic">{userProfile?.role || 'User'}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 italic">{roleLabel(userProfile)}</div>
           </div>
           <ul>
             {/* <li>

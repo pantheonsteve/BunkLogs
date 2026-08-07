@@ -18,7 +18,9 @@ function Dashboard() {
     if (authLoading || isAuthenticating) return;
 
     const destination = homePathForUser(user);
-    navigate(destination === '/dashboard' ? '/admin/home' : destination, { replace: true });
+    // homePathForUser only answers '/dashboard' (this page) for a missing
+    // profile; send that terminal case to /no-access instead of looping.
+    navigate(destination === '/dashboard' ? '/no-access' : destination, { replace: true });
   }, [user, navigate, authLoading, isAuthenticating]);
 
   return (

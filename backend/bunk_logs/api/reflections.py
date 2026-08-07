@@ -21,6 +21,7 @@ from rest_framework.response import Response
 
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.assignment_resolution import list_required_assignments_for
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -41,9 +42,10 @@ from bunk_logs.core.translation import enqueue_translation_for_reflection
 
 
 def _person_for_request(request):
-    if not getattr(request, "organization", None) or not request.user.is_authenticated:
+    org = getattr(request, "organization", None)
+    if org is None or not request.user.is_authenticated:
         return None
-    return Person.objects.filter(user=request.user).first()
+    return person_for_user(request.user, organization=org)
 
 
 def _has_tenant_admin(person: Person) -> bool:

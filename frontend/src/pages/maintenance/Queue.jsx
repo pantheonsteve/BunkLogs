@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { membershipRolesForUser } from '../../utils/auth/capability';
 import {
   fetchMaintenanceQueue,
   transitionTicket,
@@ -360,9 +361,10 @@ function FilterBar({ filter, search, dateFrom, dateTo, showMineFilter, onChange 
 export default function MaintenanceQueue() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isMaintenanceTeam = Array.isArray(user?.membership_roles)
-    && user.membership_roles.includes('maintenance');
-  const isCounselorViewer = user?.role === 'Counselor' && !isMaintenanceTeam;
+  const membershipRoles = membershipRolesForUser(user);
+  const isMaintenanceTeam = membershipRoles.includes('maintenance');
+  const isCounselorViewer = ['counselor', 'junior_counselor', 'general_counselor']
+    .some((r) => membershipRoles.includes(r)) && !isMaintenanceTeam;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

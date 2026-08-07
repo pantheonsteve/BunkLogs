@@ -1,9 +1,9 @@
 /**
  * Sidebar capability-aware navigation tests (3.32).
  *
- * Each persona test stubs `useAuth()` with a representative user
- * (legacy User.role for now; capability.js maps role -> capability)
- * and asserts which section headings and link hrefs appear.
+ * Each persona test stubs `useAuth()` with a representative user built
+ * from the per-org auth payload (`user.organizations`) and asserts
+ * which section headings and link hrefs appear.
  *
  * We assert on hrefs rather than link text where possible so a
  * labels rewrite doesn't silently break coverage. Section headings
@@ -23,6 +23,15 @@ vi.mock('../../auth/AuthContext', () => ({
 }));
 
 import Sidebar from '../Sidebar';
+
+/** User with the given capability + membership roles in a single org. */
+function orgUser(capability, roles, extra = {}) {
+  return {
+    organizations: [{ slug: 'clc', name: 'Crane Lake', capability, roles }],
+    membership_roles: roles,
+    ...extra,
+  };
+}
 
 function renderWith(user, { path = '/dashboard' } = {}) {
   mockUseAuth.mockReturnValue({ user });
@@ -49,7 +58,7 @@ beforeEach(() => {
 
 describe('Sidebar — section gating (3.32)', () => {
   it('participant (counselor) sees My work but no Help / Supervise / Admin', () => {
-    renderWith({ role: 'Counselor' });
+    renderWith(orgUser('participant', ['counselor']));
 
     expect(screen.queryByRole('link', { name: 'Help' })).not.toBeInTheDocument();
     // Multiple "My work" headings can render (mobile + desktop variants);
@@ -74,7 +83,7 @@ describe('Sidebar — section gating (3.32)', () => {
   });
 
   it('participant (kitchen) sees My work without Counselor home or reflection forms', () => {
-    renderWith({ role: 'Kitchen Staff' });
+    renderWith(orgUser('participant', ['kitchen_staff']));
 
     const links = hrefs();
     expect(links).toContain('/kitchen-staff');
@@ -87,7 +96,7 @@ describe('Sidebar — section gating (3.32)', () => {
   });
 
   it('supervisor (unit_head) sees Supervise but not Dashboards or Admin', () => {
-    renderWith({ role: 'Unit Head' });
+    renderWith(orgUser('supervisor', ['unit_head']));
 
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
@@ -107,7 +116,7 @@ describe('Sidebar — section gating (3.32)', () => {
   });
 
   it('supervisor (camper_care) sees Supervise without personal reflection nav', () => {
-    renderWith({ role: 'Camper Care' });
+    renderWith(orgUser('supervisor', ['camper_care']));
 
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     const links = hrefs();
@@ -125,7 +134,7 @@ describe('Sidebar — section gating (3.32)', () => {
   });
 
   it('program_lead (leadership) sees Admin-style nav with Templates-only Admin submenu', () => {
-    renderWith({ role: 'Leadership' }, { path: '/leadership-team' });
+    renderWith(orgUser('program_lead', ['leadership_team']), { path: '/leadership-team' });
 
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/leadership-team');
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
@@ -168,7 +177,7 @@ describe('Sidebar — section gating (3.32)', () => {
   });
 
   it('admin sees the curated Admin IA, not the default My work nav', () => {
-    renderWith({ role: 'Admin' }, { path: '/admin/home' });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin/home' });
 
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin/home');
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
@@ -224,7 +233,7 @@ describe('Sidebar — section gating (3.32)', () => {
 
 describe('Sidebar — maintenance-only nav', () => {
   it('shows only Maintenance Queue for a maintenance member', () => {
-    renderWith({ role: 'Counselor', membership_roles: ['maintenance'] });
+    renderWith(orgUser('participant', ['maintenance']));
 
     const links = hrefs();
     expect(links).toContain('/maintenance');
@@ -242,7 +251,7 @@ describe('Sidebar — maintenance-only nav', () => {
   });
 
   it('keeps the full Admin nav when the user also holds an admin membership', () => {
-    renderWith({ role: 'Admin', membership_roles: ['maintenance', 'admin'] });
+    renderWith(orgUser('admin', ['maintenance', 'admin']));
     const links = hrefs();
     expect(links).toContain('/admin/home');
     expect(links).not.toContain('/admin/dashboard');
@@ -252,7 +261,7 @@ describe('Sidebar — maintenance-only nav', () => {
 
 describe('Sidebar — de-duplication (3.32)', () => {
   it('renders /dashboards/logs and /dashboards/reflections exactly once for admins', () => {
-    renderWith({ role: 'Admin' }, { path: '/admin' });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin' });
     const links = hrefs();
     const logsMatches = links.filter((h) => h === '/dashboards/logs');
     const reflectionsMatches = links.filter((h) => h === '/dashboards/reflections');
@@ -262,14 +271,14 @@ describe('Sidebar — de-duplication (3.32)', () => {
   });
 
   it('moves Concerns inbox to Supervise only — not duplicated elsewhere', () => {
-    renderWith({ role: 'Admin' });
+    renderWith(orgUser('admin', ['admin']));
     const links = hrefs();
     const concerns = links.filter((h) => h === '/dashboards/concerns');
     expect(concerns).toHaveLength(1);
   });
 
   it('moves Author attribution to Supervise only — not duplicated elsewhere', () => {
-    renderWith({ role: 'Admin' });
+    renderWith(orgUser('admin', ['admin']));
     const links = hrefs();
     const authors = links.filter((h) => h === '/dashboards/authors');
     expect(authors).toHaveLength(1);
@@ -278,17 +287,17 @@ describe('Sidebar — de-duplication (3.32)', () => {
 
 describe('Sidebar — Admin submenu items (3.32)', () => {
   it('includes Field keys under Admin (added in 3.32)', () => {
-    renderWith({ role: 'Admin' }, { path: '/admin' });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin' });
     expect(hrefs()).toContain('/admin/field-keys');
   });
 
   it('includes Request catalog under Admin (Step 7_catalog)', () => {
-    renderWith({ role: 'Admin' }, { path: '/admin' });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin' });
     expect(hrefs()).toContain('/admin/catalog');
   });
 
   it('still includes People / Memberships / Groups / Templates and top-level Home', () => {
-    renderWith({ role: 'Admin' }, { path: '/admin/home' });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin/home' });
     const links = hrefs();
     expect(links).toEqual(
       expect.arrayContaining([
@@ -303,7 +312,7 @@ describe('Sidebar — Admin submenu items (3.32)', () => {
   });
 
   it('renders Admin submenu after Supervise with no legacy links', () => {
-    renderWith({ role: 'Admin' }, { path: '/admin/home' });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin/home' });
     const links = hrefs();
     const homeIdx = links.indexOf('/admin/home');
     const performanceIdx = links.indexOf('/groups/performance');

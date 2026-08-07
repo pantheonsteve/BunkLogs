@@ -86,26 +86,18 @@ def legacy_data(db):
         email="alice@example.com", first_name="Alice", last_name="Counselor",
         password="x",
     )
-    alice.role = "Counselor"
-    alice.save(update_fields=["role"])
     bob = User.objects.create_user(
         email="bob@example.com", first_name="Bob", last_name="Counselor",
         password="x",
     )
-    bob.role = "Counselor"
-    bob.save(update_fields=["role"])
     carol = User.objects.create_user(
         email="carol@example.com", first_name="Carol", last_name="Head",
         password="x",
     )
-    carol.role = "Unit Head"
-    carol.save(update_fields=["role"])
     dave = User.objects.create_user(
         email="dave@example.com", first_name="Dave", last_name="Care",
         password="x",
     )
-    dave.role = "Camper Care"
-    dave.save(update_fields=["role"])
 
     # Campers
     eve = Camper.objects.create(first_name="Eve", last_name="One")

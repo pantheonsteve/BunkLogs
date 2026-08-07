@@ -19,7 +19,8 @@ function AuthDebug() {
       <div>Authenticating: {isAuthenticating ? 'Yes' : 'No'}</div>
       <div>Authenticated: {isAuthenticated ? 'Yes' : 'No'}</div>
       <div>User ID: {user?.id || 'None'}</div>
-      <div>User Role: {user?.role || 'None'}</div>
+      <div>Membership Roles: {(user?.membership_roles || []).join(', ') || 'None'}</div>
+      <div>Organizations: {(user?.organizations || []).map((o) => o.slug).join(', ') || 'None'}</div>
       <div>User Email: {user?.email || 'None'}</div>
       <div>Token: {localStorage.getItem('access_token') ? 'Present' : 'Missing'}</div>
     </div>

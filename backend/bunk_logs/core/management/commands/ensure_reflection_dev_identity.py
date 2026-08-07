@@ -100,13 +100,9 @@ class Command(BaseCommand):
             )
             raise CommandError(msg) from e
 
-        existing = Person.all_objects.filter(user=user).first()
-        if existing is not None and existing.organization_id != org.id:
-            msg = (
-                f"User {email!r} is already linked to Person pk={existing.pk} in another organization. "
-                "Unlink or use a different user."
-            )
-            raise CommandError(msg)
+        # One Person per (org, user): links in other orgs are fine, we just
+        # ensure a Person exists for this user in *this* org.
+        existing = Person.all_objects.filter(user=user, organization=org).first()
 
         if existing is None:
             person = Person.all_objects.create(

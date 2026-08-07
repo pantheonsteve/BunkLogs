@@ -1,24 +1,35 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
   CAPABILITIES,
+  currentOrgContext,
+  membershipRolesForUser,
   userCapability,
   hasCapability,
   homePathForUser,
-  _LEGACY_USER_ROLE_TO_CAPABILITY,
 } from '../capability';
+import { resolveOrganizationSlug } from '../../orgSlug';
 
-// Mirror of backend users.models.User.ROLE_CHOICES. If a new legacy
-// User.role string is added on the backend, this list fails first --
-// then capability.js needs an entry too.
-const LEGACY_ROLES = [
-  'Admin',
-  'Camper Care',
-  'Unit Head',
-  'Counselor',
-  'Leadership',
-  'Kitchen Staff',
-];
+// The current-org resolution reads the tenant subdomain; mock it so tests
+// can flip between "on clc.bunklogs.net" and "unscoped dev host".
+vi.mock('../../orgSlug', () => ({
+  resolveOrganizationSlug: vi.fn(() => null),
+}));
+
+const org = (slug, capability, roles, name) => ({
+  slug,
+  name: name || slug.toUpperCase(),
+  capability,
+  roles,
+});
+
+const userIn = (capability, roles = []) => ({
+  organizations: [org('clc', capability, roles)],
+});
+
+beforeEach(() => {
+  resolveOrganizationSlug.mockReturnValue(null);
+});
 
 describe('CAPABILITIES order', () => {
   it('orders capabilities from weakest to strongest', () => {
@@ -38,84 +49,115 @@ describe('CAPABILITIES order', () => {
   });
 });
 
-describe('LEGACY_USER_ROLE_TO_CAPABILITY coverage', () => {
-  it('maps every backend User.role value', () => {
-    for (const role of LEGACY_ROLES) {
-      expect(
-        Object.prototype.hasOwnProperty.call(
-          _LEGACY_USER_ROLE_TO_CAPABILITY,
-          role,
-        ),
-      ).toBe(true);
-    }
+describe('currentOrgContext', () => {
+  it('returns null for null user or missing organizations payload', () => {
+    expect(currentOrgContext(null)).toBe(null);
+    expect(currentOrgContext({})).toBe(null);
+    expect(currentOrgContext({ role: 'Admin' })).toBe(null);
   });
 
-  it('does not invent new role names', () => {
-    for (const role of Object.keys(_LEGACY_USER_ROLE_TO_CAPABILITY)) {
-      expect(LEGACY_ROLES).toContain(role);
-    }
+  it('falls back to the single org when no slug is resolvable', () => {
+    const u = userIn('participant', ['madrich']);
+    expect(currentOrgContext(u)?.slug).toBe('clc');
+  });
+
+  it('does not guess between multiple orgs without a slug', () => {
+    const u = {
+      organizations: [
+        org('clc', 'admin', ['admin']),
+        org('tbe', 'participant', ['madrich']),
+      ],
+    };
+    expect(currentOrgContext(u)).toBe(null);
+  });
+
+  it('picks the org matching the tenant subdomain', () => {
+    resolveOrganizationSlug.mockReturnValue('tbe');
+    const u = {
+      organizations: [
+        org('clc', 'admin', ['admin']),
+        org('tbe', 'participant', ['madrich']),
+      ],
+    };
+    expect(currentOrgContext(u)?.capability).toBe('participant');
+  });
+
+  it('returns null when the user has no entry for the current org', () => {
+    resolveOrganizationSlug.mockReturnValue('clc');
+    const u = { organizations: [org('tbe', 'participant', ['madrich'])] };
+    expect(currentOrgContext(u)).toBe(null);
+  });
+});
+
+describe('membershipRolesForUser', () => {
+  it('returns the org-scoped roles when resolvable', () => {
+    resolveOrganizationSlug.mockReturnValue('tbe');
+    const u = {
+      membership_roles: ['admin', 'madrich'],
+      organizations: [
+        org('clc', 'admin', ['admin']),
+        org('tbe', 'participant', ['madrich']),
+      ],
+    };
+    expect(membershipRolesForUser(u)).toEqual(['madrich']);
+  });
+
+  it('falls back to the flattened union for older payloads', () => {
+    expect(membershipRolesForUser({ membership_roles: ['counselor'] })).toEqual(['counselor']);
+    expect(membershipRolesForUser({})).toEqual([]);
+    expect(membershipRolesForUser(null)).toEqual([]);
   });
 });
 
 describe('userCapability', () => {
-  it('returns null for null/undefined', () => {
+  it('returns null for null/undefined and role-less users', () => {
     expect(userCapability(null)).toBe(null);
     expect(userCapability(undefined)).toBe(null);
-  });
-
-  it('returns null for users with no role and no super-admin flags', () => {
     expect(userCapability({})).toBe(null);
-    expect(userCapability({ role: '' })).toBe(null);
-    expect(userCapability({ role: null })).toBe(null);
+    expect(userCapability({ organizations: [] })).toBe(null);
   });
 
-  it('returns the capability for each legacy User.role', () => {
-    expect(userCapability({ role: 'Counselor' })).toBe('participant');
-    expect(userCapability({ role: 'Kitchen Staff' })).toBe('participant');
-    expect(userCapability({ role: 'Unit Head' })).toBe('supervisor');
-    expect(userCapability({ role: 'Camper Care' })).toBe('supervisor');
-    expect(userCapability({ role: 'Leadership' })).toBe('program_lead');
-    expect(userCapability({ role: 'Admin' })).toBe('admin');
+  it('returns the capability from the current org context', () => {
+    expect(userCapability(userIn('participant', ['counselor']))).toBe('participant');
+    expect(userCapability(userIn('supervisor', ['unit_head']))).toBe('supervisor');
+    expect(userCapability(userIn('program_lead', ['leadership_team']))).toBe('program_lead');
+    expect(userCapability(userIn('admin', ['admin']))).toBe('admin');
   });
 
-  it('returns "admin" for is_staff users regardless of their User.role', () => {
+  it('returns "admin" for is_staff/is_superuser regardless of memberships', () => {
     expect(userCapability({ is_staff: true })).toBe('admin');
-    expect(userCapability({ is_staff: true, role: 'Counselor' })).toBe('admin');
-  });
-
-  it('returns "admin" for is_superuser users regardless of role', () => {
     expect(userCapability({ is_superuser: true })).toBe('admin');
-    expect(userCapability({ is_superuser: true, role: 'Camper Care' })).toBe('admin');
+    expect(userCapability({ is_staff: true, ...userIn('participant', ['counselor']) })).toBe('admin');
   });
 
-  it('returns null for unknown role strings (and does not throw)', () => {
-    expect(userCapability({ role: 'Mystery Role' })).toBe(null);
+  it('returns null when the user has no membership in the current org', () => {
+    resolveOrganizationSlug.mockReturnValue('clc');
+    const tbeUser = { organizations: [org('tbe', 'participant', ['madrich'])] };
+    expect(userCapability(tbeUser)).toBe(null);
   });
 });
 
 describe('hasCapability — single capability checks', () => {
-  it('returns false for null user / null capability target', () => {
+  it('returns false for null user / empty capability list', () => {
     expect(hasCapability(null, 'participant')).toBe(false);
-    expect(hasCapability({ role: 'Counselor' }, [])).toBe(false);
+    expect(hasCapability(userIn('participant'), [])).toBe(false);
   });
 
   it('admin matches every named capability', () => {
-    const admin = { role: 'Admin' };
-    expect(hasCapability(admin, 'participant')).toBe(true);
-    expect(hasCapability(admin, 'supervisor')).toBe(true);
-    expect(hasCapability(admin, 'program_lead')).toBe(true);
-    expect(hasCapability(admin, 'domain_specialist')).toBe(true);
-    expect(hasCapability(admin, 'admin')).toBe(true);
+    const admin = userIn('admin', ['admin']);
+    for (const cap of CAPABILITIES) {
+      expect(hasCapability(admin, cap)).toBe(true);
+    }
   });
 
-  it('super admin matches every named capability (even without role)', () => {
+  it('super admin matches every named capability (even without memberships)', () => {
     const root = { is_staff: true };
     expect(hasCapability(root, 'admin')).toBe(true);
     expect(hasCapability(root, 'supervisor')).toBe(true);
   });
 
   it('program_lead matches participant/supervisor/program_lead but not admin or domain_specialist', () => {
-    const u = { role: 'Leadership' };
+    const u = userIn('program_lead', ['leadership_team']);
     expect(hasCapability(u, 'participant')).toBe(true);
     expect(hasCapability(u, 'supervisor')).toBe(true);
     expect(hasCapability(u, 'program_lead')).toBe(true);
@@ -124,7 +166,7 @@ describe('hasCapability — single capability checks', () => {
   });
 
   it('supervisor matches participant/supervisor only', () => {
-    const u = { role: 'Unit Head' };
+    const u = userIn('supervisor', ['unit_head']);
     expect(hasCapability(u, 'participant')).toBe(true);
     expect(hasCapability(u, 'supervisor')).toBe(true);
     expect(hasCapability(u, 'program_lead')).toBe(false);
@@ -132,36 +174,62 @@ describe('hasCapability — single capability checks', () => {
   });
 
   it('participant matches only participant', () => {
-    const u = { role: 'Counselor' };
+    const u = userIn('participant', ['counselor']);
     expect(hasCapability(u, 'participant')).toBe(true);
     expect(hasCapability(u, 'supervisor')).toBe(false);
     expect(hasCapability(u, 'program_lead')).toBe(false);
+    expect(hasCapability(u, 'admin')).toBe(false);
+  });
+
+  it('domain_specialist matches participant/supervisor/domain_specialist', () => {
+    const u = userIn('domain_specialist', ['health_center']);
+    expect(hasCapability(u, 'participant')).toBe(true);
+    expect(hasCapability(u, 'supervisor')).toBe(true);
+    expect(hasCapability(u, 'domain_specialist')).toBe(true);
     expect(hasCapability(u, 'admin')).toBe(false);
   });
 });
 
 describe('hasCapability — list-of-capabilities checks', () => {
   it('matches any capability in the list (OR semantics)', () => {
-    const u = { role: 'Unit Head' };
+    const u = userIn('supervisor', ['unit_head']);
     expect(hasCapability(u, ['admin', 'supervisor'])).toBe(true);
     expect(hasCapability(u, ['admin', 'program_lead'])).toBe(false);
-  });
-
-  it('handles a single-element list the same as a bare string', () => {
-    const u = { role: 'Camper Care' };
-    expect(hasCapability(u, ['supervisor'])).toBe(hasCapability(u, 'supervisor'));
   });
 });
 
 describe('homePathForUser', () => {
-  it('sends maintenance-only members to the queue', () => {
-    expect(homePathForUser({
-      role: 'Counselor',
-      membership_roles: ['maintenance'],
-    })).toBe('/maintenance');
+  it('returns /dashboard for a missing user (unauthenticated entry)', () => {
+    expect(homePathForUser(null)).toBe('/dashboard');
   });
 
-  it('keeps counselor home for non-maintenance counselors', () => {
-    expect(homePathForUser({ role: 'Counselor', membership_roles: [] })).toBe('/counselor');
+  it('sends maintenance-only members to the queue', () => {
+    expect(homePathForUser(userIn('participant', ['maintenance']))).toBe('/maintenance');
+  });
+
+  it('routes each workspace role to its home', () => {
+    expect(homePathForUser(userIn('admin', ['admin']))).toBe('/admin/home');
+    expect(homePathForUser(userIn('participant', ['counselor']))).toBe('/counselor');
+    expect(homePathForUser(userIn('supervisor', ['unit_head']))).toBe('/unit-head');
+    expect(homePathForUser(userIn('supervisor', ['camper_care']))).toBe('/camper-care');
+    expect(homePathForUser(userIn('program_lead', ['leadership_team']))).toBe('/leadership-team');
+    expect(homePathForUser(userIn('participant', ['madrich']))).toBe('/madrich');
+    expect(homePathForUser(userIn('participant', ['kitchen_staff']))).toBe('/kitchen-staff');
+    expect(homePathForUser(userIn('supervisor', ['faculty']))).toBe('/dashboards');
+  });
+
+  it('prefers admin over other roles', () => {
+    expect(homePathForUser(userIn('admin', ['admin', 'counselor']))).toBe('/admin/home');
+  });
+
+  it('is terminal (/no-access) for users with no roles in the current org', () => {
+    resolveOrganizationSlug.mockReturnValue('clc');
+    const tbeUser = { organizations: [org('tbe', 'participant', ['madrich'])] };
+    expect(homePathForUser(tbeUser)).toBe('/no-access');
+    expect(homePathForUser({ organizations: [], membership_roles: [] })).toBe('/no-access');
+  });
+
+  it('sends super admins to /admin/home', () => {
+    expect(homePathForUser({ is_superuser: true })).toBe('/admin/home');
   });
 });

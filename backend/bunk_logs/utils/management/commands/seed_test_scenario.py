@@ -86,12 +86,12 @@ class Command(BaseCommand):
 
             unit = self._ensure_unit()
 
-            counselors = self._users_by_role(User.COUNSELOR)
-            unit_heads = self._users_by_role(User.UNIT_HEAD)
-            camper_care = self._users_by_role(User.CAMPER_CARE)
+            counselors = self._users_by_label("counselor")
+            unit_heads = self._users_by_label("unit-head")
+            camper_care = self._users_by_label("camper-care")
 
             if not counselors:
-                msg = "No users with role='Counselor' found. Run seed_dev_data first."
+                msg = "No seeded counselor users found. Run seed_dev_data first."
                 raise CommandError(msg)
 
             bunks = self._assign_bunks_to_unit(session, unit)
@@ -204,8 +204,13 @@ class Command(BaseCommand):
     def _active_session(self) -> Session | None:
         return Session.objects.filter(is_active=True).order_by("-start_date").first()
 
-    def _users_by_role(self, role: str) -> list[User]:
-        return list(User.objects.filter(role=role, is_active=True).order_by("id"))
+    def _users_by_label(self, label: str) -> list[User]:
+        """Find seed_dev_data users by their email label prefix (e.g. counselor-3@...)."""
+        return list(
+            User.objects.filter(
+                email__startswith=f"{label}-", is_active=True, is_test_data=True,
+            ).order_by("id"),
+        )
 
     def _ensure_unit(self) -> Unit:
         unit, created = Unit.objects.get_or_create(

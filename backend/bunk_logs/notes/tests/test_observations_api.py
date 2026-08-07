@@ -211,7 +211,7 @@ class TestInboxAndThread:
         from bunk_logs.users.models import User
 
         admin_user = User.objects.create_user(
-            email="all-tab-admin@t.test", password="pw", role=User.ADMIN,
+            email="all-tab-admin@t.test", password="pw",
         )
         admin_person = Person.all_objects.create(
             organization=org, first_name="All", last_name="Admin", user=admin_user,
@@ -295,7 +295,7 @@ class TestInboxAndThread:
         from bunk_logs.users.models import User
 
         admin_user = User.objects.create_user(
-            email="org-admin-obs@t.test", password="pw", role=User.ADMIN,
+            email="org-admin-obs@t.test", password="pw",
         )
         admin_person = Person.all_objects.create(
             organization=org, first_name="Org", last_name="Admin", user=admin_user,
@@ -305,36 +305,6 @@ class TestInboxAndThread:
         )
         author = Person.all_objects.create(organization=org, first_name="Auth", last_name="Or")
         obs = _make_observation(org, program, author, subjects=[camper])
-        client = _auth_client(admin_user, org)
-        resp = client.get(f"/api/v1/observations/{obs.id}/")
-        assert resp.status_code == 200
-        assert resp.json()["subjects"][0]["can_view_profile"] is True
-
-    def test_thread_subject_can_view_profile_true_for_legacy_user_role_admin(
-        self, org, program, counselor_in_bunk, camper,
-    ):
-        """User.role Admin with only counselor membership still sees profile links."""
-        from bunk_logs.users.models import User
-
-        admin_user = User.objects.create_user(
-            email="legacy-admin-obs@t.test", password="pw", role=User.ADMIN,
-        )
-        admin_person = Person.all_objects.create(
-            organization=org, first_name="Legacy", last_name="Admin", user=admin_user,
-        )
-        Membership.all_objects.create(
-            program=program, person=admin_person, role="counselor", is_active=True,
-        )
-        other_bunk = AssignmentGroup.all_objects.create(
-            organization=org, program=program, name="Bunk Pine",
-            slug="bunk-pine", group_type="bunk",
-        )
-        distant = Person.all_objects.create(organization=org, first_name="Far", last_name="Camper")
-        AssignmentGroupMembership.all_objects.create(
-            group=other_bunk, person=distant, role_in_group="subject", is_active=True,
-        )
-        author = Person.all_objects.filter(user=admin_user).first()
-        obs = _make_observation(org, program, author, subjects=[distant])
         client = _auth_client(admin_user, org)
         resp = client.get(f"/api/v1/observations/{obs.id}/")
         assert resp.status_code == 200

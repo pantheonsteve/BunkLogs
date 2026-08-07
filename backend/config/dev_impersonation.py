@@ -16,7 +16,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from bunk_logs.api.views import _active_membership_roles
+from bunk_logs.core.identity import active_membership_roles
+from config.auth_api import build_user_auth_payload
 
 User = get_user_model()
 
@@ -38,22 +39,11 @@ def _build_token_payload(user) -> dict:
     refresh = RefreshToken.for_user(user)
     refresh["email"] = user.email
     refresh["user_id"] = str(user.id)
-    if hasattr(user, "role"):
-        refresh["role"] = getattr(user, "role", "User")
 
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "first_name": getattr(user, "first_name", ""),
-            "last_name": getattr(user, "last_name", ""),
-            "role": getattr(user, "role", "User"),
-            "is_staff": user.is_staff,
-            "is_superuser": user.is_superuser,
-            "membership_roles": _active_membership_roles(user),
-        },
+        "user": build_user_auth_payload(user),
     }
 
 
@@ -63,9 +53,8 @@ def _user_summary(user) -> dict:
         "id": str(user.id),
         "email": user.email,
         "name": name or user.email,
-        "role": getattr(user, "role", ""),
         "is_active": user.is_active,
-        "membership_roles": _active_membership_roles(user),
+        "membership_roles": active_membership_roles(user),
     }
 
 

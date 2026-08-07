@@ -2,6 +2,7 @@ import { useState } from 'react';
 import api from '../../api';
 import { useAuth } from '../../auth/AuthContext';
 import isSuperAdmin from '../../utils/auth/isSuperAdmin';
+import { hasCapability } from '../../utils/auth/capability';
 
 /**
  * Step 7_13 — Story 59 criterion 8.
@@ -34,7 +35,7 @@ export default function EditAsAdminButton({
   className = '',
 }) {
   const { user } = useAuth();
-  const isAdmin = isSuperAdmin(user) || user?.role?.toLowerCase() === 'admin';
+  const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [rawPatch, setRawPatch] = useState('{}');

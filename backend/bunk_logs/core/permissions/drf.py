@@ -3,15 +3,17 @@ from __future__ import annotations
 
 from rest_framework import permissions
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.super_admin import is_super_admin
 
 
 def _person_for_request(request) -> Person | None:
-    if not getattr(request, "organization", None) or not request.user.is_authenticated:
+    org = getattr(request, "organization", None)
+    if org is None or not request.user.is_authenticated:
         return None
-    return Person.objects.filter(user=request.user).first()
+    return person_for_user(request.user, organization=org)
 
 
 def _is_org_admin(person: Person | None) -> bool:

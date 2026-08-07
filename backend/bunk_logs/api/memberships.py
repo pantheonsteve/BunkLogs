@@ -7,6 +7,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions import is_super_admin
@@ -28,9 +29,10 @@ def _normalize_tags(values) -> list[str]:
 
 
 def _person_for_request(request) -> Person | None:
-    if not getattr(request, "organization", None) or not request.user.is_authenticated:
+    org = getattr(request, "organization", None)
+    if org is None or not request.user.is_authenticated:
         return None
-    return Person.objects.filter(user=request.user).first()
+    return person_for_user(request.user, organization=org)
 
 
 def _is_org_admin(person: Person | None) -> bool:

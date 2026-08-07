@@ -1,0 +1,13 @@
+Hi {{ person.full_name }},
+
+You've been invited to join {{ organization.name }} on {{ site_name }}.
+
+Sign in with this email address ({{ person.email }}) to get started:
+
+{{ signin_url }}
+
+If you use Google, choose "Sign in with Google". Otherwise, use the
+"Forgot password" link on the sign-in page to set your password.
+
+Thank you,
+The {{ site_name }} Team

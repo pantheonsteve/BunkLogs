@@ -39,7 +39,6 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.observation_authoring import recipients_clearing_sensitivity
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
-from bunk_logs.core.permissions.subject_dashboard import _has_legacy_user_role_admin
 from bunk_logs.core.permissions.subject_dashboard import _has_org_admin_membership
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.person_search import filter_persons_by_name_query
@@ -107,9 +106,7 @@ def _is_observation_org_admin(request, ctx: ViewerContext) -> bool:
     """True when the viewer may browse every observation in the org (admin role)."""
     if is_super_admin(request.user):
         return True
-    if _has_org_admin_membership(ctx.person, ctx.organization):
-        return True
-    return _has_legacy_user_role_admin(request.user, ctx.person, ctx.organization)
+    return _has_org_admin_membership(ctx.person, ctx.organization)
 
 
 def _paginated_observation_list(request, qs, *, person: Person):
