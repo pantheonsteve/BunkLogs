@@ -42,6 +42,9 @@ from .programs import AdminProgramDetailView
 from .programs import AdminProgramEndView
 from .programs import AdminProgramsListCreateView
 from .programs import AdminSettingsView
+from .reflections import AdminReflectionsMemberDetailView
+from .reflections import AdminReflectionsTeamExportView
+from .reflections import AdminReflectionsTeamView
 from .search import AdminGlobalSearchView
 from .templates import AdminTemplateReviewView
 from .templates import AdminTemplatesListView
@@ -198,5 +201,23 @@ urlpatterns = [
         "catalog/planning/",
         AdminCatalogPlanningView.as_view(),
         name="admin-catalog-planning",
+    ),
+    # ------------------------------------------------------------------
+    # Reflections completion dashboard (Step 4_4 — TBE)
+    # ------------------------------------------------------------------
+    path(
+        "reflections/teams/<str:role>/",
+        AdminReflectionsTeamView.as_view(),
+        name="admin-reflections-team",
+    ),
+    path(
+        "reflections/teams/<str:role>/export/",
+        AdminReflectionsTeamExportView.as_view(),
+        name="admin-reflections-team-export",
+    ),
+    path(
+        "reflections/teams/<str:role>/members/<int:membership_id>/",
+        AdminReflectionsMemberDetailView.as_view(),
+        name="admin-reflections-member-detail",
     ),
 ]

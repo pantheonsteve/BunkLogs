@@ -12,6 +12,7 @@ import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 import { OrgLogo } from "../components/OrgBrandingAssets";
+import { useOrgBranding } from "../context/OrgBrandingContext";
 
 // Membership roles that can author a /reflect submission today; kept to
 // preserve the existing top-level "Program reflection" / "My reflections"
@@ -95,6 +96,7 @@ function Sidebar({
   const location = useLocation();
   const { pathname } = location;
   const { user } = useAuth();
+  const { slug: orgSlug } = useOrgBranding();
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -300,6 +302,11 @@ function Sidebar({
                 <SubItem to="/admin/groups" label="Groups" />
                 <SubItem to="/admin/assignments" label="Assignments" />
                 <SubItem to="/admin/templates" label="Templates" />
+                {/* TBE-only for now (Step 4_4) — grade-level completion
+                    dashboard doesn't apply to Crane Lake's unit model. */}
+                {orgSlug === 'tbe' && (
+                  <SubItem to="/admin/reflections" label="Reflections" />
+                )}
                 <SubItem to="/admin/catalog" label="Request catalog" />
                 <SubItem to="/admin/field-keys" label="Field Keys" />
                 <SubItem to="/admin/settings" label="Settings" />
