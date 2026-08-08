@@ -11,8 +11,7 @@ import {
 import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
-
-import CampLogo from "../../src/images/clc-logo.jpeg";
+import { OrgLogo } from "../components/OrgBrandingAssets";
 
 // Membership roles that can author a /reflect submission today; kept to
 // preserve the existing top-level "Program reflection" / "My reflections"
@@ -466,9 +465,7 @@ function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' })
           <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
         </svg>
       </button>
-      <NavLink end to={homePath} className="block">
-        <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src={CampLogo} />
-      </NavLink>
+      <OrgLogo to={homePath} />
     </div>
   );
 }

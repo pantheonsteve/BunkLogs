@@ -5,6 +5,7 @@ Idempotent: safe to run multiple times. Mirrors ``setup_crane_lake``.
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -19,9 +20,13 @@ PROGRAM_SLUG = "religious-school-2026-27"
 SCHOOL_YEAR_START = date(2026, 9, 13)
 SCHOOL_YEAR_END = date(2027, 5, 16)
 
-CANONICAL_ORG_SETTINGS: dict[str, str] = {
+CANONICAL_ORG_SETTINGS: dict[str, Any] = {
     "timezone": "America/New_York",
     "locale_default": "en",
+    # display_name drives the sign-in/sidebar branding (TBE Frontend
+    # Readiness); product_name is intentionally omitted so it defaults to
+    # the generic "BunkLogs" until TBE has real brand assets.
+    "branding": {"display_name": ORG_NAME},
 }
 
 
