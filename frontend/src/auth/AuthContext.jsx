@@ -7,6 +7,7 @@ import {
   trackUserLogin,
   trackUserLogout,
 } from '../lib/datadog';
+import { resolveOrganizationSlug } from '../utils/orgSlug';
 
 const AuthContext = createContext(null);
 export { AuthContext }; // Add named export alongside default export
@@ -305,6 +306,10 @@ export function useAuth() {
     userProfile: context.user || {},
     // Add token directly from localStorage
     token: localStorage.getItem('access_token'),
+    // Tenant slug for this SPA instance (subdomain or VITE_DEV_ORGANIZATION_SLUG).
+    // Several pages pass this into API helpers alongside the axios interceptor,
+    // which already sends the same value as the X-Organization-Slug header.
+    orgSlug: resolveOrganizationSlug(),
     // Convenience method to update user profile
     updateUserProfile: (profileData) => {
       if (!context.user) return; // Don't update if no user exists

@@ -10,6 +10,7 @@ from . import field_keys as field_keys_api
 from . import me as me_api
 from . import memberships
 from . import orders_state_machine as order_sm
+from . import organization as organization_api
 from . import reflections
 from . import rich_text_images
 from . import supervisions as supervisions_api
@@ -206,6 +207,10 @@ urlpatterns = [
 
     # User registration (public)
     path("users/create/", views.UserCreate.as_view(), name="user-create"),
+
+    # Current tenant's public branding (TBE Frontend Readiness) -- unauthenticated,
+    # read by sign-in/sign-up pages before login.
+    path("organization/branding/", organization_api.branding, name="organization-branding"),
 
     # Per-user i18n preferences (Step 7_5)
     path("me/preferences/", me_api.MePreferencesView.as_view(), name="me-preferences"),

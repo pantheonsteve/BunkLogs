@@ -274,7 +274,8 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://bunklogs.net",
     "https://www.bunklogs.net",
-    "https://clc.bunklogs.net",  # Frontend domain
+    "https://clc.bunklogs.net",  # Frontend domain (Crane Lake)
+    "https://tbe.bunklogs.net",  # Frontend domain (Temple Beth-El)
     "https://admin.bunklogs.net",  # Custom domain for Cloudflare
 ]
 
@@ -282,7 +283,8 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     "https://bunklogs.net",
     "https://www.bunklogs.net",
-    "https://clc.bunklogs.net",  # Frontend domain
+    "https://clc.bunklogs.net",  # Frontend domain (Crane Lake)
+    "https://tbe.bunklogs.net",  # Frontend domain (Temple Beth-El)
     "https://admin.bunklogs.net", # Custom domain for Cloudflare
 ]
 

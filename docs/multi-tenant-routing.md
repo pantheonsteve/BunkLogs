@@ -18,6 +18,10 @@ The host is read via `request.get_host()` when Django accepts the host; otherwis
 
 If `DJANGO_ALLOWED_HOSTS` is overridden in the environment, include `.bunklogs.net` (leading dot) so Django accepts every tenant subdomain, or list each hostname explicitly.
 
+## Branding
+
+`Organization.settings["branding"]` drives the sign-in/sign-up/password-reset pages and the app shell's header (`display_name`, and optionally `product_name` used for `document.title`). It's read by the unauthenticated `GET /api/v1/organization/branding/` endpoint (`bunk_logs/api/organization.py`) since those pages render before login. Seed it via the org's `setup_*` management command (see `setup_crane_lake.py` / `setup_tbe.py`). Frontend: `frontend/src/context/OrgBrandingContext.jsx`. The `clc` org (and any unresolved host) always keeps the legacy hardcoded Crane Lake logo/hero/copy regardless of what's seeded, so a new tenant only needs a `display_name` to get a correct text-only sign-in page -- no image assets required.
+
 ## Local development
 
 - **Header**: With `DEBUG=True` (local settings) or `ORGANIZATION_ROUTING_DEV_OVERRIDES=True` (set in `config.settings.test` so CI can exercise overrides without turning on `DEBUG`), send `X-Organization-Slug: <slug>` on API requests when using `localhost` or another host without a tenant subdomain.

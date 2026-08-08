@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation, NavLink } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { homePathForUser } from "../utils/auth/capability";
+import { useOrgBranding } from "../context/OrgBrandingContext";
 import ProviderList from '../socialaccount/ProviderList';
-import CampLogo from "../../src/images/clc-logo.jpeg";
+import { OrgLogo, OrgHeroPanel } from "../components/OrgBrandingAssets";
 import SocialLoginButton from "../components/SocialLoginButton";
 import api from "../api";
-
-import AuthImage from "../images/crane_lake/DSC_1985.webp";
 
 function Signin() {
   const [email, setEmail] = useState("");
@@ -18,6 +17,7 @@ function Signin() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { isClc, displayName } = useOrgBranding();
 
   useEffect(() => {
     // Check for success message from signup
@@ -105,15 +105,14 @@ function Signin() {
             <div className="flex-1">
               <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
                 {/* Logo */}
-                {/* Logo */}
-                <NavLink end to="/" className="block">
-                  <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src={CampLogo} />
-                </NavLink>
+                <OrgLogo />
               </div>
             </div>
 
             <div className="max-w-sm mx-auto w-full px-4 py-8">
-              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">CLC Bunk Logs</h1>
+              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-2">
+                {isClc ? "CLC Bunk Logs" : displayName}
+              </h1>
               <p className="text-gray-600 dark:text-gray-400 mb-6">Welcome back! Sign in to your account to continue.</p>
               
               {successMessage && (
@@ -191,9 +190,7 @@ function Signin() {
         </div>
 
         {/* Image */}
-        <div className="hidden md:block absolute top-0 bottom-0 right-0 md:w-1/2" aria-hidden="true">
-          <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" decoding="async" fetchpriority="high" />
-        </div>
+        <OrgHeroPanel highPriority />
       </div>
     </main>
   );

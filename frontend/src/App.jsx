@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ErrorBoundary } from '@datadog/browser-rum-react';
 import { AuthProvider } from './auth/AuthContext';
 import { AllAuthProvider } from './context/AllAuthContext';
+import { OrgBrandingProvider } from './context/OrgBrandingContext';
 import SubmissionQueueProvider from './lib/submissionQueue/SubmissionQueueProvider';
 import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
@@ -55,13 +56,15 @@ function App() {
 
   return (
     <ErrorBoundary fallback={AppErrorFallback}>
-      <AllAuthProvider>
-        <AuthProvider>
-          <SubmissionQueueProvider>
-              <Router />
-          </SubmissionQueueProvider>
-        </AuthProvider>
-      </AllAuthProvider>
+      <OrgBrandingProvider>
+        <AllAuthProvider>
+          <AuthProvider>
+            <SubmissionQueueProvider>
+                <Router />
+            </SubmissionQueueProvider>
+          </AuthProvider>
+        </AllAuthProvider>
+      </OrgBrandingProvider>
     </ErrorBoundary>
   );
 }

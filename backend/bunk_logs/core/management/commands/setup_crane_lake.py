@@ -6,6 +6,7 @@ Idempotent: safe to run multiple times.
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -26,9 +27,12 @@ def canonical_program_name(org: Organization) -> str:
     """Human-facing name prefixed by org so many camps each have a clear label."""
     return f"{org.name} - Summer {SUMMER_2026_START.year} (full program)"
 
-CANONICAL_ORG_SETTINGS: dict[str, str] = {
+CANONICAL_ORG_SETTINGS: dict[str, Any] = {
     "timezone": "America/New_York",
     "locale_default": "en",
+    # Matches the pre-existing hardcoded frontend copy byte-for-byte (TBE
+    # Frontend Readiness) so seeding this is a no-op for the rendered UI.
+    "branding": {"display_name": "Crane Lake", "product_name": "CLC Bunk Logs"},
 }
 
 

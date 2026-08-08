@@ -16,6 +16,7 @@ def test_setup_tbe_creates_org_and_program():
     org = Organization.objects.get(slug="tbe")
     assert org.name == "Temple Beth-El"
     assert org.settings["timezone"] == "America/New_York"
+    assert org.settings["branding"]["display_name"] == "Temple Beth-El"
     program = Program.all_objects.get(organization=org, slug="religious-school-2026-27")
     assert program.program_type == "religious_school"
 

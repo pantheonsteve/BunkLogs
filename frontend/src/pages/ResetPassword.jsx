@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { requestPasswordReset } from "../lib/allauth";
-
-import AuthImage from "../images/crane_lake/DSC_1985.webp";
-import CampLogo from "../images/clc-logo.jpeg";
+import { OrgLogo, OrgHeroPanel } from "../components/OrgBrandingAssets";
 
 function ResetPassword() {
   const [email, setEmail] = useState("");
@@ -68,9 +66,7 @@ function ResetPassword() {
             <div className="flex-1">
               <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
                 {/* Logo */}
-                <NavLink end to="/" className="block">
-                  <img className="shrink-0 mr-2 sm:mr-3" width="70" height="35" viewBox="0 0 36 36" src={CampLogo} />
-                </NavLink>
+                <OrgLogo />
               </div>
             </div>
 
@@ -145,9 +141,7 @@ function ResetPassword() {
         </div>
 
         {/* Image */}
-        <div className="hidden md:block absolute top-0 bottom-0 right-0 md:w-1/2" aria-hidden="true">
-          <img className="object-cover object-center w-full h-full" src={AuthImage} width="760" height="1024" alt="Authentication" decoding="async" />
-        </div>
+        <OrgHeroPanel />
       </div>
     </main>
   );

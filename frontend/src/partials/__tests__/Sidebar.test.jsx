@@ -22,6 +22,13 @@ vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Defaults to the pre-existing Crane Lake look; TBE-readiness tests below
+// override it to assert the text-only fallback for other orgs.
+const mockUseOrgBranding = vi.fn();
+vi.mock('../../context/OrgBrandingContext', () => ({
+  useOrgBranding: () => mockUseOrgBranding(),
+}));
+
 import Sidebar from '../Sidebar';
 
 /** User with the given capability + membership roles in a single org. */
@@ -51,6 +58,14 @@ function hrefs() {
 
 beforeEach(() => {
   mockUseAuth.mockReset();
+  mockUseOrgBranding.mockReset();
+  mockUseOrgBranding.mockReturnValue({
+    slug: 'clc',
+    displayName: 'Crane Lake',
+    productName: 'CLC Bunk Logs',
+    isClc: true,
+    loading: false,
+  });
   // Reset localStorage between tests because Sidebar.jsx persists the
   // expanded/collapsed flag there.
   localStorage.clear();
@@ -355,5 +370,27 @@ describe('Sidebar — unauthenticated chrome (3.32)', () => {
     expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+  });
+});
+
+describe('Sidebar — org-aware header (TBE Frontend Readiness)', () => {
+  it('renders the CLC photo logo when the resolved org is clc', () => {
+    renderWith(orgUser('admin', ['admin']));
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'logo.jpg');
+    expect(screen.queryByText('Temple Beth-El')).not.toBeInTheDocument();
+  });
+
+  it('renders a text-only header for a non-clc org, with no logo image', () => {
+    mockUseOrgBranding.mockReturnValue({
+      slug: 'tbe',
+      displayName: 'Temple Beth-El',
+      productName: 'BunkLogs',
+      isClc: false,
+      loading: false,
+    });
+    renderWith(orgUser('admin', ['admin']));
+
+    expect(screen.getByText('Temple Beth-El')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 });
