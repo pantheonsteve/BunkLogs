@@ -373,6 +373,25 @@ describe('Sidebar — unauthenticated chrome (3.32)', () => {
   });
 });
 
+describe('Sidebar — Admin submenu TBE-only items (Step 4_4)', () => {
+  it('hides the Reflections link for the default (clc) org', () => {
+    renderWith(orgUser('admin', ['admin']), { path: '/admin' });
+    expect(hrefs()).not.toContain('/admin/reflections');
+  });
+
+  it('shows the Reflections link under Admin when the resolved org is tbe', () => {
+    mockUseOrgBranding.mockReturnValue({
+      slug: 'tbe',
+      displayName: 'Temple Beth-El',
+      productName: 'BunkLogs',
+      isClc: false,
+      loading: false,
+    });
+    renderWith(orgUser('admin', ['admin']), { path: '/admin' });
+    expect(hrefs()).toContain('/admin/reflections');
+  });
+});
+
 describe('Sidebar — org-aware header (TBE Frontend Readiness)', () => {
   it('renders the CLC photo logo when the resolved org is clc', () => {
     renderWith(orgUser('admin', ['admin']));

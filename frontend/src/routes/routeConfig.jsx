@@ -52,6 +52,8 @@ const GroupDetailPage = lazy(() => import('../pages/admin/groups/GroupDetailPage
 const FieldKeyListPage = lazy(() => import('../pages/admin/field-keys/FieldKeyListPage'));
 const CatalogManagePage = lazy(() => import('../pages/admin/catalog/CatalogManagePage'));
 const CatalogPlanningDashboard = lazy(() => import('../pages/admin/catalog/PlanningDashboard'));
+const AdminReflectionsDashboard = lazy(() => import('../pages/admin/reflections/AdminReflectionsDashboard'));
+const AdminReflectionMemberDetail = lazy(() => import('../pages/admin/reflections/AdminReflectionMemberDetail'));
 const TasksPage = lazy(() => import('../pages/TasksPage'));
 const ObservationsInbox = lazy(() => import('../pages/observations/ObservationsInbox'));
 const ObservationThread = lazy(() => import('../pages/observations/ObservationThread'));
@@ -248,6 +250,11 @@ export const routeConfig = [
       { path: 'field-keys', element: admin(<FieldKeyListPage />) },
       { path: 'catalog', element: admin(<CatalogManagePage />) },
       { path: 'catalog/planning', element: admin(<CatalogPlanningDashboard />) },
+      { path: 'reflections', element: admin(<AdminReflectionsDashboard />) },
+      {
+        path: 'reflections/:role/members/:membershipId',
+        element: admin(<AdminReflectionMemberDetail />),
+      },
     ],
   },
 
