@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core import mail
+from django.core.management import call_command
 
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
@@ -316,3 +317,114 @@ class TestDispatchReflectionReminders:
             result = dispatch_reflection_reminders()
 
         assert result["dispatched"] == []
+
+    def test_dispatches_for_the_real_tbe_program_on_wednesday_evening(self):
+        """Step 4_5: confirms the dispatcher picks up `setup_tbe`'s seeded schedule.
+
+        Uses the actual management command rather than a hand-rolled fixture
+        so this test breaks if `setup_tbe`'s reminder_schedules ever drift
+        from what the dispatcher expects.
+        """
+        call_command("setup_tbe")
+        tbe_program = Program.all_objects.get(
+            organization__slug="tbe", slug="religious-school-2026-27",
+        )
+        assert tbe_program.settings["reminder_schedules"] == {
+            "madrich": "weekly_wednesday_18:00",
+        }
+
+        wednesday_evening = datetime(2026, 9, 16, 18, 0, 0, tzinfo=UTC)
+        with patch("bunk_logs.core.tasks.timezone") as mock_tz:
+            mock_tz.now.return_value = wednesday_evening
+            mock_tz.localtime.return_value = wednesday_evening
+            with patch("bunk_logs.core.tasks.send_reflection_reminders") as mock_task:
+                mock_task.delay = mock_task
+                result = dispatch_reflection_reminders()
+
+        assert {"program_id": tbe_program.pk, "role": "madrich"} in result["dispatched"]
+
+    def test_does_not_dispatch_the_tbe_schedule_on_other_days(self):
+        call_command("setup_tbe")
+        tbe_program = Program.all_objects.get(
+            organization__slug="tbe", slug="religious-school-2026-27",
+        )
+
+        thursday_evening = datetime(2026, 9, 17, 18, 0, 0, tzinfo=UTC)
+        with patch("bunk_logs.core.tasks.timezone") as mock_tz:
+            mock_tz.now.return_value = thursday_evening
+            mock_tz.localtime.return_value = thursday_evening
+            with patch("bunk_logs.core.tasks.send_reflection_reminders"):
+                result = dispatch_reflection_reminders()
+
+        assert not any(d["program_id"] == tbe_program.pk for d in result["dispatched"])
+
+
+# ---------------------------------------------------------------------------
+# Integration test: TBE madrich reminder email copy (Step 4_5, criterion 3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestTbeMadrichReminderCopy:
+    @pytest.fixture
+    def tbe_program(self):
+        call_command("setup_tbe")
+        return Program.all_objects.get(
+            organization__slug="tbe", slug="religious-school-2026-27",
+        )
+
+    @pytest.fixture
+    def madrich_template(self, tbe_program):
+        return ReflectionTemplate.all_objects.create(
+            organization=tbe_program.organization,
+            name="TBE Madrich Weekly 3-2-1",
+            slug="tbe-madrich-weekly",
+            cadence="weekly",
+            role="madrich",
+            program_type="religious_school",
+            schema=MINIMAL_SCHEMA,
+            languages=["en"],
+            is_active=True,
+        )
+
+    @pytest.fixture
+    def madrich(self, tbe_program):
+        person = Person.all_objects.create(
+            organization=tbe_program.organization,
+            first_name="Dana",
+            last_name="Levine",
+            email="dana@example.com",
+            # Deliberately not overriding preferred_language: Tier 1 TBE is
+            # English-only, so this should default to "en" like real roster
+            # imports (see import_tbe_roster.py, which never sets it).
+        )
+        Membership.all_objects.create(
+            program=tbe_program, person=person, role="madrich", is_active=True,
+        )
+        return person
+
+    def test_reminder_email_is_english_with_tbe_copy(self, tbe_program, madrich_template, madrich):
+        result = send_reflection_reminders(tbe_program.pk, role="madrich")
+
+        assert result["sent"] == 1
+        assert len(mail.outbox) == 1
+        msg = mail.outbox[0]
+
+        assert madrich.preferred_language == "en"
+        assert msg.to == ["dana@example.com"]
+        assert msg.subject == "Reminder: Submit your TBE Madrich Weekly 3-2-1 reflection"
+        assert "Recordatorio" not in msg.subject
+
+        assert "Temple Beth-El Religious School 2026-27" in msg.body
+        assert "TBE Madrich Weekly 3-2-1" in msg.body
+        # No summer-camp-specific language should leak into a religious
+        # school reminder -- the template is generic on purpose. ("bunk" is
+        # excluded since it's a substring of the "BunkLogs" product name.)
+        for camp_word in ("cabin", "camper"):
+            assert camp_word not in msg.body.lower()
+
+        alternatives = getattr(msg, "alternatives", [])
+        html_bodies = [body for body, mime in alternatives if mime == "text/html"]
+        assert html_bodies
+        assert "Submit Reflection" in html_bodies[0]
+        assert "Temple Beth-El Religious School 2026-27" in html_bodies[0]
