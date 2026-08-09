@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 from bunk_logs.core.context import get_current_organization
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.program_scope import is_program_operational
+from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
     from bunk_logs.core.models import Organization
@@ -47,24 +49,47 @@ def person_for_user(user, *, organization: Organization | None = None) -> Person
     return None
 
 
+def _operationally_scoped_memberships(person: Person) -> list[Membership]:
+    """Active memberships for ``person``, preferring ones on a running program.
+
+    People accumulate Memberships across sessions/programs (e.g. a Session 1
+    ``leadership_team`` role that's never explicitly deactivated after the
+    person is reassigned as ``unit_head`` for Session 2). Auth payloads must
+    reflect the person's CURRENT job, not every role they've ever held --
+    otherwise a stale higher-priority role permanently shadows their real,
+    current role in the frontend's priority-ordered home routing
+    (``MEMBERSHIP_ROLE_HOME_PATHS``).
+
+    Falls back to all active memberships when none sit on an operational
+    program (e.g. the gap between sessions) so people aren't locked out of
+    their roles during off-season windows.
+    """
+    memberships = list(
+        Membership.all_objects.filter(person=person, is_active=True)
+        .select_related("program"),
+    )
+    today = get_today(person.organization)
+    operational = [
+        m for m in memberships if is_program_operational(m.program, today=today)
+    ]
+    return operational or memberships
+
+
 def active_membership_roles(user) -> list[str]:
     """Distinct active Membership roles for ``user``, across all their orgs.
 
     Flattened union kept on auth payloads as ``membership_roles`` for
     backwards compatibility; per-org roles live in ``organizations_payload``.
+    Scoped per-org to operationally-running programs where possible (see
+    :func:`_operationally_scoped_memberships`).
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return []
-    person_ids = Person.all_objects.filter(user=user).values_list("id", flat=True)
-    if not person_ids:
-        return []
-    return sorted(
-        set(
-            Membership.all_objects.filter(
-                person_id__in=list(person_ids), is_active=True,
-            ).values_list("role", flat=True),
-        ),
-    )
+    people = Person.all_objects.filter(user=user).select_related("organization")
+    roles: set[str] = set()
+    for person in people:
+        roles.update(m.role for m in _operationally_scoped_memberships(person))
+    return sorted(roles)
 
 
 def organizations_payload(user) -> list[dict]:
@@ -73,16 +98,18 @@ def organizations_payload(user) -> list[dict]:
     One entry per organization where the user holds a Person, e.g.
     ``{"slug": "tbe", "name": "Temple Beth-El", "capability": "participant",
     "roles": ["madrich"]}``. ``capability`` is the highest RBAC capability
-    across the person's active memberships (None when they have none).
+    across the person's active, operationally-scoped memberships (None when
+    they have none). See :func:`_operationally_scoped_memberships`.
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return []
     entries = []
     people = Person.all_objects.filter(user=user).select_related("organization")
     for person in people:
-        pairs = Membership.all_objects.filter(
-            person=person, is_active=True,
-        ).values_list("role", "capability")
+        pairs = [
+            (m.role, m.capability)
+            for m in _operationally_scoped_memberships(person)
+        ]
         roles = sorted({role for role, _ in pairs})
         capabilities = {cap for _, cap in pairs}
         capability = next(
