@@ -58,10 +58,12 @@ describe('OrgBrandingProvider', () => {
       </OrgBrandingProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('slug')).toHaveTextContent('tbe'));
+    await waitFor(() => {
+      expect(screen.getByTestId('slug')).toHaveTextContent('tbe');
+      expect(document.title).toBe('BunkLogs');
+    });
     expect(screen.getByTestId('displayName')).toHaveTextContent('Temple Beth-El');
     expect(screen.getByTestId('isClc')).toHaveTextContent('false');
-    expect(document.title).toBe('BunkLogs');
   });
 
   it('keeps the CLC default when the fetch fails', async () => {
