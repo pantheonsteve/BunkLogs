@@ -167,10 +167,44 @@ def validate_reflection_answers(schema: Any, answers: Any) -> None:
                         )
 
 
+def organization_branding_logo_upload_path(instance: "Organization", filename: str) -> str:
+    """Stable per-org logo key under the public ``branding/`` prefix."""
+    suffix = ""
+    if "." in filename:
+        suffix = "." + filename.rsplit(".", 1)[-1].lower()
+    slug = instance.slug or "unscoped"
+    return f"branding/{slug}/logo{suffix}"
+
+
+def organization_branding_hero_upload_path(instance: "Organization", filename: str) -> str:
+    """Stable per-org login hero key under the public ``branding/`` prefix."""
+    suffix = ""
+    if "." in filename:
+        suffix = "." + filename.rsplit(".", 1)[-1].lower()
+    slug = instance.slug or "unscoped"
+    return f"branding/{slug}/hero{suffix}"
+
+
 class Organization(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=100, unique=True)
     settings = models.JSONField(default=dict, blank=True)
+    logo = models.ImageField(
+        upload_to=organization_branding_logo_upload_path,
+        storage=select_public_media_storage,
+        blank=True,
+        null=True,
+        max_length=512,
+        help_text="Sign-in page and app shell logo. Served from public media storage.",
+    )
+    login_hero = models.ImageField(
+        upload_to=organization_branding_hero_upload_path,
+        storage=select_public_media_storage,
+        blank=True,
+        null=True,
+        max_length=512,
+        help_text="Right-side hero image on sign-in / sign-up / password-reset pages.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

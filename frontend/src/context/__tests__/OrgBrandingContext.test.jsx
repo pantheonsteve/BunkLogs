@@ -24,6 +24,8 @@ function Probe() {
       <span data-testid="displayName">{branding.displayName}</span>
       <span data-testid="productName">{branding.productName}</span>
       <span data-testid="isClc">{String(branding.isClc)}</span>
+      <span data-testid="logoUrl">{branding.logoUrl || ''}</span>
+      <span data-testid="heroUrl">{branding.heroUrl || ''}</span>
     </div>
   );
 }
@@ -50,7 +52,12 @@ describe('OrgBrandingProvider', () => {
     fetchBrandingMock.mockResolvedValue({
       slug: 'tbe',
       name: 'Temple Beth-El',
-      branding: { display_name: 'Temple Beth-El', product_name: 'BunkLogs' },
+      branding: {
+        display_name: 'Temple Beth-El',
+        product_name: 'BunkLogs',
+        logo_url: 'https://cdn.example/tbe/logo.png?v=1',
+        hero_url: 'https://cdn.example/tbe/hero.jpg?v=1',
+      },
     });
     render(
       <OrgBrandingProvider>
@@ -64,6 +71,8 @@ describe('OrgBrandingProvider', () => {
     });
     expect(screen.getByTestId('displayName')).toHaveTextContent('Temple Beth-El');
     expect(screen.getByTestId('isClc')).toHaveTextContent('false');
+    expect(screen.getByTestId('logoUrl')).toHaveTextContent('https://cdn.example/tbe/logo.png?v=1');
+    expect(screen.getByTestId('heroUrl')).toHaveTextContent('https://cdn.example/tbe/hero.jpg?v=1');
   });
 
   it('keeps the CLC default when the fetch fails', async () => {

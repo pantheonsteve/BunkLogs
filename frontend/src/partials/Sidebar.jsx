@@ -23,6 +23,18 @@ const REFLECTION_FORM_ROLES = [
   'camper_care', 'health_center', 'medical', 'special_diets',
 ];
 
+// Shared layout classes for the lg–xl icon-only sidebar (expanded at 2xl+ or via toggle).
+const SIDEBAR_SHELL =
+  'flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-[4.5rem] lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-white dark:bg-gray-800 p-4 lg:p-2 lg:sidebar-expanded:p-4 2xl:p-4 transition-all duration-200 ease-in-out';
+const COLLAPSED_ICON_ROW =
+  'flex items-center lg:justify-center lg:sidebar-expanded:justify-start 2xl:justify-start';
+const COLLAPSED_LABEL =
+  'text-sm font-medium ml-4 lg:ml-0 lg:sidebar-expanded:ml-4 2xl:ml-4 lg:hidden lg:sidebar-expanded:inline 2xl:inline duration-200';
+const COLLAPSED_SECTION_RULE =
+  'hidden lg:block lg:sidebar-expanded:hidden 2xl:hidden border-t border-gray-200 dark:border-gray-700/60 mx-1 mb-3';
+const COLLAPSED_SECTION_HEADING =
+  'lg:hidden lg:sidebar-expanded:block 2xl:block';
+
 const COUNSELOR_ROLES = ['counselor', 'junior_counselor', 'general_counselor'];
 const CAMPER_CARE_ROLES = ['camper_care', 'health_center', 'medical', 'special_diets'];
 
@@ -145,7 +157,7 @@ function Sidebar({
         <div
           id="sidebar"
           ref={sidebar}
-          className={`flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-white dark:bg-gray-800 p-4 transition-all duration-200 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-64"} ${variant === 'v2' ? 'border-r border-gray-200 dark:border-gray-700/60' : 'rounded-r-2xl shadow-xs'}`}
+          className={`${SIDEBAR_SHELL} ${sidebarOpen ? "translate-x-0" : "-translate-x-64"} ${variant === 'v2' ? 'border-r border-gray-200 dark:border-gray-700/60' : 'rounded-r-2xl shadow-xs'}`}
         >
           <SidebarHeader
             trigger={trigger}
@@ -210,7 +222,7 @@ function Sidebar({
       <div
         id="sidebar"
         ref={sidebar}
-        className={`flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-white dark:bg-gray-800 p-4 transition-all duration-200 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-64"} ${variant === 'v2' ? 'border-r border-gray-200 dark:border-gray-700/60' : 'rounded-r-2xl shadow-xs'}`}
+        className={`${SIDEBAR_SHELL} ${sidebarOpen ? "translate-x-0" : "-translate-x-64"} ${variant === 'v2' ? 'border-r border-gray-200 dark:border-gray-700/60' : 'rounded-r-2xl shadow-xs'}`}
       >
         <SidebarHeader
           trigger={trigger}
@@ -231,7 +243,7 @@ function Sidebar({
           ) : useAdminStyleNav ? (
           <>
           <div>
-            <ul>
+            <ul className="lg:space-y-0.5">
               <NavItem to={adminStyleHomePath} label="Home" icon={IconHome} end />
               {canSeeHelp && (
                 <NavItem to="/help" label="Help" icon={IconHelp} />
@@ -463,10 +475,10 @@ function Sidebar({
         </div>
 
         {/* Expand / collapse button */}
-        <div className="pt-3 hidden lg:inline-flex 2xl:hidden justify-end mt-auto">
-          <div className="w-12 pl-4 pr-3 py-2">
+        <div className="pt-3 hidden lg:flex 2xl:hidden justify-center lg:sidebar-expanded:justify-end mt-auto">
+          <div className="w-full lg:w-auto pl-0 lg:sidebar-expanded:pl-4 pr-0 lg:sidebar-expanded:pr-3 py-2 flex justify-center lg:sidebar-expanded:block">
             <button
-              className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+              className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 p-1"
               onClick={() => setSidebarExpanded(!sidebarExpanded)}
             >
               <span className="sr-only">Expand / collapse sidebar</span>
@@ -483,7 +495,7 @@ function Sidebar({
 
 function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' }) {
   return (
-    <div className="flex justify-between mb-10 pr-3 sm:px-2">
+    <div className="flex justify-between mb-10 lg:mb-4 lg:sidebar-expanded:mb-10 2xl:mb-10 pr-3 sm:px-2 lg:pr-0 lg:justify-center lg:sidebar-expanded:justify-between 2xl:justify-between lg:sidebar-expanded:pr-3 2xl:pr-3">
       <button
         ref={trigger}
         className="lg:hidden text-gray-500 hover:text-gray-400"
@@ -496,7 +508,9 @@ function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' })
           <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
         </svg>
       </button>
-      <OrgLogo to={homePath} />
+      <div className="min-w-0 w-full max-w-full flex-1 lg:flex-none lg:w-full">
+        <OrgLogo to={homePath} variant="sidebar" />
+      </div>
     </div>
   );
 }
@@ -504,37 +518,34 @@ function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' })
 function Section({ heading, headingTitle, children, ...rest }) {
   return (
     <div {...rest}>
+      <div className={COLLAPSED_SECTION_RULE} aria-hidden="true" />
       <h3
-        className="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 mb-1"
+        className={`text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 mb-1 ${COLLAPSED_SECTION_HEADING}`}
         title={headingTitle}
       >
-        <span className="hidden lg:block lg:sidebar-expanded:hidden 2xl:hidden text-center w-6" aria-hidden="true">
-          •••
-        </span>
-        <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">
-          {heading}
-        </span>
+        {heading}
       </h3>
-      <ul>{children}</ul>
+      <ul className="lg:space-y-0.5">{children}</ul>
     </div>
   );
 }
 
 function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
   return (
-    <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0">
+    <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0 lg:px-0 lg:sidebar-expanded:px-3 2xl:px-3">
       <NavLink
         end={end}
         to={to}
+        title={label}
         className={({ isActive }) =>
-          `block text-gray-800 dark:text-gray-100 truncate transition duration-150 ${
-            isActive ? "text-blue-600 dark:text-blue-400" : "hover:text-gray-900 dark:hover:text-white"
+          `block text-gray-800 dark:text-gray-100 transition duration-150 rounded-lg lg:rounded-md lg:sidebar-expanded:rounded-lg 2xl:rounded-lg lg:hover:bg-gray-100 dark:lg:hover:bg-gray-700/50 lg:sidebar-expanded:hover:bg-transparent dark:lg:sidebar-expanded:hover:bg-transparent 2xl:hover:bg-transparent ${
+            isActive ? "text-blue-600 dark:text-blue-400 lg:bg-gray-100 dark:lg:bg-gray-700/50 lg:sidebar-expanded:bg-transparent dark:lg:sidebar-expanded:bg-transparent 2xl:bg-transparent" : "hover:text-gray-900 dark:hover:text-white"
           }`
         }
       >
-        <div className="flex items-center">
+        <div className={`${COLLAPSED_ICON_ROW} relative lg:py-1.5 lg:sidebar-expanded:py-0 2xl:py-0`}>
           <Icon />
-          <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 flex items-center gap-2">
+          <span className={`${COLLAPSED_LABEL} flex items-center gap-2`}>
             {label}
             {badge != null && (
               <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
@@ -542,6 +553,12 @@ function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
               </span>
             )}
           </span>
+          {badge != null && (
+            <span
+              className="hidden lg:flex lg:sidebar-expanded:hidden 2xl:hidden absolute top-0.5 right-1 h-2 w-2 rounded-full bg-violet-500"
+              aria-label={`${badge} unread`}
+            />
+          )}
         </div>
       </NavLink>
     </li>
@@ -551,13 +568,9 @@ function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
 function CollapsibleSection({ heading, activeWhen, icon: Icon, setSidebarExpanded, children }) {
   return (
     <div>
-      <h3 className="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 mb-1">
-        <span className="hidden lg:block lg:sidebar-expanded:hidden 2xl:hidden text-center w-6" aria-hidden="true">
-          •••
-        </span>
-        <span className="lg:hidden lg:sidebar-expanded:block 2xl:block">
-          {heading}
-        </span>
+      <div className={COLLAPSED_SECTION_RULE} aria-hidden="true" />
+      <h3 className={`text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 mb-1 ${COLLAPSED_SECTION_HEADING}`}>
+        {heading}
       </h3>
       <ul>
         <SidebarLinkGroup activecondition={activeWhen}>
@@ -566,21 +579,22 @@ function CollapsibleSection({ heading, activeWhen, icon: Icon, setSidebarExpande
               <a
                 href="#0"
                 aria-expanded={open}
-                className="block text-gray-800 dark:text-gray-100 truncate transition duration-150 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-lg"
+                title={heading}
+                className="block text-gray-800 dark:text-gray-100 transition duration-150 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-lg lg:px-0 lg:sidebar-expanded:px-3 2xl:px-3"
                 onClick={(e) => {
                   e.preventDefault();
                   handleClick();
                   setSidebarExpanded(true);
                 }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
+                <div className="flex items-center justify-between lg:justify-center lg:sidebar-expanded:justify-between 2xl:justify-between">
+                  <div className={`${COLLAPSED_ICON_ROW} lg:py-1.5 lg:sidebar-expanded:py-0 2xl:py-0`}>
                     <Icon />
-                    <span className="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
+                    <span className={COLLAPSED_LABEL}>
                       {heading}
                     </span>
                   </div>
-                  <div className="flex shrink-0 ml-2">
+                  <div className="flex shrink-0 ml-2 lg:hidden lg:sidebar-expanded:block 2xl:block">
                     <svg
                       className={`w-3 h-3 shrink-0 ml-1 fill-current text-gray-400 dark:text-gray-500 ${open ? 'rotate-180' : ''}`}
                       viewBox="0 0 12 12"

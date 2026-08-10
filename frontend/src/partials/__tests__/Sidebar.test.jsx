@@ -456,11 +456,29 @@ describe('Sidebar — org-aware header (TBE Frontend Readiness)', () => {
       displayName: 'Temple Beth-El',
       productName: 'BunkLogs',
       isClc: false,
+      logoUrl: null,
+      heroUrl: null,
       loading: false,
     });
     renderWith(orgUser('admin', ['admin']));
 
     expect(screen.getByText('Temple Beth-El')).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('renders an uploaded logo for a non-clc org', () => {
+    mockUseOrgBranding.mockReturnValue({
+      slug: 'tbe',
+      displayName: 'Temple Beth-El',
+      productName: 'BunkLogs',
+      isClc: false,
+      logoUrl: 'https://cdn.example/tbe/logo.png',
+      heroUrl: null,
+      loading: false,
+    });
+    renderWith(orgUser('admin', ['admin']));
+
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://cdn.example/tbe/logo.png');
+    expect(screen.queryByText('Temple Beth-El')).not.toBeInTheDocument();
   });
 });

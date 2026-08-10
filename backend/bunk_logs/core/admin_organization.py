@@ -136,7 +136,7 @@ def _build_organization_admin_form() -> type[forms.ModelForm]:
         for role_value, role_label in Membership.ROLES
     }
 
-    meta = type("Meta", (), {"model": Organization, "fields": ("name", "slug", "is_active")})
+    meta = type("Meta", (), {"model": Organization, "fields": ("name", "slug", "is_active", "logo", "login_hero")})
 
     return type(
         "OrganizationAdminForm",

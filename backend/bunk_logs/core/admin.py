@@ -4,6 +4,10 @@ from django.contrib import messages
 from django.contrib.admin.widgets import AdminTextareaWidget
 from django.db import models
 from django.shortcuts import render
+from django.utils.html import format_html
+
+from bunk_logs.core.branding_images import process_branding_hero
+from bunk_logs.core.branding_images import process_branding_logo
 
 from .admin_organization import AUTHOR_SCOPE_FIELD_PREFIX
 from .admin_organization import AUTHOR_SCOPE_HELP
@@ -116,11 +120,38 @@ class OrganizationAdmin(admin.ModelAdmin):
     search_fields = ["name", "slug"]
     list_filter = ["is_active"]
     inlines = [ProgramInline]
-    readonly_fields = ["created_at", "updated_at"]
+    readonly_fields = ["created_at", "updated_at", "logo_preview", "hero_preview"]
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         kwargs.setdefault("form", get_organization_admin_form())
         return super().get_form(request, obj, change=change, **kwargs)
+
+    @admin.display(description="Current logo")
+    def logo_preview(self, obj: Organization | None) -> str:
+        if obj and obj.logo:
+            return format_html(
+                '<img src="{}" alt="" style="max-height:80px;max-width:240px;" />',
+                obj.logo.url,
+            )
+        return "—"
+
+    @admin.display(description="Current login hero")
+    def hero_preview(self, obj: Organization | None) -> str:
+        if obj and obj.login_hero:
+            return format_html(
+                '<img src="{}" alt="" style="max-height:160px;max-width:320px;object-fit:cover;" />',
+                obj.login_hero.url,
+            )
+        return "—"
+
+    def save_model(self, request, obj, form, change):
+        if "logo" in form.changed_data and request.FILES.get("logo"):
+            content, ext = process_branding_logo(request.FILES["logo"])
+            obj.logo.save(f"logo{ext}", content, save=False)
+        if "login_hero" in form.changed_data and request.FILES.get("login_hero"):
+            content, ext = process_branding_hero(request.FILES["login_hero"])
+            obj.login_hero.save(f"hero{ext}", content, save=False)
+        super().save_model(request, obj, form, change)
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         """Pin tenant context to the org being edited so inline Program rows validate."""
@@ -143,6 +174,19 @@ class OrganizationAdmin(admin.ModelAdmin):
         )
         return (
             (None, {"fields": ("name", "slug", "is_active")}),
+            (
+                "Branding",
+                {
+                    "fields": ("logo", "logo_preview", "login_hero", "hero_preview"),
+                    "description": (
+                        "Logo appears on sign-in and in the app sidebar. Login hero is the "
+                        "right-side image on auth pages. Images are served from public media "
+                        "storage (S3 in production). Text branding (display name, product "
+                        "name) lives in Advanced → organization settings JSON under "
+                        "``branding``."
+                    ),
+                },
+            ),
             (
                 "Subject note authoring by role",
                 {

@@ -11,6 +11,11 @@ random UUIDs, so URLs are unguessable and not enumerable.
 Locally / in tests there is no S3, so we fall back to the default storage
 (filesystem under ``MEDIA_ROOT``); the upload view converts that relative
 ``/media/`` path into an absolute URL before embedding it.
+
+Org branding images (``Organization.logo``, ``Organization.login_hero``)
+use the same public storage under a ``branding/{slug}/`` prefix. In
+production the bucket policy should grant public ``s3:GetObject`` on both
+``rich-text/*`` and ``branding/*``.
 """
 
 from __future__ import annotations
