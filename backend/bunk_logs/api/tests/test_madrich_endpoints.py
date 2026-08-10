@@ -4,10 +4,13 @@ Coverage
 --------
 * dashboard: happy path, missing reflection state, current-week framing,
   permissions (non-madrich gets 403).
+* dashboard multi-template (Story 63): one card per active assignment,
+  weekly-first ordering, per-cadence periods, empty state, and no
+  cross-role leakage for a Madrich who holds a second membership.
 * reflection create: happy path with full 3-2-1 schema, idempotency via
   client_submission_id, schema validation (text_list exact counts and
   rating_group required categories), no day_off shortcut, period spans
-  Monday-Sunday.
+  Monday-Sunday, and submitting against a named non-weekly template.
 * reflection edit: in-window edit allowed, post-week-close edit blocked.
 * reflection history: weekly periods returned, current-week row editable,
   gap rows for weeks without a submission.
@@ -33,7 +36,9 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
+from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.time_utils import get_today
 
 User = get_user_model()
@@ -122,6 +127,55 @@ def madrich_api(madrich_user_person, api):
     return api
 
 
+_ONE_QUESTION_SCHEMA = {
+    "fields": [
+        {
+            "key": "note",
+            "type": "textarea",
+            "required": True,
+            "prompts": {"en": "How is the year going so far?"},
+        },
+    ],
+}
+
+
+@pytest.fixture
+def assign_extra_template(org, program):
+    """Add another active, required assignment beyond the seeded weekly 3-2-1."""
+    def _make(*, slug, name, cadence, start_offset_days=7, role="madrich"):
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            slug=slug,
+            version=1,
+            name=name,
+            cadence=cadence,
+            schema=_ONE_QUESTION_SCHEMA,
+            languages=["en"],
+            is_active=True,
+            subject_mode="self",
+            assignment_scope="none",
+            assignment_group_types=[],
+            author_role_filter=[role],
+            subject_role_filter=[],
+            required_per_subject_per_period=1,
+            subject_visible=False,
+            supports_privacy=False,
+            role=role,
+            program_type="religious_school",
+        )
+        return TemplateAssignment.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            target_type=TemplateAssignment.TargetType.ROLE,
+            target_payload={"role": role},
+            start_date=get_today(org) - timedelta(days=start_offset_days),
+            status=TemplateAssignment.Status.ACTIVE,
+            is_required=True,
+        )
+    return _make
+
+
 # ---------------------------------------------------------------------------
 # Dashboard tests (Story 61)
 # ---------------------------------------------------------------------------
@@ -138,7 +192,7 @@ class TestMadrichDashboard:
         assert data["header"]["grade_level"] == 10
         assert data["header"]["program_name"] == program.name
         assert data["period"]["cadence"] == "weekly"
-        assert data["my_reflection"]["state"] == "missing"
+        assert [c["state"] for c in data["my_reflections"]] == ["missing"]
 
     def test_dashboard_period_is_monday_to_sunday(self, madrich_api, org):
         """Story 61 c5.i + MA1: period framing 'Week of [start]-[end]', Mon-Sun."""
@@ -166,9 +220,9 @@ class TestMadrichDashboard:
                 **_hdr(org.slug),
             )
             r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
-        body = r.json()
-        assert body["my_reflection"]["state"] == "complete"
-        assert body["my_reflection"]["editable"] is True
+        card = r.json()["my_reflections"][0]
+        assert card["state"] == "complete"
+        assert card["editable"] is True
 
     def test_dashboard_403_for_non_madrich(self, api, org, other_user):
         _, user = other_user
@@ -181,6 +235,105 @@ class TestMadrichDashboard:
         with organization_context(org):
             r = api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
         assert r.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard with several concurrent templates (Story 63)
+# ---------------------------------------------------------------------------
+
+
+class TestMadrichConcurrentTemplates:
+    def test_each_active_assignment_gets_its_own_card(
+        self, madrich_api, org, assign_extra_template,
+    ):
+        """c2: the recurring weekly and a one-time form coexist as two cards."""
+        assign_extra_template(
+            slug="tbe-mid-year-check-in",
+            name="Mid-Year Check-In",
+            cadence="on_demand",
+        )
+        with organization_context(org):
+            r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+        cards = r.json()["my_reflections"]
+        assert len(cards) == 2
+        assert {c["template_name"] for c in cards} == {
+            "TBE Madrich Weekly 3-2-1", "Mid-Year Check-In",
+        }
+        assert all(c["state"] == "missing" for c in cards)
+
+    def test_card_period_follows_its_own_cadence(
+        self, madrich_api, org, assign_extra_template,
+    ):
+        """c3: a monthly form is framed by its month, not the weekly window."""
+        assign_extra_template(
+            slug="tbe-monthly-goals", name="Monthly Goals", cadence="monthly",
+        )
+        with organization_context(org):
+            r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+        by_name = {c["template_name"]: c for c in r.json()["my_reflections"]}
+
+        weekly = by_name["TBE Madrich Weekly 3-2-1"]
+        assert date.fromisoformat(weekly["period"]["start"]).weekday() == 0
+        assert weekly["recurring"] is True
+
+        monthly = by_name["Monthly Goals"]
+        start = date.fromisoformat(monthly["period"]["start"])
+        end = date.fromisoformat(monthly["period"]["end"])
+        assert start.day == 1
+        assert end.month == start.month
+        assert (end + timedelta(days=1)).month != start.month
+
+    def test_on_demand_card_is_not_recurring(
+        self, madrich_api, org, assign_extra_template,
+    ):
+        """c3: on-demand forms are flagged so the client says "available to submit"."""
+        assign_extra_template(
+            slug="tbe-ad-hoc", name="Ad Hoc Form", cadence="on_demand",
+        )
+        with organization_context(org):
+            r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+        by_name = {c["template_name"]: c for c in r.json()["my_reflections"]}
+        assert by_name["Ad Hoc Form"]["recurring"] is False
+
+    def test_weekly_sorts_first_then_by_assignment_start_date(
+        self, madrich_api, org, assign_extra_template,
+    ):
+        """c6: recurring weekly leads even when another form started earlier."""
+        assign_extra_template(
+            slug="tbe-older-form", name="Older Form",
+            cadence="on_demand", start_offset_days=600,
+        )
+        assign_extra_template(
+            slug="tbe-newer-form", name="Newer Form",
+            cadence="on_demand", start_offset_days=2,
+        )
+        with organization_context(org):
+            r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+        assert [c["template_name"] for c in r.json()["my_reflections"]] == [
+            "TBE Madrich Weekly 3-2-1", "Older Form", "Newer Form",
+        ]
+
+    def test_no_assignments_returns_empty_list(self, madrich_api, org, program):
+        """c7: the client renders its Director-will-set-this-up copy off []."""
+        TemplateAssignment.all_objects.filter(program=program).delete()
+        with organization_context(org):
+            r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+        assert r.status_code == 200
+        assert r.json()["my_reflections"] == []
+
+    def test_other_role_templates_stay_off_the_madrich_dashboard(
+        self, madrich_api, org, program, madrich_user_person,
+    ):
+        """A second membership must not drag another role's form onto this page."""
+        person, _ = madrich_user_person
+        Membership.all_objects.create(
+            program=program, person=person, role="counselor", is_active=True,
+        )
+        with organization_context(org):
+            r = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+        assert [c["template_name"] for c in r.json()["my_reflections"]] == [
+            "TBE Madrich Weekly 3-2-1",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +444,47 @@ class TestMadrichReflectionCreate:
                     "answers": _full_answers(),
                     "language": "en",
                     "client_submission_id": str(uuid.uuid4()),
+                },
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 403
+
+    def test_create_against_a_named_non_weekly_template(
+        self, madrich_api, org, assign_extra_template,
+    ):
+        """Story 63: ``template_id`` picks the form and its cadence's period."""
+        assignment = assign_extra_template(
+            slug="tbe-monthly-goals", name="Monthly Goals", cadence="monthly",
+        )
+        with organization_context(org):
+            r = madrich_api.post(
+                "/api/v1/madrich/reflection/",
+                {
+                    "answers": {"note": "Settling into the new grade."},
+                    "language": "en",
+                    "client_submission_id": str(uuid.uuid4()),
+                    "template_id": assignment.template_id,
+                },
+                format="json",
+                **_hdr(org.slug),
+            )
+        assert r.status_code == 201, r.json()
+        body = r.json()
+        assert body["template"]["id"] == assignment.template_id
+        assert date.fromisoformat(body["period_start"]).day == 1
+
+    def test_create_403_for_a_template_not_assigned_to_the_viewer(
+        self, madrich_api, org,
+    ):
+        with organization_context(org):
+            r = madrich_api.post(
+                "/api/v1/madrich/reflection/",
+                {
+                    "answers": _full_answers(),
+                    "language": "en",
+                    "client_submission_id": str(uuid.uuid4()),
+                    "template_id": 999999,
                 },
                 format="json",
                 **_hdr(org.slug),

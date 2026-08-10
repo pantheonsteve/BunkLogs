@@ -1,9 +1,10 @@
 /**
- * Madrich dashboard tests — Step 7_14, Story 61.
+ * Madrich dashboard tests — Step 7_14, Stories 61 and 63.
  *
- * Covers weekly framing (the "Week of …" label is derived from the
- * server-provided period_start/period_end, criterion 5), state→CTA
- * mapping, and the absence of the no-template / camp-side surfaces.
+ * Covers cadence framing (labels derive from each card's server-provided
+ * period, Story 61 criterion 5), state→CTA mapping, several concurrent
+ * templates rendering as separate cards (Story 63), and the absence of
+ * camp-side surfaces.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -19,6 +20,17 @@ vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => ({ orgSlug: 'tbe', user: { id: 7 } }),
 }));
 
+const weeklyCard = {
+  template_id: 12,
+  template_name: 'TBE Madrich Weekly 3-2-1',
+  cadence: 'weekly',
+  recurring: true,
+  period: { start: '2026-09-07', end: '2026-09-13' },
+  state: 'missing',
+  reflection_id: null,
+  editable: false,
+};
+
 const samplePayload = {
   today: '2026-09-09',
   period: { start: '2026-09-07', end: '2026-09-13', cadence: 'weekly' },
@@ -29,9 +41,13 @@ const samplePayload = {
     program_name: 'TBE Religious School 2026-27',
     preferred_language: 'en',
   },
-  my_reflection: { state: 'missing', reflection_id: null, template_id: 12, editable: false },
+  my_reflections: [weeklyCard],
   history_entry: { url: '/madrich/history' },
 };
+
+function payloadWith(...cards) {
+  return { ...samplePayload, my_reflections: cards };
+}
 
 beforeEach(() => {
   getMock.mockReset();
@@ -63,16 +79,15 @@ describe('MadrichDashboard', () => {
     expect(screen.getByTestId('md-reflection-status')).toHaveTextContent(/Not yet submitted/);
     expect(screen.getByTestId('md-reflection-cta')).toHaveTextContent('Start reflection');
     expect(screen.getByTestId('md-reflection-cta')).toHaveAttribute(
-      'href', '/madrich/reflection/new',
+      'href', '/madrich/reflection/new?template=12',
     );
   });
 
   it('shows submitted state + Edit CTA when state is complete', async () => {
     getMock.mockResolvedValue({
-      data: {
-        ...samplePayload,
-        my_reflection: { state: 'complete', reflection_id: 99, template_id: 12, editable: true },
-      },
+      data: payloadWith({
+        ...weeklyCard, state: 'complete', reflection_id: 99, editable: true,
+      }),
     });
     render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
     await waitFor(() => screen.getByTestId('md-reflection-cta'));
@@ -83,19 +98,68 @@ describe('MadrichDashboard', () => {
     );
   });
 
-  it('shows graceful copy when no template is configured', async () => {
-    getMock.mockResolvedValue({
-      data: {
-        ...samplePayload,
-        my_reflection: { state: 'no_template', reflection_id: null, template_id: null, editable: false },
-      },
-    });
+  it('shows graceful copy when nothing is assigned', async () => {
+    getMock.mockResolvedValue({ data: payloadWith() });
     render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
     await waitFor(() => screen.getByTestId('md-reflection-card'));
     expect(screen.getByTestId('md-reflection-card')).toHaveTextContent(
       /No reflections currently assigned/,
     );
     expect(screen.queryByTestId('md-reflection-cta')).toBeNull();
+  });
+
+  it('renders one card per concurrent template, each with its own CTA', async () => {
+    getMock.mockResolvedValue({
+      data: payloadWith(weeklyCard, {
+        template_id: 31,
+        template_name: 'Mid-Year Check-In',
+        cadence: 'on_demand',
+        recurring: false,
+        period: { start: '2026-09-09', end: '2026-09-09' },
+        state: 'missing',
+        reflection_id: null,
+        editable: false,
+      }),
+    });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => expect(screen.getAllByTestId('md-reflection-card')).toHaveLength(2));
+
+    expect(screen.getByText('TBE Madrich Weekly 3-2-1')).toBeInTheDocument();
+    expect(screen.getByText('Mid-Year Check-In')).toBeInTheDocument();
+    expect(screen.getAllByTestId('md-reflection-cta').map(a => a.getAttribute('href'))).toEqual([
+      '/madrich/reflection/new?template=12',
+      '/madrich/reflection/new?template=31',
+    ]);
+  });
+
+  it('frames an on-demand card as available rather than as a period', async () => {
+    getMock.mockResolvedValue({
+      data: payloadWith({
+        ...weeklyCard,
+        template_id: 31,
+        template_name: 'Mid-Year Check-In',
+        cadence: 'on_demand',
+        recurring: false,
+      }),
+    });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-week-label'));
+    expect(screen.getByTestId('md-week-label')).toHaveTextContent('Available to submit');
+  });
+
+  it('frames a monthly card by its month', async () => {
+    getMock.mockResolvedValue({
+      data: payloadWith({
+        ...weeklyCard,
+        template_id: 44,
+        template_name: 'Monthly Goals',
+        cadence: 'monthly',
+        period: { start: '2026-09-01', end: '2026-09-30' },
+      }),
+    });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-week-label'));
+    expect(screen.getByTestId('md-week-label')).toHaveTextContent('September 2026');
   });
 
   it('links history section to /madrich/history', async () => {

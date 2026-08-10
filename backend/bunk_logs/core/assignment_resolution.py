@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "active_assignments_for",
+    "assignment_cadence",
     "list_optional_assignments_for",
     "list_required_assignments_for",
     "resolve_members",
@@ -65,6 +66,11 @@ _ACTIVE_STATUSES = (
 # ---------------------------------------------------------------------------
 # Assignment-group audience helpers
 # ---------------------------------------------------------------------------
+
+
+def assignment_cadence(assignment: TemplateAssignment) -> str:
+    """Cadence an assignment runs on: its override, else the template's."""
+    return assignment.cadence_override or assignment.template.cadence or "daily"
 
 
 def _effective_author_roles(template: ReflectionTemplate) -> list[str]:

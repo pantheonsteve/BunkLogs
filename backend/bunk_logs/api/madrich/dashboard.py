@@ -1,35 +1,72 @@
-"""``GET /api/v1/madrich/dashboard/`` — Story 61.
+"""``GET /api/v1/madrich/dashboard/`` — Stories 61 and 63.
 
-Weekly-reflection-focused dashboard scoped to the active TBE
+Reflection-focused dashboard scoped to the active TBE
 ``religious_school`` Program. Three sections per Story 61 criterion 3:
 
 * ``header`` — name, role label, grade level (8-12), program name.
-* ``my_reflection`` — current-week card per criterion 5 with states
-  ``missing`` (not yet started) / ``complete`` (submitted for this week).
-  Daily incompleteness states are intentionally NOT modelled per
-  criterion 5.iii — weekly cadence frames a missing submission as a
-  gap, not a "draft" or "day off".
+* ``my_reflections`` — one card per template the Madrich currently owes
+  (Story 63), each with its own cadence, period, and ``missing`` /
+  ``complete`` state. Daily incompleteness states are intentionally NOT
+  modelled per Story 61 criterion 5.iii — a missing submission is a gap,
+  not a "draft" or "day off". An empty list is the "nothing assigned yet"
+  state the client renders as Director-will-set-this-up copy.
 * ``history_entry`` — shortcut URL to the reflection history view.
 
 Operational signals (rosters, faculty submissions, other Madrichim,
-camp-side data) are intentionally omitted per criterion 4.
+camp-side data) are intentionally omitted per Story 61 criterion 4.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.models import Reflection
 
+from .common import assigned_reflections
 from .common import current_week_period
-from .common import madrich_template
 from .common import viewer_or_403
+
+if TYPE_CHECKING:
+    from datetime import date
+
+    from bunk_logs.core.models import Person
+
+    from .common import AssignedReflection
+
+
+def _submitted_by_period(
+    viewer: Person, entries: list[AssignedReflection],
+) -> dict[tuple[int, date], Reflection]:
+    """Map ``(template_id, period_start)`` to the viewer's completed row.
+
+    One query for every card rather than one per card, since a Madrich
+    with several concurrent assignments would otherwise fan out.
+    """
+    if not entries:
+        return {}
+    lookup = Q()
+    for entry in entries:
+        lookup |= Q(
+            template_id=entry.template.id,
+            period_start=entry.period_start,
+            period_end=entry.period_end,
+        )
+    rows = Reflection.all_objects.filter(
+        lookup, author=viewer, subject=viewer, is_complete=True,
+    ).order_by("-submitted_at")
+    submitted: dict[tuple[int, date], Reflection] = {}
+    for row in rows:
+        submitted.setdefault((row.template_id, row.period_start), row)
+    return submitted
 
 
 class MadrichDashboardView(APIView):
-    """Minimal Madrich weekly dashboard — Story 61."""
+    """Madrich reflection dashboard — Stories 61 and 63."""
 
     permission_classes = [IsAuthenticated]
 
@@ -39,34 +76,31 @@ class MadrichDashboardView(APIView):
         org = ctx.organization
         today = ctx.today
 
-        template = madrich_template(org, ctx.program)
+        entries = assigned_reflections(ctx)
+        submitted = _submitted_by_period(viewer, entries)
         period_start, period_end = current_week_period(
             ctx.program, org, today=today,
         )
 
-        self_state = "missing"
-        self_reflection_id: int | None = None
-        editable = False
-
-        if template is None:
-            self_state = "no_template"
-        else:
-            existing = (
-                Reflection.all_objects.filter(
-                    author=viewer,
-                    subject=viewer,
-                    template=template,
-                    period_start=period_start,
-                    period_end=period_end,
-                    is_complete=True,
-                )
-                .order_by("-submitted_at")
-                .first()
-            )
-            if existing is not None:
-                self_state = "complete"
-                self_reflection_id = existing.id
-                editable = True
+        cards = []
+        for entry in entries:
+            existing = submitted.get((entry.template.id, entry.period_start))
+            cards.append({
+                "template_id": entry.template.id,
+                "template_name": entry.template.name,
+                "cadence": entry.cadence,
+                "recurring": entry.is_recurring,
+                "period": {
+                    "start": entry.period_start.isoformat(),
+                    "end": entry.period_end.isoformat(),
+                },
+                "state": "complete" if existing else "missing",
+                "reflection_id": existing.id if existing else None,
+                # The period bounds already scope the lookup, so anything
+                # we found is by definition still inside its edit window
+                # (Story 62 c5).
+                "editable": existing is not None,
+            })
 
         return Response({
             "today": today.isoformat(),
@@ -82,12 +116,7 @@ class MadrichDashboardView(APIView):
                 "program_name": ctx.program.name,
                 "preferred_language": viewer.preferred_language or "en",
             },
-            "my_reflection": {
-                "state": self_state,
-                "reflection_id": self_reflection_id,
-                "template_id": template.id if template else None,
-                "editable": editable,
-            },
+            "my_reflections": cards,
             "history_entry": {
                 "url": "/madrich/history",
             },

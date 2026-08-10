@@ -2,15 +2,18 @@
 
 Endpoints
 ---------
-POST  /api/v1/madrich/reflection/             — submit weekly reflection (Story 62)
-PATCH /api/v1/madrich/reflection/<id>/        — edit while week is open (Story 62 c5-6)
+POST  /api/v1/madrich/reflection/             — submit a reflection (Stories 62, 63)
+PATCH /api/v1/madrich/reflection/<id>/        — edit while the period is open (Story 62 c5-6)
 GET   /api/v1/madrich/reflection/history/     — paginated weekly history (Story 65)
 
 Key invariants
 --------------
-* Period is Monday-Sunday per MA1 (overridable per program). Both
-  ``period_start`` and ``period_end`` come from ``current_week_period``
-  so create and edit converge on the same window.
+* POST takes an optional ``template_id`` naming which assigned template
+  the submission is for (Story 63); it defaults to the recurring weekly
+  3-2-1. The period comes from that template's own cadence, so a monthly
+  or one-time form is not forced into a Monday-Sunday window.
+* The weekly period is Monday-Sunday per MA1 (overridable per program),
+  and history still reports on the weekly template alone.
 * No day-off shortcut per Story 62 criterion 3 — payloads always carry
   full 3-2-1 answers and the template schema enforces exact counts via
   ``min_items``/``max_items``.
@@ -44,6 +47,9 @@ from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.submission import idempotent_create
 
+from .common import AssignedReflection
+from .common import ViewerContext
+from .common import assigned_reflections
 from .common import current_week_period
 from .common import enforce_period_edit_window
 from .common import madrich_template
@@ -54,6 +60,7 @@ class MadrichReflectionCreateSerializer(serializers.Serializer):
     answers = serializers.JSONField()
     language = serializers.CharField(max_length=10, default="en")
     client_submission_id = serializers.UUIDField()
+    template_id = serializers.IntegerField(required=False)
 
 
 class MadrichReflectionUpdateSerializer(serializers.Serializer):
@@ -86,6 +93,29 @@ def _preview_from_answers(answers: dict | None, max_len: int = 120) -> str:
             text = value.strip()
             return text if len(text) <= max_len else text[: max_len - 1] + "\u2026"
     return ""
+
+
+def _target_reflection(
+    ctx: ViewerContext, template_id: int | None,
+) -> AssignedReflection:
+    """Which assigned template this submission is for — Story 63.
+
+    Without ``template_id`` we keep the pre-Story-63 behaviour and take the
+    recurring weekly 3-2-1, which ``assigned_reflections`` sorts first.
+    Naming a template the Madrich isn't assigned is a 403 rather than a
+    silent fallback, so a stale tab can't file against a retired form.
+    """
+    entries = assigned_reflections(ctx)
+    if template_id is None:
+        if not entries:
+            msg = "No Madrich reflection template configured."
+            raise PermissionDenied(msg)
+        return entries[0]
+    for entry in entries:
+        if entry.template.id == template_id:
+            return entry
+    msg = "That reflection is not currently assigned to you."
+    raise PermissionDenied(msg)
 
 
 def _validate_answers(template, answers: dict) -> tuple[bool, Response | None]:
@@ -233,19 +263,15 @@ class MadrichReflectionCreateView(APIView):
         ser.is_valid(raise_exception=True)
         payload = ser.validated_data
 
-        template = madrich_template(org, ctx.program)
-        if template is None:
-            msg = "No Madrich reflection template configured."
-            raise PermissionDenied(msg)
+        target = _target_reflection(ctx, payload.get("template_id"))
+        template = target.template
 
         answers = dict(payload["answers"] or {})
         ok, err = _validate_answers(template, answers)
         if not ok:
             return err
 
-        period_start, period_end = current_week_period(
-            ctx.program, org, today=today,
-        )
+        period_start, period_end = target.period_start, target.period_end
 
         def _create_reflection():
             reflection = Reflection(
