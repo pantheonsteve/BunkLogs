@@ -19,6 +19,7 @@ def test_setup_tbe_creates_org_and_program():
     assert org.settings["branding"]["display_name"] == "Temple Beth-El"
     program = Program.all_objects.get(organization=org, slug="religious-school-2026-27")
     assert program.program_type == "religious_school"
+    assert program.settings["reminder_schedules"] == {"madrich": "weekly_wednesday_18:00"}
 
 
 def test_setup_tbe_is_idempotent():
@@ -26,3 +27,16 @@ def test_setup_tbe_is_idempotent():
     call_command("setup_tbe")
     assert Organization.objects.filter(slug="tbe").count() == 1
     assert Program.all_objects.filter(organization__slug="tbe").count() == 1
+
+
+def test_setup_tbe_backfills_reminder_schedule_on_existing_program():
+    """Programs created before Step 4_5 shipped should pick up the schedule on re-run."""
+    call_command("setup_tbe")
+    program = Program.all_objects.get(organization__slug="tbe", slug="religious-school-2026-27")
+    program.settings = {}
+    program.save(update_fields=["settings"])
+
+    call_command("setup_tbe")
+
+    program.refresh_from_db()
+    assert program.settings["reminder_schedules"] == {"madrich": "weekly_wednesday_18:00"}
