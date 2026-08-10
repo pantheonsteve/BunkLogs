@@ -135,9 +135,20 @@ describe('CamperPicker', () => {
   });
 
   it('shows clear button when bunk selected and hides Recent section', async () => {
-    getMock.mockResolvedValue({ data: sampleData });
+    const oakOnly = {
+      recent: [],
+      results: sampleData.recent,
+      bunks: sampleBunks,
+      zero_results_message: null,
+    };
+    getMock
+      .mockResolvedValueOnce({ data: sampleData })
+      .mockResolvedValueOnce({ data: oakOnly });
+
     render(<MemoryRouter><CamperPicker onSelect={vi.fn()} /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByTestId('sp-bunk-select')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByTestId('sp-bunk-select').querySelector('option[value="2"]')).toBeInTheDocument();
+    });
 
     fireEvent.change(screen.getByTestId('sp-bunk-select'), { target: { value: '2' } });
 
