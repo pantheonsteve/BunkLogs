@@ -29,6 +29,14 @@ CANONICAL_ORG_SETTINGS: dict[str, Any] = {
     "branding": {"display_name": ORG_NAME},
 }
 
+# Step 4_5: Madrichim submit their weekly 3-2-1 for the week ending Sunday,
+# so Wednesday evening gives a mid-week nudge with days to spare. Picked up
+# by the hourly `dispatch_reflection_reminders` Celery Beat task (migration
+# 0038) — no separate scheduling needed here.
+CANONICAL_PROGRAM_SETTINGS: dict[str, Any] = {
+    "reminder_schedules": {"madrich": "weekly_wednesday_18:00"},
+}
+
 
 def canonical_program_name(org: Organization) -> str:
     """Human-facing name prefixed by org so tenants stay distinct in admin lists."""
@@ -45,6 +53,19 @@ def _merge_org_settings(org: Organization) -> bool:
     if changed:
         org.settings = merged
         org.save(update_fields=["settings", "updated_at"])
+    return changed
+
+
+def _merge_program_settings(program: Program) -> bool:
+    merged = dict(program.settings or {})
+    changed = False
+    for key, value in CANONICAL_PROGRAM_SETTINGS.items():
+        if merged.get(key) != value:
+            merged[key] = value
+            changed = True
+    if changed:
+        program.settings = merged
+        program.save(update_fields=["settings"])
     return changed
 
 
@@ -83,6 +104,7 @@ class Command(BaseCommand):
                 "program_type": "religious_school",
                 "start_date": SCHOOL_YEAR_START,
                 "end_date": SCHOOL_YEAR_END,
+                "settings": dict(CANONICAL_PROGRAM_SETTINGS),
             },
         )
         canonical = canonical_program_name(org)
@@ -91,6 +113,7 @@ class Command(BaseCommand):
             program.name = canonical
             program.save(update_fields=["name"])
             renamed = True
+        settings_updated = False if prog_created else _merge_program_settings(program)
 
         if prog_created:
             self.stdout.write(
@@ -98,7 +121,7 @@ class Command(BaseCommand):
                     f"Created program {canonical} ({SCHOOL_YEAR_START} - {SCHOOL_YEAR_END})",
                 ),
             )
-        elif renamed:
-            self.stdout.write(self.style.NOTICE(f"Updated program display name ({PROGRAM_SLUG})"))
+        elif renamed or settings_updated:
+            self.stdout.write(self.style.NOTICE(f"Updated program {PROGRAM_SLUG}"))
         else:
             self.stdout.write(f"Program {PROGRAM_SLUG} already up to date")

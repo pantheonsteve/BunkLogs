@@ -85,3 +85,88 @@ def test_auth_status_no_memberships_yields_empty_org_context(rf):
     assert data["isAuthenticated"] is True
     assert data["user"]["membership_roles"] == []
     assert data["user"]["organizations"] == []
+
+
+@pytest.mark.django_db
+def test_stale_higher_priority_role_does_not_shadow_current_operational_role(
+    rf, org,
+):
+    """Regression test: a person reassigned between sessions should surface
+    their CURRENT role, not a stale higher-priority role left active on an
+    ended program (e.g. a Session 1 leadership_team membership that outranks
+    a Session 2 unit_head membership in the frontend's home-routing priority
+    list, per the "Carly Kahan can't see her bunks" incident).
+    """
+    ended_program = Program.all_objects.create(
+        organization=org,
+        name="Test Camp - Session 1",
+        slug="session-1",
+        program_type="summer_camp",
+        start_date=date.today() - timedelta(days=60),
+        end_date=date.today() - timedelta(days=30),
+        is_active=True,
+    )
+    current_program = Program.all_objects.create(
+        organization=org,
+        name="Test Camp - Session 2",
+        slug="session-2",
+        program_type="summer_camp",
+        start_date=date.today() - timedelta(days=5),
+        end_date=date.today() + timedelta(days=25),
+        is_active=True,
+    )
+    user = User.objects.create_user(
+        email="carly@test.com", password="pass", first_name="Carly", last_name="K",
+    )
+    person = Person.all_objects.create(
+        organization=org, first_name="Carly", last_name="K", user=user,
+    )
+    # Stale leadership_team role from the ended session -- never deactivated.
+    Membership.all_objects.create(
+        program=ended_program, person=person, role="leadership_team", is_active=True,
+    )
+    # Current, correct role for the running session.
+    Membership.all_objects.create(
+        program=current_program, person=person, role="unit_head", is_active=True,
+    )
+
+    request = rf.get("/fake/")
+    request.user = user
+    data = json.loads(get_auth_status(request).content)
+
+    orgs = data["user"]["organizations"]
+    assert len(orgs) == 1
+    # Only the operational (Session 2) role should surface, not the stale one.
+    assert orgs[0]["roles"] == ["unit_head"]
+    assert orgs[0]["capability"] == "supervisor"
+    assert data["user"]["membership_roles"] == ["unit_head"]
+
+
+@pytest.mark.django_db
+def test_no_operational_program_falls_back_to_all_active_roles(rf, org):
+    """Between sessions (no program currently operational), roles should
+    still surface from all active memberships rather than going empty.
+    """
+    ended_program = Program.all_objects.create(
+        organization=org,
+        name="Test Camp - Session 1",
+        slug="session-1",
+        program_type="summer_camp",
+        start_date=date.today() - timedelta(days=60),
+        end_date=date.today() - timedelta(days=30),
+        is_active=True,
+    )
+    user = User.objects.create_user(email="offseason@test.com", password="pass")
+    person = Person.all_objects.create(
+        organization=org, first_name="Off", last_name="Season", user=user,
+    )
+    Membership.all_objects.create(
+        program=ended_program, person=person, role="admin", is_active=True,
+    )
+
+    request = rf.get("/fake/")
+    request.user = user
+    data = json.loads(get_auth_status(request).content)
+
+    assert data["user"]["organizations"][0]["roles"] == ["admin"]
+    assert data["user"]["membership_roles"] == ["admin"]
