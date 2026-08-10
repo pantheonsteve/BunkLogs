@@ -7,8 +7,8 @@
  * a dedicated org-admin-gated backend endpoint that doesn't require a
  * Supervision relationship (see `admin_flow/reflections.py`).
  *
- * Gated to TBE for now via `useOrgBranding()` -- the grade-level model
- * doesn't apply to Crane Lake's unit-based roster.
+ * Gated to religious-school orgs -- the grade-level model doesn't apply to
+ * a camp's unit-based roster.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -16,7 +16,8 @@ import {
   exportAdminReflectionsTeamUrl,
   fetchAdminReflectionsTeam,
 } from '../../../api/adminReflections';
-import { useOrgBranding } from '../../../context/OrgBrandingContext';
+import { useAuth } from '../../../auth/AuthContext';
+import { orgSurfaces } from '../../../utils/auth/orgProfile';
 
 const ROLE = 'madrich';
 const GRADE_OPTIONS = [8, 9, 10, 11, 12];
@@ -49,7 +50,8 @@ function StatusPill({ status }) {
 }
 
 export default function AdminReflectionsDashboard() {
-  const { slug: orgSlug, loading: brandingLoading } = useOrgBranding();
+  const { user, loading: authLoading } = useAuth();
+  const showGradeReflections = orgSurfaces(user).gradeReflections;
   const [searchParams, setSearchParams] = useSearchParams();
   const dateParam = searchParams.get('date') || '';
   const gradeParams = searchParams
@@ -83,8 +85,8 @@ export default function AdminReflectionsDashboard() {
   }, [dateParam, gradeKey]);
 
   useEffect(() => {
-    if (orgSlug === 'tbe') load();
-  }, [load, orgSlug]);
+    if (showGradeReflections) load();
+  }, [load, showGradeReflections]);
 
   const onDateChange = (e) => {
     const value = e.target.value;
@@ -105,7 +107,7 @@ export default function AdminReflectionsDashboard() {
     setSearchParams(next, { replace: true });
   };
 
-  if (brandingLoading) {
+  if (authLoading) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-reflections-loading">
         <p className="text-gray-500 dark:text-gray-400">Loading…</p>
@@ -113,7 +115,7 @@ export default function AdminReflectionsDashboard() {
     );
   }
 
-  if (orgSlug !== 'tbe') {
+  if (!showGradeReflections) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-reflections-unavailable">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Reflections</h1>

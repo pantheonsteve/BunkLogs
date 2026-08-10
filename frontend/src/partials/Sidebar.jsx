@@ -8,11 +8,11 @@ import {
   isMaintenanceOnlyMember,
   membershipRolesForUser,
 } from "../utils/auth/capability";
+import { orgSurfaces } from "../utils/auth/orgProfile";
 import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 import { OrgLogo } from "../components/OrgBrandingAssets";
-import { useOrgBranding } from "../context/OrgBrandingContext";
 
 // Membership roles that can author a /reflect submission today; kept to
 // preserve the existing top-level "Program reflection" / "My reflections"
@@ -96,7 +96,6 @@ function Sidebar({
   const location = useLocation();
   const { pathname } = location;
   const { user } = useAuth();
-  const { slug: orgSlug } = useOrgBranding();
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -179,10 +178,15 @@ function Sidebar({
   // role lives on Membership (legacy User.role has no maintenance value),
   // surfaced via `membership_roles` on the profile payload.
   const isMaintenanceOnly = isMaintenanceOnlyMember(user);
+  const isMadrich = membershipRoles.includes('madrich');
   const homePath = homePathForUser(user);
+  // Which product surfaces this tenant gets (camp vs religious school).
+  const surfaces = orgSurfaces(user);
   // Poll unread Observations count every 60 seconds (Step 7_23 nav badge).
   const [observationsUnread, setObservationsUnread] = useState(0);
+  const pollObservations = surfaces.observations;
   useEffect(() => {
+    if (!pollObservations) return undefined;
     let cancelled = false;
     function fetchObsUnread() {
       api.get('/api/v1/observations/unread-count/').then(r => {
@@ -192,7 +196,7 @@ function Sidebar({
     fetchObsUnread();
     const id = setInterval(fetchObsUnread, 60000);
     return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  }, [pollObservations]);
 
   return (
     <div className="min-w-fit">
@@ -236,56 +240,68 @@ function Sidebar({
           </div>
 
           <Section heading="My work">
-            <NavItem
-              to="/groups/performance"
-              label="Group Performance"
-              icon={IconGrid}
-            />
-            <NavItem
-              to="/dashboards/logs"
-              label="Bunk Logs"
-              icon={IconBars}
-            />
+            {surfaces.campDashboards && (
+              <>
+                <NavItem
+                  to="/groups/performance"
+                  label="Group Performance"
+                  icon={IconGrid}
+                />
+                <NavItem
+                  to="/dashboards/logs"
+                  label="Bunk Logs"
+                  icon={IconBars}
+                />
+              </>
+            )}
             <NavItem
               to="/dashboards/reflections"
               label="Reflections"
               icon={IconClipboard}
             />
-            <NavItem
-              to="/observations"
-              label="Observations"
-              icon={IconChat}
-              badge={observationsUnread > 0 ? observationsUnread : null}
-            />
-            <NavItem
-              to="/maintenance"
-              label="Maintenance Queue"
-              icon={IconWrench}
-            />
-            <NavItem
-              to="/camper-care/orders"
-              label="Camper Care orders"
-              icon={IconHeart}
-            />
+            {surfaces.observations && (
+              <NavItem
+                to="/observations"
+                label="Observations"
+                icon={IconChat}
+                badge={observationsUnread > 0 ? observationsUnread : null}
+              />
+            )}
+            {surfaces.campOps && (
+              <>
+                <NavItem
+                  to="/maintenance"
+                  label="Maintenance Queue"
+                  icon={IconWrench}
+                />
+                <NavItem
+                  to="/camper-care/orders"
+                  label="Camper Care orders"
+                  icon={IconHeart}
+                />
+              </>
+            )}
           </Section>
 
-          <Section heading="Supervise">
-            <NavItem
-              to="/dashboards/coverage"
-              label="Coverage dashboard"
-              icon={IconGrid}
-            />
-            <NavItem
-              to="/dashboards/concerns"
-              label="Concerns inbox"
-              icon={IconAlert}
-            />
-            <NavItem
-              to="/dashboards/authors"
-              label="Author attribution"
-              icon={IconCounselor}
-            />
-          </Section>
+          {surfaces.campDashboards && (
+            <Section heading="Supervise">
+              <NavItem
+                to="/dashboards/coverage"
+                label="Coverage dashboard"
+                icon={IconGrid}
+              />
+              <NavItem
+                to="/dashboards/concerns"
+                label="Concerns inbox"
+                icon={IconAlert}
+              />
+              <NavItem
+                to="/dashboards/authors"
+                label="Author attribution"
+                icon={IconCounselor}
+              />
+            </Section>
+          )}
 
           <CollapsibleSection
             heading="Admin"
@@ -302,12 +318,13 @@ function Sidebar({
                 <SubItem to="/admin/groups" label="Groups" />
                 <SubItem to="/admin/assignments" label="Assignments" />
                 <SubItem to="/admin/templates" label="Templates" />
-                {/* TBE-only for now (Step 4_4) — grade-level completion
-                    dashboard doesn't apply to Crane Lake's unit model. */}
-                {orgSlug === 'tbe' && (
+                {/* Grade-level completion doesn't apply to a camp's unit model. */}
+                {surfaces.gradeReflections && (
                   <SubItem to="/admin/reflections" label="Reflections" />
                 )}
-                <SubItem to="/admin/catalog" label="Request catalog" />
+                {surfaces.campOps && (
+                  <SubItem to="/admin/catalog" label="Request catalog" />
+                )}
                 <SubItem to="/admin/field-keys" label="Field Keys" />
                 <SubItem to="/admin/settings" label="Settings" />
               </>
@@ -339,17 +356,24 @@ function Sidebar({
             {canFileReflection && !isCamperCare && (
               <NavItem to="/my-reflections" label="My reflections" icon={IconClipboard} />
             )}
-            <NavItem
-              to="/observations"
-              label="Observations"
-              icon={IconClipboard}
-              badge={observationsUnread > 0 ? observationsUnread : null}
-            />
-            <NavItem
-              to="/maintenance"
-              label="Maintenance Queue"
-              icon={IconWrench}
-            />
+            {isMadrich && (
+              <NavItem to="/madrich/history" label="My reflections" icon={IconClipboard} />
+            )}
+            {surfaces.observations && (
+              <NavItem
+                to="/observations"
+                label="Observations"
+                icon={IconClipboard}
+                badge={observationsUnread > 0 ? observationsUnread : null}
+              />
+            )}
+            {surfaces.campOps && (
+              <NavItem
+                to="/maintenance"
+                label="Maintenance Queue"
+                icon={IconWrench}
+              />
+            )}
             {canSupervise && !canSeeDashboards && !isUnitHead && (
               <NavItem
                 to="/groups/performance"

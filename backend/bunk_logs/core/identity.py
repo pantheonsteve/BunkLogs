@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from bunk_logs.core.context import get_current_organization
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
 from bunk_logs.core.program_scope import is_program_operational
 from bunk_logs.core.time_utils import get_today
 
@@ -92,24 +93,43 @@ def active_membership_roles(user) -> list[str]:
     return sorted(roles)
 
 
+def _program_types_for(person: Person, memberships: list[Membership]) -> list[str]:
+    """Program types in play for ``person``, for org-shape decisions in the UI.
+
+    Read from the memberships the caller already loaded (they carry
+    ``select_related("program")``), so the common path costs no extra query.
+    A person between memberships would otherwise report nothing, so fall back
+    to the org's active programs -- same signal ``_default_rollover_for`` uses
+    to tell a religious school apart from a camp.
+    """
+    types = {m.program.program_type for m in memberships if m.program_id}
+    if not types:
+        types = set(
+            Program.all_objects.filter(
+                organization=person.organization, is_active=True,
+            ).values_list("program_type", flat=True),
+        )
+    return sorted(t for t in types if t)
+
+
 def organizations_payload(user) -> list[dict]:
     """Per-org auth context for the login / session payloads.
 
     One entry per organization where the user holds a Person, e.g.
     ``{"slug": "tbe", "name": "Temple Beth-El", "capability": "participant",
-    "roles": ["madrich"]}``. ``capability`` is the highest RBAC capability
-    across the person's active, operationally-scoped memberships (None when
-    they have none). See :func:`_operationally_scoped_memberships`.
+    "roles": ["madrich"], "program_types": ["religious_school"]}``.
+    ``capability`` is the highest RBAC capability across the person's active,
+    operationally-scoped memberships (None when they have none). See
+    :func:`_operationally_scoped_memberships`. ``program_types`` drives which
+    product surfaces the frontend shows (camp ops vs religious school).
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return []
     entries = []
     people = Person.all_objects.filter(user=user).select_related("organization")
     for person in people:
-        pairs = [
-            (m.role, m.capability)
-            for m in _operationally_scoped_memberships(person)
-        ]
+        memberships = _operationally_scoped_memberships(person)
+        pairs = [(m.role, m.capability) for m in memberships]
         roles = sorted({role for role, _ in pairs})
         capabilities = {cap for _, cap in pairs}
         capability = next(
@@ -120,5 +140,6 @@ def organizations_payload(user) -> list[dict]:
             "name": person.organization.name,
             "capability": capability,
             "roles": roles,
+            "program_types": _program_types_for(person, memberships),
         })
     return sorted(entries, key=lambda entry: entry["slug"])

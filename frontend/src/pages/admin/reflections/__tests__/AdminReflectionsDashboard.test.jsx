@@ -10,10 +10,33 @@ vi.mock('../../../../api/adminReflections', () => ({
   exportAdminReflectionsTeamUrl: (...args) => exportUrlMock(...args),
 }));
 
-const mockUseOrgBranding = vi.fn();
-vi.mock('../../../../context/OrgBrandingContext', () => ({
-  useOrgBranding: () => mockUseOrgBranding(),
+const mockUseAuth = vi.fn();
+vi.mock('../../../../auth/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
 }));
+
+// Pin tenant resolution to "unscoped host" so the single-org fixtures below
+// resolve regardless of any local VITE_DEV_ORGANIZATION_SLUG.
+vi.mock('../../../../utils/orgSlug', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveOrganizationSlug: () => null,
+}));
+
+function adminIn(programTypes) {
+  return {
+    user: {
+      organizations: [{
+        slug: 'org',
+        name: 'Org',
+        capability: 'admin',
+        roles: ['admin'],
+        program_types: programTypes,
+      }],
+      membership_roles: ['admin'],
+    },
+    loading: false,
+  };
+}
 
 const samplePayload = {
   header: {
@@ -42,8 +65,8 @@ beforeEach(() => {
   fetchMock.mockReset();
   exportUrlMock.mockReset();
   exportUrlMock.mockReturnValue('/api/v1/admin/reflections/teams/madrich/export/');
-  mockUseOrgBranding.mockReset();
-  mockUseOrgBranding.mockReturnValue({ slug: 'tbe', loading: false });
+  mockUseAuth.mockReset();
+  mockUseAuth.mockReturnValue(adminIn(['religious_school']));
 });
 
 function renderAt(route = '/admin/reflections') {
@@ -55,7 +78,7 @@ function renderAt(route = '/admin/reflections') {
 }
 
 describe('AdminReflectionsDashboard', () => {
-  it('renders the weekly completion roster for a TBE admin', async () => {
+  it('renders the weekly completion roster for a religious-school admin', async () => {
     fetchMock.mockResolvedValue(samplePayload);
     renderAt();
 
@@ -70,8 +93,8 @@ describe('AdminReflectionsDashboard', () => {
     );
   });
 
-  it('renders an unavailable state for a non-TBE organization', async () => {
-    mockUseOrgBranding.mockReturnValue({ slug: 'clc', loading: false });
+  it('renders an unavailable state for a camp organization', async () => {
+    mockUseAuth.mockReturnValue(adminIn(['summer_camp']));
     renderAt();
 
     expect(screen.getByTestId('admin-reflections-unavailable')).toBeInTheDocument();

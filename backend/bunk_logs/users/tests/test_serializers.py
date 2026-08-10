@@ -48,6 +48,44 @@ def test_membership_roles_and_organizations_for_member(org, program):
     assert len(data["organizations"]) == 1
     assert data["organizations"][0]["slug"] == "serializer-camp"
     assert data["organizations"][0]["capability"] == "participant"
+    assert data["organizations"][0]["program_types"] == ["summer_camp"]
+
+
+@pytest.mark.django_db
+def test_program_types_for_religious_school_member(db):
+    school = Organization.objects.create(name="Serializer Shul", slug="serializer-shul")
+    school_program = Program.all_objects.create(
+        organization=school,
+        name="Serializer Shul Religious School",
+        slug="religious-school",
+        program_type="religious_school",
+        start_date=TODAY - timedelta(days=30),
+        end_date=TODAY + timedelta(days=60),
+        is_active=True,
+    )
+    user = User.objects.create_user(email="madrich@test.com", password="pass")
+    person = Person.all_objects.create(
+        organization=school, first_name="Maya", last_name="M", user=user,
+    )
+    Membership.all_objects.create(
+        program=school_program, person=person, role="madrich", is_active=True,
+    )
+
+    data = UserSerializer(user).data
+    assert data["organizations"][0]["program_types"] == ["religious_school"]
+
+
+@pytest.mark.django_db
+def test_program_types_fall_back_to_org_programs_without_memberships(org, program):
+    """Between memberships, the org's own active programs still identify its shape."""
+    user = User.objects.create_user(email="between@test.com", password="pass")
+    Person.all_objects.create(
+        organization=org, first_name="Between", last_name="Jobs", user=user,
+    )
+
+    data = UserSerializer(user).data
+    assert data["organizations"][0]["capability"] is None
+    assert data["organizations"][0]["program_types"] == ["summer_camp"]
 
 
 @pytest.mark.django_db

@@ -22,6 +22,21 @@ If `DJANGO_ALLOWED_HOSTS` is overridden in the environment, include `.bunklogs.n
 
 `Organization.settings["branding"]` drives the sign-in/sign-up/password-reset pages and the app shell's header (`display_name`, and optionally `product_name` used for `document.title`). It's read by the unauthenticated `GET /api/v1/organization/branding/` endpoint (`bunk_logs/api/organization.py`) since those pages render before login. Seed it via the org's `setup_*` management command (see `setup_crane_lake.py` / `setup_tbe.py`). Frontend: `frontend/src/context/OrgBrandingContext.jsx`. The `clc` org (and any unresolved host) always keeps the legacy hardcoded Crane Lake logo/hero/copy regardless of what's seeded, so a new tenant only needs a `display_name` to get a correct text-only sign-in page -- no image assets required.
 
+## Product surfaces per tenant
+
+Branding is slug-driven; **which product surfaces a tenant gets is not**. That comes from `program_types`, a sorted list of the active program types in the org, added to each entry of the per-org auth payload by `organizations_payload` (`bunk_logs/core/identity.py`). It's read from the person's operationally-scoped memberships, falling back to the org's active programs when they hold none.
+
+The frontend turns that into a small set of booleans in `frontend/src/utils/auth/orgProfile.js`:
+
+| Surface | Gates |
+|---|---|
+| `campOps` | Maintenance Queue, Camper Care orders, Request catalog |
+| `campDashboards` | Group Performance, Bunk Logs, Coverage, Concerns inbox, Author attribution |
+| `observations` | Observations inbox and its unread badge |
+| `gradeReflections` | `/admin/reflections` grade-level completion dashboard |
+
+An org counts as a religious school only when `program_types` is non-empty and every entry is `religious_school`. Anything else -- a camp, a mixed-type org, an unresolvable tenant, or a payload predating the field -- gets the full camp nav. Add new tenants by giving them the right `program_type` on their Program, not by adding a slug check.
+
 ## Local development
 
 - **Header**: With `DEBUG=True` (local settings) or `ORGANIZATION_ROUTING_DEV_OVERRIDES=True` (set in `config.settings.test` so CI can exercise overrides without turning on `DEBUG`), send `X-Organization-Slug: <slug>` on API requests when using `localhost` or another host without a tenant subdomain.

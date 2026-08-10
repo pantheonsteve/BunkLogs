@@ -29,14 +29,45 @@ vi.mock('../../context/OrgBrandingContext', () => ({
   useOrgBranding: () => mockUseOrgBranding(),
 }));
 
+// Pin tenant resolution to "unscoped host" so the single-org fixtures below
+// resolve regardless of any local VITE_DEV_ORGANIZATION_SLUG.
+vi.mock('../../utils/orgSlug', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveOrganizationSlug: () => null,
+}));
+
 import Sidebar from '../Sidebar';
 
-/** User with the given capability + membership roles in a single org. */
+/**
+ * User with the given capability + membership roles in a single org.
+ * `programTypes` drives the org-surface gates (camp vs religious school).
+ */
 function orgUser(capability, roles, extra = {}) {
+  const { programTypes = ['summer_camp'], ...rest } = extra;
   return {
-    organizations: [{ slug: 'clc', name: 'Crane Lake', capability, roles }],
+    organizations: [{
+      slug: 'clc',
+      name: 'Crane Lake',
+      capability,
+      roles,
+      program_types: programTypes,
+    }],
     membership_roles: roles,
-    ...extra,
+    ...rest,
+  };
+}
+
+/** Madrich at a religious school (TBE), the shape TBE Tier 1 ships. */
+function schoolUser(capability, roles) {
+  return {
+    organizations: [{
+      slug: 'tbe',
+      name: 'Temple Beth-El',
+      capability,
+      roles,
+      program_types: ['religious_school'],
+    }],
+    membership_roles: roles,
   };
 }
 
@@ -373,22 +404,42 @@ describe('Sidebar — unauthenticated chrome (3.32)', () => {
   });
 });
 
-describe('Sidebar — Admin submenu TBE-only items (Step 4_4)', () => {
-  it('hides the Reflections link for the default (clc) org', () => {
+describe('Sidebar — religious-school admin surfaces', () => {
+  it('hides the grade Reflections link and keeps camp surfaces for a camp org', () => {
     renderWith(orgUser('admin', ['admin']), { path: '/admin' });
-    expect(hrefs()).not.toContain('/admin/reflections');
+    const links = hrefs();
+    expect(links).not.toContain('/admin/reflections');
+    expect(links).toContain('/admin/catalog');
+    expect(links).toContain('/maintenance');
+    expect(links).toContain('/dashboards/logs');
   });
 
-  it('shows the Reflections link under Admin when the resolved org is tbe', () => {
-    mockUseOrgBranding.mockReturnValue({
-      slug: 'tbe',
-      displayName: 'Temple Beth-El',
-      productName: 'BunkLogs',
-      isClc: false,
-      loading: false,
-    });
-    renderWith(orgUser('admin', ['admin']), { path: '/admin' });
-    expect(hrefs()).toContain('/admin/reflections');
+  it('shows the grade Reflections link and drops camp surfaces for a religious school', () => {
+    renderWith(schoolUser('admin', ['admin']), { path: '/admin' });
+    const links = hrefs();
+    expect(links).toContain('/admin/reflections');
+    expect(links).not.toContain('/admin/catalog');
+    expect(links).not.toContain('/maintenance');
+    expect(links).not.toContain('/camper-care/orders');
+    expect(links).not.toContain('/dashboards/logs');
+    expect(links).not.toContain('/groups/performance');
+    expect(links).not.toContain('/observations');
+    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
+    // Org-wide reflections browsing isn't camp-specific, so it stays.
+    expect(links).toContain('/dashboards/reflections');
+  });
+
+  it('gives a Madrich only their own weekly-reflection surfaces', () => {
+    renderWith(schoolUser('participant', ['madrich']));
+    const links = hrefs();
+    expect(links).toContain('/madrich');
+    expect(links).toContain('/tasks');
+    expect(links).toContain('/madrich/history');
+    expect(links).not.toContain('/observations');
+    expect(links).not.toContain('/maintenance');
+    expect(links).not.toContain('/dashboards/reflections');
+    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 });
 
