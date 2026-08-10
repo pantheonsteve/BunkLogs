@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { AllAuthProvider } from './context/AllAuthContext';
 import { OrgBrandingProvider } from './context/OrgBrandingContext';
 import SubmissionQueueProvider from './lib/submissionQueue/SubmissionQueueProvider';
+import DevOrgSwitcher from './components/DevOrgSwitcher';
 import { useThemeProvider } from './utils/ThemeContext';
 import Router from './Router';
 import './css/style.css';
@@ -56,6 +57,7 @@ function App() {
 
   return (
     <ErrorBoundary fallback={AppErrorFallback}>
+      <DevOrgSwitcher />
       <OrgBrandingProvider>
         <AllAuthProvider>
           <AuthProvider>
