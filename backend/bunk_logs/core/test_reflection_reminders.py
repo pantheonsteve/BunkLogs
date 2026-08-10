@@ -363,6 +363,8 @@ class TestDispatchReflectionReminders:
 # Integration test: TBE madrich reminder email copy (Step 4_5, criterion 3)
 # ---------------------------------------------------------------------------
 
+MADRICH_TEMPLATE_SLUG = "tbe-madrich-3-2-1-weekly"
+
 
 @pytest.mark.django_db
 class TestTbeMadrichReminderCopy:
@@ -374,18 +376,24 @@ class TestTbeMadrichReminderCopy:
         )
 
     @pytest.fixture
-    def madrich_template(self, tbe_program):
-        return ReflectionTemplate.all_objects.create(
-            organization=tbe_program.organization,
-            name="TBE Madrich Weekly 3-2-1",
-            slug="tbe-madrich-weekly",
-            cadence="weekly",
-            role="madrich",
-            program_type="religious_school",
-            schema=MINIMAL_SCHEMA,
-            languages=["en"],
-            is_active=True,
+    def madrich_template(self):
+        # Use the real global template from migration 0037 -- creating a second
+        # madrich template with a different author_role_filter would produce a
+        # distinct shadow key and send duplicate reminders (sent == 2).
+        template = (
+            ReflectionTemplate.all_objects.filter(
+                organization__isnull=True,
+                slug=MADRICH_TEMPLATE_SLUG,
+                is_active=True,
+            )
+            .order_by("-version")
+            .first()
         )
+        assert template is not None, (
+            f"Expected global template slug={MADRICH_TEMPLATE_SLUG!r} from "
+            "migration 0037_seed_tbe_madrich_template"
+        )
+        return template
 
     @pytest.fixture
     def madrich(self, tbe_program):
@@ -403,7 +411,9 @@ class TestTbeMadrichReminderCopy:
         )
         return person
 
-    def test_reminder_email_is_english_with_tbe_copy(self, tbe_program, madrich_template, madrich):
+    def test_reminder_email_is_english_with_tbe_copy(
+        self, tbe_program, madrich_template, madrich,
+    ):
         result = send_reflection_reminders(tbe_program.pk, role="madrich")
 
         assert result["sent"] == 1
@@ -412,11 +422,11 @@ class TestTbeMadrichReminderCopy:
 
         assert madrich.preferred_language == "en"
         assert msg.to == ["dana@example.com"]
-        assert msg.subject == "Reminder: Submit your TBE Madrich Weekly 3-2-1 reflection"
+        assert msg.subject == f"Reminder: Submit your {madrich_template.name} reflection"
         assert "Recordatorio" not in msg.subject
 
         assert "Temple Beth-El Religious School 2026-27" in msg.body
-        assert "TBE Madrich Weekly 3-2-1" in msg.body
+        assert madrich_template.name in msg.body
         # No summer-camp-specific language should leak into a religious
         # school reminder -- the template is generic on purpose. ("bunk" is
         # excluded since it's a substring of the "BunkLogs" product name.)
