@@ -3,6 +3,7 @@ import {
   LayoutGrid,
   ScrollText,
   ClipboardList,
+  GraduationCap,
   MessageSquare,
   Wrench,
   Heart,
@@ -11,7 +12,14 @@ import {
   UserCog,
 } from 'lucide-react';
 
-/** Mirrors the nine top-level admin nav links (My work + Supervise), excluding Home. */
+import { useAuth } from '../../auth/AuthContext';
+import { orgSurfaces } from '../../utils/auth/orgProfile';
+
+/**
+ * Mirrors the top-level admin nav links (My work + Supervise), excluding Home.
+ * `surface` names the org surface a tile belongs to (see `utils/auth/orgProfile`);
+ * tiles without one show for every tenant.
+ */
 const NAV_TILES = [
   {
     id: 'performance',
@@ -20,6 +28,7 @@ const NAV_TILES = [
       'Scores and trends across assignment groups and programs — see how groups are performing over time.',
     to: '/groups/performance',
     icon: LayoutGrid,
+    surface: 'campDashboards',
     iconClass:
       'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   },
@@ -30,6 +39,7 @@ const NAV_TILES = [
       'Browse forms assigned to groups and open responses by audience, program, or group.',
     to: '/dashboards/logs',
     icon: ScrollText,
+    surface: 'campDashboards',
     iconClass:
       'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   },
@@ -44,12 +54,24 @@ const NAV_TILES = [
       'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   },
   {
+    id: 'grade-reflections',
+    title: 'Reflections by grade',
+    blurb:
+      'Weekly completion for Madrichim, filtered by grade level, with a CSV export for board reporting.',
+    to: '/admin/reflections',
+    icon: GraduationCap,
+    surface: 'gradeReflections',
+    iconClass:
+      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  },
+  {
     id: 'observations',
     title: 'Observations',
     blurb:
       'Staff observations inbox — read threads, reply, and follow up on notes about campers and staff.',
     to: '/observations',
     icon: MessageSquare,
+    surface: 'observations',
     iconClass:
       'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   },
@@ -60,6 +82,7 @@ const NAV_TILES = [
       'Open maintenance tickets filed by staff — triage, assign, and close work across camp.',
     to: '/maintenance',
     icon: Wrench,
+    surface: 'campOps',
     iconClass:
       'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   },
@@ -70,6 +93,7 @@ const NAV_TILES = [
       'Camper care supply and service orders — review and fulfill requests from counselors and staff.',
     to: '/camper-care/orders',
     icon: Heart,
+    surface: 'campOps',
     iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
   },
   {
@@ -79,6 +103,7 @@ const NAV_TILES = [
       'Per-group / per-day completion heatmap — which bunks and units are filing reflections on schedule.',
     to: '/dashboards/coverage',
     icon: BarChart3,
+    surface: 'campDashboards',
     iconClass: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   },
   {
@@ -88,6 +113,7 @@ const NAV_TILES = [
       'Flagged low ratings and free-text concerns that need triage, surfaced as a queue.',
     to: '/dashboards/concerns',
     icon: Inbox,
+    surface: 'campDashboards',
     iconClass:
       'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   },
@@ -98,6 +124,7 @@ const NAV_TILES = [
       'Who is filing reflections, broken down by author — catches unfiled work and uneven load across a team.',
     to: '/dashboards/authors',
     icon: UserCog,
+    surface: 'campDashboards',
     iconClass:
       'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
   },
@@ -129,6 +156,13 @@ function Card({ card }) {
 }
 
 export default function AdminHome() {
+  const { user } = useAuth();
+  const surfaces = orgSurfaces(user);
+  const tiles = NAV_TILES.filter((card) => !card.surface || surfaces[card.surface]);
+  const blurb = surfaces.campDashboards
+    ? 'Quick links to the main workspaces in your sidebar — performance, reflections, operations, and supervision.'
+    : 'Quick links to the main workspaces in your sidebar — reflections and completion across your programs.';
+
   return (
     <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
       <header
@@ -138,16 +172,13 @@ export default function AdminHome() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Admin Home
         </h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Quick links to the main workspaces in your sidebar — performance,
-          reflections, operations, and supervision.
-        </p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{blurb}</p>
       </header>
       <div
         data-testid="admin-home-grid"
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
       >
-        {NAV_TILES.map((card) => (
+        {tiles.map((card) => (
           <Card key={card.id} card={card} />
         ))}
       </div>
