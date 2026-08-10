@@ -23,7 +23,7 @@ const SIDEBAR_LOGO_TEXT =
  *   `sidebar` sizes the mark to fit the nav column (icon-only or expanded).
  */
 export function OrgLogo({ to = '/', className = 'shrink-0 mr-2 sm:mr-3', variant = 'default' }) {
-  const { isClc, displayName, logoUrl } = useOrgBranding();
+  const { isClc, displayName, logoUrl, loading } = useOrgBranding();
 
   if (variant === 'sidebar') {
     return (
@@ -33,6 +33,8 @@ export function OrgLogo({ to = '/', className = 'shrink-0 mr-2 sm:mr-3', variant
             <img className={SIDEBAR_LOGO_IMAGE} src={logoUrl} alt={displayName} />
           ) : isClc ? (
             <img className={SIDEBAR_LOGO_IMAGE} src={CampLogo} alt="Crane Lake" />
+          ) : loading ? (
+            <span className={SIDEBAR_LOGO_TEXT} aria-hidden="true">&nbsp;</span>
           ) : (
             <span className={SIDEBAR_LOGO_TEXT}>{displayName}</span>
           )}
@@ -51,6 +53,8 @@ export function OrgLogo({ to = '/', className = 'shrink-0 mr-2 sm:mr-3', variant
         <img className={logoClassName} src={logoUrl} alt={displayName} width="140" height="36" />
       ) : isClc ? (
         <img className={className} width="70" height="35" viewBox="0 0 36 36" src={CampLogo} alt="Crane Lake" />
+      ) : loading ? (
+        <span className="inline-block h-9 w-[4.5rem]" aria-hidden="true" />
       ) : (
         <span className="text-lg font-semibold text-gray-800 dark:text-gray-100">{displayName}</span>
       )}

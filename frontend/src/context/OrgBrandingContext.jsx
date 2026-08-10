@@ -6,12 +6,13 @@
  * right org without each page re-fetching. Mounted above `AuthProvider`
  * in App.jsx since the auth pages render before login resolves.
  *
- * Crane Lake safety: `isClc` (and the CLC-shaped default below) is
- * deliberately NOT sourced from the backend `branding` payload for the
- * `clc` org -- it's the literal pre-existing copy. That way Crane Lake's
- * sign-in page is byte-for-byte unchanged even if `setup_crane_lake`
- * hasn't been re-run yet in a given environment to seed
- * `settings.branding`. Backend-sourced text only drives *other* orgs
+ * Initial state is derived synchronously from the SPA hostname (or dev
+ * org override) so non-CLC tenants never flash bundled Crane Lake assets
+ * while the branding API request is in flight.
+ *
+ * Crane Lake safety: `isClc` for the `clc` org (and unresolved hosts) is
+ * deliberately NOT sourced from the backend `branding` payload -- it's the
+ * literal pre-existing copy. Backend-sourced text only drives *other* orgs
  * (e.g. `tbe`), which have no legacy hardcoded copy to preserve.
  *
  * Uploaded logo/hero URLs from the API take precedence over bundled CLC
@@ -19,6 +20,7 @@
  */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { fetchOrganizationBranding } from '../api/organization';
+import { resolveOrganizationSlug } from '../utils/orgSlug';
 
 const OrgBrandingContext = createContext(null);
 
@@ -31,12 +33,31 @@ const CLC_BRANDING = Object.freeze({
   heroUrl: null,
 });
 
+/** Build branding state from a resolved tenant slug (sync, no network). */
+export function brandingFromSlug(slug, { loading = false } = {}) {
+  if (slug === null || slug === 'clc') {
+    return { ...CLC_BRANDING, slug, loading };
+  }
+  return {
+    slug,
+    // Placeholder until the API returns display_name; avoids CLC flash on other tenants.
+    displayName: slug,
+    productName: 'BunkLogs',
+    isClc: false,
+    logoUrl: null,
+    heroUrl: null,
+    loading,
+  };
+}
+
+function initialBranding() {
+  return brandingFromSlug(resolveOrganizationSlug(), { loading: true });
+}
+
 function normalizeBranding(data) {
   const slug = data?.slug ?? null;
   const logoUrl = data?.branding?.logo_url || null;
   const heroUrl = data?.branding?.hero_url || null;
-  // Unresolved (e.g. admin.bunklogs.net, local dev with no tenant
-  // override) or the clc tenant itself both keep the legacy CLC look.
   if (slug === null || slug === 'clc') {
     return { ...CLC_BRANDING, slug, logoUrl, heroUrl, loading: false };
   }
@@ -52,7 +73,7 @@ function normalizeBranding(data) {
 }
 
 export function OrgBrandingProvider({ children }) {
-  const [branding, setBranding] = useState({ ...CLC_BRANDING, loading: true });
+  const [branding, setBranding] = useState(initialBranding);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,9 +84,8 @@ export function OrgBrandingProvider({ children }) {
       })
       .catch(() => {
         if (cancelled) return;
-        // Network/API failure -- keep the CLC-shaped default so nothing
-        // ever renders blank or wrong.
-        setBranding({ ...CLC_BRANDING, loading: false });
+        // Keep hostname-derived tenant shape; only unresolved hosts fall back to CLC.
+        setBranding(brandingFromSlug(resolveOrganizationSlug(), { loading: false }));
       });
     return () => {
       cancelled = true;
@@ -84,5 +104,5 @@ export function OrgBrandingProvider({ children }) {
 }
 
 export function useOrgBranding() {
-  return useContext(OrgBrandingContext) || { ...CLC_BRANDING, loading: true };
+  return useContext(OrgBrandingContext) || initialBranding();
 }
