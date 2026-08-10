@@ -20,7 +20,7 @@ If `DJANGO_ALLOWED_HOSTS` is overridden in the environment, include `.bunklogs.n
 
 ## Branding
 
-`Organization.settings["branding"]` drives the sign-in/sign-up/password-reset pages and the app shell's header (`display_name`, and optionally `product_name` used for `document.title`). It's read by the unauthenticated `GET /api/v1/organization/branding/` endpoint (`bunk_logs/api/organization.py`) since those pages render before login. Seed it via the org's `setup_*` management command (see `setup_crane_lake.py` / `setup_tbe.py`). Frontend: `frontend/src/context/OrgBrandingContext.jsx`. The `clc` org (and any unresolved host) always keeps the legacy hardcoded Crane Lake logo/hero/copy regardless of what's seeded, so a new tenant only needs a `display_name` to get a correct text-only sign-in page -- no image assets required.
+`Organization.settings["branding"]` drives sign-in/sign-up/password-reset pages and the app shell's header (`display_name`, and optionally `product_name` used for `document.title`). Uploaded logo and login hero images are stored on the `Organization` model (`logo`, `login_hero`) and exposed as `logo_url` / `hero_url` on the same endpoint. Seed text branding via the org's `setup_*` management command (see `setup_crane_lake.py` / `setup_tbe.py`); upload images in Django admin under the org's **Branding** section. Frontend: `frontend/src/context/OrgBrandingContext.jsx`. The `clc` org (and any unresolved host) keeps legacy hardcoded Crane Lake logo/hero/copy when no uploaded images are configured.
 
 ## Product surfaces per tenant
 
