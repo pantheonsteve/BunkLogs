@@ -72,9 +72,9 @@ const TEMPLATE_SCHEMA = {
   ],
 };
 
-function renderForm() {
+function renderForm(search = '') {
   return render(
-    <MemoryRouter initialEntries={["/madrich/reflection/new"]}>
+    <MemoryRouter initialEntries={[`/madrich/reflection/new${search}`]}>
       <Routes>
         <Route path="/madrich/reflection/new" element={<MadrichReflectionForm />} />
         <Route path="/madrich" element={<div data-testid="dashboard-stub" />} />
@@ -199,5 +199,40 @@ describe('MadrichReflectionForm', () => {
 
     fireEvent.click(screen.getByTestId('md-submit-button'));
     await waitFor(() => expect(screen.getByTestId('md-submit-error')).toHaveTextContent(/already submitted/));
+  });
+
+  it('loads the template named in the URL and files against it', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        id: 31,
+        name: 'Mid-Year Check-In',
+        cadence: 'on_demand',
+        schema: {
+          fields: [
+            {
+              key: 'note',
+              type: 'text',
+              required: true,
+              prompts: { en: 'How is the year going?' },
+            },
+          ],
+        },
+      },
+    });
+    postMock.mockResolvedValue({ data: { id: 777 } });
+    renderForm('?template=31');
+
+    await waitFor(() => screen.getByText('How is the year going?'));
+    expect(getMock).toHaveBeenCalledWith('/api/v1/templates/31/');
+    expect(screen.getByTestId('md-form-heading')).toHaveTextContent('Mid-Year Check-In');
+
+    const noteWrap = screen.getByText('How is the year going?').closest('div');
+    fireEvent.change(within(noteWrap).getByRole('textbox'), {
+      target: { value: 'Settling into the new grade.' },
+    });
+    fireEvent.click(screen.getByTestId('md-submit-button'));
+
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0][1].template_id).toBe(31);
   });
 });

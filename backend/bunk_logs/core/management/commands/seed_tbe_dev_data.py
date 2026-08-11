@@ -2,9 +2,16 @@
 
 Creates its own ``dev-test`` Program inside the real ``tbe`` Organization
 (never the production-mirroring ``religious-school-2026-27`` program from
-``setup_tbe``), an admin user, five madrichim (grades 8-12), an active
-``TemplateAssignment`` binding the global 3-2-1 template to that program,
-and a few sample Reflections so dashboards have realistic content.
+``setup_tbe``), an admin user, five madrichim (grades 8-12), two active
+``TemplateAssignment`` rows, and a few sample Reflections so dashboards
+have realistic content.
+
+Two assignments, not one, so the Story 63 multi-card dashboard is
+exercisable locally: the recurring weekly 3-2-1 (the global template from
+migration 0037) plus an on-demand "Mid-Year Check-In" owned by the tbe
+org, standing in for the kind of ad-hoc form a Director would create. No
+sample submissions are seeded for the check-in, so its card starts in the
+"missing" state and you can walk the submit flow by hand.
 
 The test program's date window is recomputed on every run so it stays
 "operational" (see ``core.program_scope``) no matter when this is run --
@@ -50,6 +57,24 @@ User = get_user_model()
 TBE_ORG_SLUG = "tbe"
 TEST_PROGRAM_SLUG = "dev-test"
 MADRICH_TEMPLATE_SLUG = "tbe-madrich-3-2-1-weekly"
+CHECK_IN_TEMPLATE_SLUG = "tbe-dev-mid-year-check-in"
+CHECK_IN_TEMPLATE_NAME = "Mid-Year Check-In"
+CHECK_IN_SCHEMA = {
+    "fields": [
+        {
+            "key": "going_well",
+            "type": "text",
+            "required": True,
+            "prompts": {"en": "What is going well for you this year?"},
+        },
+        {
+            "key": "support_needed",
+            "type": "text",
+            "required": True,
+            "prompts": {"en": "What support do you need from your Director?"},
+        },
+    ],
+}
 
 DEV_PASSWORD = "tbedevpass123"  # local dev fixture password
 GRADES = [8, 9, 10, 11, 12]
@@ -71,8 +96,8 @@ def _all_seed_emails() -> list[str]:
 class Command(BaseCommand):
     help = (
         "DEBUG-only. Seed a self-contained TBE dev/test sandbox: a perpetually "
-        "operational Program, an admin user, 5 madrichim (grades 8-12), the "
-        "3-2-1 template assignment, and a few sample reflections."
+        "operational Program, an admin user, 5 madrichim (grades 8-12), two "
+        "concurrent template assignments, and a few sample reflections."
     )
 
     def add_arguments(self, parser) -> None:
@@ -107,6 +132,11 @@ class Command(BaseCommand):
         template = self._get_madrich_template()
         self._ensure_template_assignment(org, program, template)
 
+        check_in = self._ensure_check_in_template(org)
+        self._ensure_template_assignment(
+            org, program, check_in, start=date.today() - timedelta(days=14),
+        )
+
         admin_person = self._upsert_admin(org, program)
         madrich_people = [self._upsert_madrich(org, program, grade) for grade in GRADES]
 
@@ -131,6 +161,12 @@ class Command(BaseCommand):
             program.delete()
             n_programs = 1
 
+        # Safe only after the program delete above cascaded the Reflections
+        # that referenced it.
+        n_templates, _ = ReflectionTemplate.all_objects.filter(
+            organization=org, slug=CHECK_IN_TEMPLATE_SLUG,
+        ).delete()
+
         person_ids = list(
             Person.all_objects.filter(organization=org, email__in=emails)
             .values_list("id", flat=True),
@@ -144,6 +180,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.WARNING(
                 f"--reset: deleted {n_programs} test program(s), "
+                f"{n_templates} dev template row(s), "
                 f"{len(person_ids)} Person record(s), {n_users} User record(s).",
             ),
         )
@@ -199,12 +236,52 @@ class Command(BaseCommand):
             raise CommandError(msg)
         return template
 
+    def _ensure_check_in_template(self, org: Organization) -> ReflectionTemplate:
+        """An org-owned on-demand form, so the dashboard has a second card.
+
+        Owned by ``tbe`` rather than global: this stands in for a form a
+        Director built for their own org, which is the case Story 63 has to
+        handle alongside the seeded weekly template.
+        """
+        template, created = ReflectionTemplate.all_objects.update_or_create(
+            organization=org,
+            slug=CHECK_IN_TEMPLATE_SLUG,
+            version=1,
+            defaults={
+                "name": CHECK_IN_TEMPLATE_NAME,
+                "description": "Local dev fixture from seed_tbe_dev_data.",
+                "cadence": "on_demand",
+                "schema": CHECK_IN_SCHEMA,
+                "languages": ["en"],
+                "is_active": True,
+                "subject_mode": "self",
+                "assignment_scope": "none",
+                "assignment_group_types": [],
+                "author_role_filter": ["madrich"],
+                "subject_role_filter": [],
+                "required_per_subject_per_period": 1,
+                "subject_visible": False,
+                "supports_privacy": False,
+                "role": "madrich",
+                "program_type": "religious_school",
+            },
+        )
+        verb = "Created" if created else "Refreshed"
+        self.stdout.write(f"{verb} template {CHECK_IN_TEMPLATE_SLUG!r} (on_demand).")
+        return template
+
     def _ensure_template_assignment(
-        self, org: Organization, program: Program, template: ReflectionTemplate,
+        self,
+        org: Organization,
+        program: Program,
+        template: ReflectionTemplate,
+        *,
+        start: date | None = None,
     ) -> TemplateAssignment:
         # Anchored a year back so the assignment is active regardless of the
         # program's rolling window (mirrors api/tests/conftest.py's autoseed).
-        start = min(program.start_date, date.today()) - timedelta(days=365)
+        if start is None:
+            start = min(program.start_date, date.today()) - timedelta(days=365)
         assignment, created = TemplateAssignment.all_objects.get_or_create(
             organization=org,
             program=program,
@@ -218,7 +295,10 @@ class Command(BaseCommand):
             },
         )
         verb = "Created" if created else "Using existing"
-        self.stdout.write(f"{verb} TemplateAssignment pk={assignment.pk} for role=madrich.")
+        self.stdout.write(
+            f"{verb} TemplateAssignment pk={assignment.pk} for role=madrich "
+            f"-> {template.slug!r}.",
+        )
         return assignment
 
     # ------------------------------------------------------------- users
@@ -352,6 +432,10 @@ class Command(BaseCommand):
         for grade in GRADES:
             self.stdout.write(f"  Madrich: {_madrich_email(grade)} (grade {grade})")
         self.stdout.write("")
+        self.stdout.write(
+            "  Each Madrich dashboard shows two cards: the weekly 3-2-1 and "
+            f"{CHECK_IN_TEMPLATE_NAME!r} (on-demand, no sample submissions).",
+        )
         self.stdout.write(
             f"Data lives in tbe org's {TEST_PROGRAM_SLUG!r} program -- separate "
             "from setup_tbe's 'religious-school-2026-27' program. "

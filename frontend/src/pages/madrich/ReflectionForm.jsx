@@ -1,11 +1,16 @@
 /**
- * Madrich (TBE) weekly reflection form — Step 7_14, Stories 62 & 64.
+ * Madrich (TBE) reflection form — Step 7_14, Stories 62, 63 & 64.
  *
- * Story 62 contract:
+ * Story 62 contract (the recurring weekly 3-2-1):
  *   * Exactly 3 wins, exactly 2 improvements, 1 question/concern, 5 ratings (1-4).
  *   * No day-off shortcut (criterion 3) — every week's payload carries all sections.
  *   * Inline submit error from backend; client-side validation mirrors
  *     backend schema enforcement via `validateReflectionAnswers`.
+ *
+ * Story 63: a Madrich can owe several templates at once, so a `?template=`
+ * query param names which one this is. Without it the backend falls back
+ * to the recurring weekly form. Fields render from whichever schema loads,
+ * so no per-template branching lives here.
  *
  * Story 64 visibility disclosure: rendered above the form so the
  * Madrich sees who can read the submission before they hit Submit.
@@ -14,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReflectionFieldList from '../../components/templates/ReflectionFieldList';
 import {
   buildDefaultAnswers,
@@ -41,9 +46,11 @@ function flattenError(err, fallback) {
 
 export default function MadrichReflectionForm() {
   const { reflectionId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { orgSlug } = useAuth();
   const isEdit = Boolean(reflectionId);
+  const requestedTemplateId = searchParams.get('template');
 
   const [template, setTemplate] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -64,6 +71,8 @@ export default function MadrichReflectionForm() {
           const reflection = await fetchReflection(reflectionId);
           if (!cancelled) prefillAnswers = reflection.answers || {};
           tpl = await fetchTemplateById(reflection.template);
+        } else if (requestedTemplateId) {
+          tpl = await fetchTemplateById(requestedTemplateId);
         } else {
           tpl = await fetchTemplate(orgSlug, LANGUAGE);
         }
@@ -83,7 +92,7 @@ export default function MadrichReflectionForm() {
     }
     load();
     return () => { cancelled = true; };
-  }, [reflectionId, orgSlug, isEdit]);
+  }, [reflectionId, orgSlug, isEdit, requestedTemplateId]);
 
   const handleFieldChange = useCallback((key, value) => {
     setAnswers(prev => ({ ...prev, [key]: value }));
@@ -115,6 +124,7 @@ export default function MadrichReflectionForm() {
           answers,
           language: LANGUAGE,
           client_submission_id: clientSubmissionId.current,
+          ...(template?.id ? { template_id: template.id } : {}),
         });
       }
       navigate('/madrich');
@@ -134,6 +144,12 @@ export default function MadrichReflectionForm() {
   }
 
   const fields = template?.schema?.fields ?? [];
+  // Non-weekly forms are named on the dashboard card, so carry that name
+  // across; the recurring 3-2-1 keeps its Story 62 week framing.
+  const isWeekly = !template?.cadence || template.cadence === 'weekly';
+  const heading = isWeekly
+    ? (isEdit ? 'Edit weekly reflection' : 'This week\u2019s reflection')
+    : (template.name || 'Reflection');
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -141,7 +157,7 @@ export default function MadrichReflectionForm() {
           className="text-2xl font-bold text-gray-900 dark:text-white mb-6"
           data-testid="md-form-heading"
         >
-          {isEdit ? 'Edit weekly reflection' : 'This week\u2019s reflection'}
+          {heading}
         </h1>
 
         <div

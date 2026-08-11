@@ -20,6 +20,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from bunk_logs.core import audit as audit_module
+from bunk_logs.core.assignment_resolution import assignment_cadence
 from bunk_logs.core.assignment_resolution import list_required_assignments_for
 from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentGroup
@@ -314,9 +315,7 @@ def _task_id(template_id: int, group_id: int | None, period_start: date) -> str:
 
 
 def _assignment_cadence(assignment: TemplateAssignment) -> str:
-    if assignment.cadence_override:
-        return assignment.cadence_override
-    return assignment.template.cadence or "daily"
+    return assignment_cadence(assignment)
 
 
 def _eligible_groups_for_assignment(
