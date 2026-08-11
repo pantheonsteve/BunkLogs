@@ -10,6 +10,7 @@ from django.core.management.base import CommandError
 from django.test.utils import override_settings
 
 from bunk_logs.core.management.commands.seed_tbe_dev_data import ADMIN_EMAIL
+from bunk_logs.core.management.commands.seed_tbe_dev_data import CHECK_IN_TEMPLATE_SLUG
 from bunk_logs.core.management.commands.seed_tbe_dev_data import GRADES
 from bunk_logs.core.management.commands.seed_tbe_dev_data import TEST_PROGRAM_SLUG
 from bunk_logs.core.management.commands.seed_tbe_dev_data import _madrich_email
@@ -18,6 +19,7 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
 
 User = get_user_model()
@@ -68,15 +70,38 @@ def test_creates_program_admin_madrichim_and_assignment():
         assert membership.is_active
         assert membership.grade_level == grade
 
-    assignment = TemplateAssignment.all_objects.get(
+    assignments = TemplateAssignment.all_objects.filter(
         program=program, target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "madrich"},
     )
-    assert assignment.status == TemplateAssignment.Status.ACTIVE
-    assert assignment.template.slug == "tbe-madrich-3-2-1-weekly"
+    assert all(
+        a.status == TemplateAssignment.Status.ACTIVE and a.is_required
+        for a in assignments
+    )
+    assert set(assignments.values_list("template__slug", flat=True)) == {
+        "tbe-madrich-3-2-1-weekly", CHECK_IN_TEMPLATE_SLUG,
+    }
 
     # 3 of 5 madrichim get a sample submission; 2 stay "not submitted".
     assert Reflection.all_objects.filter(program=program).count() == 3
+
+
+def test_seeds_a_second_concurrent_template_for_the_story_63_dashboard():
+    """Two active assignments so the multi-card Madrich dashboard is testable."""
+    _run_setup_tbe()
+    call_command("seed_tbe_dev_data", stdout=StringIO())
+
+    org = Organization.objects.get(slug="tbe")
+    template = ReflectionTemplate.all_objects.get(
+        organization=org, slug=CHECK_IN_TEMPLATE_SLUG,
+    )
+    assert template.cadence == "on_demand"
+    assert template.subject_mode == "self"
+    assert template.role == "madrich"
+    assert template.is_active
+
+    # Left unsubmitted on purpose so the card starts in the "missing" state.
+    assert not Reflection.all_objects.filter(template=template).exists()
 
 
 def test_does_not_touch_the_real_setup_tbe_program():
@@ -140,6 +165,11 @@ def test_reset_alone_wipes_data_without_recreating_when_run_only_once_more():
     # not just reused.
     assert program_after.pk != first_program_pk
     assert Membership.all_objects.filter(program__pk=first_program_pk).count() == 0
+    # The dev-only template is torn down and rebuilt too, rather than
+    # accumulating a row per reset.
+    assert ReflectionTemplate.all_objects.filter(
+        organization=org, slug=CHECK_IN_TEMPLATE_SLUG,
+    ).count() == 1
 
 
 def test_test_program_window_stays_operational_across_reruns():
