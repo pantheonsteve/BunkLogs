@@ -7,7 +7,7 @@
  * camp-side surfaces.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import MadrichDashboard from '../Dashboard';
 
@@ -43,6 +43,13 @@ const samplePayload = {
   },
   my_reflections: [weeklyCard],
   history_entry: { url: '/madrich/history' },
+  availability: {
+    upcoming_unset_count: 0,
+    next_session_date: '2026-09-13',
+    next_session_status: 'available',
+    calendar_url: '/madrich/availability',
+  },
+  availability_nudge: false,
 };
 
 function payloadWith(...cards) {
@@ -173,5 +180,40 @@ describe('MadrichDashboard', () => {
     getMock.mockRejectedValue(new Error('boom'));
     render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
     await waitFor(() => expect(screen.getByTestId('md-error')).toBeInTheDocument());
+  });
+
+  it('renders the My availability card with the next session status', async () => {
+    getMock.mockResolvedValue({ data: samplePayload });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-availability-card'));
+    expect(screen.getByTestId('md-availability-subtitle')).toHaveTextContent(/Available/);
+    expect(screen.getByTestId('md-availability-cta')).toHaveAttribute('href', '/madrich/availability');
+  });
+
+  it('shows the unset-session count when sessions are unmarked', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        ...samplePayload,
+        availability: { ...samplePayload.availability, upcoming_unset_count: 3, next_session_status: null },
+      },
+    });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-availability-card'));
+    expect(screen.getByTestId('md-availability-subtitle')).toHaveTextContent('3 upcoming Sundays not marked yet');
+  });
+
+  it('shows a dismissible nudge banner on Wednesdays with unset sessions', async () => {
+    getMock.mockResolvedValue({ data: { ...samplePayload, availability_nudge: true } });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-availability-nudge'));
+    fireEvent.click(screen.getByTestId('md-availability-nudge-dismiss'));
+    expect(screen.queryByTestId('md-availability-nudge')).toBeNull();
+  });
+
+  it('does not show the nudge banner when availability_nudge is false', async () => {
+    getMock.mockResolvedValue({ data: samplePayload });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-availability-card'));
+    expect(screen.queryByTestId('md-availability-nudge')).toBeNull();
   });
 });

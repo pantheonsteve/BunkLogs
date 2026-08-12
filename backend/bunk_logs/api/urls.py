@@ -37,6 +37,7 @@ from .dashboards import performance as performance_dashboard
 from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
+from .faculty import availability as faculty_availability
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
 from .leadership_team import assignments as lt_assignments
@@ -48,6 +49,7 @@ from .leadership_team import responses as lt_responses
 from .leadership_team import self_reflection as lt_self_reflection
 from .leadership_team import team_dashboard as lt_team_dashboard
 from .leadership_team import templates as lt_templates
+from .madrich import availability as md_availability
 from .madrich import dashboard as md_dashboard
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
@@ -158,6 +160,27 @@ urlpatterns = [
         "madrich/reflection/<int:reflection_id>/",
         md_reflection.MadrichReflectionDetailView.as_view(),
         name="madrich-reflection-detail",
+    ),
+    # ------------------------------------------------------------------
+    # Madrich — TBE Sunday availability calendar (Step 4_7)
+    # ------------------------------------------------------------------
+    path(
+        "madrich/availability/",
+        md_availability.MadrichAvailabilityListView.as_view(),
+        name="madrich-availability-list",
+    ),
+    path(
+        "madrich/availability/<str:session_date>/",
+        md_availability.MadrichAvailabilityDetailView.as_view(),
+        name="madrich-availability-detail",
+    ),
+    # ------------------------------------------------------------------
+    # Faculty — TBE classroom-scoped Madrich availability (Step 4_7)
+    # ------------------------------------------------------------------
+    path(
+        "faculty/classrooms/<int:group_id>/availability/",
+        faculty_availability.FacultyClassroomAvailabilityView.as_view(),
+        name="faculty-classroom-availability",
     ),
     # ------------------------------------------------------------------
     # Maintenance staff queue (Step 7_10, Stories 30-35)

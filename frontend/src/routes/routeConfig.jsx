@@ -54,6 +54,7 @@ const CatalogManagePage = lazy(() => import('../pages/admin/catalog/CatalogManag
 const CatalogPlanningDashboard = lazy(() => import('../pages/admin/catalog/PlanningDashboard'));
 const AdminReflectionsDashboard = lazy(() => import('../pages/admin/reflections/AdminReflectionsDashboard'));
 const AdminReflectionMemberDetail = lazy(() => import('../pages/admin/reflections/AdminReflectionMemberDetail'));
+const AdminAvailabilityMatrix = lazy(() => import('../pages/admin/reflections/AvailabilityMatrix'));
 const TasksPage = lazy(() => import('../pages/TasksPage'));
 const ObservationsInbox = lazy(() => import('../pages/observations/ObservationsInbox'));
 const ObservationThread = lazy(() => import('../pages/observations/ObservationThread'));
@@ -84,6 +85,7 @@ const KitchenStaffHistory = lazy(() => import('../pages/kitchen-staff/History'))
 const MadrichDashboard = lazy(() => import('../pages/madrich/Dashboard'));
 const MadrichReflectionForm = lazy(() => import('../pages/madrich/ReflectionForm'));
 const MadrichHistory = lazy(() => import('../pages/madrich/History'));
+const MadrichAvailabilityCalendar = lazy(() => import('../pages/madrich/AvailabilityCalendar'));
 const LeadershipTeamDashboard = lazy(() => import('../pages/leadership-team/Dashboard'));
 const LeadershipTeamTeamDashboard = lazy(() => import('../pages/leadership-team/TeamDashboard'));
 const LeadershipTeamMemberReflection = lazy(() => import('../pages/leadership-team/MemberReflection'));
@@ -200,6 +202,7 @@ export const routeConfig = [
       { path: '/madrich/history', element: <MadrichHistory /> },
       { path: '/madrich/reflection/new', element: <MadrichReflectionForm /> },
       { path: '/madrich/reflection/:reflectionId/edit', element: <MadrichReflectionForm /> },
+      { path: '/madrich/availability', element: <MadrichAvailabilityCalendar /> },
       { path: '/leadership-team', element: <LeadershipTeamDashboard /> },
       { path: '/leadership-team/teams/:teamRole', element: <LeadershipTeamTeamDashboard /> },
       { path: '/leadership-team/teams/:teamRole/members/:membershipId', element: <LeadershipTeamMemberReflection /> },
@@ -255,6 +258,7 @@ export const routeConfig = [
         path: 'reflections/:role/members/:membershipId',
         element: admin(<AdminReflectionMemberDetail />),
       },
+      { path: 'reflections/availability', element: admin(<AdminAvailabilityMatrix />) },
     ],
   },
 

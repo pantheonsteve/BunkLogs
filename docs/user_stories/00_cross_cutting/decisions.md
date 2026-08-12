@@ -118,6 +118,7 @@ Approximately 60 decisions surfaced during the story tightening pass. Each has a
 | MA3 | Grade-differentiated content | Single template Tier 1; differentiation Tier 2 | 🔄 |
 | MA4 | Parent visibility | No for Tier 1 (Tier 2 per proposal) | 🔄 |
 | MA5 | Co-Director model | Yes, reusing LT co-supervisor pattern | ⏳ |
+| MA6 | Availability edit lock | Locked Saturday 18:00 America/New_York before each session Sunday | ⏳ |
 
 ## Notes platform
 

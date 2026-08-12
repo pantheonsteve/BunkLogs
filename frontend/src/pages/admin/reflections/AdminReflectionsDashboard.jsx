@@ -160,13 +160,22 @@ export default function AdminReflectionsDashboard() {
               {header.program?.name} · {header.member_count} members
             </p>
           </div>
-          <a
-            href={exportUrl}
-            className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            data-testid="admin-reflections-export"
-          >
-            Export CSV
-          </a>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/admin/reflections/availability"
+              className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              data-testid="admin-reflections-availability-tab"
+            >
+              Availability
+            </Link>
+            <a
+              href={exportUrl}
+              className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              data-testid="admin-reflections-export"
+            >
+              Export CSV
+            </a>
+          </div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
