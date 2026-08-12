@@ -40,6 +40,7 @@ from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 
+from .common import resolve_current_program_for_role
 from .common import viewer_or_403
 
 if TYPE_CHECKING:
@@ -63,11 +64,12 @@ class AdminReflectionsTeamView(APIView):
             raise ValidationError(msg)
         grade_levels = _parse_grade_levels(request.query_params.get("grade_level"))
 
-        memberships = list(
-            _role_memberships(ctx.organization, role, grade_levels)
-            .select_related("person", "program"),
+        program = resolve_current_program_for_role(ctx.organization, role, target_date)
+        memberships = (
+            list(_role_memberships(program, role, grade_levels).select_related("person", "program"))
+            if program
+            else []
         )
-        program = memberships[0].program if memberships else None
         template = _resolve_role_template(ctx.organization, program, role, target_date)
 
         if template is None:
@@ -121,11 +123,12 @@ class AdminReflectionsTeamExportView(APIView):
         )
         grade_levels = _parse_grade_levels(request.query_params.get("grade_level"))
 
-        memberships = list(
-            _role_memberships(ctx.organization, role, grade_levels)
-            .select_related("person", "program"),
+        program = resolve_current_program_for_role(ctx.organization, role, target_date)
+        memberships = (
+            list(_role_memberships(program, role, grade_levels).select_related("person", "program"))
+            if program
+            else []
         )
-        program = memberships[0].program if memberships else None
         template = _resolve_role_template(ctx.organization, program, role, target_date)
 
         period_start = period_end = None
@@ -269,9 +272,9 @@ def _parse_grade_levels(raw: str | None) -> list[int] | None:
     return out or None
 
 
-def _role_memberships(organization, role: str, grade_levels: list[int] | None):
+def _role_memberships(program, role: str, grade_levels: list[int] | None):
     qs = Membership.objects.filter(
-        program__organization=organization,
+        program=program,
         role=role,
         is_active=True,
     )
@@ -283,12 +286,18 @@ def _role_memberships(organization, role: str, grade_levels: list[int] | None):
 def _resolve_role_template(organization, program, role: str, as_of: date):
     if program is None:
         return None
+    # This is a recurring completion roster (see class docstrings) -- an
+    # on-demand template co-assigned to the same role (e.g. a one-off
+    # check-in) has no fixed period to track completion against and
+    # would otherwise win an ambiguous tie-break, hiding the recurring
+    # template's real submissions.
     return resolve_template_for(
         organization=organization,
         program=program,
         as_of=as_of,
         role=role,
         subject_mode="self",
+        exclude_cadences=["on_demand"],
     )
 
 

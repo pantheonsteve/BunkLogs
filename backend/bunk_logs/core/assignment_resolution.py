@@ -353,6 +353,7 @@ def resolve_template_for(
     viewer: Person | None = None,
     cadence: str | None = None,
     assignment_group: AssignmentGroup | None = None,
+    exclude_cadences: list[str] | None = None,
 ) -> ReflectionTemplate | None:
     """Return the active ReflectionTemplate for a (role, subject_mode) tuple.
 
@@ -389,6 +390,12 @@ def resolve_template_for(
         When provided, prefers assignments whose ``assignment_group``
         FK matches; falls back to program-wide (target_type='role')
         assignments when no group-specific row exists.
+    exclude_cadences
+        Optional list of ``template.cadence`` values to exclude from
+        consideration, e.g. a recurring completion roster passing
+        ``["on_demand"]`` so an unrelated on-demand check-in template
+        co-assigned to the same role can't win the tie-break and mask
+        the recurring template's submissions.
 
     Returns
     -------
@@ -410,6 +417,8 @@ def resolve_template_for(
         Q(template__role=role) | Q(template__author_role_filter__contains=[role]),
         template__subject_mode=subject_mode,
     ).select_related("template")
+    if exclude_cadences:
+        qs = qs.exclude(template__cadence__in=exclude_cadences)
     if cadence is not None:
         qs = qs.filter(
             Q(cadence_override=cadence)

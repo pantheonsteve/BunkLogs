@@ -30,6 +30,7 @@ from bunk_logs.core.scheduling.availability_matrix import build_matrix_rows
 from bunk_logs.core.scheduling.availability_matrix import resolve_session_window
 from bunk_logs.core.scheduling.availability_matrix import summarize_counts
 
+from .common import resolve_current_program_for_role
 from .common import viewer_or_403
 
 if TYPE_CHECKING:
@@ -37,17 +38,16 @@ if TYPE_CHECKING:
 
 
 def _resolve_program(ctx, program_slug: str | None) -> Program | None:
-    qs = Program.all_objects.filter(organization=ctx.organization)
     if program_slug:
-        program = qs.filter(slug=program_slug).first()
+        program = Program.all_objects.filter(
+            organization=ctx.organization, slug=program_slug,
+        ).first()
         if program is None:
             msg = f"Unknown program: {program_slug!r}."
             raise NotFound(msg)
         return program
-    return (
-        qs.filter(program_type="religious_school", is_active=True)
-        .order_by("-start_date")
-        .first()
+    return resolve_current_program_for_role(
+        ctx.organization, "madrich", ctx.today, program_type="religious_school",
     )
 
 
