@@ -77,6 +77,17 @@ class AssignmentGroupMembershipScopedManager(models.Manager):
         return qs.filter(group__organization=org)
 
 
+class ClassroomChallengeResponseScopedManager(models.Manager):
+    """Scope by challenge.organization (Response has no direct organization FK)."""
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(challenge__organization=org)
+
+
 def _expand_group_to_bunk_ids(group) -> set[int]:
     """Return all active bunk-type group IDs within ``group`` (inclusive).
 

@@ -38,6 +38,7 @@ from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .faculty import availability as faculty_availability
+from .faculty import challenges as faculty_challenges
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
 from .leadership_team import assignments as lt_assignments
@@ -50,6 +51,7 @@ from .leadership_team import self_reflection as lt_self_reflection
 from .leadership_team import team_dashboard as lt_team_dashboard
 from .leadership_team import templates as lt_templates
 from .madrich import availability as md_availability
+from .madrich import challenges as md_challenges
 from .madrich import dashboard as md_dashboard
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
@@ -181,6 +183,47 @@ urlpatterns = [
         "faculty/classrooms/<int:group_id>/availability/",
         faculty_availability.FacultyClassroomAvailabilityView.as_view(),
         name="faculty-classroom-availability",
+    ),
+    # ------------------------------------------------------------------
+    # Madrich — TBE Classroom Challenge Log (Step 4_8, MA7)
+    # ------------------------------------------------------------------
+    path(
+        "madrich/challenges/classrooms/",
+        md_challenges.MadrichChallengeClassroomsView.as_view(),
+        name="madrich-challenges-classrooms",
+    ),
+    path(
+        "madrich/challenges/",
+        md_challenges.MadrichChallengeListCreateView.as_view(),
+        name="madrich-challenges-list",
+    ),
+    path(
+        "madrich/challenges/<uuid:challenge_id>/",
+        md_challenges.MadrichChallengeDetailView.as_view(),
+        name="madrich-challenge-detail",
+    ),
+    path(
+        "madrich/challenges/<uuid:challenge_id>/close/",
+        md_challenges.MadrichChallengeCloseView.as_view(),
+        name="madrich-challenge-close",
+    ),
+    # ------------------------------------------------------------------
+    # Faculty — TBE Classroom Challenge Log (Step 4_8, MA7)
+    # ------------------------------------------------------------------
+    path(
+        "faculty/challenges/",
+        faculty_challenges.FacultyChallengeListView.as_view(),
+        name="faculty-challenges-list",
+    ),
+    path(
+        "faculty/challenges/<uuid:challenge_id>/",
+        faculty_challenges.FacultyChallengeDetailView.as_view(),
+        name="faculty-challenge-detail",
+    ),
+    path(
+        "faculty/challenges/<uuid:challenge_id>/responses/",
+        faculty_challenges.FacultyChallengeResponseCreateView.as_view(),
+        name="faculty-challenge-response-create",
     ),
     # ------------------------------------------------------------------
     # Maintenance staff queue (Step 7_10, Stories 30-35)

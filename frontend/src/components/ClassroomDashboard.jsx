@@ -1,14 +1,79 @@
 /**
- * Classroom dashboard (TBE stub).
+ * Classroom dashboard.
  *
- * Roster + authors only. Classroom reflection templates aren't
- * designed yet, so this view explicitly tells the user that
- * reflections aren't configured. Replaces nothing in production
- * (TBE launches Fall 2026); ships now so faculty/madrich can verify
- * their assignments via the unified dashboard URL.
+ * Roster + authors, plus an "Open challenges" section (Step 4_8, MA7)
+ * that only appears for faculty viewers — the backend only populates
+ * `data.challenges` on the faculty-author path, so a Madrich landing
+ * here (if ever routed there) still sees the reflections-not-configured
+ * stub. Classroom reflection templates aren't designed yet either, so
+ * that stub remains otherwise.
  */
 
 import { Link } from 'react-router-dom';
+
+const STATUS_STYLES = {
+  open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+  acknowledged: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  resolved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+};
+
+function StatusBadge({ status }) {
+  const cls = STATUS_STYLES[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+  return (
+    <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function ChallengesSection({ challenges }) {
+  const recent = challenges.recent || [];
+  return (
+    <section
+      data-testid="classroom-challenges-section"
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
+    >
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+          Open challenges{' '}
+          <span
+            className="ml-2 text-xs text-gray-500 dark:text-gray-400"
+            data-testid="classroom-challenges-open-count"
+          >
+            ({challenges.open_count ?? 0})
+          </span>
+        </h2>
+        <Link
+          to={challenges.list_url || '/faculty/challenges'}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          data-testid="classroom-challenges-inbox-link"
+        >
+          View inbox →
+        </Link>
+      </div>
+      {recent.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">No challenges reported yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {recent.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 dark:border-gray-800 px-3 py-2"
+              data-testid={`classroom-challenge-${c.id}`}
+            >
+              <div className="min-w-0">
+                <p className="text-sm text-gray-900 dark:text-white truncate">{c.body_preview}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{c.category_label}</p>
+              </div>
+              <StatusBadge status={c.status} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function ClassroomDashboard({
   data, selectedDate, onDateChange, backTo = '/dashboards',
@@ -17,6 +82,7 @@ export default function ClassroomDashboard({
   const summary = data?.summary || {};
   const subjects = data?.subjects || [];
   const authors = data?.authors || [];
+  const challenges = data?.challenges || null;
 
   return (
     <div
@@ -51,14 +117,18 @@ export default function ClassroomDashboard({
         </div>
       </header>
 
-      <section
-        data-testid="classroom-reflections-stub"
-        className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
-      >
-        Reflections aren't configured for classrooms yet. Once classroom
-        templates are defined we'll show completion + help-requested
-        sections here.
-      </section>
+      {challenges ? (
+        <ChallengesSection challenges={challenges} />
+      ) : (
+        <section
+          data-testid="classroom-reflections-stub"
+          className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+        >
+          Reflections aren't configured for classrooms yet. Once classroom
+          templates are defined we'll show completion + help-requested
+          sections here.
+        </section>
+      )}
 
       <section
         data-testid="section-subjects"

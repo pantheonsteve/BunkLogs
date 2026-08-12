@@ -20,6 +20,8 @@ from .models import AssignmentDashboardGrant
 from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
 from .models import CatalogItem
+from .models import ClassroomChallenge
+from .models import ClassroomChallengeResponse
 from .models import FieldKey
 from .models import MadrichAvailability
 from .models import MaintenanceTicket
@@ -1408,5 +1410,48 @@ class MadrichAvailabilityAdmin(admin.ModelAdmin):
                 Program.all_objects.select_related("organization"),
             )
         elif db_field.name == "person":
+            kwargs.setdefault("queryset", Person.all_objects.select_related("organization"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+class ClassroomChallengeResponseInline(admin.TabularInline):
+    model = ClassroomChallengeResponse
+    extra = 0
+    fields = ("author", "body", "created_at")
+    readonly_fields = ("author", "body", "created_at")
+    can_delete = False
+
+    def get_queryset(self, request):
+        return ClassroomChallengeResponse.all_objects.select_related("author")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ClassroomChallenge)
+class ClassroomChallengeAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return ClassroomChallenge.all_objects.select_related(
+            "organization", "program", "assignment_group", "author", "resolved_by",
+        )
+
+    list_display = [
+        "assignment_group", "author", "category", "status", "session_date", "created_at",
+    ]
+    list_filter = ["program", "assignment_group", "status", "category"]
+    search_fields = ["author__first_name", "author__last_name", "body"]
+    autocomplete_fields = ["organization", "program", "assignment_group", "author", "resolved_by"]
+    date_hierarchy = "session_date"
+    inlines = [ClassroomChallengeResponseInline]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "assignment_group":
+            kwargs.setdefault(
+                "queryset",
+                AssignmentGroup.all_objects.filter(group_type="classroom").select_related("program"),
+            )
+        elif db_field.name in {"program"}:
+            kwargs.setdefault("queryset", Program.all_objects.select_related("organization"))
+        elif db_field.name in {"author", "resolved_by"}:
             kwargs.setdefault("queryset", Person.all_objects.select_related("organization"))
         return super().formfield_for_foreignkey(db_field, request, **kwargs)

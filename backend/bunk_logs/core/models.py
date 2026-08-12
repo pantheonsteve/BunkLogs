@@ -11,6 +11,7 @@ from django.db.models import Q
 from bunk_logs.core.managers import AssignmentGroupMembershipScopedManager
 from bunk_logs.core.managers import AuditEventAllManager
 from bunk_logs.core.managers import AuditEventScopedManager
+from bunk_logs.core.managers import ClassroomChallengeResponseScopedManager
 from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
@@ -3237,3 +3238,154 @@ class MadrichAvailability(models.Model):
             if session_dates and self.session_date.isoformat() not in session_dates:
                 msg = "session_date is not a configured session for this program."
                 raise ValidationError({"session_date": msg})
+
+
+class ClassroomChallenge(models.Model):
+    """A Madrich-raised operational issue in a TBE classroom (Step 4_8, MA7).
+
+    Semi-anonymous: peer Madrichim in the same classroom see the category
+    and body but never the author (redacted at the serializer boundary,
+    see ``api/classroom_challenges/serializers.py``). Faculty authors and
+    Admin/Director always see the author. Deliberately separate from
+    ``Reflection`` -- this is an operational channel, not graded content.
+    """
+
+    CATEGORY_BEHAVIOR = "behavior"
+    CATEGORY_ENVIRONMENT = "environment"
+    CATEGORY_SCHEDULE = "schedule"
+    CATEGORY_MATERIALS = "materials"
+    CATEGORY_OTHER = "other"
+    CATEGORY_CHOICES = [
+        (CATEGORY_BEHAVIOR, "Student behavior"),
+        (CATEGORY_ENVIRONMENT, "Room environment"),
+        (CATEGORY_SCHEDULE, "Schedule / timing"),
+        (CATEGORY_MATERIALS, "Materials / curriculum"),
+        (CATEGORY_OTHER, "Other"),
+    ]
+
+    STATUS_OPEN = "open"
+    STATUS_ACKNOWLEDGED = "acknowledged"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CHOICES = [
+        (STATUS_OPEN, "Open"),
+        (STATUS_ACKNOWLEDGED, "Acknowledged"),
+        (STATUS_RESOLVED, "Resolved"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="classroom_challenges",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="classroom_challenges",
+    )
+    assignment_group = models.ForeignKey(
+        AssignmentGroup,
+        on_delete=models.CASCADE,
+        related_name="challenges",
+        limit_choices_to={"group_type": "classroom"},
+    )
+    author = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="classroom_challenges_authored",
+    )
+    session_date = models.DateField(
+        help_text="Sunday session this challenge pertains to; defaults to upcoming or current session.",
+    )
+    category = models.CharField(max_length=32, choices=CATEGORY_CHOICES)
+    body = models.TextField(max_length=2000)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        Person,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="classroom_challenges_resolved",
+    )
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["assignment_group", "session_date", "status"]),
+            models.Index(fields=["program", "created_at"]),
+            models.Index(fields=["author", "created_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.get_category_display()} challenge in {self.assignment_group} ({self.status})"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.assignment_group_id and self.assignment_group.group_type != "classroom":
+            raise ValidationError(
+                {"assignment_group": "Challenges may only be raised against classroom groups."},
+            )
+        if self.assignment_group_id and self.author_id:
+            is_classroom_subject = AssignmentGroupMembership.all_objects.filter(
+                group_id=self.assignment_group_id,
+                person_id=self.author_id,
+                role_in_group="subject",
+                is_active=True,
+            ).exists()
+            if not is_classroom_subject:
+                raise ValidationError(
+                    {"author": "Author must be an active Madrich (subject) in this classroom."},
+                )
+        if self.session_date and self.session_date.weekday() != 6:
+            raise ValidationError({"session_date": "session_date must be a Sunday."})
+        if self.program_id and self.session_date:
+            session_dates = (self.program.settings or {}).get("session_dates") or []
+            if session_dates and self.session_date.isoformat() not in session_dates:
+                raise ValidationError(
+                    {"session_date": "session_date is not a configured session for this program."},
+                )
+
+
+class ClassroomChallengeResponse(models.Model):
+    """A faculty reply on a :class:`ClassroomChallenge` thread (Step 4_8).
+
+    Faculty identity is always attributed on responses, even to peer
+    Madrichim who can't see the original challenge's author.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    challenge = models.ForeignKey(
+        ClassroomChallenge,
+        on_delete=models.CASCADE,
+        related_name="responses",
+    )
+    author = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="classroom_challenge_responses",
+    )
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ClassroomChallengeResponseScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"Response by {self.author_id} on challenge {self.challenge_id}"
+
+    # Audit hooks (Step 7_4). No direct org/program FK -- both flow
+    # through the related ClassroomChallenge.
+    def _audit_organization(self):
+        return self.challenge.organization if self.challenge_id else None
+
+    def _audit_program(self):
+        return self.challenge.program if self.challenge_id else None

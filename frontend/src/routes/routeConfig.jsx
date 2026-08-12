@@ -86,6 +86,11 @@ const MadrichDashboard = lazy(() => import('../pages/madrich/Dashboard'));
 const MadrichReflectionForm = lazy(() => import('../pages/madrich/ReflectionForm'));
 const MadrichHistory = lazy(() => import('../pages/madrich/History'));
 const MadrichAvailabilityCalendar = lazy(() => import('../pages/madrich/AvailabilityCalendar'));
+const MadrichChallengeLog = lazy(() => import('../pages/madrich/ChallengeLog'));
+const MadrichChallengeForm = lazy(() => import('../pages/madrich/ChallengeForm'));
+const MadrichChallengeDetail = lazy(() => import('../pages/madrich/ChallengeDetail'));
+const FacultyChallengeInbox = lazy(() => import('../pages/faculty/ChallengeInbox'));
+const FacultyChallengeDetail = lazy(() => import('../pages/faculty/ChallengeDetail'));
 const LeadershipTeamDashboard = lazy(() => import('../pages/leadership-team/Dashboard'));
 const LeadershipTeamTeamDashboard = lazy(() => import('../pages/leadership-team/TeamDashboard'));
 const LeadershipTeamMemberReflection = lazy(() => import('../pages/leadership-team/MemberReflection'));
@@ -203,6 +208,11 @@ export const routeConfig = [
       { path: '/madrich/reflection/new', element: <MadrichReflectionForm /> },
       { path: '/madrich/reflection/:reflectionId/edit', element: <MadrichReflectionForm /> },
       { path: '/madrich/availability', element: <MadrichAvailabilityCalendar /> },
+      { path: '/madrich/challenges', element: <MadrichChallengeLog /> },
+      { path: '/madrich/challenges/new', element: <MadrichChallengeForm /> },
+      { path: '/madrich/challenges/:challengeId', element: <MadrichChallengeDetail /> },
+      { path: '/faculty/challenges', element: <FacultyChallengeInbox /> },
+      { path: '/faculty/challenges/:challengeId', element: <FacultyChallengeDetail /> },
       { path: '/leadership-team', element: <LeadershipTeamDashboard /> },
       { path: '/leadership-team/teams/:teamRole', element: <LeadershipTeamTeamDashboard /> },
       { path: '/leadership-team/teams/:teamRole/members/:membershipId', element: <LeadershipTeamMemberReflection /> },

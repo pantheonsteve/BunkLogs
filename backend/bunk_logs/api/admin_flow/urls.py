@@ -22,6 +22,8 @@ from .catalog import AdminRequestTypeListCreateView
 from .catalog import AdminStoreDetailView
 from .catalog import AdminStoreListCreateView
 from .catalog_dashboard import AdminCatalogPlanningView
+from .classroom_challenges import AdminClassroomChallengesExportView
+from .classroom_challenges import AdminClassroomChallengesListView
 from .dashboard import AdminDashboardView
 from .imports import AdminBulkImportCommitView
 from .imports import AdminBulkImportPreviewView
@@ -234,5 +236,18 @@ urlpatterns = [
         "madrich-availability/export.csv",
         AdminMadrichAvailabilityExportView.as_view(),
         name="admin-madrich-availability-export",
+    ),
+    # ------------------------------------------------------------------
+    # Classroom Challenge Log oversight (Step 4_8 — TBE)
+    # ------------------------------------------------------------------
+    path(
+        "classroom-challenges/",
+        AdminClassroomChallengesListView.as_view(),
+        name="admin-classroom-challenges",
+    ),
+    path(
+        "classroom-challenges/export.csv",
+        AdminClassroomChallengesExportView.as_view(),
+        name="admin-classroom-challenges-export",
     ),
 ]

@@ -43,7 +43,12 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.db import transaction
+from django.utils import timezone
 
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import ClassroomChallenge
+from bunk_logs.core.models import ClassroomChallengeResponse
 from bunk_logs.core.models import MadrichAvailability
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
@@ -80,6 +85,9 @@ CHECK_IN_SCHEMA = {
 DEV_PASSWORD = "tbedevpass123"  # local dev fixture password
 GRADES = [8, 9, 10, 11, 12]
 ADMIN_EMAIL = "tbe-dev-admin@example.test"
+FACULTY_EMAIL = "tbe-dev-faculty@example.test"
+CLASSROOM_SLUG = "dev-test-classroom"
+CLASSROOM_NAME = "Grade 9 -- Room 204"
 
 # Leave the last two madrichim without a submission so the admin dashboard
 # shows a realistic submitted/missing mix rather than "all done".
@@ -105,7 +113,7 @@ def _madrich_email(grade: int) -> str:
 
 
 def _all_seed_emails() -> list[str]:
-    return [ADMIN_EMAIL, *[_madrich_email(g) for g in GRADES]]
+    return [ADMIN_EMAIL, FACULTY_EMAIL, *[_madrich_email(g) for g in GRADES]]
 
 
 class Command(BaseCommand):
@@ -154,11 +162,15 @@ class Command(BaseCommand):
 
         admin_person = self._upsert_admin(org, program)
         madrich_people = [self._upsert_madrich(org, program, grade) for grade in GRADES]
+        faculty_person = self._upsert_faculty(org, program)
 
         self._seed_sample_reflections(org, program, template, madrich_people)
         self._seed_sample_availability(org, program, madrich_people)
 
-        self._print_summary(admin_person, madrich_people)
+        classroom = self._ensure_classroom(org, program, madrich_people, faculty_person)
+        self._seed_classroom_challenges(org, program, classroom, madrich_people, faculty_person)
+
+        self._print_summary(admin_person, madrich_people, faculty_person)
 
     # ------------------------------------------------------------- reset
 
@@ -356,6 +368,17 @@ class Command(BaseCommand):
         self.stdout.write(f"  Madrich (grade {grade}): {email} -> Person pk={person.pk}")
         return person
 
+    def _upsert_faculty(self, org: Organization, program: Program) -> Person:
+        """Step 4_8: a faculty member who authors the dev classroom."""
+        person = self._upsert_user_and_person(
+            org, email=FACULTY_EMAIL, first_name="TBE Dev", last_name="Faculty",
+        )
+        Membership.all_objects.get_or_create(
+            program=program, person=person, role="faculty", defaults={"is_active": True},
+        )
+        self.stdout.write(f"  Faculty: {FACULTY_EMAIL} -> Person pk={person.pk}")
+        return person
+
     @staticmethod
     def _upsert_user_and_person(
         org: Organization, *, email: str, first_name: str, last_name: str,
@@ -485,23 +508,113 @@ class Command(BaseCommand):
             f"{len(madrich_people) - len(seeded_people)} left unset.",
         )
 
+    # ------------------------------------------------------- classroom (4_8)
+
+    def _ensure_classroom(
+        self,
+        org: Organization,
+        program: Program,
+        madrich_people: list[Person],
+        faculty_person: Person,
+    ) -> AssignmentGroup:
+        """A single classroom with 2 Madrichim (subjects) + 1 faculty (author).
+
+        Enough to exercise the peer-redaction and faculty-identity paths
+        of Step 4_8 locally without a full roster import.
+        """
+        classroom, created = AssignmentGroup.all_objects.get_or_create(
+            organization=org, program=program, slug=CLASSROOM_SLUG,
+            defaults={"name": CLASSROOM_NAME, "group_type": "classroom"},
+        )
+        subjects = madrich_people[:2]
+        for person in subjects:
+            AssignmentGroupMembership.all_objects.update_or_create(
+                group=classroom, person=person, role_in_group="subject",
+                defaults={"is_active": True},
+            )
+        AssignmentGroupMembership.all_objects.update_or_create(
+            group=classroom, person=faculty_person, role_in_group="author",
+            defaults={"is_active": True},
+        )
+        verb = "Created" if created else "Using existing"
+        self.stdout.write(
+            f"  {verb} classroom {CLASSROOM_NAME!r} with {len(subjects)} Madrich subject(s) "
+            "+ 1 faculty author.",
+        )
+        return classroom
+
+    def _seed_classroom_challenges(
+        self,
+        org: Organization,
+        program: Program,
+        classroom: AssignmentGroup,
+        madrich_people: list[Person],
+        faculty_person: Person,
+    ) -> None:
+        """One open challenge + one resolved-with-response, per Step 4_8 QA."""
+        session_dates = [
+            date.fromisoformat(s) for s in (program.settings or {}).get("session_dates", [])
+        ]
+        past_or_today = sorted(d for d in session_dates if d <= date.today())
+        session_date = past_or_today[-1] if past_or_today else date.today()
+
+        madrich_a, madrich_b = madrich_people[0], madrich_people[1]
+
+        open_challenge, _ = ClassroomChallenge.all_objects.update_or_create(
+            organization=org, program=program, assignment_group=classroom,
+            author=madrich_a, session_date=session_date, category=ClassroomChallenge.CATEGORY_BEHAVIOR,
+            defaults={
+                "body": "Two students were disruptive during Hebrew drill; we paused twice.",
+                "status": ClassroomChallenge.STATUS_OPEN,
+            },
+        )
+
+        resolved_challenge, resolved_created = ClassroomChallenge.all_objects.update_or_create(
+            organization=org, program=program, assignment_group=classroom,
+            author=madrich_b, session_date=session_date, category=ClassroomChallenge.CATEGORY_MATERIALS,
+            defaults={
+                "body": "We ran out of worksheets partway through the session.",
+                "status": ClassroomChallenge.STATUS_RESOLVED,
+                "resolved_at": timezone.now(),
+                "resolved_by": faculty_person,
+            },
+        )
+        if resolved_created or not resolved_challenge.responses.exists():
+            ClassroomChallengeResponse.all_objects.create(
+                challenge=resolved_challenge, author=faculty_person,
+                body="Thanks for flagging -- I've ordered extra copies for next week.",
+            )
+
+        self.stdout.write(
+            f"  Seeded 1 open + 1 resolved (with faculty response) classroom challenge "
+            f"for {CLASSROOM_NAME!r} on {session_date}.",
+        )
+
     # ----------------------------------------------------------- summary
 
-    def _print_summary(self, admin_person: Person, madrich_people: list[Person]) -> None:
+    def _print_summary(
+        self, admin_person: Person, madrich_people: list[Person], faculty_person: Person | None = None,
+    ) -> None:
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS("TBE dev sandbox ready."))
         self.stdout.write(f"  Shared password: {DEV_PASSWORD}")
         self.stdout.write(f"  Admin:   {ADMIN_EMAIL}")
         for grade in GRADES:
             self.stdout.write(f"  Madrich: {_madrich_email(grade)} (grade {grade})")
+        self.stdout.write(f"  Faculty: {FACULTY_EMAIL}")
         self.stdout.write("")
         self.stdout.write(
             "  Each Madrich dashboard shows two cards: the weekly 3-2-1 and "
             f"{CHECK_IN_TEMPLATE_NAME!r} (on-demand, no sample submissions).",
         )
         self.stdout.write(
+            f"  {CLASSROOM_NAME!r} (Step 4_8): grade-8 + grade-9 Madrichim are subjects, "
+            f"{FACULTY_EMAIL} is the faculty author. One open + one resolved-with-response "
+            "challenge is seeded for local QA.",
+        )
+        self.stdout.write(
             f"Data lives in tbe org's {TEST_PROGRAM_SLUG!r} program -- separate "
             "from setup_tbe's 'religious-school-2026-27' program. "
             "Re-run with --reset to tear it down.",
         )
-        _ = admin_person, madrich_people  # kept for future use / clarity
+        _ = admin_person, madrich_people, faculty_person  # kept for future use / clarity
