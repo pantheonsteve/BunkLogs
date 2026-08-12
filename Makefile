@@ -1,6 +1,6 @@
 .PHONY: help up down restart logs shell ps \
         migrate makemigrations superuser seed seed-rbac setup-crane-lake onboard-clc seed-clc-assignments \
-        setup-tbe seed-tbe \
+        setup-tbe seed-tbe tbe-demo \
         test test-backend test-frontend test-e2e \
         lint lint-backend lint-frontend \
         frontend-install frontend-dev \
@@ -30,6 +30,7 @@ help:
 	@echo "  make seed-clc-assignments  Seed 12 TemplateAssignment rows for CLC Summer 2026 (pass DRY_RUN=1 to preview)"
 	@echo "  make setup-tbe       New tenant models: ensure TBE org + Religious School 2026-27 program"
 	@echo "  make seed-tbe        Seed the local TBE sandbox: admin, 5 madrichim, 2 templates (pass RESET=1 to rebuild)"
+	@echo "  make tbe-demo        setup-tbe + seed-tbe + a walkthrough of every new TBE surface to check out (pass RESET=1)"
 	@echo "  make audit-duplicates  Audit duplicate Person/User identity issues (ORG_SLUG=clc)"
 	@echo "  make merge-persons     Merge duplicate Persons (ORG_SLUG=clc WINNER=1 LOSER=2 APPLY=1)"
 	@echo "  make shell           Open Django shell (shell_plus if available)"
@@ -102,6 +103,9 @@ setup-tbe:
 
 seed-tbe:
 	$(DJANGO_EXEC) python manage.py seed_tbe_dev_data $(if $(RESET),--reset,)
+
+tbe-demo:
+	./scripts/seed_tbe_local.sh $(if $(RESET),--reset,)
 
 audit-duplicates:
 	$(DJANGO_EXEC) python manage.py audit_duplicate_identities \

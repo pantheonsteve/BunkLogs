@@ -143,6 +143,29 @@ class TestAdminMadrichAvailabilityMatrix:
         # One row per (madrich, session) pair.
         assert len(lines) - 1 == len(madrichim) * len(session_dates)
 
+    def test_ignores_later_starting_program_with_no_madrich_members(
+        self, api, org, program, admin_user, madrichim, session_dates,
+    ):
+        """A newer program (e.g. next year's cohort scaffolded early) with no
+        active madrich memberships must not shadow the program actually in
+        use just because it starts later.
+        """
+        today = get_today(org)
+        Program.all_objects.create(
+            organization=org,
+            name=f"{org.name} Next Year",
+            slug="admin-availability-next-year",
+            program_type="religious_school",
+            start_date=today + timedelta(days=200),
+            end_date=today + timedelta(days=560),
+        )
+
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get("/api/v1/admin/madrich-availability/", **_hdr(org.slug))
+        assert r.status_code == 200
+        assert r.json()["program"]["slug"] == program.slug
+
     def test_non_admin_gets_403(self, api, org, program, session_dates):
         user = User.objects.create_user(email="counselor@availability.test", password="pw")
         person = Person.all_objects.create(organization=org, first_name="Not", last_name="Admin", user=user)

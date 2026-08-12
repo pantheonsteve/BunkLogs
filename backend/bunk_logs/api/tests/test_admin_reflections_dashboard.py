@@ -206,6 +206,68 @@ class TestAdminReflectionsTeamDashboard:
         assert data["header"]["member_count"] == 2
         assert sorted(m["grade_level"] for m in data["members"]) == [8, 10]
 
+    def test_ignores_concurrent_on_demand_template_for_same_role(self, api, org, program, admin_user):
+        """A co-assigned on-demand template (e.g. a one-off check-in) must not
+        win the resolver's tie-break over the recurring weekly template and
+        mask real weekly submissions -- see the TBE local sandbox bug where
+        an on-demand 'Mid-Year Check-In' assignment shadowed the 3-2-1.
+        """
+        from bunk_logs.api.tests.conftest import make_active_assignment
+
+        person_a, _ = _make_madrich(org, program, first="Maya", last="Alpha", grade_level=8)
+        today = get_today(org)
+        period_start, period_end = resolve_period(
+            _madrich_template(), anchor=today, program=program,
+        )
+        _submit_reflection(person_a, program, org, period_start=period_start, period_end=period_end)
+
+        on_demand = ReflectionTemplate.all_objects.create(
+            organization=org,
+            program_type="religious_school",
+            role="madrich",
+            name="Check-In",
+            slug="admin-reflections-check-in",
+            cadence="on_demand",
+            schema={"prompts": []},
+        )
+        make_active_assignment(template=on_demand, program=program, target_role="madrich")
+
+        api.force_authenticate(user=admin_user)
+        resp = api.get("/api/v1/admin/reflections/teams/madrich/", **_hdr(org.slug))
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["template"]["slug"] == MADRICH_TEMPLATE_SLUG
+        assert data["submission_status"] == {
+            "submitted": 1, "day_off": 0, "not_submitted": 0, "total": 1,
+        }
+
+    def test_ignores_overlapping_program_with_no_role_members(
+        self, api, org, program, admin_user,
+    ):
+        """A newer/empty program (e.g. next year's cohort scaffolded early)
+        that's simultaneously ``is_active`` must not shadow the program the
+        role's members are actually enrolled in.
+        """
+        _make_madrich(org, program, first="Maya", last="Alpha", grade_level=8)
+        today = get_today(org)
+        Program.all_objects.create(
+            organization=org,
+            name=f"{org.name} Next Year",
+            slug="admin-reflections-next-year",
+            program_type="religious_school",
+            start_date=today + timedelta(days=200),
+            end_date=today + timedelta(days=560),
+        )
+
+        api.force_authenticate(user=admin_user)
+        resp = api.get("/api/v1/admin/reflections/teams/madrich/", **_hdr(org.slug))
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["header"]["program"]["id"] == program.id
+        assert data["header"]["member_count"] == 1
+
     def test_non_admin_gets_403(self, api, org, program):
         user = User.objects.create_user(email="madrich-self@tbe-reflections.test", password="pw")
         person = Person.all_objects.create(organization=org, first_name="Self", last_name="Madrich", user=user)

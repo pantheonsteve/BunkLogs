@@ -17,6 +17,7 @@ from rest_framework.exceptions import PermissionDenied
 from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.time_utils import get_today
 
@@ -79,3 +80,39 @@ def viewer_or_403(request) -> AdminContext:
         today=get_today(org),
         is_super_admin=super_admin,
     )
+
+
+def resolve_current_program_for_role(
+    organization: Organization,
+    role: str,
+    today: date,
+    *,
+    program_type: str | None = None,
+) -> Program | None:
+    """Pick the one program that's the current home for a role's roster.
+
+    Orgs can end up with more than one ``is_active`` program of the same
+    type at once (e.g. next year's cohort created ahead of this year's
+    end date, or a scratch/dev program left lying around) -- picking
+    "whichever started most recently" then silently shows an empty or
+    wrong roster. Instead: prefer whichever active program's date range
+    actually contains ``today``, and among those, the one with the most
+    active ``role`` memberships (the one people are actually using).
+    Falls back to the latest-starting program when none have started
+    yet (e.g. a roster imported ahead of the program's start date).
+    """
+    programs = Program.all_objects.filter(organization=organization, is_active=True)
+    if program_type:
+        programs = programs.filter(program_type=program_type)
+    programs = list(programs)
+    if not programs:
+        return None
+
+    def _member_count(program: Program) -> int:
+        return Membership.all_objects.filter(
+            program=program, role=role, is_active=True,
+        ).count()
+
+    live = [p for p in programs if p.start_date <= today <= p.end_date]
+    pool = live or programs
+    return max(pool, key=lambda p: (_member_count(p), p.start_date))
