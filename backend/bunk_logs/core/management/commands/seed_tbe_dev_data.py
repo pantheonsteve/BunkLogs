@@ -44,6 +44,7 @@ from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.db import transaction
 
+from bunk_logs.core.models import MadrichAvailability
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -83,6 +84,20 @@ ADMIN_EMAIL = "tbe-dev-admin@example.test"
 # Leave the last two madrichim without a submission so the admin dashboard
 # shows a realistic submitted/missing mix rather than "all done".
 SUBMITTING_GRADE_COUNT = 3
+
+
+def _rolling_session_dates(today: date) -> list[str]:
+    """Sundays from 3 weeks back through 16 weeks forward of `today`.
+
+    Recomputed on every run (like the test program's date window) so the
+    availability calendar always has upcoming sessions to show, regardless
+    of when this command is run.
+    """
+    days_since_sunday = (today.weekday() - 6) % 7
+    last_sunday = today - timedelta(days=days_since_sunday)
+    start = last_sunday - timedelta(weeks=3)
+    weeks = 20
+    return [(start + timedelta(weeks=i)).isoformat() for i in range(weeks)]
 
 
 def _madrich_email(grade: int) -> str:
@@ -141,6 +156,7 @@ class Command(BaseCommand):
         madrich_people = [self._upsert_madrich(org, program, grade) for grade in GRADES]
 
         self._seed_sample_reflections(org, program, template, madrich_people)
+        self._seed_sample_availability(org, program, madrich_people)
 
         self._print_summary(admin_person, madrich_people)
 
@@ -192,6 +208,7 @@ class Command(BaseCommand):
         window_start = today - timedelta(days=180)
         window_end = today + timedelta(days=180)
         name = f"{org.name} Dev Test"
+        session_dates = _rolling_session_dates(today)
 
         program, created = Program.all_objects.get_or_create(
             organization=org,
@@ -201,6 +218,7 @@ class Command(BaseCommand):
                 "program_type": "religious_school",
                 "start_date": window_start,
                 "end_date": window_end,
+                "settings": {"session_dates": session_dates},
             },
         )
         window_changed = not created and (
@@ -213,7 +231,17 @@ class Command(BaseCommand):
             program.start_date = window_start
             program.end_date = window_end
             program.save(update_fields=["start_date", "end_date"])
-        verb = "Created" if created else "Refreshed" if window_changed else "Using existing"
+
+        # Step 4_7: keep session_dates rolling forward the same way, so the
+        # availability calendar always has upcoming Sundays to mark.
+        settings_changed = not created and program.settings.get("session_dates") != session_dates
+        if settings_changed:
+            merged = dict(program.settings or {})
+            merged["session_dates"] = session_dates
+            program.settings = merged
+            program.save(update_fields=["settings"])
+
+        verb = "Created" if created else "Refreshed" if (window_changed or settings_changed) else "Using existing"
         self.stdout.write(
             f"{verb} test program {TEST_PROGRAM_SLUG!r} ({program.start_date} - {program.end_date}).",
         )
@@ -420,6 +448,41 @@ class Command(BaseCommand):
             f"  Seeded reflections for {len(submitters)} madrich(im) covering "
             f"{last_monday}..{last_sunday}; "
             f"{len(madrich_people) - len(submitters)} left as 'not submitted'.",
+        )
+
+    # ------------------------------------------------------- availability
+
+    def _seed_sample_availability(
+        self,
+        org: Organization,
+        program: Program,
+        madrich_people: list[Person],
+    ) -> None:
+        """AC5.4: sample rows for 3 of 5 dev madrichim so the admin matrix is testable."""
+        session_dates = [
+            date.fromisoformat(s) for s in (program.settings or {}).get("session_dates", [])
+        ]
+        upcoming = sorted(d for d in session_dates if d >= date.today())[:2]
+        if not upcoming:
+            self.stdout.write("  No upcoming session_dates on the test program; skipping availability seed.")
+            return
+
+        statuses = [
+            MadrichAvailability.STATUS_AVAILABLE,
+            MadrichAvailability.STATUS_TENTATIVE,
+            MadrichAvailability.STATUS_UNAVAILABLE,
+        ]
+        seeded_people = madrich_people[:SUBMITTING_GRADE_COUNT]
+        for person, status_value in zip(seeded_people, statuses, strict=False):
+            for session_date in upcoming:
+                MadrichAvailability.all_objects.update_or_create(
+                    organization=org, program=program, person=person, session_date=session_date,
+                    defaults={"status": status_value},
+                )
+        self.stdout.write(
+            f"  Seeded availability for {len(seeded_people)} madrich(im) across "
+            f"{len(upcoming)} upcoming session date(s); "
+            f"{len(madrich_people) - len(seeded_people)} left unset.",
         )
 
     # ----------------------------------------------------------- summary

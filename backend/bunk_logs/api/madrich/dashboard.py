@@ -11,9 +11,15 @@ Reflection-focused dashboard scoped to the active TBE
   not a "draft" or "day off". An empty list is the "nothing assigned yet"
   state the client renders as Director-will-set-this-up copy.
 * ``history_entry`` — shortcut URL to the reflection history view.
+* ``availability`` — Step 4_7 summary card (unset count, next session,
+  calendar link). The dedicated ``/madrich/availability/`` endpoint
+  (``availability.py``) remains the source of truth for the full calendar;
+  this is a lightweight card only.
 
-Operational signals (rosters, faculty submissions, other Madrichim,
-camp-side data) are intentionally omitted per Story 61 criterion 4.
+Operational signals about *other* people (rosters, faculty submissions,
+peer Madrichim, camp-side data) are intentionally omitted per Story 61
+criterion 4 -- the viewer's own availability commitment is not one of
+those, since Step 4_7 is explicitly a self-service staffing signal.
 """
 
 from __future__ import annotations
@@ -27,6 +33,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.core.models import Reflection
 
+from .availability import availability_summary
 from .common import assigned_reflections
 from .common import current_week_period
 from .common import viewer_or_403
@@ -102,6 +109,13 @@ class MadrichDashboardView(APIView):
                 "editable": existing is not None,
             })
 
+        availability = availability_summary(ctx)
+        # AC5.3: lightweight Wednesday nudge -- the reflection Wednesday
+        # reminder email is unaffected (MA2); this is client-rendered only.
+        availability_nudge = (
+            today.weekday() == 2 and availability["upcoming_unset_count"] > 0
+        )
+
         return Response({
             "today": today.isoformat(),
             "period": {
@@ -120,6 +134,8 @@ class MadrichDashboardView(APIView):
             "history_entry": {
                 "url": "/madrich/history",
             },
+            "availability": availability,
+            "availability_nudge": availability_nudge,
         })
 
 

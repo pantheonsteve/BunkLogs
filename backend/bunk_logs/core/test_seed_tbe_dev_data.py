@@ -14,6 +14,7 @@ from bunk_logs.core.management.commands.seed_tbe_dev_data import CHECK_IN_TEMPLA
 from bunk_logs.core.management.commands.seed_tbe_dev_data import GRADES
 from bunk_logs.core.management.commands.seed_tbe_dev_data import TEST_PROGRAM_SLUG
 from bunk_logs.core.management.commands.seed_tbe_dev_data import _madrich_email
+from bunk_logs.core.models import MadrichAvailability
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -84,6 +85,22 @@ def test_creates_program_admin_madrichim_and_assignment():
 
     # 3 of 5 madrichim get a sample submission; 2 stay "not submitted".
     assert Reflection.all_objects.filter(program=program).count() == 3
+
+
+def test_seeds_sample_availability_for_3_of_5_madrichim():
+    """Step 4_7 AC5.4: sample availability rows across the rolling session_dates."""
+    _run_setup_tbe()
+    call_command("seed_tbe_dev_data", stdout=StringIO())
+
+    org = Organization.objects.get(slug="tbe")
+    program = Program.all_objects.get(organization=org, slug=TEST_PROGRAM_SLUG)
+    assert program.settings.get("session_dates")
+
+    people_with_availability = {
+        row.person_id
+        for row in MadrichAvailability.all_objects.filter(program=program)
+    }
+    assert len(people_with_availability) == 3
 
 
 def test_seeds_a_second_concurrent_template_for_the_story_63_dashboard():

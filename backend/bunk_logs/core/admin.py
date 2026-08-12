@@ -21,6 +21,7 @@ from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
 from .models import CatalogItem
 from .models import FieldKey
+from .models import MadrichAvailability
 from .models import MaintenanceTicket
 from .models import Membership
 from .models import Order
@@ -1385,3 +1386,27 @@ class OrderActivityEventAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(MadrichAvailability)
+class MadrichAvailabilityAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        return MadrichAvailability.all_objects.select_related(
+            "organization", "program", "person",
+        )
+
+    list_display = ["person", "program", "session_date", "status", "updated_at"]
+    list_filter = ["program", "session_date", "status"]
+    search_fields = ["person__first_name", "person__last_name", "person__email"]
+    autocomplete_fields = ["organization", "program", "person"]
+    date_hierarchy = "session_date"
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "program":
+            kwargs.setdefault(
+                "queryset",
+                Program.all_objects.select_related("organization"),
+            )
+        elif db_field.name == "person":
+            kwargs.setdefault("queryset", Person.all_objects.select_related("organization"))
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)

@@ -5,6 +5,7 @@ Idempotent: safe to run multiple times. Mirrors ``setup_crane_lake``.
 from __future__ import annotations
 
 from datetime import date
+from datetime import timedelta
 from typing import Any
 
 from django.core.management.base import BaseCommand
@@ -19,6 +20,31 @@ PROGRAM_SLUG = "religious-school-2026-27"
 # Religious school year: first Sunday after Labor Day through mid-May.
 SCHOOL_YEAR_START = date(2026, 9, 13)
 SCHOOL_YEAR_END = date(2027, 5, 16)
+
+# Step 4_7: Sundays with no religious-school session, skipped when
+# generating the default `session_dates` list below. Placeholder dates for
+# TBE's actual closure calendar (High Holidays/Sukkot tail, Thanksgiving
+# weekend, winter break, Passover week) -- Rachel should confirm/adjust the
+# exact dates before launch via Django admin `Program.settings` JSON (no
+# dedicated admin UI in Tier 1).
+EXCLUDED_SESSION_DATES: frozenset[date] = frozenset({
+    date(2026, 9, 20),   # Sukkot week
+    date(2026, 11, 29),  # Thanksgiving weekend
+    date(2026, 12, 20),  # Winter break
+    date(2026, 12, 27),  # Winter break
+    date(2027, 4, 18),   # Passover week
+})
+
+
+def _default_session_dates() -> list[str]:
+    """Every Sunday in the school year, minus `EXCLUDED_SESSION_DATES`."""
+    dates: list[str] = []
+    current = SCHOOL_YEAR_START
+    while current <= SCHOOL_YEAR_END:
+        if current not in EXCLUDED_SESSION_DATES:
+            dates.append(current.isoformat())
+        current += timedelta(days=7)
+    return dates
 
 CANONICAL_ORG_SETTINGS: dict[str, Any] = {
     "timezone": "America/New_York",
@@ -35,6 +61,9 @@ CANONICAL_ORG_SETTINGS: dict[str, Any] = {
 # 0038) — no separate scheduling needed here.
 CANONICAL_PROGRAM_SETTINGS: dict[str, Any] = {
     "reminder_schedules": {"madrich": "weekly_wednesday_18:00"},
+    # Step 4_7: canonical source of truth for the Sunday availability
+    # calendar (`MadrichAvailability.session_date` must appear here).
+    "session_dates": _default_session_dates(),
 }
 
 

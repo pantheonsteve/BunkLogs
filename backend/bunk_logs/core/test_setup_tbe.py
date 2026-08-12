@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from django.core.management import call_command
 
@@ -20,6 +22,9 @@ def test_setup_tbe_creates_org_and_program():
     program = Program.all_objects.get(organization=org, slug="religious-school-2026-27")
     assert program.program_type == "religious_school"
     assert program.settings["reminder_schedules"] == {"madrich": "weekly_wednesday_18:00"}
+    session_dates = program.settings["session_dates"]
+    assert all(date.fromisoformat(d).weekday() == 6 for d in session_dates)
+    assert "2026-09-20" not in session_dates  # excluded (Sukkot week)
 
 
 def test_setup_tbe_is_idempotent():

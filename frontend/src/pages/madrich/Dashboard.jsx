@@ -42,6 +42,43 @@ function formatPeriodLabel(cadence, periodStart, periodEnd) {
   return cadence === 'weekly' ? `Week of ${range}` : range;
 }
 
+function AvailabilityCard({ availability }) {
+  const { upcoming_unset_count: unsetCount, next_session_date: nextDate, next_session_status: nextStatus } = availability || {};
+  const hasUnset = (unsetCount ?? 0) > 0;
+  const nextLabel = nextDate
+    ? new Date(`${nextDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+  const statusLabel = nextStatus
+    ? nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)
+    : 'Not yet set';
+
+  return (
+    <section
+      aria-label="My availability"
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      data-testid="md-availability-card"
+    >
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+        My availability
+      </h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3" data-testid="md-availability-subtitle">
+        {hasUnset
+          ? `${unsetCount} upcoming Sunday${unsetCount === 1 ? '' : 's'} not marked yet`
+          : nextLabel
+            ? `Next session (${nextLabel}): ${statusLabel}`
+            : 'No upcoming sessions scheduled yet.'}
+      </p>
+      <Link
+        to={availability?.calendar_url || '/madrich/availability'}
+        className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+        data-testid="md-availability-cta"
+      >
+        Update availability
+      </Link>
+    </section>
+  );
+}
+
 function NoAssignmentsCard() {
   return (
     <section
@@ -120,6 +157,7 @@ export default function MadrichDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,7 +198,7 @@ export default function MadrichDashboard() {
     );
   }
 
-  const { header, my_reflections, history_entry } = dashboard;
+  const { header, my_reflections, history_entry, availability, availability_nudge: availabilityNudge } = dashboard;
   const cards = Array.isArray(my_reflections) ? my_reflections : [];
   const gradeLevel = header?.grade_level;
 
@@ -174,6 +212,25 @@ export default function MadrichDashboard() {
         </p>
       </div>
 
+      {availabilityNudge && !nudgeDismissed && (
+        <div
+          className="rounded-xl border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/30 p-3 flex items-center justify-between gap-3"
+          data-testid="md-availability-nudge"
+        >
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            Please mark your availability for upcoming Sundays.
+          </p>
+          <button
+            type="button"
+            onClick={() => setNudgeDismissed(true)}
+            className="text-sm text-yellow-800 dark:text-yellow-200 underline shrink-0"
+            data-testid="md-availability-nudge-dismiss"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {cards.length === 0 ? (
         <NoAssignmentsCard />
       ) : (
@@ -181,6 +238,8 @@ export default function MadrichDashboard() {
           <ReflectionStatusCard key={card.template_id} card={card} />
         ))
       )}
+
+      <AvailabilityCard availability={availability} />
 
       <section
         aria-label="My reflections"

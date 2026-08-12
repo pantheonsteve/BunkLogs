@@ -3165,3 +3165,75 @@ class ReflectionAttentionMarker(models.Model):
             f"attention marker on reflection:{self.reflection_id} "
             f"by membership:{self.marker_membership_id}"
         )
+
+
+class MadrichAvailability(models.Model):
+    """A Madrich's Sunday-session staffing commitment (Step 4_7, TBE Tier 1).
+
+    Operational scheduling signal for Directors -- deliberately separate from
+    ``Reflection`` (Story 62 c3: no day-off toggle on reflections). One row
+    per (program, person, session_date); ``session_date`` must be a Sunday
+    present in ``program.settings['session_dates']``. Edit window (MA6:
+    locked Saturday 18:00 America/New_York before the session) is enforced
+    in the API layer via ``core.scheduling.availability_windows``, not here,
+    since it depends on "now" rather than the row's own data.
+    """
+
+    STATUS_AVAILABLE = "available"
+    STATUS_UNAVAILABLE = "unavailable"
+    STATUS_TENTATIVE = "tentative"
+    STATUS_CHOICES = [
+        (STATUS_AVAILABLE, "Available"),
+        (STATUS_UNAVAILABLE, "Unavailable"),
+        (STATUS_TENTATIVE, "Tentative"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="madrich_availabilities",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="madrich_availabilities",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="availability_commitments",
+    )
+    session_date = models.DateField(help_text="A program session Sunday.")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES)
+    note = models.CharField(max_length=280, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["program", "person", "session_date"],
+                name="uniq_madrich_availability_per_session",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["program", "session_date"]),
+            models.Index(fields=["person", "session_date"]),
+        ]
+        ordering = ["session_date"]
+
+    def __str__(self) -> str:
+        return f"{self.person_id} availability for {self.session_date} ({self.status})"
+
+    def clean(self):
+        if self.session_date and self.session_date.weekday() != 6:
+            msg = "session_date must be a Sunday."
+            raise ValidationError({"session_date": msg})
+        if self.program_id:
+            session_dates = (self.program.settings or {}).get("session_dates") or []
+            if session_dates and self.session_date.isoformat() not in session_dates:
+                msg = "session_date is not a configured session for this program."
+                raise ValidationError({"session_date": msg})

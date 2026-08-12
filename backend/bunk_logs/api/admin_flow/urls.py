@@ -26,6 +26,8 @@ from .dashboard import AdminDashboardView
 from .imports import AdminBulkImportCommitView
 from .imports import AdminBulkImportPreviewView
 from .imports import AdminBulkImportTemplateView
+from .madrich_availability import AdminMadrichAvailabilityExportView
+from .madrich_availability import AdminMadrichAvailabilityView
 from .override import AdminOverrideEditView
 from .people import AdminMembershipDeactivateView
 from .people import AdminMembershipDetailView
@@ -219,5 +221,18 @@ urlpatterns = [
         "reflections/teams/<str:role>/members/<int:membership_id>/",
         AdminReflectionsMemberDetailView.as_view(),
         name="admin-reflections-member-detail",
+    ),
+    # ------------------------------------------------------------------
+    # Madrich availability staffing matrix (Step 4_7 — TBE)
+    # ------------------------------------------------------------------
+    path(
+        "madrich-availability/",
+        AdminMadrichAvailabilityView.as_view(),
+        name="admin-madrich-availability",
+    ),
+    path(
+        "madrich-availability/export.csv",
+        AdminMadrichAvailabilityExportView.as_view(),
+        name="admin-madrich-availability-export",
     ),
 ]
