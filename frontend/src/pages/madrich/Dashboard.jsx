@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchDashboard } from '../../api/madrich';
+import { fetchClassrooms } from '../../api/madrichChallenges';
 import { useAuth } from '../../auth/AuthContext';
 
 function formatPeriodLabel(cadence, periodStart, periodEnd) {
@@ -74,6 +75,47 @@ function AvailabilityCard({ availability }) {
         data-testid="md-availability-cta"
       >
         Update availability
+      </Link>
+    </section>
+  );
+}
+
+function ReportChallengeCard() {
+  const { orgSlug } = useAuth();
+  const [hasClassroom, setHasClassroom] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchClassrooms(orgSlug)
+      .then((data) => {
+        if (active) setHasClassroom((data?.classrooms || []).length > 0);
+      })
+      .catch(() => {
+        if (active) setHasClassroom(false);
+      });
+    return () => { active = false; };
+  }, [orgSlug]);
+
+  if (!hasClassroom) return null;
+
+  return (
+    <section
+      aria-label="Report a challenge"
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      data-testid="md-challenge-card"
+    >
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+        Report a challenge
+      </h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+        Something need faculty attention in your classroom?
+      </p>
+      <Link
+        to="/madrich/challenges/new"
+        className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+        data-testid="md-challenge-cta"
+      >
+        Report a challenge
       </Link>
     </section>
   );
@@ -240,6 +282,8 @@ export default function MadrichDashboard() {
       )}
 
       <AvailabilityCard availability={availability} />
+
+      <ReportChallengeCard />
 
       <section
         aria-label="My reflections"

@@ -191,6 +191,7 @@ function Sidebar({
   // surfaced via `membership_roles` on the profile payload.
   const isMaintenanceOnly = isMaintenanceOnlyMember(user);
   const isMadrich = membershipRoles.includes('madrich');
+  const isFaculty = membershipRoles.includes('faculty');
   const homePath = homePathForUser(user);
   // Which product surfaces this tenant gets (camp vs religious school).
   const surfaces = orgSurfaces(user);
@@ -370,6 +371,9 @@ function Sidebar({
             )}
             {isMadrich && (
               <NavItem to="/madrich/history" label="My reflections" icon={IconClipboard} />
+            )}
+            {isFaculty && (
+              <NavItem to="/faculty/challenges" label="Challenges" icon={IconAlert} />
             )}
             {surfaces.observations && (
               <NavItem

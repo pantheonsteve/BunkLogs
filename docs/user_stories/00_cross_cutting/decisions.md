@@ -119,6 +119,7 @@ Approximately 60 decisions surfaced during the story tightening pass. Each has a
 | MA4 | Parent visibility | No for Tier 1 (Tier 2 per proposal) | 🔄 |
 | MA5 | Co-Director model | Yes, reusing LT co-supervisor pattern | ⏳ |
 | MA6 | Availability edit lock | Locked Saturday 18:00 America/New_York before each session Sunday | ⏳ |
+| MA7 | Classroom Challenge Log semi-anonymity | Author: sees own identity. Peer Madrich in same classroom: sees category/body/status but author redacted to "A Madrich" (no id leaked). Faculty (author role on classroom) and Director/Admin: full author identity. Faculty replies are always attributed. | ⏳ |
 
 ## Notes platform
 

@@ -15,17 +15,21 @@ Design choices:
 * Division payloads include unit-level counts only (no aggregated
   help-requested / off-camp lists) — the lists would be unwieldy at
   the division scope; users drill into a unit to see them.
-* Classroom is a STUB: TBE classroom reflection templates aren't
-  designed yet (Madrich self-reflections use ``assignment_group=None``
-  per :mod:`bunk_logs.api.madrich.reflection`), so the payload returns
-  roster + authors only. Real classroom reflections + completion math
-  ship once the templates are specced.
+* Classroom reflections remain a STUB: TBE classroom reflection
+  templates aren't designed yet (Madrich self-reflections use
+  ``assignment_group=None`` per :mod:`bunk_logs.api.madrich.reflection`).
+  Real classroom reflections + completion math ship once the templates
+  are specced. Classroom Challenges (Step 4_8) are a separate,
+  already-shipped operational channel -- see ``challenges`` block below.
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from django.db.models import Count
+
 from bunk_logs.api.camper_care.common import bunk_camper_ids
+from bunk_logs.api.classroom_challenges.common import challenge_list_item
 from bunk_logs.api.counselor.common import camper_reflection_template
 from bunk_logs.api.counselor.common import person_display_name
 from bunk_logs.api.unit_head.common import bunk_concerns_referencing
@@ -35,6 +39,8 @@ from bunk_logs.api.unit_head.common import help_requested_camper_ids_from
 from bunk_logs.api.unit_head.common import off_camp_camper_ids
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import ClassroomChallenge
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 
 if TYPE_CHECKING:
@@ -408,6 +414,46 @@ def build_division_dashboard_payload(
 # ---------------------------------------------------------------------------
 
 
+def _classroom_challenges_summary(
+    *, request, group: AssignmentGroup, program: Program,
+) -> dict | None:
+    """Open-challenges block for faculty viewers only (Step 4_8, MA7).
+
+    Madrich viewers of this same dashboard (if ever routed here) get no
+    ``challenges`` key -- they use ``/madrich/challenges`` instead; the
+    frontend keeps its stub in that case.
+    """
+    from bunk_logs.core.models import Person
+
+    person = Person.objects.filter(user=request.user).first()
+    if person is None:
+        return None
+    is_faculty_author = (
+        Membership.objects.filter(
+            person=person, role="faculty", is_active=True, program=program,
+        ).exists()
+        and AssignmentGroupMembership.objects.filter(
+            group=group, person=person, role_in_group="author", is_active=True,
+        ).exists()
+    )
+    if not is_faculty_author:
+        return None
+
+    qs = ClassroomChallenge.objects.filter(assignment_group=group)
+    open_count = qs.filter(status=ClassroomChallenge.STATUS_OPEN).count()
+    recent = list(
+        qs.select_related("author").annotate(response_count=Count("responses"))[:3],
+    )
+    return {
+        "open_count": open_count,
+        "recent": [
+            challenge_list_item(c, redacted=False, response_count=c.response_count)
+            for c in recent
+        ],
+        "list_url": f"/faculty/challenges?classroom={group.id}",
+    }
+
+
 def build_classroom_dashboard_payload(
     *,
     request,
@@ -419,14 +465,14 @@ def build_classroom_dashboard_payload(
 ) -> dict:
     """Roster + authors for a TBE ``classroom`` group.
 
-    Intentionally minimal: classroom reflection templates are not yet
-    designed (Madrich self-reflections use ``assignment_group=None``),
-    so we expose only what we can render cleanly today — student
-    roster, faculty/madrich authors, and counts. When classroom
-    reflections land we can add ``completion`` and ``help_requested``
-    sections that mirror the bunk shape.
+    Roster/authors are intentionally minimal: classroom reflection
+    templates are not yet designed (Madrich self-reflections use
+    ``assignment_group=None``), so completion/help-requested sections
+    stay out of scope here. The ``challenges`` block (Step 4_8) is the
+    one real operational signal on this dashboard so far, gated to
+    faculty viewers only.
     """
-    del request, organization, program
+    del organization
 
     subjects = list(
         AssignmentGroupMembership.objects.filter(
@@ -443,7 +489,7 @@ def build_classroom_dashboard_payload(
         .order_by("person__last_name", "person__first_name"),
     )
 
-    return {
+    payload = {
         "header": {
             "group": {
                 "id": group.id,
@@ -468,6 +514,10 @@ def build_classroom_dashboard_payload(
             "author_count": len(authors),
         },
     }
+    challenges = _classroom_challenges_summary(request=request, group=group, program=program)
+    if challenges is not None:
+        payload["challenges"] = challenges
+    return payload
 
 
 # ---------------------------------------------------------------------------
