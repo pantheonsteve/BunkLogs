@@ -409,15 +409,20 @@ describe('Sidebar — religious-school admin surfaces', () => {
     renderWith(orgUser('admin', ['admin']), { path: '/admin' });
     const links = hrefs();
     expect(links).not.toContain('/admin/reflections');
+    expect(screen.queryByRole('link', { name: 'Madrich completion' })).not.toBeInTheDocument();
     expect(links).toContain('/admin/catalog');
     expect(links).toContain('/maintenance');
     expect(links).toContain('/dashboards/logs');
   });
 
-  it('shows the grade Reflections link and drops camp surfaces for a religious school', () => {
+  it('shows the Madrich completion link and drops camp surfaces for a religious school', () => {
     renderWith(schoolUser('admin', ['admin']), { path: '/admin' });
     const links = hrefs();
     expect(links).toContain('/admin/reflections');
+    expect(screen.getByRole('link', { name: 'Madrich completion' })).toHaveAttribute(
+      'href',
+      '/admin/reflections',
+    );
     expect(links).not.toContain('/admin/catalog');
     expect(links).not.toContain('/maintenance');
     expect(links).not.toContain('/camper-care/orders');

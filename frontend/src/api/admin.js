@@ -10,6 +10,8 @@ import api from '../api';
 export const ADMIN_BASE = '/api/v1/admin';
 
 export async function fetchAdminDashboard() {
+  // Backend Story 54 payload. The /admin/dashboard page was removed;
+  // this helper stays so the API remains callable.
   const resp = await api.get(`${ADMIN_BASE}/dashboard/`);
   return resp?.data ?? null;
 }

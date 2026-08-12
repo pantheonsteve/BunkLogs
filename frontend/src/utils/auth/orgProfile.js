@@ -33,7 +33,7 @@ export function isReligiousSchoolOrg(user) {
  *   campDashboards Group Performance, Bunk Logs, Coverage, Concerns, Authors
  *   observations   Observations inbox + its unread badge (Notes are deferred
  *                  for TBE Tier 1 -- see docs/user_stories/10_notes_platform/)
- *   gradeReflections  /admin/reflections grade-level completion dashboard
+ *   gradeReflections  /admin/reflections Madrich weekly completion dashboard
  */
 export function orgSurfaces(user) {
   const school = isReligiousSchoolOrg(user);

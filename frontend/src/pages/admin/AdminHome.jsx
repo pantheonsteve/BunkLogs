@@ -55,9 +55,9 @@ const NAV_TILES = [
   },
   {
     id: 'grade-reflections',
-    title: 'Reflections by grade',
+    title: 'Madrich completion',
     blurb:
-      'Weekly completion for Madrichim, filtered by grade level, with a CSV export for board reporting.',
+      'Weekly 3-2-1 completion for Madrichim, filtered by grade level, with a CSV export for board reporting.',
     to: '/admin/reflections',
     icon: GraduationCap,
     surface: 'gradeReflections',

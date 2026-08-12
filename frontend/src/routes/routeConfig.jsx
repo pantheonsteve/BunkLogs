@@ -41,9 +41,7 @@ const ReflectionsDashboardPage = lazy(() => import('../pages/ReflectionsDashboar
 const LogsDashboardPage = lazy(() => import('../pages/LogsDashboardPage'));
 const WellnessDashboardPage = lazy(() => import('../pages/WellnessDashboardPage'));
 const MembershipManagementPage = lazy(() => import('../pages/MembershipManagementPage'));
-const AdminHub = lazy(() => import('../pages/admin/AdminHub'));
 const AdminHome = lazy(() => import('../pages/admin/AdminHome'));
-const AdminDashboardV2 = lazy(() => import('../pages/admin/Dashboard'));
 const AdminPeople = lazy(() => import('../pages/admin/People'));
 const AdminAssignments = lazy(() => import('../pages/admin/Assignments'));
 const AdminSettingsPage = lazy(() => import('../pages/admin/Settings'));
@@ -247,8 +245,8 @@ export const routeConfig = [
     children: [
       { index: true, element: <Navigate to="/admin/home" replace /> },
       { path: 'home', element: admin(<AdminHome />) },
-      { path: 'hub', element: admin(<AdminHub />) },
-      { path: 'dashboard', element: admin(<AdminDashboardV2 />) },
+      { path: 'hub', element: <Navigate to="/admin/home" replace /> },
+      { path: 'dashboard', element: <Navigate to="/admin/home" replace /> },
       { path: 'memberships', element: <MembershipManagementPage /> },
       { path: 'people', element: admin(<AdminPeople />) },
       { path: 'assignments', element: admin(<AdminAssignments />) },

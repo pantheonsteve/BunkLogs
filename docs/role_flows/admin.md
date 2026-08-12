@@ -122,15 +122,15 @@ required `AUDIT_VIEW` meta-event on every fetch.
 
 | Route | Component |
 |-------|-----------|
-| `/admin` | `pages/admin/Dashboard.jsx` (Story 54) |
-| `/admin/dashboard` | same component, explicit path |
-| `/admin/hub` | legacy `pages/admin/AdminHub.jsx` (kept for bookmarks) |
+| `/admin` | redirects to `/admin/home` |
+| `/admin/home` | `pages/admin/AdminHome.jsx` (tile grid of live workspaces) |
+| `/admin/hub` | redirects to `/admin/home` (legacy bookmark) |
+| `/admin/dashboard` | redirects to `/admin/home` (legacy bookmark) |
 
 `AdminLayout` continues to wrap every `/admin/*` route with sidebar +
-header. The default `/admin` index used to render the `AdminHub` cards;
-PR1 swaps it for the Story 54 dashboard so an Admin lands on the
-home view that matches the spec. The hub is still reachable at
-`/admin/hub`.
+header. Admins land on `/admin/home`. The Story 54 snapshot API
+(`GET /api/v1/admin/dashboard/`) is unchanged; the unused page that
+consumed it was removed.
 
 ### Shared components
 
