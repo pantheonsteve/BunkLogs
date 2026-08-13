@@ -118,9 +118,9 @@ export default function AdminReflectionsDashboard() {
   if (!showGradeReflections) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-reflections-unavailable">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Reflections</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Madrich completion</h1>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          The grade-level reflections dashboard isn't available for this organization yet.
+          Weekly Madrich completion by grade isn't available for this organization.
         </p>
       </div>
     );
@@ -154,10 +154,10 @@ export default function AdminReflectionsDashboard() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              {header.role_label} reflections
+              {header.role_label} completion
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {header.program?.name} · {header.member_count} members
+              Weekly roster · {header.program?.name} · {header.member_count} members
             </p>
           </div>
           <div className="flex items-center gap-2">

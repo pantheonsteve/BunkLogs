@@ -79,7 +79,9 @@ describe('AdminHome', () => {
     expect(screen.getByTestId('admin-home-card-grade-reflections')).toHaveAttribute(
       'href', '/admin/reflections',
     );
+    expect(screen.getByRole('heading', { name: 'Madrich completion' })).toBeInTheDocument();
     expect(screen.getByTestId('admin-home-card-reflections')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Reflections' })).toBeInTheDocument();
     for (const id of ['performance', 'logs', 'observations', 'maintenance',
       'camper-care-orders', 'coverage', 'concerns', 'authors']) {
       expect(screen.queryByTestId(`admin-home-card-${id}`)).not.toBeInTheDocument();

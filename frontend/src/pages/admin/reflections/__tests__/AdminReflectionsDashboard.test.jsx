@@ -82,7 +82,7 @@ describe('AdminReflectionsDashboard', () => {
     fetchMock.mockResolvedValue(samplePayload);
     renderAt();
 
-    await waitFor(() => expect(screen.getByText('Madrich reflections')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Madrich completion')).toBeInTheDocument());
     expect(screen.getByTestId('admin-reflections-member-11')).toBeInTheDocument();
     expect(screen.getByTestId('admin-reflections-member-12')).toBeInTheDocument();
     expect(screen.getByText('Submitted: 1')).toBeInTheDocument();

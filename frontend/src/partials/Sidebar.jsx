@@ -80,6 +80,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Groups              /admin/groups
  *     Assignments         /admin/assignments
  *     Templates           /admin/templates
+ *     Madrich completion  /admin/reflections  (religious-school orgs)
  *     Request catalog     /admin/catalog
  *     Field keys          /admin/field-keys
  *     Settings            /admin/settings
@@ -333,7 +334,7 @@ function Sidebar({
                 <SubItem to="/admin/templates" label="Templates" />
                 {/* Grade-level completion doesn't apply to a camp's unit model. */}
                 {surfaces.gradeReflections && (
-                  <SubItem to="/admin/reflections" label="Reflections" />
+                  <SubItem to="/admin/reflections" label="Madrich completion" />
                 )}
                 {surfaces.campOps && (
                   <SubItem to="/admin/catalog" label="Request catalog" />
