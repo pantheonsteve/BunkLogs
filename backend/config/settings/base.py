@@ -391,6 +391,26 @@ TRANSLATION_RETENTION_DAYS = env.int(
     "TRANSLATION_RETENTION_DAYS", default=90,
 )
 
+# REFLECTION THEME TAGGING (Growth Dashboard by Grade Level)
+# ------------------------------------------------------------------------------
+# Anthropic-backed Celery task categorises free-text reflection answers into a
+# fixed taxonomy so the admin growth dashboard can compare grade cohorts.
+# Reuses ANTHROPIC_API_KEY above.
+ANTHROPIC_THEME_TAGGING_MODEL = env(
+    "ANTHROPIC_THEME_TAGGING_MODEL", default="claude-sonnet-4-5",
+)
+# Explicit template allowlist is the cost gate -- only templates that feed a
+# growth dashboard are worth spending LLM calls on.
+THEME_TAGGING_TEMPLATE_SLUGS = env.list(
+    "THEME_TAGGING_TEMPLATE_SLUGS", default=["tbe-madrich-3-2-1-weekly"],
+)
+THEME_TAGGING_TASK_SOFT_TIME_LIMIT_SECONDS = env.int(
+    "THEME_TAGGING_TASK_SOFT_TIME_LIMIT_SECONDS", default=30,
+)
+THEME_TAGGING_TASK_MAX_RETRIES = env.int(
+    "THEME_TAGGING_TASK_MAX_RETRIES", default=3,
+)
+
 
 # django-allauth
 # ------------------------------------------------------------------------------

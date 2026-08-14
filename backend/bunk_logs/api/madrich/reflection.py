@@ -46,6 +46,7 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
 from bunk_logs.core.submission import idempotent_create
+from bunk_logs.core.theme_tagging import enqueue_theme_tagging_for_reflection
 
 from .common import AssignedReflection
 from .common import ViewerContext
@@ -313,6 +314,9 @@ class MadrichReflectionCreateView(APIView):
             after_state=reflection_snapshot(reflection),
             content_type="reflection",
         )
+        # Theme tagging feeds the admin growth-by-grade dashboard. The helper
+        # no-ops for templates outside THEME_TAGGING_TEMPLATE_SLUGS.
+        enqueue_theme_tagging_for_reflection(reflection)
         invalidate_dashboard_for_viewers(org, {viewer.id}, today)
         return Response(reflection_response(reflection), status=status.HTTP_201_CREATED)
 
@@ -379,6 +383,11 @@ class MadrichReflectionDetailView(APIView):
                 reflection, before, after,
                 content_type="reflection",
             )
+
+        # Re-tag when the answers change. The helper revokes any pending task
+        # first so two taggings don't race each other.
+        if before.get("answers") != after.get("answers"):
+            enqueue_theme_tagging_for_reflection(reflection)
 
         invalidate_dashboard_for_viewers(org, {viewer.id}, today)
         return Response(reflection_response(reflection), status=status.HTTP_200_OK)

@@ -28,3 +28,8 @@ MAILGUN_DOMAIN=dummy
 
 # Anthropic AI (optional - add your key for AI log assistant)
 # ANTHROPIC_API_KEY=sk-ant-...
+
+# Reflection theme tagging (Growth Dashboard by Grade Level). Uses the key
+# above. Comma-separated template slugs are the cost gate; leave unset to tag
+# only the TBE Madrich 3-2-1 weekly template.
+# THEME_TAGGING_TEMPLATE_SLUGS=tbe-madrich-3-2-1-weekly

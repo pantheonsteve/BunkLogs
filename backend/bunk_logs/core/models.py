@@ -3389,3 +3389,179 @@ class ClassroomChallengeResponse(models.Model):
 
     def _audit_program(self):
         return self.challenge.program if self.challenge_id else None
+
+
+# ---------------------------------------------------------------------------
+# Reflection theme tagging (Growth Dashboard by Grade Level)
+# ---------------------------------------------------------------------------
+
+
+class ReflectionThemeTagging(models.Model):
+    """Per-reflection status row for the LLM theme-tagging pipeline.
+
+    Mirrors :class:`TranslationRecord`: one row tracks one Anthropic call,
+    its retry budget, and its token spend, so the growth dashboard can tell
+    a genuinely quiet grade apart from an untagged backlog. The tags
+    themselves live in :class:`ReflectionThemeTag`.
+
+    Unique per (reflection, taxonomy_version) so bumping
+    ``bunk_logs.core.theme_tagging.taxonomy.TAXONOMY_VERSION`` re-tags
+    against the new taxonomy without destroying the old attribution.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        COMPLETED = "completed", "Completed"
+        FAILED_RETRYABLE = "failed_retryable", "Failed (retrying)"
+        FAILED_TERMINAL = "failed_terminal", "Failed (terminal)"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="reflection_theme_taggings",
+    )
+    reflection = models.ForeignKey(
+        "core.Reflection",
+        on_delete=models.CASCADE,
+        related_name="theme_taggings",
+    )
+    taxonomy_version = models.CharField(
+        max_length=16,
+        help_text="Taxonomy version this row's tags were produced against.",
+    )
+    status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    model_id = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text="Anthropic model that produced the tags, for reproducibility.",
+    )
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    tokens_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Total input+output tokens reported by the Anthropic response.",
+    )
+    last_error = models.TextField(
+        blank=True,
+        default="",
+        help_text="Exception message captured on the most recent failed attempt.",
+    )
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "Currently-enqueued Celery task id, so re-tagging on edit can "
+            "revoke the pending task before queueing a fresh one."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reflection", "taxonomy_version"],
+                name="uniq_theme_tagging_reflection_version",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"ReflectionThemeTagging(reflection={self.reflection_id} "
+            f"{self.taxonomy_version} {self.status})"
+        )
+
+    @classmethod
+    def latest_for(cls, reflection_id, taxonomy_version: str):
+        """Return the tagging row for a reflection at a taxonomy version, or None."""
+        return cls.all_objects.filter(
+            reflection_id=reflection_id, taxonomy_version=taxonomy_version,
+        ).first()
+
+
+class ReflectionThemeTag(models.Model):
+    """One (reflection, field, theme) assignment produced by the tagger.
+
+    ``grade_level``, ``program``, and ``period_start`` are denormalized from
+    the reflection's author Membership at tag time. That is deliberate: a
+    Madrich is 8th grade in the 2026-27 program and 9th in 2027-28, so
+    resolving grade lazily would retroactively relabel last year's cohort.
+    It also makes the dashboard a single GROUP BY with no joins. Re-running
+    ``backfill_reflection_themes --retag`` refreshes these if a roster
+    import later corrects a grade.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tagging = models.ForeignKey(
+        ReflectionThemeTagging,
+        on_delete=models.CASCADE,
+        related_name="tags",
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="reflection_theme_tags",
+    )
+    reflection = models.ForeignKey(
+        "core.Reflection",
+        on_delete=models.CASCADE,
+        related_name="theme_tags",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="reflection_theme_tags",
+    )
+    field_key = models.CharField(
+        max_length=100,
+        help_text="Template schema field key this tag was derived from.",
+    )
+    dashboard_role = models.CharField(
+        max_length=32,
+        help_text="One of open_concern / wins / improvements.",
+    )
+    theme_key = models.CharField(max_length=64, db_index=True)
+    grade_level = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Author's grade level at tag time; NULL when unknown.",
+    )
+    period_start = models.DateField(
+        db_index=True,
+        help_text="Copied from the reflection so date windowing needs no join.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["theme_key"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tagging", "field_key", "theme_key"],
+                name="uniq_theme_tag_per_field",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "grade_level", "theme_key"]),
+            models.Index(fields=["program", "period_start"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.theme_key} on {self.field_key} (grade {self.grade_level})"
