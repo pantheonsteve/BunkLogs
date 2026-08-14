@@ -10,6 +10,7 @@ import {
   BarChart3,
   Inbox,
   UserCog,
+  TrendingUp,
 } from 'lucide-react';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -63,6 +64,17 @@ const NAV_TILES = [
     surface: 'gradeReflections',
     iconClass:
       'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  },
+  {
+    id: 'growth-by-grade',
+    title: 'Growth by grade',
+    blurb:
+      'What 8th graders are asking about versus 11th graders, with developmental milestones across grades 8-12.',
+    to: '/admin/reflections/growth',
+    icon: TrendingUp,
+    surface: 'gradeReflections',
+    iconClass:
+      'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   },
   {
     id: 'observations',

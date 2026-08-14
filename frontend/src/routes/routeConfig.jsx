@@ -53,6 +53,7 @@ const CatalogPlanningDashboard = lazy(() => import('../pages/admin/catalog/Plann
 const AdminReflectionsDashboard = lazy(() => import('../pages/admin/reflections/AdminReflectionsDashboard'));
 const AdminReflectionMemberDetail = lazy(() => import('../pages/admin/reflections/AdminReflectionMemberDetail'));
 const AdminAvailabilityMatrix = lazy(() => import('../pages/admin/reflections/AvailabilityMatrix'));
+const AdminGrowthDashboard = lazy(() => import('../pages/admin/reflections/AdminGrowthDashboard'));
 const TasksPage = lazy(() => import('../pages/TasksPage'));
 const ObservationsInbox = lazy(() => import('../pages/observations/ObservationsInbox'));
 const ObservationThread = lazy(() => import('../pages/observations/ObservationThread'));
@@ -262,6 +263,7 @@ export const routeConfig = [
       { path: 'catalog', element: admin(<CatalogManagePage />) },
       { path: 'catalog/planning', element: admin(<CatalogPlanningDashboard />) },
       { path: 'reflections', element: admin(<AdminReflectionsDashboard />) },
+      { path: 'reflections/growth', element: admin(<AdminGrowthDashboard />) },
       {
         path: 'reflections/:role/members/:membershipId',
         element: admin(<AdminReflectionMemberDetail />),
