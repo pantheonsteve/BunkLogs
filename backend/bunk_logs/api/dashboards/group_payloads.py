@@ -15,12 +15,12 @@ Design choices:
 * Division payloads include unit-level counts only (no aggregated
   help-requested / off-camp lists) — the lists would be unwieldy at
   the division scope; users drill into a unit to see them.
-* Classroom reflections remain a STUB: TBE classroom reflection
-  templates aren't designed yet (Madrich self-reflections use
-  ``assignment_group=None`` per :mod:`bunk_logs.api.madrich.reflection`).
-  Real classroom reflections + completion math ship once the templates
-  are specced. Classroom Challenges (Step 4_8) are a separate,
-  already-shipped operational channel -- see ``challenges`` block below.
+* Classroom payloads carry three faculty-only blocks: ``challenges``
+  (Step 4_8) plus ``completion`` and ``availability`` (Step 7_24). The
+  completion math joins the classroom through the roster rather than
+  ``Reflection.assignment_group``, which Madrich self-reflections leave
+  null (see :mod:`bunk_logs.api.faculty.classroom_signals`). Templates
+  authored *about* a classroom are still a separate, unspecced concern.
 """
 from __future__ import annotations
 
@@ -32,6 +32,9 @@ from bunk_logs.api.camper_care.common import bunk_camper_ids
 from bunk_logs.api.classroom_challenges.common import challenge_list_item
 from bunk_logs.api.counselor.common import camper_reflection_template
 from bunk_logs.api.counselor.common import person_display_name
+from bunk_logs.api.faculty.classroom_signals import build_availability_window
+from bunk_logs.api.faculty.classroom_signals import build_weekly_completion
+from bunk_logs.api.faculty.classroom_signals import classroom_subject_memberships
 from bunk_logs.api.unit_head.common import bunk_concerns_referencing
 from bunk_logs.api.unit_head.common import compute_attention_badges
 from bunk_logs.api.unit_head.common import expected_by_passed
@@ -410,25 +413,26 @@ def build_division_dashboard_payload(
 
 
 # ---------------------------------------------------------------------------
-# Classroom dashboard (minimal stub)
+# Classroom dashboard
 # ---------------------------------------------------------------------------
 
 
-def _classroom_challenges_summary(
+def _is_faculty_author(
     *, request, group: AssignmentGroup, program: Program,
-) -> dict | None:
-    """Open-challenges block for faculty viewers only (Step 4_8, MA7).
+) -> bool:
+    """Whether the viewer is faculty holding ``author`` on this classroom.
 
-    Madrich viewers of this same dashboard (if ever routed here) get no
-    ``challenges`` key -- they use ``/madrich/challenges`` instead; the
-    frontend keeps its stub in that case.
+    The gate for every faculty-only block below. Deliberately stricter
+    than the ``classroom_author`` dashboard role, which also admits
+    Madrichim: a Madrich must never see a peer's challenges, completion
+    state, or availability (Story 61 criterion 4).
     """
     from bunk_logs.core.models import Person
 
     person = Person.objects.filter(user=request.user).first()
     if person is None:
-        return None
-    is_faculty_author = (
+        return False
+    return (
         Membership.objects.filter(
             person=person, role="faculty", is_active=True, program=program,
         ).exists()
@@ -436,9 +440,16 @@ def _classroom_challenges_summary(
             group=group, person=person, role_in_group="author", is_active=True,
         ).exists()
     )
-    if not is_faculty_author:
-        return None
 
+
+def _classroom_challenges_summary(
+    *, group: AssignmentGroup,
+) -> dict:
+    """Open-challenges block for faculty viewers only (Step 4_8, MA7).
+
+    Madrich viewers of this same dashboard (if ever routed here) get no
+    ``challenges`` key -- they use ``/madrich/challenges`` instead.
+    """
     qs = ClassroomChallenge.objects.filter(assignment_group=group)
     open_count = qs.filter(status=ClassroomChallenge.STATUS_OPEN).count()
     recent = list(
@@ -463,17 +474,16 @@ def build_classroom_dashboard_payload(
     program: Program,
     today: date,
 ) -> dict:
-    """Roster + authors for a TBE ``classroom`` group.
+    """Roster, authors, and the faculty-only operational blocks.
 
-    Roster/authors are intentionally minimal: classroom reflection
-    templates are not yet designed (Madrich self-reflections use
-    ``assignment_group=None``), so completion/help-requested sections
-    stay out of scope here. The ``challenges`` block (Step 4_8) is the
-    one real operational signal on this dashboard so far, gated to
-    faculty viewers only.
+    ``challenges`` (Step 4_8), ``completion``, and ``availability``
+    (Step 7_24) are all gated on :func:`_is_faculty_author` -- everyone
+    else gets roster and authors only.
+
+    ``completion`` follows ``target_date`` so the dashboard's date
+    picker moves the reflection week; ``availability`` follows ``today``
+    because it is a forward-looking staffing signal.
     """
-    del organization
-
     subjects = list(
         AssignmentGroupMembership.objects.filter(
             group=group, role_in_group="subject", is_active=True,
@@ -514,9 +524,28 @@ def build_classroom_dashboard_payload(
             "author_count": len(authors),
         },
     }
-    challenges = _classroom_challenges_summary(request=request, group=group, program=program)
-    if challenges is not None:
-        payload["challenges"] = challenges
+    if not _is_faculty_author(request=request, group=group, program=program):
+        return payload
+
+    payload["challenges"] = _classroom_challenges_summary(group=group)
+
+    memberships = classroom_subject_memberships(
+        program=program, group_ids=[group.id],
+    )[group.id]
+    completion = build_weekly_completion(
+        organization=organization,
+        program=program,
+        person_ids={m.person_id for m in memberships},
+        as_of=target_date,
+    )
+    # Explicit null (rather than an absent key) so the client can tell
+    # "no weekly template assigned yet" apart from "not faculty".
+    payload["completion"] = completion.summarize(memberships) if completion else None
+
+    window = build_availability_window(
+        program=program, memberships=memberships, today=today,
+    )
+    payload["availability"] = window.summarize(memberships) if window else None
     return payload
 
 

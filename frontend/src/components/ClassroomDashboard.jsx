@@ -1,12 +1,15 @@
 /**
  * Classroom dashboard.
  *
- * Roster + authors, plus an "Open challenges" section (Step 4_8, MA7)
- * that only appears for faculty viewers — the backend only populates
- * `data.challenges` on the faculty-author path, so a Madrich landing
- * here (if ever routed there) still sees the reflections-not-configured
- * stub. Classroom reflection templates aren't designed yet either, so
- * that stub remains otherwise.
+ * Roster + authors for everyone, plus three faculty-only sections the
+ * backend populates only on the faculty-author path: open challenges
+ * (Step 4_8, MA7), weekly reflection completion, and Sunday
+ * availability (Step 7_24). A Madrich landing here sees none of them —
+ * peer completion state is off-limits per Story 61 criterion 4.
+ *
+ * `completion` and `availability` arrive as explicit nulls when the
+ * program has no weekly template assigned / no upcoming sessions, which
+ * is a different message than "you can't see this".
  */
 
 import { Link } from 'react-router-dom';
@@ -75,6 +78,161 @@ function ChallengesSection({ challenges }) {
   );
 }
 
+const AVAILABILITY_STYLES = {
+  available: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  unavailable: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  tentative: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+};
+
+function formatSession(iso) {
+  if (!iso) return '';
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function Card({ title, count, testId, children }) {
+  return (
+    <section
+      data-testid={testId}
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
+    >
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+          {title}
+          {count && (
+            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{count}</span>
+          )}
+        </h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function CompletionSection({ completion }) {
+  if (!completion) {
+    return (
+      <Card title="Weekly reflections" testId="classroom-completion-section">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          No weekly reflection form is assigned to this program yet.
+        </p>
+      </Card>
+    );
+  }
+  const {
+    students = [], submitted_count: submitted, expected_count: expected,
+    template_name: templateName, period,
+  } = completion;
+  return (
+    <Card
+      title="Weekly reflections"
+      count={`${submitted} of ${expected} submitted`}
+      testId="classroom-completion-section"
+    >
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+        {templateName}
+        {period?.start && ` · week of ${formatSession(period.start)}`}
+      </p>
+      {students.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">no students enrolled yet.</p>
+      ) : (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
+          {students.map((s) => (
+            <li
+              key={s.person_id}
+              data-testid={`classroom-completion-${s.person_id}`}
+              className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
+            >
+              <span className="truncate text-gray-900 dark:text-white">{s.name}</span>
+              <span
+                className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+                  s.state === 'complete'
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                    : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+              >
+                {s.state === 'complete' ? 'Submitted' : 'Missing'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function AvailabilitySection({ availability }) {
+  if (!availability) {
+    return (
+      <Card title="Sunday availability" testId="classroom-availability-section">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          No upcoming sessions are scheduled.
+        </p>
+      </Card>
+    );
+  }
+  const { sessions = [], rows = [], unset_counts: unsetCounts = {} } = availability;
+  const next = availability.next_session;
+  return (
+    <Card
+      title="Sunday availability"
+      count={next && `${next.available} available on ${formatSession(next.date)}`}
+      testId="classroom-availability-section"
+    >
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">no students enrolled yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 dark:text-gray-400 text-left">
+                <th className="font-normal py-1 pr-3">Madrich</th>
+                {sessions.map((s) => (
+                  <th key={s} className="font-normal py-1 px-2 whitespace-nowrap">
+                    {formatSession(s)}
+                    {unsetCounts[s] > 0 && (
+                      <span className="ml-1 text-gray-400">({unsetCounts[s]} unset)</span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.person_id}
+                  data-testid={`classroom-availability-${row.person_id}`}
+                  className="border-t border-gray-100 dark:border-gray-800"
+                >
+                  <td className="py-1 pr-3 text-gray-900 dark:text-white whitespace-nowrap">
+                    {row.display_name}
+                  </td>
+                  {row.cells.map((cell) => (
+                    <td key={cell.session_date} className="py-1 px-2">
+                      <span
+                        className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${
+                          AVAILABILITY_STYLES[cell.status]
+                          || 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                        }`}
+                      >
+                        {cell.status
+                          ? cell.status.charAt(0).toUpperCase() + cell.status.slice(1)
+                          : 'Not set'}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function ClassroomDashboard({
   data, selectedDate, onDateChange, backTo = '/dashboards',
 }) {
@@ -83,6 +241,9 @@ export default function ClassroomDashboard({
   const subjects = data?.subjects || [];
   const authors = data?.authors || [];
   const challenges = data?.challenges || null;
+  // The faculty-only blocks arrive together, as explicit nulls when
+  // unconfigured — so key presence, not truthiness, marks the viewer.
+  const isFacultyView = data ? 'completion' in data : false;
 
   return (
     <div
@@ -117,16 +278,19 @@ export default function ClassroomDashboard({
         </div>
       </header>
 
-      {challenges ? (
-        <ChallengesSection challenges={challenges} />
+      {isFacultyView ? (
+        <>
+          {challenges && <ChallengesSection challenges={challenges} />}
+          <CompletionSection completion={data.completion} />
+          <AvailabilitySection availability={data.availability} />
+        </>
       ) : (
         <section
           data-testid="classroom-reflections-stub"
           className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
         >
-          Reflections aren't configured for classrooms yet. Once classroom
-          templates are defined we'll show completion + help-requested
-          sections here.
+          Reflection completion and Sunday availability are shown to this
+          classroom&apos;s faculty.
         </section>
       )}
 

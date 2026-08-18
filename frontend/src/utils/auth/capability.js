@@ -114,8 +114,8 @@ export function isMaintenanceOnlyMember(user) {
 
 /**
  * Membership.role -> workspace home, in priority order for people who
- * hold several roles. Roles without a dedicated workspace (faculty,
- * administrative_staff) land on the dashboards hub.
+ * hold several roles. Roles without a dedicated workspace
+ * (administrative_staff) land on the dashboards hub.
  */
 const MEMBERSHIP_ROLE_HOME_PATHS = Object.freeze([
   ['admin', '/admin/home'],
@@ -133,7 +133,7 @@ const MEMBERSHIP_ROLE_HOME_PATHS = Object.freeze([
   ['kitchen_staff', '/kitchen-staff'],
   ['housekeeping', '/kitchen-staff'],
   ['maintenance', '/maintenance'],
-  ['faculty', '/dashboards'],
+  ['faculty', '/faculty'],
   ['administrative_staff', '/dashboards'],
 ]);
 

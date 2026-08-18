@@ -39,6 +39,7 @@ from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .faculty import availability as faculty_availability
 from .faculty import challenges as faculty_challenges
+from .faculty import dashboard as faculty_dashboard
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
 from .leadership_team import assignments as lt_assignments
@@ -177,8 +178,14 @@ urlpatterns = [
         name="madrich-availability-detail",
     ),
     # ------------------------------------------------------------------
-    # Faculty — TBE classroom-scoped Madrich availability (Step 4_7)
+    # Faculty — TBE classroom home (Step 7_24) and classroom-scoped
+    # Madrich availability (Step 4_7)
     # ------------------------------------------------------------------
+    path(
+        "faculty/dashboard/",
+        faculty_dashboard.FacultyDashboardView.as_view(),
+        name="faculty-dashboard",
+    ),
     path(
         "faculty/classrooms/<int:group_id>/availability/",
         faculty_availability.FacultyClassroomAvailabilityView.as_view(),

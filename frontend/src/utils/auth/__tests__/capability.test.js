@@ -215,7 +215,8 @@ describe('homePathForUser', () => {
     expect(homePathForUser(userIn('program_lead', ['leadership_team']))).toBe('/leadership-team');
     expect(homePathForUser(userIn('participant', ['madrich']))).toBe('/madrich');
     expect(homePathForUser(userIn('participant', ['kitchen_staff']))).toBe('/kitchen-staff');
-    expect(homePathForUser(userIn('supervisor', ['faculty']))).toBe('/dashboards');
+    expect(homePathForUser(userIn('supervisor', ['faculty']))).toBe('/faculty');
+    expect(homePathForUser(userIn('supervisor', ['administrative_staff']))).toBe('/dashboards');
   });
 
   it('prefers admin over other roles', () => {

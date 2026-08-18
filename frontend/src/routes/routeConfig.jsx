@@ -88,6 +88,7 @@ const MadrichAvailabilityCalendar = lazy(() => import('../pages/madrich/Availabi
 const MadrichChallengeLog = lazy(() => import('../pages/madrich/ChallengeLog'));
 const MadrichChallengeForm = lazy(() => import('../pages/madrich/ChallengeForm'));
 const MadrichChallengeDetail = lazy(() => import('../pages/madrich/ChallengeDetail'));
+const FacultyDashboard = lazy(() => import('../pages/faculty/Dashboard'));
 const FacultyChallengeInbox = lazy(() => import('../pages/faculty/ChallengeInbox'));
 const FacultyChallengeDetail = lazy(() => import('../pages/faculty/ChallengeDetail'));
 const LeadershipTeamDashboard = lazy(() => import('../pages/leadership-team/Dashboard'));
@@ -210,6 +211,7 @@ export const routeConfig = [
       { path: '/madrich/challenges', element: <MadrichChallengeLog /> },
       { path: '/madrich/challenges/new', element: <MadrichChallengeForm /> },
       { path: '/madrich/challenges/:challengeId', element: <MadrichChallengeDetail /> },
+      { path: '/faculty', element: <FacultyDashboard /> },
       { path: '/faculty/challenges', element: <FacultyChallengeInbox /> },
       { path: '/faculty/challenges/:challengeId', element: <FacultyChallengeDetail /> },
       { path: '/leadership-team', element: <LeadershipTeamDashboard /> },
