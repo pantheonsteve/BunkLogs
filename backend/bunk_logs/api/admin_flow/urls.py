@@ -25,6 +25,9 @@ from .catalog_dashboard import AdminCatalogPlanningView
 from .classroom_challenges import AdminClassroomChallengesExportView
 from .classroom_challenges import AdminClassroomChallengesListView
 from .dashboard import AdminDashboardView
+from .growth import AdminGrowthDashboardExportView
+from .growth import AdminGrowthDashboardView
+from .growth import AdminGrowthExamplesView
 from .imports import AdminBulkImportCommitView
 from .imports import AdminBulkImportPreviewView
 from .imports import AdminBulkImportTemplateView
@@ -223,6 +226,24 @@ urlpatterns = [
         "reflections/teams/<str:role>/members/<int:membership_id>/",
         AdminReflectionsMemberDetailView.as_view(),
         name="admin-reflections-member-detail",
+    ),
+    # ------------------------------------------------------------------
+    # Growth dashboard by grade level
+    # ------------------------------------------------------------------
+    path(
+        "reflections/growth/",
+        AdminGrowthDashboardView.as_view(),
+        name="admin-reflections-growth",
+    ),
+    path(
+        "reflections/growth/export/",
+        AdminGrowthDashboardExportView.as_view(),
+        name="admin-reflections-growth-export",
+    ),
+    path(
+        "reflections/growth/examples/",
+        AdminGrowthExamplesView.as_view(),
+        name="admin-reflections-growth-examples",
     ),
     # ------------------------------------------------------------------
     # Madrich availability staffing matrix (Step 4_7 — TBE)
