@@ -195,7 +195,9 @@ describe('AdminGrowthDashboard', () => {
       'href',
       '/api/v1/admin/reflections/growth/export/',
     );
-    expect(chartCtor).toHaveBeenCalled();
+    // The chart is built in a passive effect, which React can flush after the
+    // markup above is already assertable — so this has to be awaited.
+    await waitFor(() => expect(chartCtor).toHaveBeenCalled());
   });
 
   it('renders an unavailable state for a camp organization', async () => {
