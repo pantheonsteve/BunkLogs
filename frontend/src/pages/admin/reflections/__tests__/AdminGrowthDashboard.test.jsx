@@ -211,9 +211,12 @@ describe('AdminGrowthDashboard', () => {
   it('refetches with the selected grade levels when a grade pill is toggled', async () => {
     fetchMock.mockResolvedValue(samplePayload);
     renderAt();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // The pills are derived from the payload, so waiting on the fetch call
+    // alone races the state flush that renders them.
+    const pill = await screen.findByTestId('admin-growth-grade-8');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTestId('admin-growth-grade-8'));
+    fireEvent.click(pill);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock).toHaveBeenLastCalledWith(
