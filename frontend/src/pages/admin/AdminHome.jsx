@@ -15,6 +15,7 @@ import {
 
 import { useAuth } from '../../auth/AuthContext';
 import { orgSurfaces } from '../../utils/auth/orgProfile';
+import DirectorHome from './DirectorHome';
 
 /**
  * Mirrors the top-level admin nav links (My work + Supervise), excluding Home.
@@ -194,6 +195,7 @@ export default function AdminHome() {
           <Card key={card.id} card={card} />
         ))}
       </div>
+      {surfaces.gradeReflections && <DirectorHome />}
     </main>
   );
 }

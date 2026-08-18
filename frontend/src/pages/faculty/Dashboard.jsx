@@ -13,8 +13,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchFacultyDashboard } from '../../api/faculty';
+import { fetchFacultyDashboard, fetchFacultyRoster } from '../../api/faculty';
 import { useAuth } from '../../auth/AuthContext';
+import CardSkeleton from '../../components/ui/CardSkeleton';
+import HomeCard from '../../components/ui/HomeCard';
+import UnreadDot from '../../components/ui/UnreadDot';
+import { statusMeta } from '../../utils/availabilityStatus';
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -117,6 +121,214 @@ function ClassroomCard({ classroom }) {
   );
 }
 
+const ESCALATION = {
+  overdue: {
+    label: 'Two weeks waiting',
+    pill: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  },
+  aging: {
+    label: 'A week waiting',
+    pill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  },
+  fresh: {
+    label: 'This week',
+    pill: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  },
+};
+
+/**
+ * A routed question is escalated by age, not recency (§5.1). The failure this
+ * card exists to prevent is a question sitting unanswered for three weeks, so
+ * the oldest one is always on top and its age is stated in words.
+ */
+export function QueueRow({ item }) {
+  const tier = ESCALATION[item.escalation] || ESCALATION.fresh;
+  return (
+    <li>
+      <Link
+        to={`/faculty/threads/${item.id}`}
+        className="block rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 hover:border-indigo-300 dark:hover:border-indigo-700"
+        data-testid={`fac-queue-row-${item.id}`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
+            {item.subject_person?.display_name}
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            {item.unread && <UnreadDot label="Unread" />}
+            <span
+              className={`text-xs font-medium px-2 py-0.5 rounded-full ${tier.pill}`}
+              data-testid={`fac-queue-escalation-${item.id}`}
+            >
+              {tier.label}
+            </span>
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.field_label}</p>
+        <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{item.excerpt}</p>
+      </Link>
+    </li>
+  );
+}
+
+function ResponseQueueCard({ queue }) {
+  const items = queue?.items || [];
+  const total = queue?.total ?? 0;
+  const overdue = queue?.overdue_count ?? 0;
+
+  return (
+    <HomeCard
+      title="Waiting on you"
+      subtitle={
+        total === 0
+          ? 'No questions are waiting for a reply.'
+          : `${total} question${total === 1 ? '' : 's'} routed to you, oldest first`
+      }
+      badge={overdue > 0 && (
+        <span
+          className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+          data-testid="fac-queue-overdue"
+        >
+          {overdue} overdue
+        </span>
+      )}
+      action={total > items.length && (
+        <Link
+          to={queue?.url || '/faculty/queue'}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          data-testid="fac-queue-link"
+        >
+          View all →
+        </Link>
+      )}
+      data-testid="fac-queue-card"
+    >
+      {items.length > 0 && (
+        <ul className="space-y-2" data-testid="fac-queue-list">
+          {items.map((item) => <QueueRow key={item.id} item={item} />)}
+        </ul>
+      )}
+    </HomeCard>
+  );
+}
+
+function RosterCard() {
+  const { orgSlug } = useAuth();
+  const [roster, setRoster] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchFacultyRoster(orgSlug)
+      .then((data) => { if (active) setRoster(data); })
+      .catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, [orgSlug]);
+
+  if (failed) return null;
+  if (!roster) return <CardSkeleton rows={4} data-testid="fac-roster-loading" />;
+
+  const rows = roster.results || [];
+  if (rows.length === 0) return null;
+
+  return (
+    <HomeCard
+      title="My Madrichim"
+      subtitle={
+        roster.period
+          ? `Week of ${roster.period.start} – ${roster.period.end}`
+          : `${rows.length} in your classrooms`
+      }
+      data-testid="fac-roster-card"
+    >
+      <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+        {rows.map((row) => {
+          const meta = statusMeta(row.next_session_availability || 'unset');
+          return (
+            <li key={row.person_id} className="py-2">
+              <Link
+                to={`/faculty/roster/${row.person_id}`}
+                className="flex flex-wrap items-center justify-between gap-2 group"
+                data-testid={`fac-roster-row-${row.person_id}`}
+              >
+                <span className="text-sm text-gray-900 dark:text-white group-hover:underline">
+                  {row.display_name}
+                  {typeof row.grade_level === 'number' && (
+                    <span className="text-gray-500 dark:text-gray-400"> · Grade {row.grade_level}</span>
+                  )}
+                </span>
+                <span className="flex items-center gap-2">
+                  {row.reflection_state && (
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        row.reflection_state === 'complete'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
+                      }`}
+                      data-testid={`fac-roster-state-${row.person_id}`}
+                    >
+                      {row.reflection_state === 'complete' ? 'Submitted' : 'Not yet'}
+                    </span>
+                  )}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.pill}`}>
+                    {meta.label}
+                  </span>
+                  <UnreadDot
+                    count={row.unread_thread_count}
+                    label={`${row.unread_thread_count} unread`}
+                  />
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </HomeCard>
+  );
+}
+
+function UpcomingSessionsCard({ classrooms }) {
+  const rooms = classrooms.filter((c) => (c.upcoming_sessions || []).length > 0);
+  if (rooms.length === 0) return null;
+
+  return (
+    <HomeCard
+      title="Upcoming Sundays"
+      subtitle="Anyone who hasn't answered is counted separately from a no."
+      data-testid="fac-upcoming-card"
+    >
+      <div className="space-y-3">
+        {rooms.map((room) => (
+          <div key={room.id}>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{room.name}</p>
+            <ul className="mt-1 flex flex-wrap gap-2">
+              {room.upcoming_sessions.map((session) => {
+                // An unanswered Sunday is the actionable state; a full house
+                // needs no colour.
+                const meta = statusMeta(session.unset > 0 ? 'unset' : 'available');
+                return (
+                  <li key={session.date}>
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${meta.pill}`}
+                      data-testid={`fac-session-${room.id}-${session.date}`}
+                    >
+                      {formatDate(session.date)}
+                      <span className="opacity-80">
+                        {session.available} in
+                        {session.unset > 0 && `, ${session.unset} unanswered`}
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </HomeCard>
+  );
+}
+
 function NoClassroomsCard() {
   return (
     <section
@@ -180,7 +392,10 @@ export default function FacultyDashboard() {
     );
   }
 
-  const { header, classrooms, challenges_url: challengesUrl } = dashboard;
+  const {
+    header, classrooms, challenges_url: challengesUrl,
+    response_queue: responseQueue,
+  } = dashboard;
   const rooms = Array.isArray(classrooms) ? classrooms : [];
   const totalOpen = rooms.reduce((n, c) => n + (c.open_challenge_count || 0), 0);
 
@@ -192,6 +407,8 @@ export default function FacultyDashboard() {
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Faculty</p>
       </div>
 
+      {responseQueue && <ResponseQueueCard queue={responseQueue} />}
+
       {rooms.length === 0 ? (
         <NoClassroomsCard />
       ) : (
@@ -199,6 +416,10 @@ export default function FacultyDashboard() {
           <ClassroomCard key={classroom.id} classroom={classroom} />
         ))
       )}
+
+      <RosterCard />
+
+      <UpcomingSessionsCard classrooms={rooms} />
 
       <section
         aria-label="Challenges"

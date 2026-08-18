@@ -16,9 +16,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchDashboard } from '../../api/madrich';
+import { fetchDashboard, fetchTrends } from '../../api/madrich';
+import { fetchAvailability } from '../../api/madrichAvailability';
 import { fetchClassrooms } from '../../api/madrichChallenges';
 import { useAuth } from '../../auth/AuthContext';
+import RatingTrendChart from '../../components/charts/RatingTrendChart';
+import CardSkeleton from '../../components/ui/CardSkeleton';
+import HomeCard from '../../components/ui/HomeCard';
+import UnreadDot from '../../components/ui/UnreadDot';
+import { statusMeta } from '../../utils/availabilityStatus';
 
 function formatPeriodLabel(cadence, periodStart, periodEnd) {
   if (cadence === 'on_demand') return 'Available to submit';
@@ -43,15 +49,57 @@ function formatPeriodLabel(cadence, periodStart, periodEnd) {
   return cadence === 'weekly' ? `Week of ${range}` : range;
 }
 
+const STRIP_SESSIONS = 4;
+
+/**
+ * The next few Sundays as coloured status pills (§4.1). Read from the
+ * availability endpoint rather than the dashboard payload, which only carries
+ * the next session and an unset count.
+ */
+function AvailabilityStrip() {
+  const { orgSlug } = useAuth();
+  const [sessions, setSessions] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchAvailability(orgSlug)
+      .then((data) => {
+        if (active) setSessions((data?.sessions || []).slice(0, STRIP_SESSIONS));
+      })
+      .catch(() => { if (active) setSessions([]); });
+    return () => { active = false; };
+  }, [orgSlug]);
+
+  if (!sessions || sessions.length === 0) return null;
+
+  return (
+    <ul className="flex flex-wrap gap-2 mb-3" data-testid="md-availability-strip">
+      {sessions.map((session) => {
+        const status = session.commitment?.status || 'unset';
+        const meta = statusMeta(status);
+        return (
+          <li key={session.session_date}>
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${meta.pill}`}
+              data-testid={`md-availability-pill-${session.session_date}`}
+            >
+              {session.label}
+              <span className="opacity-70">· {meta.label}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function AvailabilityCard({ availability }) {
   const { upcoming_unset_count: unsetCount, next_session_date: nextDate, next_session_status: nextStatus } = availability || {};
   const hasUnset = (unsetCount ?? 0) > 0;
   const nextLabel = nextDate
     ? new Date(`${nextDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     : null;
-  const statusLabel = nextStatus
-    ? nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)
-    : 'Not yet set';
+  const statusLabel = statusMeta(nextStatus || 'unset').label;
 
   return (
     <section
@@ -69,6 +117,7 @@ function AvailabilityCard({ availability }) {
             ? `Next session (${nextLabel}): ${statusLabel}`
             : 'No upcoming sessions scheduled yet.'}
       </p>
+      <AvailabilityStrip />
       <Link
         to={availability?.calendar_url || '/madrich/availability'}
         className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
@@ -194,6 +243,129 @@ function ReflectionStatusCard({ card }) {
   );
 }
 
+/**
+ * One card per `thread_enabled` field, discovered from the template schema
+ * (§4.3). Nothing here names a TBE field, so a Director adding a field to
+ * the template gets a card without a frontend change.
+ */
+function ThreadedFieldCard({ card }) {
+  const { field_key: fieldKey, label, total, unread_count: unreadCount, entries } = card;
+  const rows = Array.isArray(entries) ? entries : [];
+
+  return (
+    <HomeCard
+      title={label}
+      subtitle={total === 0 ? 'Nothing here yet' : `${total} entr${total === 1 ? 'y' : 'ies'}`}
+      badge={<UnreadDot count={unreadCount} label={`${unreadCount} unread`} />}
+      action={total > 0 && (
+        <Link
+          to={`/madrich/entries/${encodeURIComponent(fieldKey)}`}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          data-testid={`md-entries-link-${fieldKey}`}
+        >
+          View all →
+        </Link>
+      )}
+      data-testid={`md-entry-card-${fieldKey}`}
+    >
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          This fills in when you submit your next reflection.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((entry) => (
+            <li key={entry.thread_id}>
+              <Link
+                to={`/madrich/threads/${entry.thread_id}`}
+                className="block rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 hover:border-indigo-300 dark:hover:border-indigo-700"
+                data-testid={`md-entry-row-${entry.thread_id}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-gray-900 dark:text-white">{entry.excerpt}</p>
+                  {entry.unread && <UnreadDot label="Unread reply" />}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{entry.date}</span>
+                  {entry.message_count > 0 && (
+                    <span>{entry.message_count} repl{entry.message_count === 1 ? 'y' : 'ies'}</span>
+                  )}
+                  {entry.awaiting_reply && (
+                    <span
+                      className="text-amber-700 dark:text-amber-400"
+                      data-testid={`md-awaiting-${entry.thread_id}`}
+                    >
+                      Sent to your {entry.routes_to === 'director' ? 'Director' : 'faculty'} — no reply yet
+                    </span>
+                  )}
+                  {entry.resolved_at && <span>Resolved</span>}
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </HomeCard>
+  );
+}
+
+function TrendsCard() {
+  const { orgSlug } = useAuth();
+  const [series, setSeries] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchTrends(orgSlug)
+      .then((data) => { if (active) setSeries(data?.series || []); })
+      .catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, [orgSlug]);
+
+  if (failed) return null;
+  if (series === null) return <CardSkeleton rows={4} data-testid="md-trends-loading" />;
+  if (series.length === 0) return null;
+
+  return (
+    <HomeCard
+      title="How I'm rating myself"
+      subtitle="Each chart uses the full scale from your reflection form."
+      data-testid="md-trends-card"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {series.map((s) => <RatingTrendChart key={s.trend_key} series={s} />)}
+      </div>
+    </HomeCard>
+  );
+}
+
+function CohortCard({ cohort }) {
+  if (!cohort?.enabled) return null;
+  const unread = cohort.unread_count ?? 0;
+
+  return (
+    <HomeCard
+      title="My cohort"
+      subtitle={
+        unread > 0
+          ? `${unread} new post${unread === 1 ? '' : 's'} from your classmates`
+          : 'Ideas your classmates chose to share'
+      }
+      badge={<UnreadDot count={unread} label={`${unread} unread cohort posts`} />}
+      data-testid="md-cohort-card"
+      footer={(
+        <Link
+          to={cohort.url || '/madrich/cohort'}
+          className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+          data-testid="md-cohort-cta"
+        >
+          Open cohort feed
+        </Link>
+      )}
+    />
+  );
+}
+
 export default function MadrichDashboard() {
   const { orgSlug } = useAuth();
   const [dashboard, setDashboard] = useState(null);
@@ -240,8 +412,12 @@ export default function MadrichDashboard() {
     );
   }
 
-  const { header, my_reflections, history_entry, availability, availability_nudge: availabilityNudge } = dashboard;
+  const {
+    header, my_reflections, history_entry, availability,
+    availability_nudge: availabilityNudge, entry_cards, cohort,
+  } = dashboard;
   const cards = Array.isArray(my_reflections) ? my_reflections : [];
+  const entryCards = Array.isArray(entry_cards) ? entry_cards : [];
   const gradeLevel = header?.grade_level;
 
   return (
@@ -280,6 +456,14 @@ export default function MadrichDashboard() {
           <ReflectionStatusCard key={card.template_id} card={card} />
         ))
       )}
+
+      {entryCards.map((card) => (
+        <ThreadedFieldCard key={card.field_key} card={card} />
+      ))}
+
+      <TrendsCard />
+
+      <CohortCard cohort={cohort} />
 
       <AvailabilityCard availability={availability} />
 
