@@ -27,6 +27,15 @@ beforeEach(() => {
   deleteMock.mockReset();
 });
 
+// The assigned tab decides which action buttons to show by comparing an
+// assignment's window against the real clock, so fixture dates must stay
+// anchored to today rather than to literals that silently expire.
+function isoDaysFromToday(offset) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
 function renderLib(initialEntry = '/admin/templates') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -242,7 +251,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
                 display_title: 'Counselor Daily',
                 target_type: 'role',
                 target_payload: { role: 'counselor' },
-                start_date: '2026-06-01',
+                start_date: isoDaysFromToday(-60),
                 end_date: null,
                 status: 'active',
                 is_required: true,
@@ -259,8 +268,8 @@ describe('LeadershipTeamTemplateLibrary', () => {
                 assignment_group: 5,
                 assignment_group_name: 'Bunk Birch',
                 assignment_group_type: 'bunk',
-                start_date: '2026-06-01',
-                end_date: '2026-08-15',
+                start_date: isoDaysFromToday(-60),
+                end_date: isoDaysFromToday(30),
                 status: 'scheduled',
                 is_required: true,
                 program_name: 'Summer 2026',
@@ -273,8 +282,8 @@ describe('LeadershipTeamTemplateLibrary', () => {
                 display_title: 'Old Form',
                 target_type: 'role',
                 target_payload: { role: 'kitchen_staff' },
-                start_date: '2026-01-01',
-                end_date: '2026-05-01',
+                start_date: isoDaysFromToday(-200),
+                end_date: isoDaysFromToday(-100),
                 status: 'ended',
                 is_required: true,
               },
