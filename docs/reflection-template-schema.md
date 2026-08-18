@@ -22,6 +22,11 @@ Validation is performed by `core/validators/template_schema.py::validate_templat
 | `type`           | string | yes      | One of the supported types listed below                                        |
 | `required`       | bool   | no       | Whether the answer is required. Default `true`. Ignored for meta field types.  |
 | `dashboard_role` | string | no       | Dashboard aggregation hint; `null` (default) or one of the values below        |
+| `thread_enabled` | bool   | no       | Default `false`. Give the answer a comment thread; see thread flags below      |
+| `thread_scope`   | string | no       | `"field"` (default) or `"item"`. `"item"` is only valid on `text_list`          |
+| `routes_to`      | string | no       | `null` (default), `"faculty"`, `"director"`, or `"both"`. Requires a thread    |
+| `share_with_cohort` | bool | no      | Default `false`. Publish the answer to the cohort feed on submit               |
+| `trend_key`      | string | no       | `rating_group` only. Stable trend series key; defaults to the field `key`      |
 
 ### Reserved keys
 
@@ -36,6 +41,32 @@ The following field keys are reserved and cannot be used: `id`, `created_at`, `u
 | `wins`             | `text_list`             | Positive observations ("three wins")       |
 | `improvements`     | `text_list`             | Areas for growth                           |
 | `open_concern`     | `text`, `textarea`      | Free-text flag for leadership review       |
+
+### Thread, routing, and cohort flags
+
+These flags turn an answer into a surface the role homepages render. They live inside the field object, so adding them to a template is a JSON edit rather than a migration. Unlike most optional keys, they are validated strictly: a misspelled flag would fail open and a routed question would never reach anyone's queue.
+
+| Flag | Values | Effect |
+| ---- | ------ | ------ |
+| `thread_enabled` | bool, default `false` | The answer gets a comment thread and appears as an expandable entry on the author's homepage. Not valid on `section_header` or `instructions`. |
+| `thread_scope` | `"field"` (default) or `"item"` | For `text_list`, whether each list item threads separately or the whole answer threads as one. `"item"` on any other type is an error. |
+| `routes_to` | `null` (default), `"faculty"`, `"director"`, `"both"` | Places the entry in that role's response queue. Setting it without `thread_enabled` is an error. |
+| `share_with_cohort` | bool, default `false` | Publishes a snapshot of the answer to the cohort feed on submit. An error on `rating_group` and `single_rating` — ratings stay private to the author and their supervisors. |
+| `trend_key` | string | `rating_group` only. Stable key for the trend series so renaming a field does not break history. Defaults to the field `key`. |
+
+`routes_to` is snapshotted onto the thread at submit time, so editing a template later does not retroactively reroute items that are already open.
+
+Example:
+
+```json
+{
+  "key": "question_or_concern",
+  "type": "text",
+  "prompts": { "en": "One question or concern for your Director" },
+  "thread_enabled": true,
+  "routes_to": "director"
+}
+```
 
 ---
 

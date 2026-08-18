@@ -293,6 +293,10 @@ _LEADERSHIP_TEAM_SELF_REFLECTION_SCHEMA = {
 }
 
 
+# Mirrors the live template after migrations 0037 / 0039 / 0060. The thread
+# and cohort flags matter here: this fixture overwrites the migration-seeded
+# row, so omitting them would silently disable the Step 4_9 surfaces in every
+# test that goes through the API test suite.
 _MADRICH_3_2_1_WEEKLY_SCHEMA = {
     "fields": [
         {
@@ -302,6 +306,8 @@ _MADRICH_3_2_1_WEEKLY_SCHEMA = {
             "min_items": 3,
             "max_items": 3,
             "prompts": {"en": "Three wins from this week"},
+            "thread_enabled": True,
+            "thread_scope": "item",
         },
         {
             "key": "improvements",
@@ -310,18 +316,33 @@ _MADRICH_3_2_1_WEEKLY_SCHEMA = {
             "min_items": 2,
             "max_items": 2,
             "prompts": {"en": "Two things to improve next week"},
+            "thread_enabled": True,
+            "thread_scope": "item",
         },
         {
             "key": "question_or_concern",
             "type": "text",
             "required": True,
             "prompts": {"en": "One question or concern for your Director"},
+            "thread_enabled": True,
+            "routes_to": "director",
+        },
+        {
+            "key": "shared_idea",
+            "type": "textarea",
+            "required": False,
+            "prompts": {
+                "en": "Anything you'd like to share with the rest of your cohort? (optional)",
+            },
+            "thread_enabled": True,
+            "share_with_cohort": True,
         },
         {
             "key": "ratings",
             "type": "rating_group",
             "required": True,
             "scale": [1, 4],
+            "dashboard_role": "category_ratings",
             "categories": [
                 {"key": "reliability_punctuality", "labels": {"en": "Reliability & Punctuality"}},
                 {"key": "initiative", "labels": {"en": "Initiative"}},

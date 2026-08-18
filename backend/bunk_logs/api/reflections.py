@@ -38,6 +38,7 @@ from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.program_scope import operational_assignment_groups_qs
 from bunk_logs.core.program_scope import operational_author_groups_qs
 from bunk_logs.core.program_scope import operational_memberships_qs
+from bunk_logs.core.reflection_threads import materialize_threads_and_shares
 from bunk_logs.core.theme_tagging import enqueue_theme_tagging_for_reflection
 from bunk_logs.core.time_utils import get_today
 from bunk_logs.core.translation import enqueue_translation_for_reflection
@@ -903,6 +904,9 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         # Theme tagging feeds the admin growth-by-grade dashboard; no-ops for
         # templates outside THEME_TAGGING_TEMPLATE_SLUGS.
         enqueue_theme_tagging_for_reflection(instance)
+        # Threads / cohort shares for any field the template flags (Step 4_9).
+        # No-ops for templates carrying none of those flags.
+        materialize_threads_and_shares(instance)
 
     def perform_update(self, serializer):
         # Re-fetch from the DB so the snapshot reflects the pre-mutation row.
@@ -927,6 +931,7 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             enqueue_translation_for_reflection(instance)
         if before.get("answers") != after.get("answers"):
             enqueue_theme_tagging_for_reflection(instance)
+            materialize_threads_and_shares(instance)
 
     def _filter_query_params(self, qs):
         p = self.request.query_params
