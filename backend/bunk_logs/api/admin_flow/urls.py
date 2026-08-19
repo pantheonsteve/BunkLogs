@@ -25,6 +25,7 @@ from .catalog_dashboard import AdminCatalogPlanningView
 from .classroom_challenges import AdminClassroomChallengesExportView
 from .classroom_challenges import AdminClassroomChallengesListView
 from .dashboard import AdminDashboardView
+from .director import DirectorCoverageDetailView
 from .director import DirectorCoverageView
 from .director import DirectorFacultyActivityView
 from .director import DirectorMadrichimExportView
@@ -270,6 +271,11 @@ urlpatterns = [
         "reflections/coverage/",
         DirectorCoverageView.as_view(),
         name="admin-reflections-coverage",
+    ),
+    path(
+        "reflections/coverage/<str:session_date>/",
+        DirectorCoverageDetailView.as_view(),
+        name="admin-reflections-coverage-detail",
     ),
     path(
         "reflections/faculty-activity/",

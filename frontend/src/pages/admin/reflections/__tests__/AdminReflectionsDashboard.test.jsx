@@ -85,8 +85,10 @@ describe('AdminReflectionsDashboard', () => {
     await waitFor(() => expect(screen.getByText('Madrich completion')).toBeInTheDocument());
     expect(screen.getByTestId('admin-reflections-member-11')).toBeInTheDocument();
     expect(screen.getByTestId('admin-reflections-member-12')).toBeInTheDocument();
-    expect(screen.getByText('Submitted: 1')).toBeInTheDocument();
-    expect(screen.getByText('Not submitted: 1')).toBeInTheDocument();
+    expect(screen.getByTestId('admin-reflections-stat-submitted')).toHaveTextContent('Submitted');
+    expect(screen.getByTestId('admin-reflections-stat-not_submitted')).toHaveTextContent('1');
+    expect(screen.getByTestId('admin-reflections-completion')).toHaveTextContent('50%');
+    expect(screen.getByTestId('admin-reflections-back')).toHaveAttribute('href', '/admin/home');
     expect(screen.getByTestId('admin-reflections-export')).toHaveAttribute(
       'href',
       '/api/v1/admin/reflections/teams/madrich/export/',

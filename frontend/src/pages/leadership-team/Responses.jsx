@@ -26,6 +26,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Download,
   FileText,
   Filter,
@@ -40,7 +41,9 @@ import {
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
 import isSuperAdmin from '../../utils/auth/isSuperAdmin';
-import { hasCapability } from '../../utils/auth/capability';
+import { hasCapability, homePathForUser } from '../../utils/auth/capability';
+import { orgSurfaces } from '../../utils/auth/orgProfile';
+import BackLink from '../../components/ui/BackLink';
 import SingleDatePicker from '../../components/ui/SingleDatePicker';
 import {
   deriveSchemaSections,
@@ -97,6 +100,10 @@ function isoFromDate(date) {
   return `${y}-${m}-${d}`;
 }
 
+function humanizeRole(role) {
+  return String(role).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function shiftISO(iso, deltaDays) {
   const d = dateFromISO(iso);
   if (!d) return iso;
@@ -109,16 +116,41 @@ const DASHBOARD_BACK_PATHS = Object.freeze({
   reflections: '/dashboards/reflections',
 });
 
-/** Back link for template responses: dashboards hub (admin) or template library. */
-export function responsesBackLink({ dashboard, date, isAdmin }) {
+/**
+ * Back link for template responses.
+ *
+ * Camp orgs came here from a dashboards hub, so they go back to it. Role-based
+ * orgs reach this page from their home page and have no hub in between, so
+ * `homePath` short-circuits to home instead.
+ */
+export function responsesBackLink({ dashboard, date, isAdmin, homePath = null }) {
+  if (homePath) {
+    return {
+      href: homePath,
+      label: homePath === '/admin/home' ? 'Back to Admin Home' : 'Back to home',
+    };
+  }
   const scope = dashboard === 'logs' || dashboard === 'reflections'
     ? dashboard
     : (isAdmin ? 'reflections' : null);
-  if (!scope) return { href: '/admin/templates', label: '← Template library' };
+  if (!scope) return { href: '/admin/templates', label: 'Back to template library' };
   const base = DASHBOARD_BACK_PATHS[scope];
   const href = date ? `${base}?date=${encodeURIComponent(date)}` : base;
-  const label = scope === 'logs' ? '← Bunk Logs' : '← Reflections';
+  const label = scope === 'logs' ? 'Back to Bunk Logs' : 'Back to Reflections';
   return { href, label };
+}
+
+/**
+ * Where a response row's name goes. Camp orgs open the camper profile; role-based
+ * orgs open that member's reflection history, which is their profile equivalent.
+ * Falls back to the profile whenever the row has no program membership.
+ */
+export function subjectRowHref(subject, { dateQs = '', memberDetail = false } = {}) {
+  if (!subject?.id) return null;
+  if (memberDetail && subject.membership_id && subject.membership_role) {
+    return `/admin/reflections/${subject.membership_role}/members/${subject.membership_id}`;
+  }
+  return `/profile/${subject.id}${dateQs}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,11 +159,8 @@ export function responsesBackLink({ dashboard, date, isAdmin }) {
 // flag testid prefix + subject-link href).
 // ---------------------------------------------------------------------------
 
-function SubjectCell({ row, dateQs, groupsUnderName = false }) {
-  const subjectId = row.subject?.id;
-  const linkTo = subjectId
-    ? `/profile/${subjectId}${dateQs ?? ''}`
-    : null;
+function SubjectCell({ row, dateQs, groupsUnderName = false, memberDetail = false }) {
+  const linkTo = subjectRowHref(row.subject, { dateQs: dateQs ?? '', memberDetail });
   const rowDate = row.period_end || row.period_start;
   return (
     <SharedSubjectCell
@@ -229,7 +258,7 @@ function KpiCard({ icon: Icon, label, value, tone = 'neutral', active = false, o
 }
 
 function IndividualTab({
-  payload, template, language, filteredRows, sections, dateStr,
+  payload, template, language, filteredRows, sections, dateStr, memberDetail = false,
 }) {
   const { ratingCols: rawRatingCols, flagFields, chipFields, descTextFields } = sections;
   const ratingCols = orderRatingCols(rawRatingCols);
@@ -284,7 +313,12 @@ function IndividualTab({
           <tbody className="text-sm font-medium divide-y divide-gray-200 dark:divide-gray-700/60">
             {filteredRows.map((r) => (
               <tr key={r.id} data-testid={`lt-responses-row-${r.id}`}>
-                <SubjectCell row={r} dateQs={dateQs} groupsUnderName={isSelfReflection} />
+                <SubjectCell
+                  row={r}
+                  dateQs={dateQs}
+                  groupsUnderName={isSelfReflection}
+                  memberDetail={memberDetail}
+                />
                 {showGroupColumn && <BunkCell row={r} />}
                 <td className="px-3 py-3 whitespace-nowrap text-center border border-gray-300 dark:border-gray-700">
                   <div className="text-sm text-gray-800 dark:text-gray-100">
@@ -323,7 +357,7 @@ function IndividualTab({
       <div className="md:hidden p-3 space-y-4" data-testid="lt-responses-cards">
         {filteredRows.map((r) => {
           const subjectName = r.subject?.name ?? 'Unknown';
-          const subjectId = r.subject?.id;
+          const subjectHref = subjectRowHref(r.subject, { dateQs, memberDetail });
           const rowDate = r.period_end || r.period_start;
           const groups = r.groups ?? [];
           return (
@@ -340,9 +374,9 @@ function IndividualTab({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                    {subjectId ? (
+                    {subjectHref ? (
                       <Link
-                        to={`/profile/${subjectId}${dateQs}`}
+                        to={subjectHref}
                         className="text-indigo-700 dark:text-indigo-300 hover:underline"
                       >
                         {subjectName}
@@ -815,6 +849,10 @@ export default function LeadershipTeamResponses() {
   const { id } = useParams();
   const { orgSlug, user } = useAuth();
   const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
+  // Role-based orgs (TBE) have a different information architecture than the
+  // camp orgs: no dashboards hub above this page, and member reflection
+  // history in place of the camper profile.
+  const roleBasedOrg = orgSurfaces(user).gradeReflections;
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') || 'individual').toLowerCase();
   const language = params.get('language') || 'en';
@@ -955,46 +993,54 @@ export default function LeadershipTeamResponses() {
     dashboard: params.get('dashboard'),
     date: dateStr,
     isAdmin,
+    homePath: roleBasedOrg ? homePathForUser(user) : null,
   });
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
             {/* Header */}
-            <div className="sm:flex sm:justify-between sm:items-center mb-6">
-              <div>
-                <Link
-                  to={backHref}
-                  className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                  data-testid="lt-responses-back"
-                >
-                  {backLabel}
-                </Link>
-                <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold mt-1">
-                  {template?.name ?? 'Responses'}
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  {template?.role ? `${template.role} · ` : ''}v{template?.version ?? '?'}
-                </p>
-              </div>
+            <div className="mb-6">
+              <BackLink
+                to={backHref}
+                label={backLabel}
+                className="mb-2"
+                data-testid="lt-responses-back"
+              />
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl shrink-0 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                    <ClipboardList size={22} aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {template?.name ?? 'Responses'}
+                    </h1>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">
+                      {template?.role ? `${humanizeRole(template.role)} · ` : ''}
+                      v{template?.version ?? '?'}
+                    </p>
+                  </div>
+                </div>
 
-              <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2 mt-3 sm:mt-0">
-                <button
-                  type="button"
-                  onClick={() => setShowFilters((s) => !s)}
-                  className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                  data-testid="lt-responses-toggle-filters"
-                >
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filters
-                </button>
-                <a
-                  href={exportHref}
-                  className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                  data-testid="lt-responses-export"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export CSV
-                </a>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters((s) => !s)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 dark:border-indigo-700 text-sm font-semibold px-3 py-1.5 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                    data-testid="lt-responses-toggle-filters"
+                  >
+                    <Filter size={15} aria-hidden="true" />
+                    Filters
+                  </button>
+                  <a
+                    href={exportHref}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 text-sm font-semibold px-3 py-1.5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                    data-testid="lt-responses-export"
+                  >
+                    <Download size={15} aria-hidden="true" />
+                    Export CSV
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -1215,6 +1261,7 @@ export default function LeadershipTeamResponses() {
                 filteredRows={flagFilteredRows}
                 sections={sections}
                 dateStr={dateStr}
+                memberDetail={roleBasedOrg}
               />
             )}
             {!error && tab === 'aggregate' && aggregatePayload && (

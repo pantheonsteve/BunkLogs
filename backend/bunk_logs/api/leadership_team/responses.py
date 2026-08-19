@@ -198,7 +198,7 @@ class LeadershipTeamTemplateResponsesView(APIView):
         staff_ctx = None
         if getattr(template, "subject_mode", None) == "self":
             staff_ctx = {
-                "membership_roles": self._membership_roles_for_rows(rows),
+                "memberships": self._memberships_for_rows(rows),
                 "template_role": template.role,
             }
 
@@ -215,8 +215,8 @@ class LeadershipTeamTemplateResponsesView(APIView):
         }
 
     @staticmethod
-    def _membership_roles_for_rows(rows) -> dict[tuple[int, int], str]:
-        """Map ``(person_id, program_id)`` -> active program membership role."""
+    def _memberships_for_rows(rows) -> dict[tuple[int, int], dict[str, Any]]:
+        """Map ``(person_id, program_id)`` -> active program membership id + role."""
         keys = {
             (r.subject_id, r.program_id)
             for r in rows
@@ -226,14 +226,14 @@ class LeadershipTeamTemplateResponsesView(APIView):
             return {}
         person_ids = {person_id for person_id, _ in keys}
         program_ids = {program_id for _, program_id in keys}
-        lookup: dict[tuple[int, int], str] = {}
+        lookup: dict[tuple[int, int], dict[str, Any]] = {}
         for membership in Membership.all_objects.filter(
             person_id__in=person_ids,
             program_id__in=program_ids,
             is_active=True,
         ).order_by("person_id", "program_id", "-start_date", "id"):
             key = (membership.person_id, membership.program_id)
-            lookup.setdefault(key, membership.role)
+            lookup.setdefault(key, {"id": membership.pk, "role": membership.role})
         return lookup
 
     @staticmethod
@@ -319,6 +319,12 @@ class LeadershipTeamTemplateResponsesView(APIView):
                 for m in groups_by_person.get(r.subject_id, [])
                 if cls._membership_active_on(m, row_date)
             ]
+        # Role-based orgs link a response row to the member's reflection
+        # history (`/admin/reflections/<role>/members/<id>/`) rather than to
+        # the camper profile, so the row needs the program membership.
+        membership = ((staff_ctx or {}).get("memberships") or {}).get(
+            (r.subject_id, r.program_id),
+        )
         return {
             "id": r.pk,
             "period_start": r.period_start.isoformat() if r.period_start else None,
@@ -331,6 +337,8 @@ class LeadershipTeamTemplateResponsesView(APIView):
             "subject": {
                 "id": r.subject_id,
                 "name": r.subject.full_name if r.subject_id else None,
+                "membership_id": (membership or {}).get("id"),
+                "membership_role": (membership or {}).get("role"),
             } if r.subject_id else None,
             "groups": groups,
             "template_version": r.template.version if r.template_id else None,
@@ -345,11 +353,12 @@ class LeadershipTeamTemplateResponsesView(APIView):
         row_date,
         staff_ctx: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        membership_roles = staff_ctx.get("membership_roles") or {}
+        memberships_by_key = staff_ctx.get("memberships") or {}
         template_role = staff_ctx.get("template_role")
-        program_role = membership_roles.get(
-            (reflection.subject_id, reflection.program_id),
-        )
+        program_role = (
+            memberships_by_key.get((reflection.subject_id, reflection.program_id))
+            or {}
+        ).get("role")
         allowed_types = _allowed_staff_assignment_group_types(
             program_role, template_role,
         )

@@ -9,8 +9,23 @@ vi.mock('../api', () => ({
   default: { get: (...args) => getMock(...args) },
 }));
 
+const mockUseAuth = vi.fn(() => ({ user: null }));
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+vi.mock('../utils/orgSlug', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveOrganizationSlug: () => 'tbe',
+}));
+
 vi.mock('../partials/Sidebar', () => ({ default: () => <div /> }));
 vi.mock('../partials/Header', () => ({ default: () => <div /> }));
+
+const adminUser = {
+  organizations: [{ slug: 'tbe', name: 'TBE', capability: 'admin', roles: ['admin'] }],
+  membership_roles: ['admin'],
+};
 
 const templates = [
   {
@@ -56,6 +71,20 @@ describe('ReflectionsDashboardPage', () => {
   beforeEach(() => {
     getMock.mockReset();
     getMock.mockImplementation(routeGet);
+    mockUseAuth.mockReturnValue({ user: null });
+  });
+
+  it('offers admins a way back to Admin Home', async () => {
+    mockUseAuth.mockReturnValue({ user: adminUser });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('reflections-back')).toBeInTheDocument());
+    expect(screen.getByTestId('reflections-back')).toHaveAttribute('href', '/admin/home');
+  });
+
+  it('hides the Admin Home link from non-admins, who cannot open it', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
+    expect(screen.queryByTestId('reflections-back')).toBeNull();
   });
 
   it('renders form tiles linking to admin template responses', async () => {

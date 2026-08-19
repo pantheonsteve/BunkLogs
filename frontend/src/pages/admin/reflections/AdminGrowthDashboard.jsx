@@ -21,6 +21,7 @@ import {
   fetchAdminGrowthExamples,
 } from '../../../api/adminGrowth';
 import { useAuth } from '../../../auth/AuthContext';
+import BackLink from '../../../components/ui/BackLink';
 import { orgSurfaces } from '../../../utils/auth/orgProfile';
 
 const GRADE_OPTIONS = [8, 9, 10, 11, 12];
@@ -325,6 +326,7 @@ export default function AdminGrowthDashboard() {
   if (!showGradeReflections) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-growth-unavailable">
+        <BackLink to="/admin/home" label="Back to Admin Home" className="mb-2" />
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Growth by grade</h1>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
           Growth by grade level isn't available for this organization.
@@ -360,6 +362,12 @@ export default function AdminGrowthDashboard() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
       <div>
+        <BackLink
+          to="/admin/home"
+          label="Back to Admin Home"
+          className="mb-2"
+          data-testid="admin-growth-back"
+        />
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Growth by grade</h1>

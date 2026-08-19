@@ -29,6 +29,12 @@ export async function fetchDirectorCoverage() {
   return data;
 }
 
+/** GET /api/v1/admin/reflections/coverage/<session_date>/ */
+export async function fetchDirectorCoverageDetail(sessionDate) {
+  const { data } = await api.get(`${BASE}/coverage/${sessionDate}/`);
+  return data;
+}
+
 /** GET /api/v1/admin/reflections/faculty-activity/ */
 export async function fetchDirectorFacultyActivity() {
   const { data } = await api.get(`${BASE}/faculty-activity/`);
