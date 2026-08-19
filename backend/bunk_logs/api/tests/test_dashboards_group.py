@@ -738,6 +738,142 @@ class TestClassroomAccess:
 
 
 # ---------------------------------------------------------------------------
+# Classroom faculty-only blocks — Step 7_24
+# ---------------------------------------------------------------------------
+
+
+def _enroll_madrich(org, program, classroom, *, first, email):
+    person, user = _make_person(org, first=first, last="Rich", email=email)
+    Membership.all_objects.create(
+        program=program, person=person, role="madrich",
+        grade_level=10, is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=classroom, person=person,
+        role_in_group="subject", is_active=True,
+    )
+    return person, user
+
+
+class TestClassroomFacultyBlocks:
+    """``completion`` and ``availability`` are faculty-only.
+
+    A Madrich can hold ``author`` on a classroom, so these blocks must
+    key off the faculty Membership rather than the ``classroom_author``
+    dashboard role — Story 61 criterion 4 forbids showing a Madrich a
+    peer's completion state or availability.
+    """
+
+    @pytest.fixture
+    def class_url(self, classroom):
+        return f"/api/v1/dashboards/group/{classroom.id}/"
+
+    @pytest.fixture
+    def roster(self, org, program, classroom):
+        """Two Madrichim enrolled; the first has filed this week.
+
+        The weekly template is the globally-seeded TBE 3-2-1, which the
+        ``_autobind_role_assignments_to_new_programs`` conftest fixture
+        already binds to any program a test creates.
+        """
+        today = get_today(org)
+        sunday = today + timedelta(days=(6 - today.weekday()) % 7 or 7)
+        program.settings = {"session_dates": [sunday.isoformat()]}
+        program.save(update_fields=["settings"])
+
+        filed, _ = _enroll_madrich(
+            org, program, classroom, first="Ari", email="ari-321@dash.test",
+        )
+        _enroll_madrich(
+            org, program, classroom, first="Bex", email="bex-321@dash.test",
+        )
+        tpl = ReflectionTemplate.all_objects.get(slug="tbe-madrich-3-2-1-weekly")
+        monday = today - timedelta(days=today.weekday())
+        Reflection.all_objects.create(
+            organization=org, program=program, template=tpl,
+            author=filed, subject=filed,
+            period_start=monday, period_end=monday + timedelta(days=6),
+            answers={"wins": "good week"}, language="en", is_complete=True,
+        )
+        return {"filed": filed, "sunday": sunday, "template": tpl}
+
+    def _authenticate(self, api, org, program, classroom, *, role, email):
+        person, user = _make_person(
+            org, first="Vie", last="Wer", email=email,
+        )
+        Membership.all_objects.create(
+            program=program, person=person, role=role, is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=classroom, person=person,
+            role_in_group="author", is_active=True,
+        )
+        api.force_authenticate(user=user)
+        return person
+
+    def test_faculty_sees_completion_and_availability(
+        self, api, org, program, classroom, class_url, roster,
+    ):
+        self._authenticate(
+            api, org, program, classroom,
+            role="faculty", email="fac-blocks@dash.test",
+        )
+        with organization_context(org):
+            resp = api.get(class_url, **_hdr(org.slug))
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+
+        completion = body["completion"]
+        assert completion["submitted_count"] == 1
+        assert completion["expected_count"] == 2
+        assert completion["template_name"] == roster["template"].name
+        states = {s["name"]: s["state"] for s in completion["students"]}
+        assert states == {"Ari Rich": "complete", "Bex Rich": "missing"}
+
+        availability = body["availability"]
+        assert availability["sessions"] == [roster["sunday"].isoformat()]
+        assert availability["next_session"]["unset"] == 2
+        assert len(availability["rows"]) == 2
+
+    def test_madrich_author_sees_neither(
+        self, api, org, program, classroom, class_url, roster,
+    ):
+        self._authenticate(
+            api, org, program, classroom,
+            role="madrich", email="mad-blocks@dash.test",
+        )
+        with organization_context(org):
+            resp = api.get(class_url, **_hdr(org.slug))
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert "completion" not in body
+        assert "availability" not in body
+        assert "challenges" not in body
+
+    def test_completion_null_when_no_template_assigned(
+        self, api, org, program, classroom, class_url,
+    ):
+        # Roster exists but the Director hasn't assigned a weekly form —
+        # an explicit null, never a misleading 0/N. Drop the assignments
+        # the conftest autoseeds onto every test program.
+        TemplateAssignment.all_objects.filter(program=program).delete()
+        _enroll_madrich(
+            org, program, classroom, first="Ari", email="ari-notpl@dash.test",
+        )
+        self._authenticate(
+            api, org, program, classroom,
+            role="faculty", email="fac-notpl@dash.test",
+        )
+        with organization_context(org):
+            resp = api.get(class_url, **_hdr(org.slug))
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["completion"] is None
+        # No session_dates configured either — the off-season state.
+        assert body["availability"] is None
+
+
+# ---------------------------------------------------------------------------
 # Unsupported group_type
 # ---------------------------------------------------------------------------
 
