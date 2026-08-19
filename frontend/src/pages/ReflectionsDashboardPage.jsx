@@ -9,6 +9,7 @@ export default function ReflectionsDashboardPage() {
       scope="reflections"
       testIdPrefix="reflections"
       emptyLabel="reflections"
+      adminBackTo="/admin/home"
     />
   );
 }

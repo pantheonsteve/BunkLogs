@@ -8,8 +8,13 @@ vi.mock('../../../api', () => ({
   default: { get: (...args) => getMock(...args) },
 }));
 
-const orgUser = (capability, roles = []) => ({
-  organizations: [{ slug: 'clc', capability, roles }],
+const orgUser = (capability, roles = [], programTypes) => ({
+  organizations: [{
+    slug: 'clc',
+    capability,
+    roles,
+    ...(programTypes === undefined ? {} : { program_types: programTypes }),
+  }],
 });
 
 const authState = vi.hoisted(() => ({
@@ -19,6 +24,14 @@ const authState = vi.hoisted(() => ({
 
 vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => authState,
+}));
+
+// Current-org resolution reads the tenant subdomain / VITE_DEV_ORGANIZATION_SLUG.
+// Pin it to null so a developer's local .env can't change which org entry the
+// viewer resolves to.
+vi.mock('../../../utils/orgSlug', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveOrganizationSlug: () => null,
 }));
 
 // Sidebar / Header / SingleDatePicker pull in auth + api side effects we
@@ -140,6 +153,23 @@ const selfReflectionIndividualPayload = {
         { id: 501, name: 'Maple', group_type: 'bunk' },
         { id: 502, name: 'Unit A', group_type: 'unit' },
       ],
+    },
+  ],
+};
+
+// Role-based orgs get the subject's program membership on each row so the
+// name can link to that member's reflection history.
+const madrichIndividualPayload = {
+  ...selfReflectionIndividualPayload,
+  results: [
+    {
+      ...selfReflectionIndividualPayload.results[0],
+      subject: {
+        id: 88,
+        name: 'Rose Postman',
+        membership_id: 3189,
+        membership_role: 'madrich',
+      },
     },
   ],
 };
@@ -314,7 +344,7 @@ describe('LeadershipTeamResponses', () => {
     renderAt('/admin/templates/7/responses?date=2026-06-03');
     const back = await screen.findByTestId('lt-responses-back');
     expect(back).toHaveAttribute('href', '/dashboards/reflections?date=2026-06-03');
-    expect(back).toHaveTextContent('← Reflections');
+    expect(back).toHaveTextContent('Back to Reflections');
   });
 
   it('routes admin to bunk logs dashboard when opened from logs hub', async () => {
@@ -326,7 +356,27 @@ describe('LeadershipTeamResponses', () => {
     renderAt('/admin/templates/7/responses?date=2026-06-03&dashboard=logs');
     const back = await screen.findByTestId('lt-responses-back');
     expect(back).toHaveAttribute('href', '/dashboards/logs?date=2026-06-03');
-    expect(back).toHaveTextContent('← Bunk Logs');
+    expect(back).toHaveTextContent('Back to Bunk Logs');
+  });
+
+  it('sends role-based orgs home and opens member reflection history from a row', async () => {
+    authState.user = orgUser('admin', ['admin'], ['religious_school']);
+    getMock.mockImplementation((url) => {
+      if (url.includes('/responses/')) {
+        return Promise.resolve({ data: madrichIndividualPayload });
+      }
+      return Promise.resolve({ data: selfReflectionTemplatePayload });
+    });
+    renderAt('/admin/templates/7/responses?date=2026-06-03&dashboard=reflections');
+
+    const back = await screen.findByTestId('lt-responses-back');
+    expect(back).toHaveAttribute('href', '/admin/home');
+    expect(back).toHaveTextContent('Back to Admin Home');
+
+    const row = screen.getByTestId('lt-responses-row-401');
+    expect(within(row).getByRole('link', { name: 'Rose Postman' })).toHaveAttribute(
+      'href', '/admin/reflections/madrich/members/3189',
+    );
   });
 
   it('switches to the aggregate tab and shows rating pie charts with averages', async () => {

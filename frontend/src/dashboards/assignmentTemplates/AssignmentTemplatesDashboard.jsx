@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText } from 'lucide-react';
 import api from '../../api';
+import { useAuth } from '../../auth/AuthContext';
+import BackLink from '../../components/ui/BackLink';
 import Header from '../../partials/Header';
 import Sidebar from '../../partials/Sidebar';
+import { hasCapability } from '../../utils/auth/capability';
 
 const STATUS_TABS = [
   { id: 'active', label: 'Active' },
@@ -50,6 +53,10 @@ function FormTile({ template, isoDate, testIdPrefix, dashboardScope }) {
 /**
  * Shared form-picker hub for Log Entries and Reflections dashboards.
  * ``scope`` selects group-assigned templates (logs) vs self-reflection templates.
+ *
+ * ``adminBackTo`` renders a breadcrumb back to an admin hub. It is gated on the
+ * admin capability because these routes are also reachable by leadership team
+ * and unit head users, who would be bounced by the /admin guards.
  */
 export default function AssignmentTemplatesDashboard({
   title,
@@ -57,7 +64,10 @@ export default function AssignmentTemplatesDashboard({
   scope,
   testIdPrefix,
   emptyLabel,
+  adminBackTo,
+  adminBackLabel = 'Back to Admin Home',
 }) {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [statusTab, setStatusTab] = useState('active');
@@ -165,6 +175,14 @@ export default function AssignmentTemplatesDashboard({
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
           <div className="mb-6">
+            {adminBackTo && hasCapability(user, 'admin') && (
+              <BackLink
+                to={adminBackTo}
+                label={adminBackLabel}
+                className="mb-2"
+                data-testid={`${testIdPrefix}-back`}
+              />
+            )}
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">{title}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {description}

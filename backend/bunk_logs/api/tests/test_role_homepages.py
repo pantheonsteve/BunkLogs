@@ -763,6 +763,48 @@ class TestDirector:
         # Flagged on unset/tentative -- there is no required-headcount target.
         assert cell["flagged"] is True
 
+    def test_coverage_detail_names_who_is_in_and_who_never_answered(
+        self, api, org, program, classroom, next_sunday,
+    ):
+        available, _ = _madrich(org, program, classroom, "Yes", grade=9)
+        _madrich(org, program, classroom, "Silent", grade=12)
+        MadrichAvailability.objects.create(
+            organization=org, program=program, person=available,
+            session_date=next_sunday,
+            status=MadrichAvailability.STATUS_AVAILABLE,
+            note="Driving myself",
+        )
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        resp = _get(
+            api, org, f"/api/v1/admin/reflections/coverage/{next_sunday.isoformat()}/",
+        )
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["session_date"] == next_sunday.isoformat()
+        assert body["totals"] == {
+            "available": 1, "tentative": 0, "unavailable": 0,
+            "unset": 1, "roster_size": 2,
+        }
+        room = body["classrooms"][0]
+        assert room["name"] == "Tzedakah 101"
+        # Grade ascending, and the unanswered person is present rather than
+        # dropped -- chasing them is the point of the drill-down.
+        assert [(p["display_name"], p["status"]) for p in room["people"]] == [
+            ("Yes Rich", "available"),
+            ("Silent Rich", None),
+        ]
+        assert room["people"][0]["note"] == "Driving myself"
+        assert room["people"][0]["membership_id"] is not None
+
+    def test_coverage_detail_rejects_a_malformed_date(
+        self, api, org, program, classroom,
+    ):
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        resp = _get(api, org, "/api/v1/admin/reflections/coverage/not-a-date/")
+        assert resp.status_code == 400, resp.content
+
     def test_faculty_activity_reports_null_latency_before_any_reply(
         self, api, org, program, classroom, template,
     ):
@@ -854,6 +896,7 @@ class TestDirector:
             "/api/v1/admin/reflections/pulse/",
             "/api/v1/admin/reflections/queue/",
             "/api/v1/admin/reflections/coverage/",
+            "/api/v1/admin/reflections/coverage/2026-09-27/",
             "/api/v1/admin/reflections/faculty-activity/",
             "/api/v1/admin/reflections/themes/",
             "/api/v1/admin/reflections/madrichim/",

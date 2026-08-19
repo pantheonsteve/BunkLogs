@@ -3,6 +3,7 @@
 GET reflections/pulse/            — completion this period plus prior periods
 GET reflections/queue/            — entries routed to the Director, oldest first
 GET reflections/coverage/         — upcoming Sundays x classrooms
+GET reflections/coverage/<date>/  — one Sunday, who is in and who is out
 GET reflections/faculty-activity/ — per-faculty responsiveness
 GET reflections/themes/           — anonymized themes, small groups suppressed
 GET reflections/madrichim/        — roster
@@ -26,6 +27,8 @@ from typing import Any
 
 from django.db.models import Count
 from django.http import HttpResponse
+from django.utils.dateparse import parse_date
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -43,6 +46,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import MadrichAvailability
 from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionThemeTag
 from bunk_logs.core.models import ThreadMessage
@@ -93,6 +97,16 @@ def _madrich_memberships(program: Program) -> list[Membership]:
             program=program, role=MADRICH, is_active=True,
         ).select_related("person"),
     )
+
+
+def _empty_coverage_totals() -> dict[str, int]:
+    return {
+        MadrichAvailability.STATUS_AVAILABLE: 0,
+        MadrichAvailability.STATUS_TENTATIVE: 0,
+        MadrichAvailability.STATUS_UNAVAILABLE: 0,
+        "unset": 0,
+        "roster_size": 0,
+    }
 
 
 def _prior_periods(program, org, today: date, count: int) -> list[tuple[date, date]]:
@@ -325,6 +339,104 @@ class DirectorCoverageView(APIView):
         })
 
 
+class DirectorCoverageDetailView(APIView):
+    """``reflections/coverage/<session_date>/`` -- one Sunday, person by person.
+
+    A grid cell says "2 of 4, 1 unanswered"; staffing that Sunday needs the
+    names behind those counts, including the people with no row yet, who are
+    the ones worth chasing. Totals are sums over the per-classroom lists, so
+    somebody rostered in two classrooms counts once per classroom exactly as
+    the grid counts them.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_date: str, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        target = parse_date(session_date)
+        if target is None:
+            msg = "Invalid session date; expected YYYY-MM-DD."
+            raise ValidationError(msg)
+
+        program = _program(ctx)
+        if program is None:
+            return Response({
+                "session_date": target.isoformat(),
+                "totals": _empty_coverage_totals(),
+                "classrooms": [],
+            })
+
+        groups = list(
+            AssignmentGroup.objects.filter(
+                program=program, group_type=CLASSROOM, is_active=True,
+            ).order_by("name"),
+        )
+        roster = list(
+            AssignmentGroupMembership.objects.filter(
+                group_id__in=[g.id for g in groups],
+                role_in_group=SUBJECT,
+                is_active=True,
+            ).values_list("group_id", "person_id"),
+        )
+        person_ids = {pid for _, pid in roster if pid}
+
+        people = {p.id: p for p in Person.objects.filter(id__in=person_ids)}
+        memberships = {
+            m.person_id: m
+            for m in Membership.objects.filter(
+                program=program, role=MADRICH, person_id__in=person_ids,
+            )
+        }
+        answers = {
+            person_id: (status_value, note)
+            for person_id, status_value, note in MadrichAvailability.objects.filter(
+                program=program, person_id__in=person_ids, session_date=target,
+            ).values_list("person_id", "status", "note")
+        }
+
+        people_by_group: dict[int, list[int]] = {g.id: [] for g in groups}
+        for group_id, person_id in roster:
+            if person_id:
+                people_by_group[group_id].append(person_id)
+
+        totals = _empty_coverage_totals()
+        classrooms = []
+        for group in groups:
+            entries = []
+            for person_id in people_by_group.get(group.id, []):
+                status_value, note = answers.get(person_id, (None, ""))
+                membership = memberships.get(person_id)
+                entries.append({
+                    "person_id": person_id,
+                    "membership_id": membership.id if membership else None,
+                    "display_name": display_name(people.get(person_id)),
+                    "grade_level": membership.grade_level if membership else None,
+                    "status": status_value,
+                    "note": note or "",
+                })
+                totals[status_value if status_value in totals else "unset"] += 1
+                totals["roster_size"] += 1
+            entries.sort(
+                key=lambda e: (
+                    e["grade_level"] is None,
+                    e["grade_level"] or 0,
+                    e["display_name"].casefold(),
+                ),
+            )
+            classrooms.append({
+                "id": group.id,
+                "name": group.name,
+                "roster_size": len(entries),
+                "people": entries,
+            })
+
+        return Response({
+            "session_date": target.isoformat(),
+            "totals": totals,
+            "classrooms": classrooms,
+        })
+
+
 class DirectorFacultyActivityView(APIView):
     """Per-faculty responsiveness: open threads, latency, oldest unanswered.
 
@@ -407,6 +519,7 @@ class DirectorFacultyActivityView(APIView):
             oldest = min((t[2] for t in open_threads), default=None)
             results.append({
                 "person_id": pid,
+                "membership_id": membership.id,
                 "display_name": display_name(membership.person),
                 "assigned_madrich_count": len(subjects),
                 "open_thread_count": len(open_threads),
@@ -508,6 +621,7 @@ def _roster_rows(ctx, program) -> tuple[list[dict], dict]:
     rows = [
         {
             "person_id": m.person_id,
+            "membership_id": m.id,
             "display_name": display_name(m.person),
             "grade_level": m.grade_level,
             "classroom": classrooms.get(m.person_id),

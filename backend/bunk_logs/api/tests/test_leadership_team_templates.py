@@ -436,7 +436,7 @@ def test_responses_self_template_includes_author_group_assignments(
     person = Person.all_objects.create(
         organization=org, first_name="Counselor", last_name="One",
     )
-    Membership.all_objects.create(
+    membership = Membership.all_objects.create(
         program=program, person=person, role="counselor", is_active=True,
     )
     bunk = AssignmentGroup.all_objects.create(
@@ -473,8 +473,12 @@ def test_responses_self_template_includes_author_group_assignments(
             f"/api/v1/leadership-team/templates/{published_template.id}/responses/",
         )
     assert resp.status_code == 200
-    groups = resp.json()["results"][0]["groups"]
-    assert groups == [{"id": bunk.id, "name": "Maple", "group_type": "bunk"}]
+    row = resp.json()["results"][0]
+    assert row["groups"] == [{"id": bunk.id, "name": "Maple", "group_type": "bunk"}]
+    # Role-based orgs link the row to the member's reflection history, which
+    # is keyed by program membership rather than person.
+    assert row["subject"]["membership_id"] == membership.id
+    assert row["subject"]["membership_role"] == "counselor"
 
 
 @pytest.mark.django_db
@@ -517,9 +521,11 @@ def test_responses_camper_template_uses_subject_group_memberships(
             f"/api/v1/leadership-team/templates/{tpl.id}/responses/",
         )
     assert resp.status_code == 200
-    groups = resp.json()["results"][0]["groups"]
-    assert len(groups) == 1
-    assert groups[0]["name"] == "Oak"
+    row = resp.json()["results"][0]
+    assert len(row["groups"]) == 1
+    assert row["groups"][0]["name"] == "Oak"
+    # Campers have no program membership, so the row keeps pointing at the profile.
+    assert row["subject"]["membership_id"] is None
 
 
 @pytest.mark.django_db

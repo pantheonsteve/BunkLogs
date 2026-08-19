@@ -7,11 +7,25 @@
  * what it is granted.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { MessagesSquare } from 'lucide-react';
 import { fetchThread, postThreadMessage, resolveThread } from '../../api/threads';
 import { useAuth } from '../../auth/AuthContext';
+import { accent } from '../../components/ui/accents';
+import BackLink from '../../components/ui/BackLink';
 import CardSkeleton from '../../components/ui/CardSkeleton';
+import ErrorPanel from '../../components/ui/ErrorPanel';
 import ThreadView from '../../components/ui/ThreadView';
+import { initialsFor } from '../../utils/initials';
+
+/** Period bounds arrive as plain `YYYY-MM-DD`, so parse as UTC to avoid a day slip. */
+function formatPeriodEnd(iso) {
+  const [y, m, d] = String(iso ?? '').split('-').map(Number);
+  if (!y || !m || !d) return '';
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+}
 
 export default function ThreadPage({ backTo = '/madrich', backLabel = 'Back to home' }) {
   const { threadId } = useParams();
@@ -50,32 +64,50 @@ export default function ThreadPage({ backTo = '/madrich', backLabel = 'Back to h
     }
   }, [orgSlug, threadId, load]);
 
+  const subjectName = thread?.subject_person?.display_name;
+  const periodEnd = formatPeriodEnd(thread?.period?.end);
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto space-y-4">
-      <Link to={backTo} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-        ← {backLabel}
-      </Link>
-
-      {error && (
-        <div data-testid="thread-error">
-          <p className="text-red-600 dark:text-red-400">{error}</p>
+      <div>
+        <BackLink to={backTo} label={backLabel} data-testid="thread-back" />
+        <div className="mt-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 shadow-md">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold text-white">
+              {subjectName
+                ? initialsFor(subjectName)
+                : <MessagesSquare size={18} aria-hidden="true" />}
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-white truncate">
+                {subjectName || 'Conversation'}
+              </h1>
+              <p className="text-sm text-violet-50">
+                {periodEnd
+                  ? `Week ending ${periodEnd}`
+                  : 'One reflection entry and the replies on it.'}
+              </p>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+
+      {error && <ErrorPanel data-testid="thread-error">{error}</ErrorPanel>}
 
       {!error && !thread && <CardSkeleton rows={4} data-testid="thread-loading" />}
 
       {thread && (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {thread.subject_person?.display_name}
-          </p>
+        <section
+          aria-label="Conversation"
+          className={`rounded-xl border border-t-4 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm ${accent('violet').bar}`}
+        >
           <ThreadView
             thread={thread}
             onPost={handlePost}
             onResolve={handleResolve}
             busy={busy}
           />
-        </div>
+        </section>
       )}
     </div>
   );

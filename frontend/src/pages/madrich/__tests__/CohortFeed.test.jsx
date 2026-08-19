@@ -20,9 +20,21 @@ vi.mock('../../../api', () => ({
   },
 }));
 
+const mockUseAuth = vi.fn();
 vi.mock('../../../auth/AuthContext', () => ({
-  useAuth: () => ({ orgSlug: 'tbe', user: { id: 42 } }),
+  useAuth: () => mockUseAuth(),
 }));
+
+vi.mock('../../../utils/orgSlug', async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveOrganizationSlug: () => 'tbe',
+}));
+
+const userWith = (capability, roles) => ({
+  id: 42,
+  organizations: [{ slug: 'tbe', name: 'TBE', capability, roles }],
+  membership_roles: roles,
+});
 
 const post = (id, overrides = {}) => ({
   id,
@@ -63,6 +75,11 @@ const members = {
 beforeEach(() => {
   getMock.mockReset();
   postMock.mockReset();
+  mockUseAuth.mockReset();
+  mockUseAuth.mockReturnValue({
+    orgSlug: 'tbe',
+    user: userWith('participant', ['madrich']),
+  });
   postMock.mockResolvedValue({ data: {} });
   getMock.mockImplementation((url) => Promise.resolve({
     data: url.includes('/cohort/members/') ? members : feed,
@@ -126,6 +143,36 @@ describe('Cohort feed', () => {
     await waitFor(() => screen.getByTestId('md-cohort-members'));
     expect(screen.getByTestId('md-cohort-members')).toHaveTextContent('A1');
     expect(screen.getByTestId('md-cohort-members')).toHaveTextContent('Author 1');
+  });
+
+  it('sends a Madrich home to their dashboard and an admin to Admin Home', async () => {
+    renderFeed();
+    await waitFor(() => screen.getByTestId('md-cohort-back'));
+    expect(screen.getByTestId('md-cohort-back')).toHaveAttribute('href', '/madrich');
+
+    mockUseAuth.mockReturnValue({
+      orgSlug: 'tbe',
+      user: userWith('admin', ['admin']),
+    });
+    renderFeed();
+    await waitFor(() => {
+      const links = screen.getAllByTestId('md-cohort-back');
+      expect(links[links.length - 1]).toHaveAttribute('href', '/admin/home');
+    });
+  });
+
+  it('renders a Quill-authored body as formatted text, not raw tags', async () => {
+    getMock.mockImplementation((url) => Promise.resolve({
+      data: url.includes('/cohort/members/')
+        ? members
+        : { ...feed, results: [post(1, { body: '<p>I had this really great idea.</p>' })] },
+    }));
+    renderFeed();
+    await waitFor(() => screen.getByTestId('cohort-post-1'));
+    const article = screen.getByTestId('cohort-post-1');
+    expect(article).toHaveTextContent('I had this really great idea.');
+    expect(article.textContent).not.toContain('<p>');
+    expect(article.querySelector('p')).not.toBeNull();
   });
 
   it('shows an empty state when nobody has shared yet', async () => {

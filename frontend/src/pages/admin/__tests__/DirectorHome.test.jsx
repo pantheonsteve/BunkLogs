@@ -6,7 +6,7 @@
  * coverage vocabulary, and theme suppression.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 const getMock = vi.fn();
@@ -51,6 +51,22 @@ const coverage = {
   }],
 };
 
+const coverageDetail = {
+  session_date: '2026-09-27',
+  totals: { available: 2, tentative: 1, unavailable: 0, unset: 1, roster_size: 4 },
+  classrooms: [{
+    id: 12,
+    name: 'Tzedakah 101',
+    roster_size: 4,
+    people: [
+      { person_id: 1, membership_id: 3189, display_name: 'Ari Rich', grade_level: 9, status: 'available', note: '' },
+      { person_id: 2, membership_id: 3190, display_name: 'Bee Rich', grade_level: 10, status: 'available', note: '' },
+      { person_id: 3, membership_id: 3191, display_name: 'Cy Rich', grade_level: 11, status: 'tentative', note: 'Might have a game' },
+      { person_id: 4, membership_id: null, display_name: 'Dot Rich', grade_level: 12, status: null, note: '' },
+    ],
+  }],
+};
+
 const themes = {
   themes: [{ theme_key: 'belonging', label: 'Belonging', contributors: 6, mentions: 9 }],
   suppressed_count: 2,
@@ -61,9 +77,12 @@ const themes = {
 const RESPONSES = {
   '/pulse/': pulse,
   '/queue/': { count: 1, results: [], next: null, previous: null },
+  // More specific first: the matcher below takes the first key the URL contains.
+  '/coverage/2026-09-27/': coverageDetail,
   '/coverage/': coverage,
   '/faculty-activity/': { results: [{
     person_id: 9,
+    membership_id: 909,
     display_name: 'Rabbi Gold',
     assigned_madrich_count: 4,
     open_thread_count: 2,
@@ -73,6 +92,7 @@ const RESPONSES = {
   '/themes/': themes,
   '/madrichim/': { count: 1, results: [{
     person_id: 10,
+    membership_id: 3189,
     display_name: 'Ari Rich',
     grade_level: 9,
     classroom: 'Tzedakah 101',
@@ -135,6 +155,35 @@ describe('Director homepage inside AdminHome', () => {
     expect(screen.getByTestId('dir-coverage-12-2026-10-04')).not.toHaveTextContent('unanswered');
   });
 
+  it('opens a Sunday to show who is in, who is tentative, and who never answered', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    fireEvent.click(screen.getByTestId('dir-coverage-date-2026-09-27'));
+
+    await waitFor(() => screen.getByTestId('coverage-detail-summary'));
+    expect(screen.getByTestId('coverage-detail-summary')).toHaveTextContent('2 of 4 available');
+    expect(screen.getByTestId('coverage-detail-section-available')).toHaveTextContent('Ari Rich');
+    expect(screen.getByTestId('coverage-detail-section-tentative')).toHaveTextContent('Might have a game');
+    expect(screen.getByTestId('coverage-detail-section-unset')).toHaveTextContent('Dot Rich');
+    expect(screen.getByTestId('coverage-detail-section-unavailable')).toHaveTextContent('Nobody');
+    // A person with a membership opens their own reflection history.
+    expect(screen.getByTestId('coverage-detail-person-1').querySelector('a')).toHaveAttribute(
+      'href', '/admin/reflections/madrich/members/3189',
+    );
+
+    fireEvent.click(screen.getByTestId('coverage-detail-close'));
+    await waitFor(() => expect(screen.queryByTestId('coverage-detail-modal')).toBeNull());
+  });
+
+  it('scopes the drill-down to one classroom when a cell is clicked', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    fireEvent.click(screen.getByTestId('dir-coverage-12-2026-09-27'));
+
+    await waitFor(() => screen.getByTestId('coverage-detail-summary'));
+    expect(screen.getByTestId('coverage-detail-summary')).toHaveTextContent('Tzedakah 101');
+  });
+
   it('says how many themes were withheld rather than dropping them silently', async () => {
     renderHome();
     await waitFor(() => screen.getByTestId('dir-themes-card'));
@@ -158,6 +207,34 @@ describe('Director homepage inside AdminHome', () => {
     await waitFor(() => screen.getByTestId('dir-roster-export'));
     // A plain href would resolve against the SPA origin and carry no token.
     expect(screen.getByTestId('dir-roster-export').tagName).toBe('BUTTON');
+    expect(screen.getByTestId('dir-roster-row-10')).toHaveTextContent('Ari Rich');
+  });
+
+  it('opens a Madrich or faculty row on their own response page', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-roster-row-10'));
+    expect(screen.getByTestId('dir-roster-row-10')).toHaveAttribute(
+      'href', '/admin/reflections/madrich/members/3189',
+    );
+    expect(screen.getByTestId('dir-activity-row-9')).toHaveAttribute(
+      'href', '/admin/reflections/faculty/members/909',
+    );
+  });
+
+  it('leaves a row unlinked when the payload has no membership to open', async () => {
+    getMock.mockImplementation((url) => {
+      if (url.includes('/madrichim/')) {
+        return Promise.resolve({ data: {
+          count: 1,
+          results: [{ ...RESPONSES['/madrichim/'].results[0], membership_id: undefined }],
+        } });
+      }
+      const match = Object.keys(RESPONSES).find((suffix) => url.includes(suffix));
+      return Promise.resolve({ data: RESPONSES[match] });
+    });
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-roster-row-10'));
+    expect(screen.getByTestId('dir-roster-row-10')).not.toHaveAttribute('href');
     expect(screen.getByTestId('dir-roster-row-10')).toHaveTextContent('Ari Rich');
   });
 
