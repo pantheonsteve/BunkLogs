@@ -43,6 +43,29 @@ export async function fetchHistory(orgSlug, { page = 1, pageSize = 12 } = {}) {
 }
 
 /**
+ * GET /api/v1/madrich/entries/
+ *
+ * Without `fieldKey` this returns one card per threaded field; with one it
+ * returns that field's paginated history (Step 4_9 §4.3).
+ */
+export async function fetchEntries(orgSlug, { fieldKey, page = 1, pageSize = 20 } = {}) {
+  const params = fieldKey ? { field_key: fieldKey, page, page_size: pageSize } : {};
+  const { data } = await api.get(`${BASE}/entries/`, {
+    params,
+    headers: { 'X-Organization-Slug': orgSlug },
+  });
+  return data;
+}
+
+/** GET /api/v1/madrich/trends/ */
+export async function fetchTrends(orgSlug) {
+  const { data } = await api.get(`${BASE}/trends/`, {
+    headers: { 'X-Organization-Slug': orgSlug },
+  });
+  return data;
+}
+
+/**
  * GET /api/v1/reflections/template-for-me/?role=madrich&language=en
  *
  * The shared template-for-me endpoint resolves to the Madrich weekly

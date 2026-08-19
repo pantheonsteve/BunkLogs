@@ -88,9 +88,14 @@ const MadrichAvailabilityCalendar = lazy(() => import('../pages/madrich/Availabi
 const MadrichChallengeLog = lazy(() => import('../pages/madrich/ChallengeLog'));
 const MadrichChallengeForm = lazy(() => import('../pages/madrich/ChallengeForm'));
 const MadrichChallengeDetail = lazy(() => import('../pages/madrich/ChallengeDetail'));
+const MadrichEntryList = lazy(() => import('../pages/madrich/EntryList'));
+const MadrichCohortFeed = lazy(() => import('../pages/madrich/CohortFeed'));
+const ThreadPage = lazy(() => import('../pages/threads/ThreadPage'));
 const FacultyDashboard = lazy(() => import('../pages/faculty/Dashboard'));
 const FacultyChallengeInbox = lazy(() => import('../pages/faculty/ChallengeInbox'));
 const FacultyChallengeDetail = lazy(() => import('../pages/faculty/ChallengeDetail'));
+const FacultyQueue = lazy(() => import('../pages/faculty/Queue'));
+const FacultyRosterDetail = lazy(() => import('../pages/faculty/RosterDetail'));
 const LeadershipTeamDashboard = lazy(() => import('../pages/leadership-team/Dashboard'));
 const LeadershipTeamTeamDashboard = lazy(() => import('../pages/leadership-team/TeamDashboard'));
 const LeadershipTeamMemberReflection = lazy(() => import('../pages/leadership-team/MemberReflection'));
@@ -211,9 +216,18 @@ export const routeConfig = [
       { path: '/madrich/challenges', element: <MadrichChallengeLog /> },
       { path: '/madrich/challenges/new', element: <MadrichChallengeForm /> },
       { path: '/madrich/challenges/:challengeId', element: <MadrichChallengeDetail /> },
+      { path: '/madrich/entries/:fieldKey', element: <MadrichEntryList /> },
+      { path: '/madrich/cohort', element: <MadrichCohortFeed /> },
+      { path: '/madrich/threads/:threadId', element: <ThreadPage /> },
       { path: '/faculty', element: <FacultyDashboard /> },
       { path: '/faculty/challenges', element: <FacultyChallengeInbox /> },
       { path: '/faculty/challenges/:challengeId', element: <FacultyChallengeDetail /> },
+      { path: '/faculty/queue', element: <FacultyQueue /> },
+      { path: '/faculty/roster/:personId', element: <FacultyRosterDetail /> },
+      {
+        path: '/faculty/threads/:threadId',
+        element: <ThreadPage backTo="/faculty/queue" backLabel="Back to queue" />,
+      },
       { path: '/leadership-team', element: <LeadershipTeamDashboard /> },
       { path: '/leadership-team/teams/:teamRole', element: <LeadershipTeamTeamDashboard /> },
       { path: '/leadership-team/teams/:teamRole/members/:membershipId', element: <LeadershipTeamMemberReflection /> },
@@ -266,6 +280,10 @@ export const routeConfig = [
       { path: 'catalog/planning', element: admin(<CatalogPlanningDashboard />) },
       { path: 'reflections', element: admin(<AdminReflectionsDashboard />) },
       { path: 'reflections/growth', element: admin(<AdminGrowthDashboard />) },
+      {
+        path: 'threads/:threadId',
+        element: admin(<ThreadPage backTo="/admin/home" backLabel="Back to admin home" />),
+      },
       {
         path: 'reflections/:role/members/:membershipId',
         element: admin(<AdminReflectionMemberDetail />),

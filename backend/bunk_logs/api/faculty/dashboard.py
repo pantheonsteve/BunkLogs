@@ -97,6 +97,21 @@ class FacultyDashboardView(APIView):
                     "expected": summary["expected_count"],
                     "template_name": summary["template_name"],
                 }
+            availability = None
+            upcoming = []
+            if window is not None:
+                window_summary = window.summarize(memberships)
+                availability = window_summary["next_session"]
+                # Step 4_9 §5.3: the homepage needs the whole upcoming window,
+                # not just the next Sunday, to show a coverage gap forming.
+                upcoming = [
+                    {
+                        "date": session,
+                        "available": window_summary["available_counts"][session],
+                        "unset": window_summary["unset_counts"][session],
+                    }
+                    for session in window_summary["sessions"]
+                ]
             classrooms.append({
                 "id": group.id,
                 "name": group.name,
@@ -104,11 +119,8 @@ class FacultyDashboardView(APIView):
                 "url": f"/dashboards/group/{group.id}",
                 "subject_count": len(memberships),
                 "reflections": reflections,
-                "availability": (
-                    window.summarize(memberships)["next_session"]
-                    if window is not None
-                    else None
-                ),
+                "availability": availability,
+                "upcoming_sessions": upcoming,
                 "open_challenge_count": open_counts.get(group.id, 0),
             })
 
