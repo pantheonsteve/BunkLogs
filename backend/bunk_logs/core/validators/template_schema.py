@@ -65,6 +65,18 @@ RESERVED_KEYS = frozenset(
 # is responsible for validating submitted IDs against the resolved source.
 DYNAMIC_OPTION_SOURCES = frozenset({"supervised_bunks"})
 
+# Thread / cohort flags (Step 4_9). These turn an answer into a surface the
+# role homepages can render: a comment thread, a response-queue item, or a
+# post on the cohort feed. They are additive keys inside an existing field
+# object, so adding them to a template is a JSON edit, not a migration.
+THREAD_SCOPES = frozenset({"field", "item"})
+ROUTES_TO_VALUES = frozenset({"faculty", "director", "both"})
+
+# Only ``text_list`` holds several answers under one key, so per-item
+# threading is the only place ``thread_scope="item"`` means anything.
+_ITEM_SCOPE_TYPES = frozenset({"text_list"})
+_TREND_KEY_TYPES = frozenset({"rating_group"})
+
 _NON_WORD = re.compile(r"[^a-z0-9]+")
 
 
@@ -153,6 +165,111 @@ def _validate_options(field: dict, ftype: str, loc: str) -> None:
         if not isinstance(labels, dict) or len(labels) < 1:
             raise ValidationError(
                 {"schema": f"options[{k}] requires labels with at least one language {loc}."},
+            )
+
+
+def _validate_thread_flags(field: dict, ftype: str, loc: str) -> None:
+    """Validate the Step 4_9 thread / cohort / trend flags on one field.
+
+    These are checked strictly even though the rest of the validator
+    tolerates unknown keys: a misspelled flag would silently fail open and
+    a routed question would never reach anyone's queue.
+    """
+    thread_enabled = field.get("thread_enabled", False)
+    if not isinstance(thread_enabled, bool):
+        raise ValidationError(
+            {"schema": f"thread_enabled must be a boolean {loc}."},
+        )
+    if thread_enabled and ftype in META_FIELD_TYPES:
+        raise ValidationError(
+            {
+                "schema": (
+                    f'thread_enabled is not valid on type "{ftype}" {loc}; '
+                    "meta fields collect no answer to thread against."
+                ),
+            },
+        )
+
+    thread_scope = field.get("thread_scope")
+    if thread_scope is not None:
+        if thread_scope not in THREAD_SCOPES:
+            raise ValidationError(
+                {
+                    "schema": (
+                        f'Invalid thread_scope "{thread_scope}" {loc}; allowed: '
+                        f"{', '.join(sorted(THREAD_SCOPES))}."
+                    ),
+                },
+            )
+        if thread_scope == "item" and ftype not in _ITEM_SCOPE_TYPES:
+            raise ValidationError(
+                {
+                    "schema": (
+                        f'thread_scope "item" is not valid for type "{ftype}" '
+                        f"{loc}; allowed on: {', '.join(sorted(_ITEM_SCOPE_TYPES))}."
+                    ),
+                },
+            )
+
+    routes_to = field.get("routes_to")
+    if routes_to is not None:
+        if routes_to not in ROUTES_TO_VALUES:
+            raise ValidationError(
+                {
+                    "schema": (
+                        f'Invalid routes_to "{routes_to}" {loc}; allowed: '
+                        f"{', '.join(sorted(ROUTES_TO_VALUES))}."
+                    ),
+                },
+            )
+        if not thread_enabled:
+            raise ValidationError(
+                {
+                    "schema": (
+                        f"routes_to requires thread_enabled {loc}; a routed entry "
+                        "needs a thread to be answered in."
+                    ),
+                },
+            )
+
+    share_with_cohort = field.get("share_with_cohort", False)
+    if not isinstance(share_with_cohort, bool):
+        raise ValidationError(
+            {"schema": f"share_with_cohort must be a boolean {loc}."},
+        )
+    if share_with_cohort and ftype in _SCALE_TYPES:
+        raise ValidationError(
+            {
+                "schema": (
+                    f'share_with_cohort is not valid on type "{ftype}" {loc}; '
+                    "ratings are private to the author and their supervisors."
+                ),
+            },
+        )
+    if share_with_cohort and ftype in META_FIELD_TYPES:
+        raise ValidationError(
+            {
+                "schema": (
+                    f'share_with_cohort is not valid on type "{ftype}" {loc}; '
+                    "meta fields collect no answer to share."
+                ),
+            },
+        )
+
+    trend_key = field.get("trend_key")
+    if trend_key is not None:
+        if not isinstance(trend_key, str) or not trend_key.strip():
+            raise ValidationError(
+                {"schema": f"trend_key must be a non-empty string {loc}."},
+            )
+        if ftype not in _TREND_KEY_TYPES:
+            raise ValidationError(
+                {
+                    "schema": (
+                        f'trend_key is not valid for type "{ftype}" {loc}; '
+                        f"allowed on: {', '.join(sorted(_TREND_KEY_TYPES))}."
+                    ),
+                },
             )
 
 
@@ -279,6 +396,8 @@ def validate_template_schema(schema: Any, languages: list[str]) -> None:
                         ),
                     },
                 )
+
+        _validate_thread_flags(field, ftype, loc)
 
         # Type-specific structural validation
         if ftype == "rating_group":

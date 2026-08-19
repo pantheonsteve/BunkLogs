@@ -12,6 +12,7 @@ from bunk_logs.core.managers import AssignmentGroupMembershipScopedManager
 from bunk_logs.core.managers import AuditEventAllManager
 from bunk_logs.core.managers import AuditEventScopedManager
 from bunk_logs.core.managers import ClassroomChallengeResponseScopedManager
+from bunk_logs.core.managers import CohortShareChildScopedManager
 from bunk_logs.core.managers import FieldKeyScopedManager
 from bunk_logs.core.managers import MembershipScopedManager
 from bunk_logs.core.managers import OrgScopedManager
@@ -19,6 +20,7 @@ from bunk_logs.core.managers import ProgramScopedManager
 from bunk_logs.core.managers import ReflectionTemplateScopedManager
 from bunk_logs.core.managers import SupervisionEventScopedManager
 from bunk_logs.core.managers import SupervisionManager
+from bunk_logs.core.managers import ThreadChildScopedManager
 from bunk_logs.core.rich_text import contains_inline_base64_image
 from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.state_machine import TransitionPlan
@@ -3389,6 +3391,349 @@ class ClassroomChallengeResponse(models.Model):
 
     def _audit_program(self):
         return self.challenge.program if self.challenge_id else None
+
+
+# ---------------------------------------------------------------------------
+# Entry threads and cohort sharing (Step 4_9 role homepages)
+# ---------------------------------------------------------------------------
+
+
+class EntryThread(models.Model):
+    """A conversation attached to exactly one subject: an answer or a share.
+
+    Created at submit time for any template field flagged
+    ``thread_enabled``. ``routes_to`` is snapshotted off the schema rather
+    than read live, so editing a template never retroactively reroutes
+    items already sitting in someone's queue.
+
+    Mirrors the ``Observation`` / ``ObservationReply`` /
+    ``ObservationReadReceipt`` shape in :mod:`bunk_logs.notes.models`
+    rather than introducing a second threading pattern.
+    """
+
+    ROUTES_TO_FACULTY = "faculty"
+    ROUTES_TO_DIRECTOR = "director"
+    ROUTES_TO_BOTH = "both"
+    ROUTES_TO_CHOICES = [
+        (ROUTES_TO_FACULTY, "Faculty"),
+        (ROUTES_TO_DIRECTOR, "Director"),
+        (ROUTES_TO_BOTH, "Faculty and Director"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="entry_threads",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="entry_threads",
+    )
+    reflection = models.ForeignKey(
+        "core.Reflection",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="threads",
+    )
+    field_key = models.CharField(max_length=64, blank=True, default="")
+    item_index = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Index within a text_list answer; null when the whole field threads as one.",
+    )
+    cohort_share = models.ForeignKey(
+        "core.CohortShare",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="threads",
+    )
+    subject_person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="threads_about_me",
+        help_text="Whose entry this thread hangs off.",
+    )
+    routes_to = models.CharField(
+        max_length=16,
+        choices=ROUTES_TO_CHOICES,
+        blank=True,
+        default="",
+        help_text="Snapshot of the schema flag at submit time; blank means unrouted.",
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_message_at = models.DateTimeField(null=True, blank=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    Q(reflection__isnull=False, cohort_share__isnull=True)
+                    | Q(reflection__isnull=True, cohort_share__isnull=False)
+                ),
+                name="entry_thread_exactly_one_subject",
+            ),
+            models.UniqueConstraint(
+                fields=["reflection", "field_key", "item_index"],
+                condition=Q(reflection__isnull=False),
+                name="uniq_entry_thread_per_reflection_entry",
+            ),
+        ]
+        indexes = [
+            # Drives the faculty and director response queues.
+            models.Index(fields=["organization", "program", "routes_to", "resolved_at"]),
+            models.Index(fields=["subject_person", "last_message_at"]),
+        ]
+        ordering = ["-last_message_at", "-created_at"]
+
+    def __str__(self) -> str:
+        if self.cohort_share_id:
+            return f"Thread on cohort share {self.cohort_share_id}"
+        return f"Thread on {self.field_key} of reflection {self.reflection_id}"
+
+    def clean(self) -> None:
+        super().clean()
+        has_reflection = self.reflection_id is not None
+        has_share = self.cohort_share_id is not None
+        if has_reflection == has_share:
+            msg = "A thread must hang off exactly one of a reflection entry or a cohort share."
+            raise ValidationError(msg)
+        if self.routes_to and not has_reflection:
+            raise ValidationError(
+                {"routes_to": "Only reflection entries can be routed to a response queue."},
+            )
+
+
+class ThreadMessage(models.Model):
+    """One message on an :class:`EntryThread`.
+
+    A message authored by ``thread.subject_person`` renders as a
+    self-update rather than a supervisor reply; that is a presentation
+    distinction only, which is why there is no separate model.
+    """
+
+    EDIT_WINDOW_MINUTES = 15
+
+    thread = models.ForeignKey(
+        EntryThread,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    author = models.ForeignKey(
+        Person,
+        on_delete=models.PROTECT,
+        related_name="thread_messages",
+    )
+    author_role_at_write = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text="Snapshot of the author's Membership role when the message was written.",
+    )
+    body = models.TextField(max_length=10000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+
+    objects = ThreadChildScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["thread", "created_at"]),
+        ]
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"Message by {self.author_id} on thread {self.thread_id}"
+
+    def is_editable_by(self, person, *, now=None) -> bool:
+        """Authors may correct their own wording for 15 minutes, then it is fixed."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        if person is None or self.author_id != person.id or self.created_at is None:
+            return False
+        moment = now or timezone.now()
+        window = timedelta(minutes=self.EDIT_WINDOW_MINUTES)
+        return moment - self.created_at <= window
+
+    def _audit_organization(self):
+        return self.thread.organization if self.thread_id else None
+
+    def _audit_program(self):
+        return self.thread.program if self.thread_id else None
+
+
+class ThreadRead(models.Model):
+    """Per-person read cursor on a thread.
+
+    A thread is unread for a person when ``thread.last_message_at`` is
+    later than their ``last_read_at``, or when they have no row at all and
+    at least one message was written by somebody else. That single rule
+    powers every unread indicator on all three homepages.
+    """
+
+    thread = models.ForeignKey(
+        EntryThread,
+        on_delete=models.CASCADE,
+        related_name="reads",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="thread_reads",
+    )
+    last_read_at = models.DateTimeField()
+
+    objects = ThreadChildScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("thread", "person")]
+
+    def __str__(self) -> str:
+        return f"{self.person_id} read thread {self.thread_id} at {self.last_read_at}"
+
+
+class CohortShare(models.Model):
+    """An answer the author chose to publish to their cohort feed.
+
+    The body is snapshotted at submit time so the feed keeps rendering
+    even as a reflection is edited; editing refreshes the snapshot rather
+    than orphaning it.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="cohort_shares",
+    )
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        related_name="cohort_shares",
+    )
+    assignment_group = models.ForeignKey(
+        AssignmentGroup,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cohort_shares",
+        help_text="Cohort this was shared into; null means the program-wide feed.",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="cohort_shares",
+    )
+    reflection = models.ForeignKey(
+        "core.Reflection",
+        on_delete=models.CASCADE,
+        related_name="cohort_shares",
+    )
+    field_key = models.CharField(max_length=64)
+    item_index = models.IntegerField(null=True, blank=True)
+    body = models.TextField(max_length=10000)
+    is_hidden = models.BooleanField(
+        default=False,
+        help_text="Soft, reversible director moderation; see CohortShareModeration for the who/when.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = OrgScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reflection", "field_key", "item_index"],
+                name="uniq_cohort_share_per_reflection_entry",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "program", "created_at"]),
+            models.Index(fields=["assignment_group", "created_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Share of {self.field_key} by {self.person_id}"
+
+
+class ShareReaction(models.Model):
+    """A reaction on a cohort share. Tier 1 ships ``like`` only.
+
+    ``kind`` exists from day one so adding reactions later is a code
+    change rather than a migration of user data.
+    """
+
+    KIND_LIKE = "like"
+    KIND_CHOICES = [(KIND_LIKE, "Like")]
+
+    cohort_share = models.ForeignKey(
+        CohortShare,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="share_reactions",
+    )
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES, default=KIND_LIKE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = CohortShareChildScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        unique_together = [("cohort_share", "person", "kind")]
+
+    def __str__(self) -> str:
+        return f"{self.person_id} {self.kind}d share {self.cohort_share_id}"
+
+
+class CohortShareModeration(models.Model):
+    """Append-only log of director hide/unhide actions on a cohort share.
+
+    Hiding a post is soft and reversible, so who did it and when has to
+    survive the un-hide.
+    """
+
+    ACTION_HIDE = "hide"
+    ACTION_UNHIDE = "unhide"
+    ACTION_CHOICES = [(ACTION_HIDE, "Hide"), (ACTION_UNHIDE, "Unhide")]
+
+    cohort_share = models.ForeignKey(
+        CohortShare,
+        on_delete=models.CASCADE,
+        related_name="moderation_events",
+    )
+    actor = models.ForeignKey(
+        Person,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cohort_share_moderations",
+    )
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = CohortShareChildScopedManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.action} on share {self.cohort_share_id}"
 
 
 # ---------------------------------------------------------------------------

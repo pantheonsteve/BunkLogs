@@ -88,6 +88,36 @@ class ClassroomChallengeResponseScopedManager(models.Manager):
         return qs.filter(challenge__organization=org)
 
 
+class ThreadChildScopedManager(models.Manager):
+    """Scope by thread.organization for ``ThreadMessage`` / ``ThreadRead``.
+
+    Neither carries a direct organization FK -- tenancy flows through the
+    parent :class:`~bunk_logs.core.models.EntryThread`.
+    """
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(thread__organization=org)
+
+
+class CohortShareChildScopedManager(models.Manager):
+    """Scope by cohort_share.organization for ``ShareReaction`` / ``CohortShareModeration``.
+
+    Neither carries a direct organization FK -- tenancy flows through the
+    parent :class:`~bunk_logs.core.models.CohortShare`.
+    """
+
+    def get_queryset(self):
+        org = get_current_organization()
+        qs = super().get_queryset()
+        if org is None:
+            return qs.none()
+        return qs.filter(cohort_share__organization=org)
+
+
 def _expand_group_to_bunk_ids(group) -> set[int]:
     """Return all active bunk-type group IDs within ``group`` (inclusive).
 

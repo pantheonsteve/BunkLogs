@@ -25,6 +25,13 @@ from .catalog_dashboard import AdminCatalogPlanningView
 from .classroom_challenges import AdminClassroomChallengesExportView
 from .classroom_challenges import AdminClassroomChallengesListView
 from .dashboard import AdminDashboardView
+from .director import DirectorCoverageView
+from .director import DirectorFacultyActivityView
+from .director import DirectorMadrichimExportView
+from .director import DirectorMadrichimView
+from .director import DirectorPulseView
+from .director import DirectorQueueView
+from .director import DirectorThemesView
 from .growth import AdminGrowthDashboardExportView
 from .growth import AdminGrowthDashboardView
 from .growth import AdminGrowthExamplesView
@@ -244,6 +251,45 @@ urlpatterns = [
         "reflections/growth/examples/",
         AdminGrowthExamplesView.as_view(),
         name="admin-reflections-growth-examples",
+    ),
+    # ------------------------------------------------------------------
+    # Director homepage (Step 4_9 — TBE). "Director" is the admin
+    # capability in a religious-school program, not a separate role.
+    # ------------------------------------------------------------------
+    path(
+        "reflections/pulse/",
+        DirectorPulseView.as_view(),
+        name="admin-reflections-pulse",
+    ),
+    path(
+        "reflections/queue/",
+        DirectorQueueView.as_view(),
+        name="admin-reflections-queue",
+    ),
+    path(
+        "reflections/coverage/",
+        DirectorCoverageView.as_view(),
+        name="admin-reflections-coverage",
+    ),
+    path(
+        "reflections/faculty-activity/",
+        DirectorFacultyActivityView.as_view(),
+        name="admin-reflections-faculty-activity",
+    ),
+    path(
+        "reflections/themes/",
+        DirectorThemesView.as_view(),
+        name="admin-reflections-themes",
+    ),
+    path(
+        "reflections/madrichim/",
+        DirectorMadrichimView.as_view(),
+        name="admin-reflections-madrichim",
+    ),
+    path(
+        "reflections/madrichim/export/",
+        DirectorMadrichimExportView.as_view(),
+        name="admin-reflections-madrichim-export",
     ),
     # ------------------------------------------------------------------
     # Madrich availability staffing matrix (Step 4_7 — TBE)

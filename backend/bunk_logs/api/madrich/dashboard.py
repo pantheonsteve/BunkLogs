@@ -15,6 +15,10 @@ Reflection-focused dashboard scoped to the active TBE
   calendar link). The dedicated ``/madrich/availability/`` endpoint
   (``availability.py``) remains the source of truth for the full calendar;
   this is a lightweight card only.
+* ``entry_cards`` — Step 4_9: one card per ``thread_enabled`` field on any
+  assigned template, with the three most recent entries and their unread
+  state. Discovered from the schema, so no TBE field name appears here.
+* ``cohort`` — Step 4_9: unread count and a link into the cohort feed.
 
 Operational signals about *other* people (rosters, faculty submissions,
 peer Madrichim, camp-side data) are intentionally omitted per Story 61
@@ -31,12 +35,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.reflection_threads import cohort_group_ids
+from bunk_logs.core.reflection_threads import unread_thread_ids
 
 from .availability import availability_summary
 from .common import assigned_reflections
 from .common import current_week_period
 from .common import viewer_or_403
+from .entries import threaded_field_cards
 
 if TYPE_CHECKING:
     from datetime import date
@@ -136,7 +144,27 @@ class MadrichDashboardView(APIView):
             },
             "availability": availability,
             "availability_nudge": availability_nudge,
+            "entry_cards": threaded_field_cards(ctx),
+            "cohort": _cohort_summary(ctx),
         })
+
+
+def _cohort_summary(ctx) -> dict:
+    """Unread cohort activity, so the feed can badge without being fetched."""
+    group_ids = cohort_group_ids(ctx.person, ctx.program)
+    if not group_ids:
+        return {"enabled": False, "unread_count": 0, "url": "/madrich/cohort"}
+    thread_ids = list(
+        EntryThread.objects.filter(
+            cohort_share__assignment_group_id__in=group_ids,
+        ).values_list("id", flat=True),
+    )
+    unread = unread_thread_ids(ctx.person, thread_ids)
+    return {
+        "enabled": True,
+        "unread_count": len(unread),
+        "url": "/madrich/cohort",
+    }
 
 
 def _display_name(person) -> str:

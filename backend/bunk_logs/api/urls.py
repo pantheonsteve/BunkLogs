@@ -40,6 +40,7 @@ from .dashboards import trends as trends_dashboard
 from .faculty import availability as faculty_availability
 from .faculty import challenges as faculty_challenges
 from .faculty import dashboard as faculty_dashboard
+from .faculty import roster as faculty_roster
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
 from .leadership_team import assignments as lt_assignments
@@ -54,6 +55,7 @@ from .leadership_team import templates as lt_templates
 from .madrich import availability as md_availability
 from .madrich import challenges as md_challenges
 from .madrich import dashboard as md_dashboard
+from .madrich import entries as md_entries
 from .madrich import reflection as md_reflection
 from .maintenance import views as maint_views
 from .observations import views as observations_views
@@ -61,6 +63,8 @@ from .specialist import camper_view as sp_camper_view
 from .specialist import campers as sp_campers
 from .specialist import dashboard as sp_dashboard
 from .specialist import self_reflection as sp_self_reflection
+from .threads import cohort as threads_cohort
+from .threads import views as threads_views
 from .unit_head import bunk_dashboard as uh_bunk_dashboard
 from .unit_head import camper_dashboard as uh_camper_dashboard
 from .unit_head import dashboard as uh_dashboard
@@ -150,6 +154,16 @@ urlpatterns = [
         name="madrich-dashboard",
     ),
     path(
+        "madrich/entries/",
+        md_entries.MadrichEntriesView.as_view(),
+        name="madrich-entries",
+    ),
+    path(
+        "madrich/trends/",
+        md_entries.MadrichTrendsView.as_view(),
+        name="madrich-trends",
+    ),
+    path(
         "madrich/reflection/",
         md_reflection.MadrichReflectionCreateView.as_view(),
         name="madrich-reflection-create",
@@ -187,9 +201,65 @@ urlpatterns = [
         name="faculty-dashboard",
     ),
     path(
+        "faculty/queue/",
+        faculty_roster.FacultyQueueView.as_view(),
+        name="faculty-queue",
+    ),
+    path(
+        "faculty/roster/",
+        faculty_roster.FacultyRosterView.as_view(),
+        name="faculty-roster",
+    ),
+    path(
+        "faculty/roster/<int:person_id>/",
+        faculty_roster.FacultyRosterDetailView.as_view(),
+        name="faculty-roster-detail",
+    ),
+    path(
         "faculty/classrooms/<int:group_id>/availability/",
         faculty_availability.FacultyClassroomAvailabilityView.as_view(),
         name="faculty-classroom-availability",
+    ),
+    # ------------------------------------------------------------------
+    # Entry threads and cohort feed — shared by all three TBE role
+    # homepages (Step 4_9). Access is decided per object, not per route.
+    # ------------------------------------------------------------------
+    path("threads/", threads_views.ThreadListView.as_view(), name="threads-list"),
+    path(
+        "threads/<int:thread_id>/",
+        threads_views.ThreadDetailView.as_view(),
+        name="threads-detail",
+    ),
+    path(
+        "threads/<int:thread_id>/messages/",
+        threads_views.ThreadMessageCreateView.as_view(),
+        name="threads-messages",
+    ),
+    path(
+        "threads/<int:thread_id>/read/",
+        threads_views.ThreadReadView.as_view(),
+        name="threads-read",
+    ),
+    path(
+        "threads/<int:thread_id>/resolve/",
+        threads_views.ThreadResolveView.as_view(),
+        name="threads-resolve",
+    ),
+    path("cohort/feed/", threads_cohort.CohortFeedView.as_view(), name="cohort-feed"),
+    path(
+        "cohort/members/",
+        threads_cohort.CohortMembersView.as_view(),
+        name="cohort-members",
+    ),
+    path(
+        "cohort/shares/<int:share_id>/react/",
+        threads_cohort.ShareReactView.as_view(),
+        name="cohort-share-react",
+    ),
+    path(
+        "cohort/shares/<int:share_id>/hide/",
+        threads_cohort.ShareHideView.as_view(),
+        name="cohort-share-hide",
     ),
     # ------------------------------------------------------------------
     # Madrich — TBE Classroom Challenge Log (Step 4_8, MA7)

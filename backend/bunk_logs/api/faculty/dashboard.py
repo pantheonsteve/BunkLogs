@@ -9,6 +9,10 @@ Counts are computed across all of the viewer's classrooms at once (see
 :mod:`.classroom_signals`) so a faculty member teaching several rooms
 still costs a fixed number of queries. Holding no classrooms is a valid
 state and returns an empty list, not a 403.
+
+Step 4_9 adds ``response_queue``: reflection entries routed to faculty and
+still open, oldest first, with an escalation tier so a question that has
+been waiting three weeks reads differently from yesterday's.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from .classroom_signals import build_availability_window
 from .classroom_signals import build_weekly_completion
 from .classroom_signals import classroom_subject_memberships
 from .common import viewer_or_403
+from .roster import response_queue
 
 WEEKLY = "weekly"
 
@@ -122,6 +127,7 @@ class FacultyDashboardView(APIView):
             },
             "classrooms": classrooms,
             "challenges_url": "/faculty/challenges",
+            "response_queue": response_queue(ctx),
         })
 
 

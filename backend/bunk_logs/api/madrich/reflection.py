@@ -45,6 +45,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import reflection_snapshot
 from bunk_logs.core.models import validate_reflection_answers
+from bunk_logs.core.reflection_threads import materialize_threads_and_shares
 from bunk_logs.core.submission import idempotent_create
 from bunk_logs.core.theme_tagging import enqueue_theme_tagging_for_reflection
 
@@ -317,6 +318,10 @@ class MadrichReflectionCreateView(APIView):
         # Theme tagging feeds the admin growth-by-grade dashboard. The helper
         # no-ops for templates outside THEME_TAGGING_TEMPLATE_SLUGS.
         enqueue_theme_tagging_for_reflection(reflection)
+        # Threads / cohort shares for the fields the template flags (Step 4_9):
+        # wins and improvements thread per item, the question routes to the
+        # Director's queue, and shared_idea publishes to the cohort feed.
+        materialize_threads_and_shares(reflection)
         invalidate_dashboard_for_viewers(org, {viewer.id}, today)
         return Response(reflection_response(reflection), status=status.HTTP_201_CREATED)
 
@@ -388,6 +393,7 @@ class MadrichReflectionDetailView(APIView):
         # first so two taggings don't race each other.
         if before.get("answers") != after.get("answers"):
             enqueue_theme_tagging_for_reflection(reflection)
+            materialize_threads_and_shares(reflection)
 
         invalidate_dashboard_for_viewers(org, {viewer.id}, today)
         return Response(reflection_response(reflection), status=status.HTTP_200_OK)
