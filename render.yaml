@@ -11,7 +11,7 @@ services:
       generation: automatic
     buildCommand: "./build.sh"
     healthCheckPath: "/health/"
-    startCommand: "ddtrace-run gunicorn --config gunicorn.conf.py config.wsgi:application"
+    startCommand: "./dd-start.sh gunicorn --config gunicorn.conf.py config.wsgi:application"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
@@ -40,8 +40,7 @@ services:
         value: prod
       - key: DD_SERVICE
         value: bunklogs-backend
-      - key: DD_VERSION
-        value: "1.0"
+      # DD_VERSION and DD_GIT_* are exported by dd-start.sh from RENDER_GIT_COMMIT.
       - key: DD_LOGS_INJECTION
         value: "true"
       - key: DD_TRACE_ENABLED
@@ -84,7 +83,7 @@ services:
     name: bunklogs-celery
     runtime: python3
     buildCommand: "./build.sh"
-    startCommand: "ddtrace-run celery -A config worker -B -l info --concurrency=2"
+    startCommand: "./dd-start.sh celery -A config worker -B -l info --concurrency=2"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
@@ -105,8 +104,7 @@ services:
         value: prod
       - key: DD_SERVICE
         value: bunklogs-celery
-      - key: DD_VERSION
-        value: "1.0"
+      # DD_VERSION and DD_GIT_* are exported by dd-start.sh from RENDER_GIT_COMMIT.
       - key: DD_TRACE_ENABLED
         value: "true"
       - key: DD_LOGS_INJECTION
@@ -125,7 +123,7 @@ services:
     runtime: python3
     buildCommand: "./build.sh"
     schedule: "0 8 * * *"  # Daily at 8 AM
-    startCommand: "ddtrace-run python manage.py send_daily_reports"
+    startCommand: "./dd-start.sh python manage.py send_daily_reports"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
@@ -147,8 +145,7 @@ services:
         value: prod
       - key: DD_SERVICE
         value: bunklogs-daily-reports
-      - key: DD_VERSION
-        value: "1.0"
+      # DD_VERSION and DD_GIT_* are exported by dd-start.sh from RENDER_GIT_COMMIT.
       - key: DD_TRACE_ENABLED
         value: "true"
       - key: DD_LOGS_INJECTION
@@ -162,7 +159,7 @@ services:
     runtime: python3
     buildCommand: "./build.sh"
     schedule: "30 4 * * *"  # Daily at 4:30 AM UTC
-    startCommand: "ddtrace-run python manage.py deactivate_ended_memberships --apply"
+    startCommand: "./dd-start.sh python manage.py deactivate_ended_memberships --apply"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
@@ -178,8 +175,7 @@ services:
         value: prod
       - key: DD_SERVICE
         value: bunklogs-deactivate-ended-memberships
-      - key: DD_VERSION
-        value: "1.0"
+      # DD_VERSION and DD_GIT_* are exported by dd-start.sh from RENDER_GIT_COMMIT.
       - key: DD_TRACE_ENABLED
         value: "true"
       - key: DD_LOGS_INJECTION
