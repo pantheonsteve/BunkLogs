@@ -117,11 +117,15 @@ describe('CounselorSelfReflectionHistoryPage', () => {
     renderPage();
     await waitFor(() => expect(getMock).toHaveBeenCalledTimes(1));
 
-    await user.click(screen.getByTestId('history-next'));
+    const nextButton = await screen.findByTestId('history-next');
+    await waitFor(() => expect(nextButton).toBeEnabled());
+    await user.click(nextButton);
     await waitFor(() => expect(getMock).toHaveBeenCalledTimes(2));
     expect(getMock.mock.calls[1][1].params).toEqual({ page: 2 });
 
-    await user.click(screen.getByTestId('history-prev'));
+    const prevButton = await screen.findByTestId('history-prev');
+    await waitFor(() => expect(prevButton).toBeEnabled());
+    await user.click(prevButton);
     await waitFor(() => expect(getMock).toHaveBeenCalledTimes(3));
     expect(getMock.mock.calls[2][1].params).toEqual({ page: 1 });
   });
