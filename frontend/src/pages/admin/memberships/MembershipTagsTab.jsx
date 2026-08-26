@@ -8,6 +8,7 @@ import LoadingState from '../../../components/ui/LoadingState';
 const ROLE_OPTIONS = [
   { value: '', label: 'All roles' },
   { value: 'camper', label: 'Camper' },
+  { value: 'student', label: 'Student' },
   { value: 'counselor', label: 'Counselor' },
   { value: 'junior_counselor', label: 'Junior Counselor' },
   { value: 'specialist', label: 'Specialist' },

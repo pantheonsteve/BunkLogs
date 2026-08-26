@@ -53,6 +53,14 @@ CANONICAL_ORG_SETTINGS: dict[str, Any] = {
     # Readiness); product_name is intentionally omitted so it defaults to
     # the generic "BunkLogs" until TBE has real brand assets.
     "branding": {"display_name": ORG_NAME},
+    # TBE's own words for the camp-derived canonical keys. "Ed Team" and
+    # "Teaching Team" are collectives standing in for what the camp copy
+    # treats as one person and one group, so both forms are identical.
+    "terminology": {
+        "camper": {"one": "student", "other": "students"},
+        "director": {"one": "Ed Team", "other": "Ed Team"},
+        "cohort": {"one": "Teaching Team", "other": "Teaching Teams"},
+    },
 }
 
 # Step 4_5: Madrichim submit their weekly 3-2-1 for the week ending Sunday,

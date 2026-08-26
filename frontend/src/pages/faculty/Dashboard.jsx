@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchFacultyDashboard, fetchFacultyRoster } from '../../api/faculty';
 import { useAuth } from '../../auth/AuthContext';
+import { useTerm } from '../../context/OrgBrandingContext';
 import CardSkeleton from '../../components/ui/CardSkeleton';
 import HomeCard from '../../components/ui/HomeCard';
 import UnreadDot from '../../components/ui/UnreadDot';
@@ -330,6 +331,7 @@ function UpcomingSessionsCard({ classrooms }) {
 }
 
 function NoClassroomsCard() {
+  const term = useTerm();
   return (
     <section
       aria-label="My classrooms"
@@ -340,8 +342,8 @@ function NoClassroomsCard() {
         No classrooms yet
       </h2>
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        You aren&apos;t assigned to a classroom yet. Your Director sets this
-        up when the roster is imported.
+        {`You aren't assigned to a classroom yet. The ${term('director')} `
+          + 'sets this up when the roster is imported.'}
       </p>
     </section>
   );

@@ -29,7 +29,7 @@ describe('GlobalSearch (7_13 PR3, Story 60)', () => {
       },
     });
     renderWithRouter(<GlobalSearch />);
-    const input = screen.getByPlaceholderText(/Search campers/i);
+    const input = screen.getByLabelText('Admin global search');
     fireEvent.change(input, { target: { value: 'ada' } });
 
     // Wait for debounce + fetch to complete.
@@ -42,7 +42,7 @@ describe('GlobalSearch (7_13 PR3, Story 60)', () => {
 
   it('does not call the API for queries shorter than 2 chars', async () => {
     renderWithRouter(<GlobalSearch />);
-    const input = screen.getByPlaceholderText(/Search campers/i);
+    const input = screen.getByLabelText('Admin global search');
     fireEvent.change(input, { target: { value: 'a' } });
     // Give the debounce more than enough time.
     await new Promise((resolve) => setTimeout(resolve, 500));

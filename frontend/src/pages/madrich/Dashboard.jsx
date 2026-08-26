@@ -20,6 +20,7 @@ import { fetchDashboard, fetchTrends } from '../../api/madrich';
 import { fetchAvailability } from '../../api/madrichAvailability';
 import { fetchClassrooms } from '../../api/madrichChallenges';
 import { useAuth } from '../../auth/AuthContext';
+import { useTerm } from '../../context/OrgBrandingContext';
 import RatingTrendChart from '../../components/charts/RatingTrendChart';
 import CardSkeleton from '../../components/ui/CardSkeleton';
 import HomeCard from '../../components/ui/HomeCard';
@@ -171,6 +172,7 @@ function ReportChallengeCard() {
 }
 
 function NoAssignmentsCard() {
+  const term = useTerm();
   return (
     <section
       aria-label="My reflections"
@@ -181,7 +183,7 @@ function NoAssignmentsCard() {
         My reflection
       </h2>
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        No reflections currently assigned. Your Director will set this up shortly.
+        {`No reflections currently assigned. The ${term('director')} will set this up shortly.`}
       </p>
     </section>
   );
@@ -251,6 +253,7 @@ function ReflectionStatusCard({ card }) {
 function ThreadedFieldCard({ card }) {
   const { field_key: fieldKey, label, total, unread_count: unreadCount, entries } = card;
   const rows = Array.isArray(entries) ? entries : [];
+  const term = useTerm();
 
   return (
     <HomeCard
@@ -295,7 +298,7 @@ function ThreadedFieldCard({ card }) {
                       className="text-amber-700 dark:text-amber-400"
                       data-testid={`md-awaiting-${entry.thread_id}`}
                     >
-                      Sent to your {entry.routes_to === 'director' ? 'Director' : 'faculty'} — no reply yet
+                      {`Sent to ${entry.routes_to === 'director' ? `the ${term('director')}` : 'your faculty'} — no reply yet`}
                     </span>
                   )}
                   {entry.resolved_at && <span>Resolved</span>}
@@ -340,18 +343,24 @@ function TrendsCard() {
 }
 
 function CohortCard({ cohort }) {
+  const term = useTerm();
   if (!cohort?.enabled) return null;
   const unread = cohort.unread_count ?? 0;
 
   return (
     <HomeCard
-      title="My cohort"
+      title={`My ${term('cohort')}`}
       subtitle={
         unread > 0
           ? `${unread} new post${unread === 1 ? '' : 's'} from your classmates`
           : 'Ideas your classmates chose to share'
       }
-      badge={<UnreadDot count={unread} label={`${unread} unread cohort posts`} />}
+      badge={(
+        <UnreadDot
+          count={unread}
+          label={`${unread} unread ${term('cohort')} posts`}
+        />
+      )}
       data-testid="md-cohort-card"
       footer={(
         <Link
@@ -359,7 +368,7 @@ function CohortCard({ cohort }) {
           className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
           data-testid="md-cohort-cta"
         >
-          Open cohort feed
+          {`Open ${term('cohort')} feed`}
         </Link>
       )}
     />

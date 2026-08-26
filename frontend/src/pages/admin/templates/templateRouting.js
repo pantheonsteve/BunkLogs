@@ -62,6 +62,7 @@ export const GROUP_TYPE_OPTIONS = [
 
 export const ROLE_OPTIONS = [
   { value: 'camper', label: 'Camper' },
+  { value: 'student', label: 'Student' },
   { value: 'counselor', label: 'Counselor' },
   { value: 'junior_counselor', label: 'Junior Counselor' },
   { value: 'specialist', label: 'Specialist' },

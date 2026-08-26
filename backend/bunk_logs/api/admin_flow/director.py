@@ -244,7 +244,11 @@ class DirectorQueueView(APIView):
         items = []
         for thread in page:
             row = thread_list_item(
-                thread, unread=False, message_count=thread.message_count, today=ctx.today,
+                thread,
+                unread=False,
+                message_count=thread.message_count,
+                today=ctx.today,
+                org=ctx.organization,
             )
             row["escalation"] = escalation_tier(row["age_days"])
             items.append(row)
