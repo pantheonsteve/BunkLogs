@@ -132,7 +132,9 @@ frontend/.env.local
 frontend/.env.*.local
 backend/github-actions-key.json
 backend/staticfiles/
-backend/media/
+# MEDIA_ROOT is APPS_DIR/media, i.e. backend/bunk_logs/media -- locally this
+# fills up with branding uploads that belong in each env's own storage.
+backend/bunk_logs/media/
 backend/backup_*.sql
 
 # Node.js (for frontend)
