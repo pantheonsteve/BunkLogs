@@ -14,7 +14,21 @@ vi.mock('../../utils/orgSlug', () => ({
   resolveOrganizationSlug: () => resolveOrganizationSlugMock(),
 }));
 
-import { OrgBrandingProvider, useOrgBranding, brandingFromSlug } from '../OrgBrandingContext';
+import {
+  OrgBrandingProvider, useOrgBranding, useTerm, brandingFromSlug,
+} from '../OrgBrandingContext';
+
+function TermProbe() {
+  const term = useTerm();
+  return (
+    <div>
+      <span data-testid="cohort">{term('cohort')}</span>
+      <span data-testid="cohort-caps">{term('cohort', { capitalize: true })}</span>
+      <span data-testid="director">{term('director')}</span>
+      <span data-testid="campers">{term('camper', { plural: true })}</span>
+    </div>
+  );
+}
 
 function Probe() {
   const branding = useOrgBranding();
@@ -144,5 +158,58 @@ describe('OrgBrandingProvider', () => {
     render(<Probe />);
     expect(screen.getByTestId('slug')).toHaveTextContent('tbe');
     expect(screen.getByTestId('isClc')).toHaveTextContent('false');
+  });
+});
+
+describe('useTerm', () => {
+  function renderTerms() {
+    render(
+      <OrgBrandingProvider>
+        <TermProbe />
+      </OrgBrandingProvider>,
+    );
+  }
+
+  it("renders the tenant's own words once branding resolves", async () => {
+    resolveOrganizationSlugMock.mockReturnValue('tbe');
+    fetchBrandingMock.mockResolvedValue({
+      slug: 'tbe',
+      name: 'Temple Beth-El',
+      branding: { display_name: 'Temple Beth-El' },
+      terminology: {
+        camper: { one: 'student', other: 'students' },
+        director: { one: 'Ed Team', other: 'Ed Team' },
+        cohort: { one: 'Teaching Team', other: 'Teaching Teams' },
+      },
+    });
+    renderTerms();
+
+    await waitFor(() => expect(screen.getByTestId('cohort')).toHaveTextContent('Teaching Team'));
+    expect(screen.getByTestId('director')).toHaveTextContent('Ed Team');
+    expect(screen.getByTestId('campers')).toHaveTextContent('students');
+  });
+
+  it('keeps camp wording for an org that ships no terminology', async () => {
+    fetchBrandingMock.mockResolvedValue({
+      slug: 'clc',
+      name: 'Crane Lake',
+      branding: { display_name: 'Crane Lake' },
+    });
+    renderTerms();
+
+    await waitFor(() => expect(screen.getByTestId('director')).toHaveTextContent('Director'));
+    expect(screen.getByTestId('cohort')).toHaveTextContent('cohort');
+    expect(screen.getByTestId('campers')).toHaveTextContent('campers');
+  });
+
+  it('capitalizes only where the caller asks, and defaults outside a provider', () => {
+    fetchBrandingMock.mockReturnValue(new Promise(() => {}));
+    renderTerms();
+
+    expect(screen.getByTestId('cohort')).toHaveTextContent('cohort');
+    expect(screen.getByTestId('cohort-caps')).toHaveTextContent('Cohort');
+
+    render(<TermProbe />);
+    expect(screen.getAllByTestId('director')[1]).toHaveTextContent('Director');
   });
 });

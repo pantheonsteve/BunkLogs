@@ -7,7 +7,7 @@
 
 `Membership` carries **two** role-shaped fields by design:
 
-- `role` — a 16-value `CharField` that is the customer-facing label, the
+- `role` — a 19-value `CharField` that is the customer-facing label, the
   template-routing key, and the reporting tag. **Grows over time** as new
   customers add new roles.
 - `capability` — a 5-value `CharField` that is the RBAC primitive.
@@ -17,6 +17,10 @@
 `capability` is derived from `role` via the `ROLE_TO_CAPABILITY` mapping in
 `core/models.py`, kept in sync by `Membership.save()`. Permission code branches
 on `capability`. Template / label / reporting code branches on `role`.
+
+A tenant may rename what a role is *called* without changing its `role` value —
+see `core/terminology.py`. That layer is display-only; never branch on a
+resolved term.
 
 This was an intentional two-axis design. **Do not collapse `role` down to
 five values** to "clean up" the duplication — see "Why not collapse?" below.

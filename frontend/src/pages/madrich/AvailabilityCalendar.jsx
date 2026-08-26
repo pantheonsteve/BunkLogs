@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchAvailability, upsertAvailability } from '../../api/madrichAvailability';
 import { useAuth } from '../../auth/AuthContext';
+import { useTerm } from '../../context/OrgBrandingContext';
 
 const STATUS_OPTIONS = [
   { value: 'available', label: 'Available', activeClass: 'bg-green-600 text-white border-green-600' },
@@ -40,6 +41,7 @@ function groupByMonth(sessions) {
 }
 
 function SessionCard({ session, orgSlug, onSaved }) {
+  const term = useTerm();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -107,7 +109,7 @@ function SessionCard({ session, orgSlug, onSaved }) {
 
       {status === null && editable && (
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-          Tap a status so your Director knows your plan.
+          {`Tap a status so the ${term('director')} knows your plan.`}
         </p>
       )}
 

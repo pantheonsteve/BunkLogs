@@ -81,6 +81,7 @@ def _queue_rows(ctx: ViewerContext, limit: int | None = None) -> tuple[list[dict
             unread=thread.id in unread,
             message_count=thread.message_count,
             today=ctx.today,
+            org=ctx.organization,
         )
         row["escalation"] = escalation_tier(row["age_days"])
         rows.append(row)
@@ -119,6 +120,7 @@ class FacultyQueueView(APIView):
                 unread=thread.id in unread,
                 message_count=thread.message_count,
                 today=ctx.today,
+                org=ctx.organization,
             )
             row["escalation"] = escalation_tier(row["age_days"])
             items.append(row)
@@ -277,6 +279,7 @@ class FacultyRosterDetailView(APIView):
                 unread=thread.id in unread,
                 message_count=thread.message_count,
                 today=ctx.today,
+                org=ctx.organization,
             )
             row["escalation"] = escalation_tier(row["age_days"])
             items.append(row)

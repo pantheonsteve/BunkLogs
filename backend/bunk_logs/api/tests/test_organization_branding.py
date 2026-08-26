@@ -11,6 +11,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
 from bunk_logs.core.models import Organization
+from bunk_logs.core.terminology import DEFAULT_TERMS
 
 pytestmark = pytest.mark.django_db
 
@@ -52,6 +53,7 @@ def test_returns_configured_branding_for_resolved_org(api):
             "logo_url": None,
             "hero_url": None,
         },
+        "terminology": DEFAULT_TERMS,
     }
 
 
@@ -108,6 +110,7 @@ def test_unresolved_org_returns_generic_default(api):
             "logo_url": None,
             "hero_url": None,
         },
+        "terminology": DEFAULT_TERMS,
     }
 
 
@@ -118,3 +121,25 @@ def test_no_slug_header_returns_generic_default(api):
     assert resp.data["slug"] is None
     assert resp.data["branding"]["display_name"] == "BunkLogs"
     assert resp.data["branding"]["logo_url"] is None
+
+
+def test_org_terminology_overrides_ride_along_with_branding(api):
+    Organization.objects.create(
+        name="Temple Beth-El",
+        slug="tbe-terminology-test",
+        settings={
+            "terminology": {
+                "camper": {"one": "student", "other": "students"},
+                "cohort": {"one": "Teaching Team", "other": "Teaching Teams"},
+            },
+        },
+    )
+
+    resp = api.get(URL, **_hdr("tbe-terminology-test"))
+
+    assert resp.status_code == 200
+    terms = resp.data["terminology"]
+    assert terms["camper"] == {"one": "student", "other": "students"}
+    assert terms["cohort"] == {"one": "Teaching Team", "other": "Teaching Teams"}
+    # Keys the org left alone keep the camp wording.
+    assert terms["director"] == DEFAULT_TERMS["director"]

@@ -150,6 +150,7 @@ class ThreadListView(APIView):
                 message_count=thread.message_count,
                 last_message=last_messages.get(thread.id),
                 today=viewer.today,
+                org=viewer.organization,
             )
             for thread in threads
         ])

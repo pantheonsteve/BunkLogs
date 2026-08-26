@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createChallenge, fetchClassrooms } from '../../api/madrichChallenges';
 import { useAuth } from '../../auth/AuthContext';
+import { useTerm } from '../../context/OrgBrandingContext';
 
 const BODY_MAX = 2000;
 
@@ -23,8 +24,10 @@ const CATEGORY_OPTIONS = [
   { value: 'other', label: 'Other' },
 ];
 
-const DISCLOSURE =
-  'Faculty and your Director can see who submitted this. Other Madrichim in your classroom cannot.';
+function disclosure(term) {
+  return `Faculty and the ${term('director')} can see who submitted this. `
+    + 'Other Madrichim in your classroom cannot.';
+}
 
 function flattenError(err, fallback) {
   const body = err?.response?.data;
@@ -40,6 +43,7 @@ function flattenError(err, fallback) {
 export default function MadrichChallengeForm() {
   const { orgSlug } = useAuth();
   const navigate = useNavigate();
+  const term = useTerm();
 
   const [classrooms, setClassrooms] = useState([]);
   const [assignmentGroupId, setAssignmentGroupId] = useState('');
@@ -124,7 +128,7 @@ export default function MadrichChallengeForm() {
         className="mb-6 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 px-4 py-3 text-sm text-blue-800 dark:text-blue-300"
         data-testid="md-challenge-disclosure"
       >
-        {DISCLOSURE}
+        {disclosure(term)}
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
