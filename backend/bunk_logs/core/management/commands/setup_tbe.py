@@ -1,9 +1,15 @@
 """Create Temple Beth-El Organization and 2026-27 Religious School program (Step 4_1).
 
-Idempotent: safe to run multiple times. Mirrors ``setup_crane_lake``.
+Idempotent and safe to run against production: the canonical values below are
+treated as *defaults to fall back on*, never as the source of truth. A re-run
+fills in keys the row is missing and leaves every value an admin has already
+set -- org/program names, uploaded branding copy, a hand-curated
+`session_dates` calendar -- exactly as it found them. Pass `--dry-run` to see
+what would change before writing anything.
 """
 from __future__ import annotations
 
+import copy
 from datetime import date
 from datetime import timedelta
 from typing import Any
@@ -87,85 +93,117 @@ def canonical_program_name(org: Organization) -> str:
     return f"{org.name} Religious School 2026-27"
 
 
-def _merge_org_settings(org: Organization) -> bool:
-    merged = dict(org.settings or {})
-    changed = False
-    for key, value in CANONICAL_ORG_SETTINGS.items():
-        if merged.get(key) != value:
-            merged[key] = value
-            changed = True
-    if changed:
-        org.settings = merged
-        org.save(update_fields=["settings", "updated_at"])
-    return changed
+def backfill_settings(
+    existing: dict[str, Any] | None,
+    canonical: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """Fill in missing keys only; return the merged blob and the paths added.
 
-
-def _merge_program_settings(program: Program) -> bool:
-    merged = dict(program.settings or {})
-    changed = False
-    for key, value in CANONICAL_PROGRAM_SETTINGS.items():
-        if merged.get(key) != value:
-            merged[key] = value
-            changed = True
-    if changed:
-        program.settings = merged
-        program.save(update_fields=["settings"])
-    return changed
+    Descends exactly one level, so a nested group is either adopted whole or
+    left alone: `terminology.camper` keeps an admin's `{"one": "kid"}` intact
+    rather than acquiring our `"other": "students"` alongside it, while a
+    `terminology` blob missing `bunk` entirely still gains it.
+    """
+    merged = dict(existing or {})
+    added: list[str] = []
+    for key, value in canonical.items():
+        current = merged.get(key)
+        if key not in merged:
+            merged[key] = copy.deepcopy(value)
+            added.append(key)
+        elif isinstance(value, dict) and isinstance(current, dict):
+            nested = dict(current)
+            for sub_key, sub_value in value.items():
+                if sub_key not in nested:
+                    nested[sub_key] = copy.deepcopy(sub_value)
+                    added.append(f"{key}.{sub_key}")
+            merged[key] = nested
+    return merged, added
 
 
 class Command(BaseCommand):
     help = "Ensure Temple Beth-El (slug tbe) and the 2026-27 Religious School program exist."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Report what would change without writing to the database.",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
-        org, org_created = Organization.objects.get_or_create(
-            slug=ORG_SLUG,
-            defaults={
-                "name": ORG_NAME,
-                "settings": dict(CANONICAL_ORG_SETTINGS),
-                "is_active": True,
-            },
-        )
-        if org_created:
+        dry_run: bool = options["dry_run"]
+        org = self._ensure_org(dry_run=dry_run)
+        if org is None:
+            return
+        self._ensure_program(org, dry_run=dry_run)
+
+    def _ensure_org(self, *, dry_run: bool) -> Organization | None:
+        org = Organization.objects.filter(slug=ORG_SLUG).first()
+        if org is None:
+            if dry_run:
+                self.stdout.write(
+                    f"[dry-run] Would create organization {ORG_NAME} ({ORG_SLUG}) "
+                    f"and program {PROGRAM_SLUG}",
+                )
+                return None
+            org = Organization.objects.create(
+                slug=ORG_SLUG,
+                name=ORG_NAME,
+                settings=copy.deepcopy(CANONICAL_ORG_SETTINGS),
+                is_active=True,
+            )
             self.stdout.write(self.style.SUCCESS(f"Created organization {ORG_NAME} ({ORG_SLUG})"))
-        else:
-            updated_name = False
-            if org.name != ORG_NAME:
-                org.name = ORG_NAME
-                org.save(update_fields=["name", "updated_at"])
-                updated_name = True
-            settings_updated = _merge_org_settings(org)
-            if updated_name or settings_updated:
-                self.stdout.write(self.style.NOTICE(f"Updated organization {ORG_SLUG}"))
-            else:
-                self.stdout.write(f"Organization {ORG_SLUG} already up to date")
+            return org
 
-        program, prog_created = Program.all_objects.get_or_create(
-            organization=org,
-            slug=PROGRAM_SLUG,
-            defaults={
-                "name": canonical_program_name(org),
-                "program_type": "religious_school",
-                "start_date": SCHOOL_YEAR_START,
-                "end_date": SCHOOL_YEAR_END,
-                "settings": dict(CANONICAL_PROGRAM_SETTINGS),
-            },
-        )
-        canonical = canonical_program_name(org)
-        renamed = False
-        if program.name != canonical:
-            program.name = canonical
-            program.save(update_fields=["name"])
-            renamed = True
-        settings_updated = False if prog_created else _merge_program_settings(program)
+        if org.name != ORG_NAME:
+            self.stdout.write(
+                self.style.NOTICE(f"Organization name is {org.name!r}; left unchanged"),
+            )
+        merged, added = backfill_settings(org.settings, CANONICAL_ORG_SETTINGS)
+        if added and not dry_run:
+            org.settings = merged
+            org.save(update_fields=["settings", "updated_at"])
+        self._report(f"organization {ORG_SLUG}", added, dry_run=dry_run)
+        return org
 
-        if prog_created:
+    def _ensure_program(self, org: Organization, *, dry_run: bool) -> None:
+        program = Program.all_objects.filter(organization=org, slug=PROGRAM_SLUG).first()
+        if program is None:
+            name = canonical_program_name(org)
+            if dry_run:
+                self.stdout.write(f"[dry-run] Would create program {name}")
+                return
+            Program.all_objects.create(
+                organization=org,
+                slug=PROGRAM_SLUG,
+                name=name,
+                program_type="religious_school",
+                start_date=SCHOOL_YEAR_START,
+                end_date=SCHOOL_YEAR_END,
+                settings=copy.deepcopy(CANONICAL_PROGRAM_SETTINGS),
+            )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Created program {canonical} ({SCHOOL_YEAR_START} - {SCHOOL_YEAR_END})",
+                    f"Created program {name} ({SCHOOL_YEAR_START} - {SCHOOL_YEAR_END})",
                 ),
             )
-        elif renamed or settings_updated:
-            self.stdout.write(self.style.NOTICE(f"Updated program {PROGRAM_SLUG}"))
-        else:
-            self.stdout.write(f"Program {PROGRAM_SLUG} already up to date")
+            return
+
+        if program.name != canonical_program_name(org):
+            self.stdout.write(
+                self.style.NOTICE(f"Program name is {program.name!r}; left unchanged"),
+            )
+        merged, added = backfill_settings(program.settings, CANONICAL_PROGRAM_SETTINGS)
+        if added and not dry_run:
+            program.settings = merged
+            program.save(update_fields=["settings"])
+        self._report(f"program {PROGRAM_SLUG}", added, dry_run=dry_run)
+
+    def _report(self, label: str, added: list[str], *, dry_run: bool) -> None:
+        if not added:
+            self.stdout.write(f"{label.capitalize()} already up to date")
+            return
+        prefix = "[dry-run] Would add" if dry_run else "Added"
+        self.stdout.write(self.style.NOTICE(f"{prefix} to {label}: {', '.join(added)}"))
