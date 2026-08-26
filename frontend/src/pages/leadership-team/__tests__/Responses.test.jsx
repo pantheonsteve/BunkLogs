@@ -373,7 +373,9 @@ describe('LeadershipTeamResponses', () => {
     expect(back).toHaveAttribute('href', '/admin/home');
     expect(back).toHaveTextContent('Back to Admin Home');
 
-    const row = screen.getByTestId('lt-responses-row-401');
+    // Rows arrive from the responses fetch, which settles independently of the
+    // template fetch behind the back link -- wait for them rather than assuming.
+    const row = await screen.findByTestId('lt-responses-row-401');
     expect(within(row).getByRole('link', { name: 'Rose Postman' })).toHaveAttribute(
       'href', '/admin/reflections/madrich/members/3189',
     );
