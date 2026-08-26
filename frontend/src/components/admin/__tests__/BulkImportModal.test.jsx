@@ -63,4 +63,31 @@ describe('BulkImportModal (7_13 PR3)', () => {
     fireEvent.click(screen.getByTestId('bulk-import-template-staff'));
     await waitFor(() => expect(downloadAdminPeopleImportTemplate).toHaveBeenCalledWith('campminder', 'staff'));
   });
+
+  it('offers the TBE roster template once that source is selected', async () => {
+    listAdminPeopleImportTemplates.mockImplementation(async (source) => (
+      source === 'tbe'
+        ? {
+          templates: [{
+            variant: 'roster',
+            label: 'Roster',
+            required_headers: ['first_name', 'last_name', 'role', 'classroom_name'],
+            notes: 'One row per person.',
+          }],
+        }
+        : { templates: [{ variant: 'staff', label: 'Staff', required_headers: [] }] }
+    ));
+    render(<BulkImportModal programs={PROGRAMS} onClose={() => {}} />);
+    await screen.findByTestId('bulk-import-template-staff');
+
+    fireEvent.change(screen.getByDisplayValue('Campminder'), { target: { value: 'tbe' } });
+
+    const button = await screen.findByTestId('bulk-import-template-roster');
+    expect(screen.queryByTestId('bulk-import-template-staff')).not.toBeInTheDocument();
+    // The expected headers are visible without downloading anything.
+    expect(screen.getByText(/first_name, last_name, role, classroom_name/)).toBeInTheDocument();
+
+    fireEvent.click(button);
+    await waitFor(() => expect(downloadAdminPeopleImportTemplate).toHaveBeenCalledWith('tbe', 'roster'));
+  });
 });

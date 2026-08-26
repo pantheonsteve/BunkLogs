@@ -1,19 +1,51 @@
-import { useEffect, useState } from 'react';
-import { listAdminPrograms } from '../../../api/admin';
-import { SUB_TABS, tabConfigFor } from './assignmentTabConfig';
+import { useEffect, useMemo, useState } from 'react';
+import { getAdminAssignmentFacets, listAdminPrograms } from '../../../api/admin';
+import { useTerm } from '../../../context/OrgBrandingContext';
+import { SUB_TABS, localizeSubTab, visibleSubTabs } from './assignmentTabConfig';
 import GroupMembershipTab from './GroupMembershipTab';
 import SupervisionTab from './SupervisionTab';
 import SupervisorStatusTab from './SupervisorStatusTab';
 
+// Spelled out so Tailwind's scanner sees every class it needs to generate.
+const TAB_GRID_COLS = {
+  1: 'xl:grid-cols-1',
+  2: 'xl:grid-cols-2',
+  3: 'xl:grid-cols-3',
+  4: 'xl:grid-cols-4',
+  5: 'xl:grid-cols-5',
+  6: 'xl:grid-cols-6',
+  7: 'xl:grid-cols-7',
+};
+
 export default function AssignmentsPage() {
   const [subTab, setSubTab] = useState(SUB_TABS[0].key);
   const [programs, setPrograms] = useState([]);
-  const config = tabConfigFor(subTab);
+  const [facets, setFacets] = useState(null);
+  const [showAllTabs, setShowAllTabs] = useState(false);
+
+  const term = useTerm();
+  const tabs = useMemo(
+    () => visibleSubTabs(showAllTabs ? null : facets)
+      .map((t) => localizeSubTab(t, term)),
+    [facets, showAllTabs, term],
+  );
+  // Derive rather than sync via effect: facets arrive after first paint and may
+  // hide whatever is selected, and a stale key would render an empty tab body.
+  const activeKey = tabs.some((t) => t.key === subTab) ? subTab : tabs[0].key;
+  const config = tabs.find((t) => t.key === activeKey) ?? tabs[0];
+  const hiddenCount = SUB_TABS.length - tabs.length;
 
   useEffect(() => {
     listAdminPrograms().then((data) => {
       setPrograms(data.results || []);
     });
+  }, []);
+
+  useEffect(() => {
+    // A failure here just means no filtering, which is the old behaviour.
+    getAdminAssignmentFacets()
+      .then(setFacets)
+      .catch(() => setFacets(null));
   }, []);
 
   return (
@@ -26,11 +58,11 @@ export default function AssignmentsPage() {
       </header>
 
       <nav
-        className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2 mb-6"
+        className={`grid grid-cols-2 md:grid-cols-3 ${TAB_GRID_COLS[tabs.length] || 'xl:grid-cols-7'} gap-2 mb-2`}
         aria-label="Assignment types"
       >
-        {SUB_TABS.map((t) => {
-          const active = subTab === t.key;
+        {tabs.map((t) => {
+          const active = activeKey === t.key;
           return (
             <button
               key={t.key}
@@ -52,6 +84,21 @@ export default function AssignmentsPage() {
           );
         })}
       </nav>
+
+      <div className="mb-6 min-h-[1.25rem]">
+        {(hiddenCount > 0 || showAllTabs) && (
+          <button
+            type="button"
+            data-testid="assignment-tabs-toggle"
+            onClick={() => setShowAllTabs((v) => !v)}
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            {showAllTabs
+              ? 'Show only types used by this organization'
+              : `Show all assignment types (${hiddenCount} hidden)`}
+          </button>
+        )}
+      </div>
 
       {config.kind === 'group_membership' && (
         <GroupMembershipTab key={config.key} config={config} programs={programs} />

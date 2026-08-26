@@ -398,7 +398,7 @@ export default function GroupMembershipTab({ config, programs }) {
             )}
           </div>
         ) : (
-          <AssignmentsEmptyPane leftLabel={config.leftLabel} />
+          <AssignmentsEmptyPane leftLabelSingular={config.leftLabelSingular} />
         )}
 
         <PeopleAssignPane

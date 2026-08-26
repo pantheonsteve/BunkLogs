@@ -330,7 +330,7 @@ export default function SupervisionTab({ config, programs }) {
             dimEnded={status === 'all'}
           />
         ) : (
-          <AssignmentsEmptyPane leftLabel={config.leftLabel} />
+          <AssignmentsEmptyPane leftLabelSingular={config.leftLabelSingular} />
         )}
 
         <PeopleAssignPane

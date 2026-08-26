@@ -323,6 +323,44 @@ class TestAdminBulkImportTemplate:
             r = api.get(self.URL, {"source": "campminder"}, **_hdr(org.slug))
         assert r.status_code == 403
 
+    def test_lists_tbe_template_metadata(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"source": "tbe"}, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert [item["variant"] for item in body["templates"]] == ["roster"]
+        roster = body["templates"][0]
+        assert roster["required_headers"] == [
+            "first_name", "last_name", "role", "classroom_name",
+        ]
+        assert "grade_level" in roster["optional_headers"]
+
+    def test_downloads_tbe_template_csv(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(
+                self.URL, {"source": "tbe", "variant": "roster"}, **_hdr(org.slug),
+            )
+        assert r.status_code == 200, r.content
+        assert "text/csv" in r["Content-Type"]
+        assert "tbe-roster-import-template.csv" in r["Content-Disposition"]
+        body = r.content.decode("utf-8")
+        header, *rows = body.strip().splitlines()
+        assert header == "first_name,last_name,role,classroom_name,grade_level,email"
+        # The sample has to exercise both classroom relationships.
+        assert any(row.startswith("Maya,Rosen,madrich,") for row in rows)
+        assert any(",faculty," in row for row in rows)
+
+    def test_rejects_a_variant_from_another_source(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(
+                self.URL, {"source": "tbe", "variant": "staff"}, **_hdr(org.slug),
+            )
+        assert r.status_code == 400
+        assert "roster" in r.json()["detail"]
+
 
 class TestAdminBulkImportPreview:
     URL = "/api/v1/admin/people/import/preview/"

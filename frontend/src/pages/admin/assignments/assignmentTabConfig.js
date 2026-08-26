@@ -1,18 +1,31 @@
+/**
+ * Sub-tab definitions for the admin Assignments screen.
+ *
+ * Behavioural fields (`groupTypes`, `eligibleRoles`, ...) hold canonical slugs
+ * and never vary per tenant. User-facing copy lives in `copy(t)`, which is
+ * resolved against the org's vocabulary by `localizeSubTab` — a school renders
+ * "Madrich → Class" off the same `counselor` / `bunk` keys the camp does.
+ */
 export const SUB_TABS = [
   {
     key: 'counselor_bunk',
-    label: 'Counselor → Bunk',
-    subtitle: 'Counselors as bunk authors',
     kind: 'group_membership',
-    groupTypes: ['bunk'],
-    eligibleRoles: ['counselor', 'junior_counselor', 'general_counselor', 'specialist'],
+    // A school's faculty-on-classroom is the same relationship as a camp's
+    // counselor-on-bunk: whoever authors reflections about the group.
+    groupTypes: ['bunk', 'classroom'],
+    eligibleRoles: [
+      'counselor', 'junior_counselor', 'general_counselor', 'specialist', 'faculty',
+    ],
     roleInGroup: 'author',
-    leftLabel: 'Bunks',
+    copy: (t) => ({
+      label: `${t('counselor', { capitalize: true })} → ${t('bunk', { capitalize: true })}`,
+      subtitle: `${t('counselor', { plural: true, capitalize: true })} as ${t('bunk')} authors`,
+      leftLabel: t('bunk', { plural: true, capitalize: true }),
+      leftLabelSingular: t('bunk'),
+    }),
   },
   {
     key: 'staff_team',
-    label: 'Staff → Team',
-    subtitle: 'Staff authors on team groups',
     kind: 'group_membership',
     groupTypes: ['team'],
     eligibleRoles: [
@@ -20,57 +33,105 @@ export const SUB_TABS = [
       'administrative_staff', 'specialist',
     ],
     roleInGroup: 'author',
-    leftLabel: 'Teams',
+    copy: (t) => ({
+      label: `${t('staff', { capitalize: true })} → ${t('team', { capitalize: true })}`,
+      subtitle: `${t('staff', { capitalize: true })} authors on ${t('team')} groups`,
+      leftLabel: t('team', { plural: true, capitalize: true }),
+      leftLabelSingular: t('team'),
+    }),
   },
   {
     key: 'uh_unit',
-    label: 'Unit Head → Unit',
-    subtitle: 'Unit heads on units; counselors in child bunks are supervised by proxy',
     kind: 'group_membership',
     groupTypes: ['unit'],
     eligibleRoles: ['unit_head'],
     roleInGroup: 'author',
-    leftLabel: 'Units',
+    copy: (t) => ({
+      label: `${t('unit_head', { capitalize: true })} → ${t('unit', { capitalize: true })}`,
+      subtitle: `${t('unit_head', { plural: true, capitalize: true })} on ${t('unit', { plural: true })}; ${t('counselor', { plural: true })} in child ${t('bunk', { plural: true })} are supervised by proxy`,
+      leftLabel: t('unit', { plural: true, capitalize: true }),
+      leftLabelSingular: t('unit'),
+    }),
   },
   {
     key: 'cc_caseload',
-    label: 'Camper Care → Caseload',
-    subtitle: 'Caseload bunk supervision',
     kind: 'supervision',
     groupTypes: ['bunk'],
     supervisorRoles: ['camper_care'],
-    leftLabel: 'Caseload bunks',
+    copy: (t) => ({
+      label: `${t('camper_care', { capitalize: true })} → ${t('caseload', { capitalize: true })}`,
+      subtitle: `${t('caseload', { capitalize: true })} ${t('bunk')} supervision`,
+      leftLabel: `${t('caseload', { capitalize: true })} ${t('bunk', { plural: true })}`,
+      leftLabelSingular: `${t('caseload')} ${t('bunk')}`,
+    }),
   },
   {
     key: 'lt_team',
-    label: 'Leadership → Team',
-    subtitle: 'LT supervision by program role',
     kind: 'supervision',
     supervisorRoles: ['leadership_team'],
     targetRoleOptions: [
       'counselor', 'unit_head', 'kitchen_staff', 'maintenance', 'camper_care',
     ],
-    leftLabel: 'Program roles',
+    copy: (t) => ({
+      label: `${t('leadership', { capitalize: true })} → ${t('team', { capitalize: true })}`,
+      subtitle: `${t('leadership', { capitalize: true })} supervision by program role`,
+      leftLabel: 'Program roles',
+      leftLabelSingular: 'program role',
+    }),
   },
   {
     key: 'camper_bunk',
-    label: 'Camper → Bunk / Student → Grade',
-    subtitle: 'Subjects placed in bunks or classrooms',
     kind: 'group_membership',
     groupTypes: ['bunk', 'classroom'],
-    eligibleRoles: ['camper', 'student'],
+    // Madrichim are placed in a classroom as subjects, the way campers are
+    // placed in a bunk -- they are also authors of their own self-reflections.
+    eligibleRoles: ['camper', 'student', 'madrich'],
     roleInGroup: 'subject',
-    leftLabel: 'Groups',
+    copy: (t) => ({
+      label: `${t('camper', { capitalize: true })} → ${t('bunk', { capitalize: true })}`,
+      subtitle: `${t('camper', { plural: true, capitalize: true })} placed in ${t('bunk', { plural: true })}`,
+      leftLabel: t('bunk', { plural: true, capitalize: true }),
+      leftLabelSingular: t('bunk'),
+    }),
   },
   {
     key: 'supervisor_status',
-    label: 'Supervisor status',
-    subtitle: 'Who a person supervises + reflection visibility',
     kind: 'supervisor_status',
-    leftLabel: 'People',
+    copy: () => ({
+      label: 'Supervisor status',
+      subtitle: 'Who a person supervises + reflection visibility',
+      leftLabel: 'People',
+      leftLabelSingular: 'person',
+    }),
   },
 ];
 
-export function tabConfigFor(key) {
-  return SUB_TABS.find((t) => t.key === key) ?? SUB_TABS[0];
+/** Resolve one tab's copy against the tenant's vocabulary. */
+export function localizeSubTab(tab, term) {
+  return { ...tab, ...tab.copy(term) };
+}
+
+function tabMatchesOrg(tab, roles, groupTypes) {
+  // The inspector works off people alone, so it applies to every org.
+  if (tab.kind === 'supervisor_status') return true;
+  const tabRoles = tab.eligibleRoles || tab.supervisorRoles;
+  if (tabRoles && !tabRoles.some((r) => roles.has(r))) return false;
+  if (tab.groupTypes && !tab.groupTypes.some((g) => groupTypes.has(g))) return false;
+  return true;
+}
+
+/**
+ * Narrow the sub-tabs to the relationship shapes this org actually has.
+ *
+ * A religious school has no bunks or unit heads, so those tabs can only ever
+ * render an empty three-pane screen. Pass `null` to opt out of filtering.
+ */
+export function visibleSubTabs(facets) {
+  if (!facets) return SUB_TABS;
+  const roles = new Set(facets.roles || []);
+  const groupTypes = new Set(facets.group_types || []);
+  const matched = SUB_TABS.filter((t) => tabMatchesOrg(t, roles, groupTypes));
+  // An org part-way through onboarding matches nothing yet; hiding every tab
+  // would leave no way to make the first assignment.
+  return matched.some((t) => t.kind !== 'supervisor_status') ? matched : SUB_TABS;
 }

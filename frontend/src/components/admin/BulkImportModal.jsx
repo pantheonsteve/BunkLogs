@@ -34,15 +34,13 @@ export default function BulkImportModal({ programs, onClose }) {
   const [templateLoading, setTemplateLoading] = useState(false);
 
   useEffect(() => {
-    if (source !== 'campminder') {
-      setTemplates([]);
-      return;
-    }
+    let cancelled = false;
     setTemplateLoading(true);
     listAdminPeopleImportTemplates(source)
-      .then((data) => setTemplates(data.templates || []))
-      .catch(() => setTemplates([]))
-      .finally(() => setTemplateLoading(false));
+      .then((data) => { if (!cancelled) setTemplates(data.templates || []); })
+      .catch(() => { if (!cancelled) setTemplates([]); })
+      .finally(() => { if (!cancelled) setTemplateLoading(false); });
+    return () => { cancelled = true; };
   }, [source]);
 
   const handleDownloadTemplate = async (variant) => {
@@ -123,48 +121,43 @@ export default function BulkImportModal({ programs, onClose }) {
               ))}
             </select>
           </label>
-          {source === 'campminder' && (
+          {(templateLoading || templates.length > 0) && (
             <section className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-2 dark:bg-gray-800">
               <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
                 CSV templates
               </p>
               <p className="text-xs text-gray-600 dark:text-gray-300">
-                Download an example file with the required column headers. Include a
-                {' '}
-                <code className="font-mono">Role</code>
-                {' '}
-                column to assign memberships (e.g.
-                {' '}
-                <code className="font-mono">counselor</code>
-                ,
-                {' '}
-                <code className="font-mono">maintenance</code>
-                ,
-                {' '}
-                <code className="font-mono">administrative_staff</code>
-                ,
-                {' '}
-                <code className="font-mono">medical</code>
-                ).
+                Download an example file with the column headers this source expects.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {templateLoading && (
-                  <span className="text-xs text-gray-500">Loading templates…</span>
-                )}
+              {templateLoading && (
+                <span className="text-xs text-gray-500">Loading templates…</span>
+              )}
+              <ul className="space-y-2">
                 {templates.map((template) => (
-                  <button
-                    key={template.variant}
-                    type="button"
-                    data-testid={`bulk-import-template-${template.variant}`}
-                    onClick={() => handleDownloadTemplate(template.variant)}
-                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 dark:bg-gray-900"
-                  >
-                    Download
-                    {' '}
-                    {template.label}
-                  </button>
+                  <li key={template.variant} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        data-testid={`bulk-import-template-${template.variant}`}
+                        onClick={() => handleDownloadTemplate(template.variant)}
+                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 dark:bg-gray-900"
+                      >
+                        Download
+                        {' '}
+                        {template.label}
+                      </button>
+                      <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">
+                        {(template.required_headers || []).join(', ')}
+                      </span>
+                    </div>
+                    {template.notes && (
+                      <p className="text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                        {template.notes}
+                      </p>
+                    )}
+                  </li>
                 ))}
-              </div>
+              </ul>
             </section>
           )}
           <label className="block text-xs font-medium">CSV file

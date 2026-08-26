@@ -451,6 +451,39 @@ class TestAdminAssignments:
         assert rows[0]["group_id"] == team.id
         assert rows[0]["membership_role"] == "kitchen_staff"
 
+    def test_counselor_bunk_accepts_a_classroom_author(
+        self, api, org, program, admin_user,
+    ):
+        """A school's faculty-on-classroom rides the same sub_tab as counselor-on-bunk."""
+        with organization_context(org):
+            classroom = AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Grade 9",
+                slug="grade-9", group_type="classroom",
+            )
+            person = Person.all_objects.create(
+                organization=org, first_name="Fa", last_name="Culty",
+            )
+            Membership.all_objects.create(
+                program=program, person=person, role="faculty", is_active=True,
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            created = api.post(self.URL, {
+                "sub_tab": "counselor_bunk",
+                "group_id": classroom.id,
+                "person_id": person.id,
+            }, format="json", **_hdr(org.slug))
+            assert created.status_code == 201, created.content
+            listed = api.get(
+                self.URL, {"sub_tab": "counselor_bunk"}, **_hdr(org.slug),
+            )
+        assert listed.status_code == 200
+        rows = listed.json()["results"]
+        assert len(rows) == 1
+        assert rows[0]["group_type"] == "classroom"
+        assert rows[0]["role_in_group"] == "author"
+        assert rows[0]["membership_role"] == "faculty"
+
     def test_staff_team_rejects_non_team_group(
         self, api, org, program, admin_user,
     ):
@@ -476,6 +509,79 @@ class TestAdminAssignments:
             )
         assert r.status_code == 400
         assert "team group" in r.json()["detail"].lower()
+
+
+class TestAdminAssignmentFacets:
+    URL = "/api/v1/admin/assignments/facets/"
+
+    def test_non_admin_blocked(self, api, org, non_admin_user):
+        api.force_authenticate(user=non_admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, **_hdr(org.slug))
+        assert r.status_code == 403
+
+    def test_reports_only_roles_and_group_types_present(
+        self, api, org, program, admin_user,
+    ):
+        with organization_context(org):
+            person = Person.all_objects.create(
+                organization=org, first_name="Mad", last_name="Rich",
+            )
+            Membership.all_objects.create(
+                program=program, person=person, role="madrich", is_active=True,
+            )
+            AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Kitah Alef",
+                slug="kitah-alef", group_type="classroom",
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["group_types"] == ["classroom"]
+        assert "madrich" in body["roles"]
+        assert "counselor" not in body["roles"]
+
+    def test_excludes_other_orgs_and_inactive_rows(
+        self, api, org, other_org, program, admin_user,
+    ):
+        with organization_context(other_org):
+            other_program = Program.all_objects.create(
+                organization=other_org, name="PR2 Other Summer",
+                slug="pr2-other-summer", program_type="summer_camp",
+                start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+            )
+            other_person = Person.all_objects.create(
+                organization=other_org, first_name="El", last_name="Sewhere",
+            )
+            Membership.all_objects.create(
+                program=other_program, person=other_person,
+                role="counselor", is_active=True,
+            )
+            AssignmentGroup.all_objects.create(
+                organization=other_org, program=other_program, name="Bunk 9",
+                slug="bunk-9", group_type="bunk",
+            )
+        with organization_context(org):
+            retired = Person.all_objects.create(
+                organization=org, first_name="Re", last_name="Tired",
+            )
+            Membership.all_objects.create(
+                program=program, person=retired, role="specialist", is_active=False,
+            )
+            AssignmentGroup.all_objects.create(
+                organization=org, program=program, name="Old Unit",
+                slug="old-unit", group_type="unit", is_active=False,
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, **_hdr(org.slug))
+        assert r.status_code == 200
+        body = r.json()
+        assert "counselor" not in body["roles"]
+        assert "specialist" not in body["roles"]
+        assert body["group_types"] == []
 
 
 # ---------------------------------------------------------------------------

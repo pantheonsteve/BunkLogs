@@ -12,13 +12,21 @@ vi.mock('../../../api/admin', () => ({
   listAdminPrograms: vi.fn(),
   createAdminAssignment: vi.fn(),
   patchAdminAssignment: vi.fn(),
+  getAdminAssignmentFacets: vi.fn(),
+}));
+
+vi.mock('../../../api/organization', () => ({
+  fetchOrganizationBranding: vi.fn(),
 }));
 
 import api from '../../../api';
+import { fetchOrganizationBranding } from '../../../api/organization';
+import { OrgBrandingProvider } from '../../../context/OrgBrandingContext';
 import {
   listAdminAssignments,
   listAdminPrograms,
   createAdminAssignment,
+  getAdminAssignmentFacets,
 } from '../../../api/admin';
 import AdminAssignments from '../Assignments';
 
@@ -29,18 +37,21 @@ beforeEach(() => {
   vi.clearAllMocks();
   listAdminPrograms.mockResolvedValue({ results: [program, endedProgram] });
   listAdminAssignments.mockResolvedValue({ results: [] });
-  api.get.mockImplementation(async (url) => {
+  // Null facets means "don't filter", so the other tests see all sub-tabs.
+  getAdminAssignmentFacets.mockResolvedValue(null);
+  fetchOrganizationBranding.mockResolvedValue({ slug: 'clc', name: 'Crane Lake' });
+  api.get.mockImplementation(async (url, config) => {
     if (url.includes('/assignment-groups/')) {
-      return {
-        data: {
-          results: [{
-            id: 10,
-            name: 'Bunk Maple',
-            parent_name: 'Unit A',
-            program_name: 'Summer 2026',
-          }],
-        },
-      };
+      // A group has exactly one type, so only the matching query returns it.
+      const results = config?.params?.group_type === 'bunk'
+        ? [{
+          id: 10,
+          name: 'Bunk Maple',
+          parent_name: 'Unit A',
+          program_name: 'Summer 2026',
+        }]
+        : [];
+      return { data: { results } };
     }
     if (url.includes('/memberships/')) {
       return {
@@ -130,6 +141,73 @@ describe('AdminAssignments', () => {
     fireEvent.click(screen.getByText('Bunk Maple'));
 
     expect(select).toHaveValue('1');
+  });
+
+  it('hides sub-tabs for relationship shapes the org does not have', async () => {
+    // Temple Beth-El's real shape: faculty author for a classroom, madrichim
+    // are the subjects in it. Neither role appears in the camp-only tabs.
+    getAdminAssignmentFacets.mockResolvedValue({
+      roles: ['admin', 'faculty', 'madrich'],
+      group_types: ['classroom'],
+    });
+    api.get.mockImplementation(async (url, config) => {
+      if (url.includes('/assignment-groups/')) {
+        const results = config?.params?.group_type === 'classroom'
+          ? [{ id: 20, name: 'Kitah Alef', program_name: 'Summer 2026' }]
+          : [];
+        return { data: { results } };
+      }
+      return { data: { results: [] } };
+    });
+    render(<AdminAssignments />);
+
+    // The two classroom relationships survive; the camp-only ones do not.
+    expect(await screen.findByTestId('assignment-sub-tab-camper_bunk')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('assignment-sub-tab-uh_unit')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('assignment-sub-tab-counselor_bunk')).toBeInTheDocument();
+    expect(screen.queryByTestId('assignment-sub-tab-staff_team')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assignment-sub-tab-cc_caseload')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assignment-sub-tab-lt_team')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('assignment-tabs-toggle'));
+    expect(screen.getByTestId('assignment-sub-tab-uh_unit')).toBeInTheDocument();
+  });
+
+  it("labels sub-tabs with the tenant's own vocabulary", async () => {
+    getAdminAssignmentFacets.mockResolvedValue({
+      roles: ['admin', 'faculty', 'madrich'],
+      group_types: ['classroom'],
+    });
+    fetchOrganizationBranding.mockResolvedValue({
+      slug: 'tbe',
+      name: 'Temple Beth-El',
+      branding: { display_name: 'Temple Beth-El' },
+      terminology: {
+        camper: { one: 'student', other: 'students' },
+        bunk: { one: 'class', other: 'classes' },
+        counselor: { one: 'faculty', other: 'faculty' },
+      },
+    });
+    render(
+      <OrgBrandingProvider>
+        <AdminAssignments />
+      </OrgBrandingProvider>,
+    );
+
+    const subjectTab = await screen.findByTestId('assignment-sub-tab-camper_bunk');
+    await waitFor(() => expect(subjectTab).toHaveTextContent('Student → Class'));
+    expect(subjectTab).toHaveTextContent('Students placed in classes');
+    expect(screen.getByTestId('assignment-sub-tab-counselor_bunk'))
+      .toHaveTextContent('Faculty → Class');
+
+    // The slug stays canonical even though the noun changed.
+    await waitFor(() => {
+      expect(listAdminAssignments).toHaveBeenCalledWith(
+        expect.objectContaining({ sub_tab: 'counselor_bunk' }),
+      );
+    });
   });
 
   it('bulk assign posts once per selected person', async () => {

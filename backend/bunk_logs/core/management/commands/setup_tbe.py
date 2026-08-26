@@ -60,6 +60,13 @@ CANONICAL_ORG_SETTINGS: dict[str, Any] = {
         "camper": {"one": "student", "other": "students"},
         "director": {"one": "Ed Team", "other": "Ed Team"},
         "cohort": {"one": "Teaching Team", "other": "Teaching Teams"},
+        # Faculty author for a class the way counselors author for a bunk;
+        # madrichim are the subjects placed inside one, so they answer to
+        # ``camper`` ("student") above rather than to ``counselor``. Rows still
+        # store ``group_type="classroom"`` and ``role="faculty"`` -- only the
+        # rendered noun changes.
+        "bunk": {"one": "class", "other": "classes"},
+        "counselor": {"one": "faculty", "other": "faculty"},
     },
 }
 

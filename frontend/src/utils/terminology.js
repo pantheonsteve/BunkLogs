@@ -15,6 +15,20 @@ export const DEFAULT_TERMS = Object.freeze({
   student: { one: 'student', other: 'students' },
   director: { one: 'Director', other: 'Directors' },
   cohort: { one: 'cohort', other: 'cohorts' },
+  // Group nouns. The canonical key stays the camp word even where a tenant
+  // renames it, the same way `camper` does — `group_type` still stores `bunk`
+  // when a school renders it as "class".
+  bunk: { one: 'bunk', other: 'bunks' },
+  unit: { one: 'unit', other: 'units' },
+  team: { one: 'team', other: 'teams' },
+  caseload: { one: 'caseload', other: 'caseloads' },
+  // Role nouns, for screens that name a role in prose. These do NOT rename
+  // `Membership.role` slugs, which route templates and derive capabilities.
+  counselor: { one: 'counselor', other: 'counselors' },
+  unit_head: { one: 'unit head', other: 'unit heads' },
+  camper_care: { one: 'Camper Care', other: 'Camper Care' },
+  leadership: { one: 'Leadership', other: 'Leadership' },
+  staff: { one: 'staff', other: 'staff' },
 });
 
 /** Merge an API `terminology` payload over the defaults, per key and per form. */
