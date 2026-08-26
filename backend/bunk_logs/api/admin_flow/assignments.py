@@ -294,7 +294,10 @@ class AdminAssignmentsListCreateView(APIView):
         if not sub_tab or sub_tab in GROUP_SUB_TABS:
             qs = AssignmentGroupMembership.objects.select_related("group", "person")
             if sub_tab == "counselor_bunk":
-                qs = qs.filter(role_in_group="author", group__group_type="bunk")
+                qs = qs.filter(
+                    role_in_group="author",
+                    group__group_type__in=("bunk", "classroom"),
+                )
             elif sub_tab == "staff_team":
                 qs = qs.filter(role_in_group="author", group__group_type="team")
             elif sub_tab == "camper_bunk":
@@ -629,8 +632,9 @@ class AdminAssignmentDetailView(APIView):
 
 def _group_sub_tab_mismatch(group: AssignmentGroup, sub_tab: str) -> str | None:
     """Return an error message when ``group`` does not match ``sub_tab``."""
-    if sub_tab == "counselor_bunk" and group.group_type != "bunk":
-        return "counselor_bunk assignments require a bunk group."
+    # A school authors on a classroom what a camp authors on a bunk.
+    if sub_tab == "counselor_bunk" and group.group_type not in ("bunk", "classroom"):
+        return "counselor_bunk assignments require a bunk or classroom group."
     if sub_tab == "staff_team" and group.group_type != "team":
         return "staff_team assignments require a team group."
     if sub_tab == "camper_bunk" and group.group_type not in ("bunk", "classroom"):
@@ -722,6 +726,42 @@ def _people_summary(person_ids: set[int], org_id: int, *, limit: int = 500) -> l
         {"id": p.id, "name": p.full_name, "role": role_by_person.get(p.id)}
         for p in persons
     ]
+
+
+class AdminAssignmentFacetsView(APIView):
+    """GET `/admin/assignments/facets/` -- which roles and group types exist here.
+
+    The admin Assignments screen offers one sub-tab per relationship type
+    (Counselor to Bunk, Unit Head to Unit, ...), but those are camp shapes;
+    a religious school has neither bunks nor unit heads. Rather than making
+    tenants configure a tab list, the UI derives it from the roster the org
+    already has, so it stays correct as the org grows.
+
+    Display only -- callers must not use this to decide what a user may do.
+    """
+
+    permission_classes = [IsOrgAdminOrSuperuser]
+
+    def get(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        roles = (
+            Membership.all_objects.filter(
+                program__organization=ctx.organization, is_active=True,
+            )
+            .values_list("role", flat=True)
+            .distinct()
+        )
+        group_types = (
+            AssignmentGroup.all_objects.filter(
+                organization=ctx.organization, is_active=True,
+            )
+            .values_list("group_type", flat=True)
+            .distinct()
+        )
+        return Response({
+            "roles": sorted(r for r in roles if r),
+            "group_types": sorted(g for g in group_types if g),
+        })
 
 
 class AdminSupervisorStatusView(APIView):

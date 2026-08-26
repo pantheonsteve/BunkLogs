@@ -33,9 +33,6 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.core.campminder_csv import IMPORT_TEMPLATE_VARIANTS
-from bunk_logs.core.campminder_csv import build_import_template_csv
-from bunk_logs.core.campminder_csv import list_import_template_variants
 from bunk_logs.core.campminder_csv import normalize_campminder_row
 from bunk_logs.core.campminder_csv import read_campminder_csv_bytes
 from bunk_logs.core.campminder_person_match import MatchStrategy
@@ -48,6 +45,9 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import RosterImportLog
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
+from bunk_logs.core.roster_import_templates import build_template_csv
+from bunk_logs.core.roster_import_templates import list_template_variants
+from bunk_logs.core.roster_import_templates import variants_for_source
 
 from .common import viewer_or_403
 
@@ -300,28 +300,29 @@ class AdminBulkImportTemplateView(APIView):
     def get(self, request, *args, **kwargs):
         viewer_or_403(request)
         source = (request.query_params.get("source") or "campminder").strip().lower()
-        if source != "campminder":
+        if source not in SUPPORTED_SOURCES:
             return Response(
-                {"detail": "Templates are only available for source=campminder."},
+                {"detail": f"source must be one of {SUPPORTED_SOURCES}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        available = variants_for_source(source)
         variant = (request.query_params.get("variant") or "").strip().lower()
         if not variant:
             return Response({
                 "source": source,
-                "templates": list_import_template_variants(),
+                "templates": list_template_variants(source),
             })
-        if variant not in IMPORT_TEMPLATE_VARIANTS:
+        if variant not in available:
             return Response(
                 {
                     "detail": (
-                        f"Unknown variant {variant!r}. "
-                        f"Choose one of: {', '.join(IMPORT_TEMPLATE_VARIANTS)}."
+                        f"Unknown variant {variant!r} for source {source!r}. "
+                        f"Choose one of: {', '.join(available)}."
                     ),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        filename, csv_text = build_import_template_csv(variant)
+        filename, csv_text = build_template_csv(source, variant)
         response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response

@@ -10,6 +10,7 @@ from django.urls import path
 from bunk_logs.api.audit import AuditEventViewSet
 
 from .assignments import AdminAssignmentDetailView
+from .assignments import AdminAssignmentFacetsView
 from .assignments import AdminAssignmentsListCreateView
 from .assignments import AdminSupervisorStatusView
 from .catalog import AdminCatalogImportView
@@ -129,6 +130,11 @@ urlpatterns = [
     # Assignments (Story 56) — single endpoint, 5 sub-tabs
     # ------------------------------------------------------------------
     path("assignments/", AdminAssignmentsListCreateView.as_view(), name="admin-assignments"),
+    path(
+        "assignments/facets/",
+        AdminAssignmentFacetsView.as_view(),
+        name="admin-assignment-facets",
+    ),
     path(
         "assignments/supervisor-status/",
         AdminSupervisorStatusView.as_view(),

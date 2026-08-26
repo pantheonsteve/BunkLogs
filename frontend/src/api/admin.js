@@ -142,6 +142,12 @@ export async function patchAdminAssignment(assignmentId, kind, patch) {
   return resp?.data ?? null;
 }
 
+/** Roles and group types this org actually has, for deriving relevant sub-tabs. */
+export async function getAdminAssignmentFacets() {
+  const resp = await api.get(`${ADMIN_BASE}/assignments/facets/`);
+  return resp?.data ?? null;
+}
+
 /** Read-only supervisor-status inspector for a given person. */
 export async function getAdminSupervisorStatus(personId) {
   const resp = await api.get(`${ADMIN_BASE}/assignments/supervisor-status/`, {
