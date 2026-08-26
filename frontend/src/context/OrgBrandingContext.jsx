@@ -17,10 +17,16 @@
  *
  * Uploaded logo/hero URLs from the API take precedence over bundled CLC
  * assets when present (admin can override CLC images without a deploy).
+ *
+ * The same payload carries the tenant's `terminology` (see
+ * `utils/terminology.js`), consumed through `useTerm()`. Unlike display
+ * name, terminology defaults are shared by every org including CLC, so
+ * they hydrate from the API for all tenants.
  */
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { fetchOrganizationBranding } from '../api/organization';
 import { resolveOrganizationSlug } from '../utils/orgSlug';
+import { DEFAULT_TERMS, normalizeTerminology, resolveTerm } from '../utils/terminology';
 
 const OrgBrandingContext = createContext(null);
 
@@ -31,6 +37,7 @@ const CLC_BRANDING = Object.freeze({
   isClc: true,
   logoUrl: null,
   heroUrl: null,
+  terminology: DEFAULT_TERMS,
 });
 
 /** Build branding state from a resolved tenant slug (sync, no network). */
@@ -46,6 +53,7 @@ export function brandingFromSlug(slug, { loading = false } = {}) {
     isClc: false,
     logoUrl: null,
     heroUrl: null,
+    terminology: DEFAULT_TERMS,
     loading,
   };
 }
@@ -58,8 +66,9 @@ function normalizeBranding(data) {
   const slug = data?.slug ?? null;
   const logoUrl = data?.branding?.logo_url || null;
   const heroUrl = data?.branding?.hero_url || null;
+  const terminology = normalizeTerminology(data?.terminology);
   if (slug === null || slug === 'clc') {
-    return { ...CLC_BRANDING, slug, logoUrl, heroUrl, loading: false };
+    return { ...CLC_BRANDING, slug, logoUrl, heroUrl, terminology, loading: false };
   }
   return {
     slug,
@@ -68,6 +77,7 @@ function normalizeBranding(data) {
     isClc: false,
     logoUrl,
     heroUrl,
+    terminology,
     loading: false,
   };
 }
@@ -105,4 +115,18 @@ export function OrgBrandingProvider({ children }) {
 
 export function useOrgBranding() {
   return useContext(OrgBrandingContext) || initialBranding();
+}
+
+/**
+ * `term('cohort')` -> the current tenant's word for it.
+ *
+ * Options: `{ plural: true }` for the "other" form, `{ capitalize: true }`
+ * when the noun opens a sentence or a heading.
+ */
+export function useTerm() {
+  const { terminology } = useOrgBranding();
+  return useCallback(
+    (key, options) => resolveTerm(terminology, key, options),
+    [terminology],
+  );
 }

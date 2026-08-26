@@ -40,6 +40,7 @@ REFLECTION_FIELD_TYPES = ALL_FIELD_TYPES
 # expected to query on capability, not branch on individual role labels.
 ROLE_TO_CAPABILITY: dict[str, str] = {
     "camper": "participant",
+    "student": "participant",
     "counselor": "participant",
     "junior_counselor": "participant",
     "specialist": "participant",
@@ -367,7 +368,7 @@ class Person(models.Model):
 class Membership(models.Model):
     """A Person's participation in a Program with a specific role.
 
-    ``role`` is the customer-facing label and template-routing key (18 values).
+    ``role`` is the customer-facing label and template-routing key (19 values).
     ``capability`` is a derived RBAC layer with 5 values, kept in sync from
     ``role`` via ``ROLE_TO_CAPABILITY`` on every ``save()``. Permission code
     should query on ``capability``; do not mutate ``role`` via
@@ -376,6 +377,10 @@ class Membership(models.Model):
 
     ROLES = [
         ("camper", "Camper"),
+        # Religious-school counterpart to ``camper``. Kept as a distinct role
+        # rather than a per-org label so camp and school subjects can diverge
+        # in template routing and reporting later.
+        ("student", "Student"),
         ("counselor", "Counselor"),
         ("junior_counselor", "Junior Counselor"),
         ("specialist", "Specialist"),

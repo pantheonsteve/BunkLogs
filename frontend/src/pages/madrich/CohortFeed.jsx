@@ -15,6 +15,7 @@ import {
   fetchCohortFeed, fetchCohortMembers, setShareHidden, toggleShareLike,
 } from '../../api/threads';
 import { useAuth } from '../../auth/AuthContext';
+import { useTerm } from '../../context/OrgBrandingContext';
 import BackLink from '../../components/ui/BackLink';
 import CardSkeleton from '../../components/ui/CardSkeleton';
 import EmptyState from '../../components/ui/EmptyState';
@@ -37,10 +38,11 @@ function backHomePath(user) {
 }
 
 function MembersCard({ members }) {
+  const term = useTerm();
   if (!members || members.length === 0) return null;
   return (
     <HomeCard
-      title="My cohort"
+      title={`My ${term('cohort')}`}
       subtitle={`${members.length} classmate${members.length === 1 ? '' : 's'}`}
       accent="violet"
       icon={Users}
@@ -70,6 +72,7 @@ function MembersCard({ members }) {
 
 function Post({ post, onLike, onHide }) {
   const [pending, setPending] = useState(false);
+  const term = useTerm();
 
   async function act(fn) {
     setPending(true);
@@ -109,7 +112,7 @@ function Post({ post, onLike, onHide }) {
           className="mt-2 inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200"
           data-testid={`cohort-hidden-${post.id}`}
         >
-          Hidden from the cohort.
+          {`Hidden from the ${term('cohort')}.`}
         </p>
       )}
 
@@ -176,6 +179,7 @@ function Post({ post, onLike, onHide }) {
 
 export default function MadrichCohortFeed() {
   const { orgSlug, user } = useAuth();
+  const term = useTerm();
   const [feed, setFeed] = useState(null);
   const [members, setMembers] = useState([]);
   const [error, setError] = useState(null);
@@ -191,9 +195,9 @@ export default function MadrichCohortFeed() {
       setFeed(feedData);
       setMembers(memberData?.results || []);
     } catch {
-      setError('Could not load the cohort feed.');
+      setError(`Could not load the ${term('cohort')} feed.`);
     }
-  }, [orgSlug]);
+  }, [orgSlug, term]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -226,7 +230,7 @@ export default function MadrichCohortFeed() {
       <div>
         <BackLink to={backTo} label="Back to home" data-testid="md-cohort-back" />
         <div className="mt-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 shadow-md">
-          <h1 className="text-xl font-bold text-white">My cohort</h1>
+          <h1 className="text-xl font-bold text-white">{`My ${term('cohort')}`}</h1>
           <p className="text-sm text-violet-50">
             Ideas your classmates chose to share from their reflections.
           </p>
@@ -239,7 +243,7 @@ export default function MadrichCohortFeed() {
         <CardSkeleton rows={4} data-testid="md-cohort-loading" />
       ) : posts.length === 0 ? (
         <EmptyState title="No posts yet" data-testid="md-cohort-empty">
-          When someone shares an idea with the cohort, it shows up here.
+          {`When someone shares an idea with the ${term('cohort')}, it shows up here.`}
         </EmptyState>
       ) : (
         <div className="space-y-3" data-testid="md-cohort-list">

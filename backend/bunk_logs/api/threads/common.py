@@ -34,6 +34,7 @@ from bunk_logs.core.reflection_threads import cohort_group_ids
 from bunk_logs.core.reflection_threads import excerpt
 from bunk_logs.core.reflection_threads import field_prompt
 from bunk_logs.core.reflection_threads import schema_fields
+from bunk_logs.core.terminology import term
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -319,10 +320,14 @@ def readable_threads_qs(viewer: ThreadViewer):
 # ---------------------------------------------------------------------------
 
 
-def entry_field_label(thread: EntryThread, language: str = "en") -> str:
+def entry_field_label(
+    thread: EntryThread,
+    language: str = "en",
+    org: Organization | None = None,
+) -> str:
     """Human label for the answer a thread hangs off, from the template schema."""
     if thread.cohort_share_id:
-        return "Cohort post"
+        return f"{term(org, 'cohort', capitalize=True)} post"
     reflection = thread.reflection
     if reflection is None or reflection.template is None:
         return thread.field_key
@@ -373,6 +378,7 @@ def thread_list_item(
     message_count: int = 0,
     last_message: ThreadMessage | None = None,
     today: date | None = None,
+    org: Organization | None = None,
 ) -> dict:
     """A queue or list row: enough to render without opening the thread."""
     body = entry_body(thread)
@@ -386,7 +392,7 @@ def thread_list_item(
             "display_name": display_name(thread.subject_person),
         },
         "field_key": thread.field_key,
-        "field_label": entry_field_label(thread),
+        "field_label": entry_field_label(thread, org=org),
         "item_index": thread.item_index,
         "excerpt": excerpt(body),
         "routes_to": thread.routes_to,
@@ -416,7 +422,7 @@ def thread_detail(thread: EntryThread, messages: list[ThreadMessage], viewer: Th
             "display_name": display_name(thread.subject_person),
         },
         "field_key": thread.field_key,
-        "field_label": entry_field_label(thread),
+        "field_label": entry_field_label(thread, org=viewer.organization),
         "item_index": thread.item_index,
         "body": entry_body(thread),
         "routes_to": thread.routes_to,

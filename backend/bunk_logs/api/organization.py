@@ -12,6 +12,11 @@ Deliberately narrow: only display-oriented keys from
 returned, never the full ``settings`` blob, since that also holds
 operational config (reminder schedules, maintenance recipients, etc.)
 that shouldn't be public.
+
+``terminology`` rides along for the same reason branding does -- the app
+shell needs the tenant's nouns before login resolves. It is display-only
+(see ``core.terminology``) and leaks nothing an unauthenticated visitor
+can't already read off the sign-in page.
 """
 from __future__ import annotations
 
@@ -21,6 +26,8 @@ from rest_framework.decorators import api_view
 from rest_framework.decorators import permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+from bunk_logs.core.terminology import terms_for_organization
 
 DEFAULT_BRANDING: dict[str, str | None] = {
     "display_name": "BunkLogs",
@@ -63,6 +70,7 @@ def branding(request) -> Response:
             "slug": None,
             "name": None,
             "branding": dict(DEFAULT_BRANDING),
+            "terminology": terms_for_organization(None),
         }
         return Response(payload)
 
@@ -70,5 +78,6 @@ def branding(request) -> Response:
         "slug": org.slug,
         "name": org.name,
         "branding": _branding_for_organization(org, request),
+        "terminology": terms_for_organization(org),
     }
     return Response(payload)
