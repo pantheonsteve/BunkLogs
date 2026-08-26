@@ -20,3 +20,9 @@ vi.mock('./components/form/Wysiwyg', () => ({
 // Mock environment variables for tests
 process.env.VITE_GOOGLE_CLIENT_ID = 'test-google-client-id';
 process.env.VITE_API_BASE_URL = 'http://localhost:8000';
+
+// Vitest loads frontend/.env, so a developer's local tenant override would
+// otherwise decide which org `resolveOrganizationSlug()` reports and quietly
+// fail every current-org assertion whose fixture uses a different slug.
+// Tests that care about the override set it themselves.
+vi.stubEnv('VITE_DEV_ORGANIZATION_SLUG', '');
