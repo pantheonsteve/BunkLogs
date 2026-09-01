@@ -30,6 +30,7 @@ import {
 import { uploadMaintenanceTicketPhoto } from '../../api/counselor';
 import AuditTrail from '../../components/AuditTrail';
 import AdminViewingBanner from '../../components/admin/AdminViewingBanner';
+import Badge from '../../components/ui/Badge';
 import { useAuth } from '../../auth/AuthContext';
 
 const STATUS_BADGE = {
@@ -559,9 +560,7 @@ export default function TicketDetail() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
                   {ticket.category?.replace(/_/g, ' ')}
                   {ticket.urgency === 'urgent' && (
-                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100 text-xs font-semibold">
-                      Urgent
-                    </span>
+                    <Badge inline tone="danger" className="font-semibold">Urgent</Badge>
                   )}
                 </p>
                 {ticket.urgency === 'urgent' && ticket.urgent_reason && (

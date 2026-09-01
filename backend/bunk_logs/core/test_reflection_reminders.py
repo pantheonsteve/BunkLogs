@@ -19,6 +19,8 @@ from bunk_logs.core.tasks import _parse_reminder_schedule
 from bunk_logs.core.tasks import _schedule_is_due
 from bunk_logs.core.tasks import dispatch_reflection_reminders
 from bunk_logs.core.tasks import send_reflection_reminders
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 MINIMAL_SCHEMA = {
     "fields": [
@@ -44,8 +46,8 @@ def program(org):
         name="Crane Lake - Summer 2026",
         slug="summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
         is_active=True,
     )
 

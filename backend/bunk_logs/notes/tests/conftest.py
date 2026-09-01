@@ -18,6 +18,8 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Supervision
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 
 def _user(email):
@@ -54,8 +56,8 @@ def program(org):
         name="Notes Org Summer 2026",
         slug="notes-summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -66,8 +68,8 @@ def other_program(other_org):
         name="Other Org Summer 2026",
         slug="other-notes-summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

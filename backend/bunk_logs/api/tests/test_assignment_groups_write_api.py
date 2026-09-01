@@ -16,6 +16,8 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -41,8 +43,8 @@ def program(org):
         name="Write API Org Summer",
         slug="write-api-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -53,8 +55,8 @@ def program_b(org_b):
         name="Write API Org B Summer",
         slug="write-api-summer-b",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -366,8 +368,8 @@ class TestRemoveMembership:
             name="Write API Org Session 2",
             slug="write-api-session-2",
             program_type="summer_camp",
-            start_date=date(2026, 6, 1),
-            end_date=date(2026, 8, 31),
+            start_date=SEASON_START,
+            end_date=SEASON_END,
         )
         AssignmentGroup.all_objects.create(
             organization=org, program=program, name="Bunk Maple",
@@ -415,8 +417,8 @@ class TestCloneGroup:
             name="Write API Org Session 2",
             slug="write-api-session-2-clone",
             program_type="summer_camp",
-            start_date=date(2026, 6, 1),
-            end_date=date(2026, 8, 31),
+            start_date=SEASON_START,
+            end_date=SEASON_END,
         )
         team = AssignmentGroup.all_objects.create(
             organization=org,
@@ -471,8 +473,8 @@ class TestCloneGroup:
             name="Write API Org Session 2",
             slug="session-2-clone-denied",
             program_type="summer_camp",
-            start_date=date(2026, 6, 1),
-            end_date=date(2026, 8, 31),
+            start_date=SEASON_START,
+            end_date=SEASON_END,
         )
         user, _ = regular_user
         client.force_authenticate(user=user)

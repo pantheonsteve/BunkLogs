@@ -7,7 +7,6 @@ endpoint, plus org isolation for the most leak-prone surface (search).
 from __future__ import annotations
 
 import io
-from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -23,6 +22,8 @@ from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -57,7 +58,7 @@ def program(org):
     return Program.all_objects.create(
         organization=org, name="PR3 Org Summer", slug="pr3-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
 
 
@@ -66,7 +67,7 @@ def other_program(other_org):
     return Program.all_objects.create(
         organization=other_org, name="PR3 Other Summer", slug="pr3-other-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
 
 

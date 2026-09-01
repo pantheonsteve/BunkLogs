@@ -20,6 +20,7 @@ import {
   HeartHandshake,
 } from 'lucide-react';
 import { fetchCounselorDashboard } from '../../api/counselor';
+import Badge from '../../components/ui/Badge';
 import { SUBMISSION_KIND } from '../../lib/submissionQueue/queue';
 import { useSubmissionQueue } from '../../lib/submissionQueue/useSubmissionQueue';
 import {
@@ -100,18 +101,22 @@ const REQUEST_STATUS_BADGE = {
   unable_to_fulfill: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
 };
 
+// Categorical, not semantic: the colour separates a care request from a
+// maintenance one, so these pass `colors` rather than a tone.
+const REQUEST_TYPE_COLORS = {
+  camper_care: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
+  maintenance: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
+};
+
 function RequestTypeBadge({ type }) {
-  if (type === 'camper_care') {
-    return (
-      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
-        Care
-      </span>
-    );
-  }
+  const isCare = type === 'camper_care';
   return (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200">
-      Maint.
-    </span>
+    <Badge
+      size="xs"
+      colors={isCare ? REQUEST_TYPE_COLORS.camper_care : REQUEST_TYPE_COLORS.maintenance}
+    >
+      {isCare ? 'Care' : 'Maint.'}
+    </Badge>
   );
 }
 
@@ -124,15 +129,15 @@ function RequestRowLink({ request }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <RequestTypeBadge type={request.type} />
-            <span
-              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                REQUEST_STATUS_BADGE[request.status] || REQUEST_STATUS_BADGE.unable_to_fulfill
-              }`}
+            <Badge
+              size="xs"
+              colors={REQUEST_STATUS_BADGE[request.status] || REQUEST_STATUS_BADGE.unable_to_fulfill}
+              className="font-semibold"
             >
               {request.status_label || request.status}
-            </span>
+            </Badge>
           </div>
           <p className="text-sm font-medium text-gray-900 dark:text-white mt-1 truncate">
             {request.title}
@@ -175,9 +180,12 @@ function MyRequestsWidget({ viewerRequests = [], openCount }) {
         <div className="flex items-start justify-between gap-2">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My requests</h2>
           {openCount > 0 ? (
-            <span className="shrink-0 text-xs font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 px-2 py-0.5">
+            <Badge
+              colors="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+              className="shrink-0 font-bold"
+            >
               {openCount} open
-            </span>
+            </Badge>
           ) : null}
         </div>
 
@@ -232,11 +240,9 @@ function AssignmentRow({ assignment }) {
             ) : null}
           </p>
         </div>
-        <span
-          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${badge.className}`}
-        >
+        <Badge size="xs" colors={badge.className} className="shrink-0 font-semibold">
           {badge.label}
-        </span>
+        </Badge>
       </div>
       {assignment.action_path ? (
         <Link
@@ -294,9 +300,13 @@ function BunkTile({ bunk }) {
             ) : null}
           </div>
           {complete ? (
-            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/50 px-2 py-1 rounded-full">
+            <Badge
+              size="xs"
+              colors="bg-emerald-100/90 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+              className="shrink-0 py-1 font-bold uppercase tracking-wide"
+            >
               Complete
-            </span>
+            </Badge>
           ) : null}
         </div>
 
@@ -401,12 +411,13 @@ function SelfReflectionCard({
           My self-reflection
         </h2>
         {template !== null ? (
-          <span
-            className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${badge.className}`}
+          <Badge
+            colors={badge.className}
+            className="shrink-0 font-semibold"
             data-testid="counselor-section-self-state"
           >
             {badge.label}
-          </span>
+          </Badge>
         ) : null}
       </div>
       <div className="text-sm text-gray-700 dark:text-gray-300 flex-1">{summary}</div>
@@ -440,9 +451,12 @@ function QuickActionButton({ to, icon: Icon, label, sublabel, testid, badge }) {
       className="relative flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all min-h-[108px] text-center"
     >
       {badge ? (
-        <span className="absolute top-2 right-2 text-xs font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 px-2 py-0.5">
+        <Badge
+          colors="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+          className="absolute top-2 right-2 font-bold"
+        >
           {badge}
-        </span>
+        </Badge>
       ) : null}
       <Icon className="w-6 h-6 text-blue-600 dark:text-blue-400" aria-hidden="true" />
       <span className="text-sm font-semibold text-gray-900 dark:text-white">{label}</span>

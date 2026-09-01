@@ -20,6 +20,8 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.state_machine import CORRECTION_WINDOW
 from bunk_logs.core.state_machine import OrderStateMachine as StateMachine
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -41,8 +43,8 @@ def program(org):
         name="API SM Org Summer",
         slug="api-sm-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

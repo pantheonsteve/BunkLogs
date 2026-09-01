@@ -7,8 +7,6 @@ sensitivity-map overlay, and the authoring-time recipient gate.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from bunk_logs.core.models import AssignmentGroup
@@ -24,6 +22,8 @@ from bunk_logs.core.permissions.observation_read import view_by_capability_for_o
 from bunk_logs.notes.models import Observation
 from bunk_logs.notes.models import ObservationRecipient
 from bunk_logs.notes.models import ObservationSubject
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 pytestmark = pytest.mark.django_db
 
@@ -44,7 +44,7 @@ def other_org():
 def program(org):
     return Program.all_objects.create(
         organization=org, name="Obs Org Summer", slug="obs-summer",
-        program_type="summer_camp", start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        program_type="summer_camp", start_date=SEASON_START, end_date=SEASON_END,
     )
 
 
@@ -201,7 +201,7 @@ def test_admin_reads_org_wide_all_tiers(org, program):
 def test_cross_org_isolation(org, other_org, program):
     other_program = Program.all_objects.create(
         organization=other_org, name="Obs Other Summer", slug="other-prog",
-        program_type="summer_camp", start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        program_type="summer_camp", start_date=SEASON_START, end_date=SEASON_END,
     )
     admin_other = _person(other_org, "AdminOther")
     _member(other_program, admin_other, "admin")

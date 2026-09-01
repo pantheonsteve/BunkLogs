@@ -18,6 +18,8 @@ from bunk_logs.core.models import OrderActivityEvent
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -39,8 +41,8 @@ def program(org):
         name="MQ Org Summer",
         slug="mq-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -449,8 +451,8 @@ class TestMaintenanceTicketDetail:
             name="Other Other Program",
             slug="other-mq-summer",
             program_type="summer_camp",
-            start_date=date(2026, 6, 1),
-            end_date=date(2026, 8, 31),
+            start_date=SEASON_START,
+            end_date=SEASON_END,
         )
         with organization_context(other_org):
             other_ticket = MaintenanceTicket.objects.create(

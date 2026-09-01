@@ -19,6 +19,8 @@ from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.time_utils import get_today
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -45,7 +47,7 @@ def program(org):
     return Program.all_objects.create(
         organization=org, name="Perf Org Summer 2026", slug="summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
 
 
@@ -100,8 +102,8 @@ def _assign_template(org, program, template, *, group=None):
         template=template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=group,
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
     )
 
