@@ -342,6 +342,11 @@ class Person(models.Model):
     )
     external_ids = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
+    # When the most recent sign-in invitation was sent. Combined with the
+    # linked user's ``last_login`` this gives admin the three states a
+    # director asks about every September: never invited / invited but not
+    # signed in / active. Null means no invitation has ever been sent.
+    invited_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = OrgScopedManager()
@@ -498,6 +503,13 @@ class AssignmentGroup(models.Model):
         related_name="children",
         help_text="For nesting: bunk -> unit -> division",
     )
+    # Directors think PreK -> K -> Grade 1, not alphabetically. Defaults to 0
+    # so ordering falls through to ``name`` and an org that never sets it
+    # keeps the sort it had before this field existed.
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Lower sorts first within a group type. Ties fall back to name.",
+    )
     metadata = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -508,7 +520,7 @@ class AssignmentGroup(models.Model):
 
     class Meta:
         unique_together = [("program", "slug")]
-        ordering = ["group_type", "name"]
+        ordering = ["group_type", "display_order", "name"]
         indexes = [
             models.Index(fields=["program", "group_type", "is_active"]),
             models.Index(fields=["parent"]),

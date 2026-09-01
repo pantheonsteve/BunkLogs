@@ -22,6 +22,11 @@ export const DEFAULT_TERMS = Object.freeze({
   unit: { one: 'unit', other: 'units' },
   team: { one: 'team', other: 'teams' },
   caseload: { one: 'caseload', other: 'caseloads' },
+  // The admin's merged roster area holds every group_type at once, so it needs
+  // a noun broader than `bunk`. A school with only classrooms renames it.
+  group: { one: 'group', other: 'groups' },
+  // `Program` is a year or a season to the people administering it.
+  program: { one: 'program', other: 'programs' },
   // Role nouns, for screens that name a role in prose. These do NOT rename
   // `Membership.role` slugs, which route templates and derive capabilities.
   counselor: { one: 'counselor', other: 'counselors' },

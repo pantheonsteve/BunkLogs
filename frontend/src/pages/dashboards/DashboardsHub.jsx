@@ -42,7 +42,7 @@ const DASHBOARD_CARDS = [
   },
   {
     id: 'logs',
-    title: 'Bunk Logs',
+    title: 'Daily logs',
     blurb:
       'Browse forms assigned to groups and open responses by audience, program, or group.',
     to: '/dashboards/logs',

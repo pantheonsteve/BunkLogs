@@ -31,6 +31,7 @@ from datetime import timedelta
 from typing import Any
 
 from django.db import transaction
+from django.db.models import Q
 from django.db.models.functions import Trim
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -53,10 +54,56 @@ from .common import viewer_or_403
 VALID_ROLES = frozenset(role for role, _ in Membership.ROLES)
 RECENT_ACTIVITY_DAYS = 30
 
+# "Who hasn't logged in yet?" is the most-asked question in September, so the
+# three states are derived once here and reused by the list filter.
+INVITE_NEVER = "never"
+INVITE_INVITED = "invited"
+INVITE_ACTIVE = "active"
+INVITE_STATUSES = frozenset({INVITE_NEVER, INVITE_INVITED, INVITE_ACTIVE})
+
+# Campers are subjects of logs, not users of the product, so "who still
+# needs an invitation" never counts them.
+NON_USER_ROLE = "camper"
+
+
+def invitable_people(organization):
+    """Active non-camper people -- the population an invitation applies to."""
+    return Person.all_objects.filter(
+        organization=organization, memberships__is_active=True,
+    ).exclude(memberships__role=NON_USER_ROLE).distinct()
+
+
+def by_invite_status(queryset, invite_status: str):
+    """Narrow a Person queryset to one of the three invite states.
+
+    Shared by the People list filter, the dashboard's setup card and the
+    sidebar badge so all three agree on what "never invited" means.
+    """
+    signed_in = Q(user__isnull=False) & Q(user__last_login__isnull=False)
+    if invite_status == INVITE_ACTIVE:
+        return queryset.filter(signed_in)
+    if invite_status == INVITE_INVITED:
+        return queryset.exclude(signed_in).filter(invited_at__isnull=False)
+    return queryset.exclude(signed_in).filter(invited_at__isnull=True)
+
 
 # ---------------------------------------------------------------------------
 # Serialisation helpers (lean, hand-rolled — no DRF serializer overhead)
 # ---------------------------------------------------------------------------
+
+
+def _invite_status(person: Person) -> str:
+    """never invited -> invited but never signed in -> active.
+
+    Signing in is the only proof an invitation landed, so ``last_login``
+    outranks ``invited_at``: a person who was imported with a pre-existing
+    login reads as active even though we never emailed them.
+    """
+    if person.user_id and getattr(person.user, "last_login", None):
+        return INVITE_ACTIVE
+    if person.invited_at:
+        return INVITE_INVITED
+    return INVITE_NEVER
 
 
 def _serialize_membership(m: Membership) -> dict:
@@ -76,7 +123,12 @@ def _serialize_membership(m: Membership) -> dict:
     }
 
 
-def _serialize_person(person: Person, *, include_memberships: bool = False) -> dict:
+def _serialize_person(
+    person: Person,
+    *,
+    include_memberships: bool = False,
+    include_summary: bool = False,
+) -> dict:
     payload: dict[str, Any] = {
         "id": person.id,
         "organization_id": person.organization_id,
@@ -91,8 +143,28 @@ def _serialize_person(person: Person, *, include_memberships: bool = False) -> d
         "external_ids": person.external_ids or {},
         "has_user": person.user_id is not None,
         "user_id": person.user_id,
+        "invite_status": _invite_status(person),
+        "invited_at": person.invited_at.isoformat() if person.invited_at else None,
+        "last_login": (
+            person.user.last_login.isoformat()
+            if person.user_id and person.user.last_login
+            else None
+        ),
         "created_at": person.created_at.isoformat() if person.created_at else None,
     }
+    if include_summary:
+        # Filtering by role you can't see is an act of faith, so list rows
+        # carry the same facts the filters narrow on.
+        payload["roles"] = sorted(
+            {m.role for m in person.memberships.all() if m.is_active},
+        )
+        payload["groups"] = sorted(
+            {
+                gm.group.name
+                for gm in person.assignment_group_memberships.all()
+                if gm.is_active and gm.group.is_active
+            },
+        )
     if include_memberships:
         payload["memberships"] = [
             _serialize_membership(m)
@@ -202,6 +274,14 @@ class AdminPeopleListCreateView(APIView):
             # Anyone whose every membership is deactivated.
             qs = qs.exclude(memberships__is_active=True).distinct()
 
+        invite_status = (request.query_params.get("invite_status") or "").strip().lower()
+        if invite_status in INVITE_STATUSES:
+            qs = by_invite_status(qs, invite_status)
+
+        qs = qs.select_related("user").prefetch_related(
+            "memberships",
+            "assignment_group_memberships__group",
+        )
         qs = qs.order_by("last_name", "first_name")
         try:
             page_size = max(1, min(int(request.query_params.get("page_size", "100")), 500))
@@ -217,7 +297,7 @@ class AdminPeopleListCreateView(APIView):
             "count": total,
             "offset": offset,
             "page_size": page_size,
-            "results": [_serialize_person(p) for p in items],
+            "results": [_serialize_person(p, include_summary=True) for p in items],
         })
 
     def post(self, request, *args, **kwargs):
@@ -566,6 +646,77 @@ def _get_membership_or_404(ctx, membership_id) -> Membership | None:
 # ---------------------------------------------------------------------------
 
 
+class InviteRefusedError(Exception):
+    """A person who cannot be invited, with the reason to show the admin."""
+
+    def __init__(self, detail: str, http_status: int):
+        super().__init__(detail)
+        self.detail = detail
+        self.http_status = http_status
+
+
+def _invite_person(ctx, person: Person, actor, *, scheduled: bool = False) -> bool:
+    """Provision a login if needed, email the invitation, stamp ``invited_at``.
+
+    Returns whether the email actually went out. Raises :class:`InviteRefusedError`
+    for the states an admin has to fix first (no email, no staff membership,
+    conflicting user account).
+
+    ``invited_at`` is stamped even when delivery fails so a bounced invite
+    still reads as "invited" rather than silently reverting to "never" — the
+    admin has already spent the action and needs to see that.
+    """
+    if not person.email:
+        msg = "Person has no email -- cannot send invitation."
+        raise InviteRefusedError(msg, status.HTTP_400_BAD_REQUEST)
+
+    staff_membership = (
+        Membership.all_objects.filter(person=person, is_active=True)
+        .exclude(role="camper")
+        .order_by("-created_at")
+        .first()
+    )
+    if staff_membership is None:
+        msg = "Person has no active staff membership -- cannot invite."
+        raise InviteRefusedError(msg, status.HTTP_400_BAD_REQUEST)
+
+    link = ensure_user_for_imported_person(person, membership_role=staff_membership.role)
+    if link.action == UserLinkAction.CONFLICT:
+        msg = f"Cannot provision login: {link.message}"
+        raise InviteRefusedError(msg, status.HTTP_409_CONFLICT)
+
+    org = ctx.organization
+    context = {
+        "person": person,
+        "organization": org,
+        "signin_url": f"https://{org.slug}.bunklogs.net/signin",
+        "site_name": "BunkLogs",
+    }
+    sent = get_email_service().send_email(
+        recipients=[person.email],
+        subject=f"You're invited to {org.name} on BunkLogs",
+        html_content=render_to_string("emails/person_invitation_en.html", context),
+        text_content=render_to_string("emails/person_invitation_en.txt", context),
+        template_name="person_invitation",
+    )
+
+    person.invited_at = timezone.now()
+    person.save(update_fields=["invited_at"])
+
+    audit_module.created(
+        actor, person,
+        after_state={
+            "invitation_sent": sent,
+            "recipient_email": person.email,
+            "user_id": person.user_id,
+            "user_link_action": link.action.value,
+        },
+        content_type="person_invitation",
+        metadata={"channel": "email", "scheduled": scheduled},
+    )
+    return sent
+
+
 class AdminPersonInviteView(APIView):
     """Provision a login (if needed) and send an invitation email for a Person.
 
@@ -581,63 +732,15 @@ class AdminPersonInviteView(APIView):
         person = _get_person_or_404(ctx, person_id)
         if person is None:
             return _not_found("Person")
-        if not person.email:
-            return Response(
-                {"detail": "Person has no email -- cannot send invitation."},
-                status=status.HTTP_400_BAD_REQUEST,
+
+        try:
+            sent = _invite_person(
+                ctx, person, ctx.membership or request.user,
+                scheduled=bool(request.data.get("scheduled")),
             )
+        except InviteRefusedError as refusal:
+            return Response({"detail": refusal.detail}, status=refusal.http_status)
 
-        staff_membership = (
-            Membership.all_objects.filter(person=person, is_active=True)
-            .exclude(role="camper")
-            .order_by("-created_at")
-            .first()
-        )
-        if staff_membership is None:
-            return Response(
-                {"detail": "Person has no active staff membership -- cannot invite."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        link = ensure_user_for_imported_person(
-            person, membership_role=staff_membership.role,
-        )
-        if link.action == UserLinkAction.CONFLICT:
-            return Response(
-                {"detail": f"Cannot provision login: {link.message}"},
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        org = ctx.organization
-        context = {
-            "person": person,
-            "organization": org,
-            "signin_url": f"https://{org.slug}.bunklogs.net/signin",
-            "site_name": "BunkLogs",
-        }
-        sent = get_email_service().send_email(
-            recipients=[person.email],
-            subject=f"You're invited to {org.name} on BunkLogs",
-            html_content=render_to_string("emails/person_invitation_en.html", context),
-            text_content=render_to_string("emails/person_invitation_en.txt", context),
-            template_name="person_invitation",
-        )
-
-        actor = ctx.membership or request.user
-        audit_module.created(
-            actor, person,
-            after_state={
-                "invitation_sent": sent,
-                "recipient_email": person.email,
-                "user_id": person.user_id,
-                "user_link_action": link.action.value,
-            },
-            content_type="person_invitation",
-            metadata={
-                "channel": "email",
-                "scheduled": bool(request.data.get("scheduled")),
-            },
-        )
         if not sent:
             return Response(
                 {"detail": "Login provisioned but the invitation email failed to send."},
@@ -647,4 +750,69 @@ class AdminPersonInviteView(APIView):
             "status": "sent",
             "recipient_email": person.email,
             "user_id": person.user_id,
+        })
+
+
+class AdminPeopleBulkInviteView(APIView):
+    """Invite many people at once from a People-page selection.
+
+    Partial success is the normal case — someone in the selection always
+    lacks an email — so this reports per-person outcomes with 200 rather
+    than failing the whole batch on the first refusal.
+    """
+
+    permission_classes = [IsOrgAdminOrSuperuser]
+
+    MAX_BATCH = 200
+
+    def post(self, request, *args, **kwargs):
+        ctx = viewer_or_403(request)
+        raw_ids = request.data.get("person_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return Response(
+                {"detail": "person_ids must be a non-empty list."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(raw_ids) > self.MAX_BATCH:
+            return Response(
+                {"detail": f"At most {self.MAX_BATCH} people can be invited at once."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        people = {
+            p.id: p
+            for p in Person.all_objects.filter(
+                organization=ctx.organization, id__in=raw_ids,
+            )
+        }
+        actor = ctx.membership or request.user
+        sent, skipped = [], []
+        for raw_id in raw_ids:
+            person = people.get(raw_id)
+            if person is None:
+                skipped.append({"person_id": raw_id, "reason": "Not found in this organization."})
+                continue
+            try:
+                delivered = _invite_person(ctx, person, actor)
+            except InviteRefusedError as refusal:
+                skipped.append({
+                    "person_id": person.id,
+                    "name": person.full_name,
+                    "reason": refusal.detail,
+                })
+                continue
+            if delivered:
+                sent.append({"person_id": person.id, "name": person.full_name})
+            else:
+                skipped.append({
+                    "person_id": person.id,
+                    "name": person.full_name,
+                    "reason": "Invitation email failed to send.",
+                })
+
+        return Response({
+            "sent_count": len(sent),
+            "skipped_count": len(skipped),
+            "sent": sent,
+            "skipped": skipped,
         })

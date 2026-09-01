@@ -75,6 +75,12 @@ const themes = {
 };
 
 const RESPONSES = {
+  '/admin/dashboard/': {
+    setup_attention: {},
+    logs_this_week: { submitted: 0, expected: 0, behind: [] },
+    org_snapshot: {},
+    recent_activity: [],
+  },
   '/pulse/': pulse,
   '/queue/': { count: 1, results: [], next: null, previous: null },
   // More specific first: the matcher below takes the first key the URL contains.
@@ -131,10 +137,12 @@ beforeEach(() => {
 });
 
 describe('Director homepage inside AdminHome', () => {
-  it('is absent for a camp org, and fetches nothing', () => {
+  it('is absent for a camp org, and fetches none of its endpoints', async () => {
     renderHome(adminIn(['summer_camp']));
+    await waitFor(() => screen.getByTestId('admin-home-setup'));
     expect(screen.queryByTestId('director-home')).toBeNull();
-    expect(getMock).not.toHaveBeenCalled();
+    const reflectionCalls = getMock.mock.calls.filter(([url]) => url.includes('/reflections/'));
+    expect(reflectionCalls).toEqual([]);
   });
 
   it('reports this week\'s completion rate and the open question count', async () => {

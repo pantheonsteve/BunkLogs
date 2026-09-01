@@ -40,14 +40,15 @@ const ReflectionSummaryPage = lazy(() => import('../pages/ReflectionSummaryPage'
 const ReflectionsDashboardPage = lazy(() => import('../pages/ReflectionsDashboardPage'));
 const LogsDashboardPage = lazy(() => import('../pages/LogsDashboardPage'));
 const WellnessDashboardPage = lazy(() => import('../pages/WellnessDashboardPage'));
-const MembershipManagementPage = lazy(() => import('../pages/MembershipManagementPage'));
 const AdminHome = lazy(() => import('../pages/admin/AdminHome'));
 const AdminPeople = lazy(() => import('../pages/admin/People'));
-const AdminAssignments = lazy(() => import('../pages/admin/Assignments'));
+const AdminSetupPage = lazy(() => import('../pages/admin/setup/SetupPage'));
 const AdminSettingsPage = lazy(() => import('../pages/admin/Settings'));
 const GroupListPage = lazy(() => import('../pages/admin/groups/GroupListPage'));
 const GroupDetailPage = lazy(() => import('../pages/admin/groups/GroupDetailPage'));
 const FieldKeyListPage = lazy(() => import('../pages/admin/field-keys/FieldKeyListPage'));
+const FormsHub = lazy(() => import('../pages/admin/forms/FormsHub'));
+const ReportsHub = lazy(() => import('../pages/admin/reports/ReportsHub'));
 const CatalogManagePage = lazy(() => import('../pages/admin/catalog/CatalogManagePage'));
 const CatalogPlanningDashboard = lazy(() => import('../pages/admin/catalog/PlanningDashboard'));
 const AdminReflectionsDashboard = lazy(() => import('../pages/admin/reflections/AdminReflectionsDashboard'));
@@ -264,9 +265,10 @@ export const routeConfig = [
       { path: 'home', element: admin(<AdminHome />) },
       { path: 'hub', element: <Navigate to="/admin/home" replace /> },
       { path: 'dashboard', element: <Navigate to="/admin/home" replace /> },
-      { path: 'memberships', element: <MembershipManagementPage /> },
+      { path: 'memberships', element: <Navigate to="/admin/people" replace /> },
       { path: 'people', element: admin(<AdminPeople />) },
-      { path: 'assignments', element: admin(<AdminAssignments />) },
+      { path: 'setup', element: admin(<AdminSetupPage />) },
+      { path: 'assignments', element: <Navigate to="/admin/groups" replace /> },
       { path: 'settings', element: admin(<AdminSettingsPage />) },
       { path: 'templates', element: ltTemplates(<LeadershipTeamTemplateLibrary />) },
       { path: 'templates/library', element: <Navigate to="/admin/templates" replace /> },
@@ -275,6 +277,8 @@ export const routeConfig = [
       { path: 'templates/:id', element: ltTemplates(<LeadershipTeamTemplateBuilderPage />) },
       { path: 'groups', element: admin(<GroupListPage />) },
       { path: 'groups/:id', element: admin(<GroupDetailPage />) },
+      { path: 'forms', element: admin(<FormsHub />) },
+      { path: 'reports', element: admin(<ReportsHub />) },
       { path: 'field-keys', element: admin(<FieldKeyListPage />) },
       { path: 'catalog', element: admin(<CatalogManagePage />) },
       { path: 'catalog/planning', element: admin(<CatalogPlanningDashboard />) },

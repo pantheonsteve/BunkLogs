@@ -6,6 +6,8 @@ import {
   deactivateAdminMembership,
 } from '../../api/admin';
 import { profileLink } from '../../utils/dashboardLinks';
+import OverflowMenu, { OverflowMenuItem } from '../ui/OverflowMenu';
+import PersonSupervisionTab from './PersonSupervisionTab';
 
 export const MEMBERSHIP_ROLE_OPTIONS = [
   'admin', 'leadership_team', 'unit_head', 'counselor', 'junior_counselor',
@@ -50,6 +52,7 @@ function ProfileTabs({ person, programs, onPersonChanged }) {
         tabs={[
           { key: 'identity', label: 'Identity' },
           { key: 'memberships', label: 'Memberships' },
+          { key: 'supervision', label: 'Supervision' },
           { key: 'activity', label: 'Recent activity' },
         ]}
         activeTab={tab}
@@ -65,6 +68,7 @@ function ProfileTabs({ person, programs, onPersonChanged }) {
           onChanged={onPersonChanged}
         />
       )}
+      {tab === 'supervision' && <PersonSupervisionTab person={person} />}
       {tab === 'activity' && <ActivityTab person={person} />}
     </div>
   );
@@ -424,14 +428,6 @@ export default function PersonProfilePanel({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            data-testid={`delete-person-${person.id}`}
-            onClick={() => onDelete(person)}
-            className="text-xs px-2 py-1 rounded-md border border-red-300 text-red-700 hover:bg-red-50"
-          >
-            Delete
-          </button>
-          <button
-            type="button"
             data-testid={`invite-person-${person.id}`}
             onClick={() => onInvite(person.id)}
             disabled={!person.email || invitedStatus[person.id] === 'pending'}
@@ -439,6 +435,19 @@ export default function PersonProfilePanel({
           >
             {invitedStatus[person.id] === 'sent' ? 'Invitation sent' : 'Send invitation'}
           </button>
+          <OverflowMenu
+            size="sm"
+            label={`More actions for ${person.full_name}`}
+            triggerTestId={`person-actions-${person.id}`}
+          >
+            <OverflowMenuItem
+              danger
+              data-testid={`delete-person-${person.id}`}
+              onClick={() => onDelete(person)}
+            >
+              Delete {person.full_name}…
+            </OverflowMenuItem>
+          </OverflowMenu>
           {onDismiss && (
             <button
               type="button"
