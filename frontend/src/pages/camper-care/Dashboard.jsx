@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Flag, ClipboardList, Users, Heart } from 'lucide-react';
 import { fetchCamperCareDashboard } from '../../api/camperCare';
+import Badge from '../../components/ui/Badge';
 import { groupDashboardLink } from '../../utils/dashboardLinks';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -47,18 +48,15 @@ const BADGE_META = {
   },
 };
 
-function Badge({ kind }) {
+function AttentionBadge({ kind }) {
   const meta = BADGE_META[kind] || {
     label: kind,
     className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   };
   return (
-    <span
-      data-testid={`cc-badge-${kind}`}
-      className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.className}`}
-    >
+    <Badge data-testid={`cc-badge-${kind}`} colors={meta.className}>
       {meta.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -112,7 +110,7 @@ function BunkRow({ bunk, date }) {
                 `${completion?.submitted ?? 0} of ${completion?.expected ?? 0} submitted`
               )}
             </span>
-            {bunk.badges?.length > 0 && bunk.badges.map((b) => <Badge key={b} kind={b} />)}
+            {bunk.badges?.length > 0 && bunk.badges.map((b) => <AttentionBadge key={b} kind={b} />)}
           </div>
         </div>
       </Link>
@@ -250,12 +248,9 @@ function SelfReflectionCard({ section, today }) {
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">My reflection</h2>
-        <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls}`}
-          data-testid="cc-self-reflection-state"
-        >
+        <Badge colors={badge.cls} data-testid="cc-self-reflection-state">
           {badge.label}
-        </span>
+        </Badge>
       </div>
       {hasTemplate ? (
         <>

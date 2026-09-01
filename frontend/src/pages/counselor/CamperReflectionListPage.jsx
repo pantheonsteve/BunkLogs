@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { fetchCamperReflections } from '../../api/counselor';
+import Badge from '../../components/ui/Badge';
 import { SUBMISSION_KIND } from '../../lib/submissionQueue/queue';
 import { useSubmissionQueue } from '../../lib/submissionQueue/useSubmissionQueue';
 
@@ -217,12 +218,9 @@ export default function CamperReflectionListPage() {
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {data.date}
               {!data.editable ? (
-                <span
-                  data-testid="camper-roster-readonly-banner"
-                  className="ml-2 inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                >
+                <Badge inline data-testid="camper-roster-readonly-banner">
                   Read-only
-                </span>
+                </Badge>
               ) : null}
             </p>
           ) : null}

@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   bulkTransitionOrders, fetchOrders, transitionOrder,
 } from '../../api/camperCare';
+import Badge from '../../components/ui/Badge';
 
 const STATUS_BADGE = {
   new: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100',
@@ -133,9 +134,7 @@ function OrderRow({ order, selectable, selected, onSelectToggle, onTransition, o
                 ) : null}
                 {formatAge(order.age_seconds)}
                 {aged && (
-                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 text-[10px] font-medium">
-                    Aged
-                  </span>
+                  <Badge inline size="xs" tone="danger">Aged</Badge>
                 )}
               </p>
               {order.description && (
