@@ -60,6 +60,11 @@ ROLE_TO_CAPABILITY: dict[str, str] = {
     "admin": "admin",
 }
 
+# Roles whose people are subjects of reflections rather than users of the
+# product: no login is provisioned, invitations never apply, and group
+# placement defaults to "subject".
+SUBJECT_ROLES: frozenset[str] = frozenset({"camper", "student"})
+
 
 def validate_reflection_template_schema(schema: Any) -> None:
     """Backward-compatible wrapper; call validate_template_schema directly for new code."""

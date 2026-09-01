@@ -4,7 +4,7 @@ import { createAdminPerson } from '../../../api/admin';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import Note from '../../../components/ui/Note';
-import { MEMBERSHIP_ROLE_OPTIONS } from '../../../components/admin/PersonProfilePanel';
+import { MEMBERSHIP_ROLE_OPTIONS, SUBJECT_ROLES } from '../../../components/admin/PersonProfilePanel';
 
 function Field({ label, value, onChange, type = 'text' }) {
   return (
@@ -39,6 +39,7 @@ export default function AddPersonModal({ programs, defaultProgramId, onClose, on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(null);
+  const isSubjectRole = SUBJECT_ROLES.includes(draft.role);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -91,7 +92,7 @@ export default function AddPersonModal({ programs, defaultProgramId, onClose, on
         <Field label="First name" value={draft.first_name} onChange={(v) => setDraft({ ...draft, first_name: v })} />
         <Field label="Last name" value={draft.last_name} onChange={(v) => setDraft({ ...draft, last_name: v })} />
         <Field label="Preferred name" value={draft.preferred_name} onChange={(v) => setDraft({ ...draft, preferred_name: v })} />
-        <Field label="Email" type="email" value={draft.email} onChange={(v) => setDraft({ ...draft, email: v })} />
+        <Field label="Email (optional)" type="email" value={draft.email} onChange={(v) => setDraft({ ...draft, email: v })} />
         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
           Program
           <select
@@ -114,6 +115,12 @@ export default function AddPersonModal({ programs, defaultProgramId, onClose, on
             {MEMBERSHIP_ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </label>
+        {isSubjectRole && (
+          <Note tone="info" data-testid="add-person-subject-role-note">
+            Campers and students are subjects of reflections rather than users of
+            the product, so no login is created and they cannot be invited.
+          </Note>
+        )}
         {error && <Note tone="danger">{error}</Note>}
         {conflict && (
           <Note tone="warn" title="That email already exists" data-testid="add-person-conflict">

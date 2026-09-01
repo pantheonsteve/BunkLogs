@@ -31,6 +31,7 @@ from bunk_logs.core.campminder_person_match import match_campminder_person
 from bunk_logs.core.campminder_person_match import strategy_is_duplicate
 from bunk_logs.core.campminder_user_link import UserLinkAction
 from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
+from bunk_logs.core.group_roster_import import infer_role_in_group_from_program_role
 from bunk_logs.core.group_roster_import import load_target_group
 from bunk_logs.core.group_roster_import import resolve_role_in_group
 from bunk_logs.core.models import AssignmentGroup
@@ -527,7 +528,7 @@ class Command(BaseCommand):
 
                     bunk_group = _get_or_create_group(program, "bunk", bunk_name, parent=unit_group)
 
-                    role_in_group = "subject" if role == "camper" else "author"
+                    role_in_group = infer_role_in_group_from_program_role(role)
                     _, bunk_mem_created = _ensure_membership(
                         bunk_group,
                         person,

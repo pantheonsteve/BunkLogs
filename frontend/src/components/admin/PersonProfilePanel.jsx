@@ -14,8 +14,12 @@ export const MEMBERSHIP_ROLE_OPTIONS = [
   'specialist', 'general_counselor', 'kitchen_staff', 'maintenance',
   'administrative_staff', 'housekeeping', 'camper_care', 'health_center',
   'medical', 'special_diets',
-  'madrich', 'faculty', 'camper',
+  'madrich', 'faculty', 'camper', 'student',
 ];
+
+// Mirrors SUBJECT_ROLES in backend/bunk_logs/core/models.py: these people are
+// subjects of reflections, so no login is created and they can't be invited.
+export const SUBJECT_ROLES = ['camper', 'student'];
 
 function classNames(...args) {
   return args.filter(Boolean).join(' ');

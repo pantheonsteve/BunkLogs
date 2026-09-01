@@ -42,6 +42,7 @@ from rest_framework.views import APIView
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.campminder_user_link import UserLinkAction
 from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
+from bunk_logs.core.models import SUBJECT_ROLES
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
@@ -61,16 +62,11 @@ INVITE_INVITED = "invited"
 INVITE_ACTIVE = "active"
 INVITE_STATUSES = frozenset({INVITE_NEVER, INVITE_INVITED, INVITE_ACTIVE})
 
-# Campers are subjects of logs, not users of the product, so "who still
-# needs an invitation" never counts them.
-NON_USER_ROLE = "camper"
-
-
 def invitable_people(organization):
-    """Active non-camper people -- the population an invitation applies to."""
+    """Active people outside SUBJECT_ROLES -- who an invitation applies to."""
     return Person.all_objects.filter(
         organization=organization, memberships__is_active=True,
-    ).exclude(memberships__role=NON_USER_ROLE).distinct()
+    ).exclude(memberships__role__in=SUBJECT_ROLES).distinct()
 
 
 def by_invite_status(queryset, invite_status: str):
@@ -276,7 +272,12 @@ class AdminPeopleListCreateView(APIView):
 
         invite_status = (request.query_params.get("invite_status") or "").strip().lower()
         if invite_status in INVITE_STATUSES:
-            qs = by_invite_status(qs, invite_status)
+            # Subject roles are excluded so this list matches the count on the
+            # sidebar badge that links here.
+            qs = by_invite_status(
+                qs.exclude(memberships__role__in=SUBJECT_ROLES).distinct(),
+                invite_status,
+            )
 
         qs = qs.select_related("user").prefetch_related(
             "memberships",
@@ -371,8 +372,8 @@ class AdminPeopleListCreateView(APIView):
             audit_module.created(
                 actor, membership, after_state=_membership_snapshot(membership),
             )
-            # Staff get a login provisioned automatically; campers never do.
-            if role != "camper":
+            # Staff get a login provisioned automatically; subjects never do.
+            if role not in SUBJECT_ROLES:
                 ensure_user_for_imported_person(person, membership_role=role)
         return Response(
             _serialize_person(person, include_memberships=True),
@@ -672,7 +673,7 @@ def _invite_person(ctx, person: Person, actor, *, scheduled: bool = False) -> bo
 
     staff_membership = (
         Membership.all_objects.filter(person=person, is_active=True)
-        .exclude(role="camper")
+        .exclude(role__in=SUBJECT_ROLES)
         .order_by("-created_at")
         .first()
     )

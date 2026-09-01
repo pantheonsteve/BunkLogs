@@ -214,6 +214,24 @@ describe('AdminPeople', () => {
     expect(await screen.findByTestId('add-person-conflict')).toBeInTheDocument();
   });
 
+  it('offers student as a role and warns it gets no login', async () => {
+    renderPeople();
+    await screen.findByTestId('person-row-1');
+    fireEvent.click(screen.getByTestId('open-add-person'));
+
+    const roleSelect = await screen.findByDisplayValue('counselor');
+    expect(within(roleSelect).getByRole('option', { name: 'student' })).toBeInTheDocument();
+    expect(screen.queryByTestId('add-person-subject-role-note')).toBeNull();
+
+    fireEvent.change(roleSelect, { target: { value: 'student' } });
+    expect(await screen.findByTestId('add-person-subject-role-note')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('add-person-save'));
+    await waitFor(() => expect(createAdminPerson).toHaveBeenCalledWith(
+      expect.objectContaining({ membership: expect.objectContaining({ role: 'student' }) }),
+    ));
+  });
+
   it('keeps delete behind the profile overflow menu', async () => {
     renderPeople();
     const alice = await screen.findByTestId('person-row-1');
