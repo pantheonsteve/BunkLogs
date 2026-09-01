@@ -1,6 +1,5 @@
 """Regression: AssignmentGroup admin must save for staff without a Person and with membership inlines."""
 
-from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -11,6 +10,8 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -27,8 +28,8 @@ def program(org):
         name="AG Admin Org Summer",
         slug="ag-admin-prog",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -126,8 +127,8 @@ def test_assignment_group_admin_rejects_program_from_other_org(
         name="Other AG Org Summer",
         slug="other-ag-prog",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
     memberships = list(AssignmentGroupMembership.all_objects.filter(group=group))
     client = Client()

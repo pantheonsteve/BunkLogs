@@ -21,6 +21,8 @@ from bunk_logs.core.models import Supervision
 from bunk_logs.core.permissions.visibility import has_supervisor_role
 from bunk_logs.core.permissions.visibility import is_org_admin
 from bunk_logs.core.permissions.visibility import reflections_visible_to
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -47,8 +49,8 @@ def program_a(org_a):
         name="Vis A Summer",
         slug="vis-a-prog",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -59,8 +61,8 @@ def program_b(org_b):
         name="Vis B Summer",
         slug="vis-b-prog",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
