@@ -8,7 +8,6 @@ permission, audit emission, edit window enforcement.
 from __future__ import annotations
 
 import uuid
-from datetime import date
 from datetime import timedelta
 
 import pytest
@@ -29,6 +28,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.time_utils import get_today
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -58,8 +59,8 @@ def program(org):
         name="CW Camp Summer 2026",
         slug="cw-summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

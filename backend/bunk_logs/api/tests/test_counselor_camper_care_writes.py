@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -19,6 +18,8 @@ from bunk_logs.core.models import OrderItemSuggestion
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -40,7 +41,7 @@ def program(org):
     return Program.all_objects.create(
         organization=org, name="CC Camp Summer 2026", slug="cc-summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
 
 

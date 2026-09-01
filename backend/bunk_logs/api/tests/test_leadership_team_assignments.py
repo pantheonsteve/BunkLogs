@@ -28,6 +28,8 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -60,7 +62,7 @@ def program(org):
         organization=org, name="Assignments Camp Summer 2026",
         slug="summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
 
 
@@ -314,8 +316,8 @@ def test_post_assignment_group_cohort_other_program(
         name="Assignments Camp Other Session",
         slug="other-session",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
     cohort = AssignmentGroup.all_objects.create(
         organization=org,
@@ -592,7 +594,7 @@ def test_conflict_detection_assignment_group(
         organization=org, program=program, template=published_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.SCHEDULED,
         created_by=admin_membership,
     )
@@ -668,7 +670,7 @@ def test_second_different_scored_camper_form_same_bunk_is_400(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -722,7 +724,7 @@ def test_scored_form_with_non_camper_subject_is_allowed(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -777,7 +779,7 @@ def test_second_camper_form_without_rating_fields_is_allowed(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -882,7 +884,7 @@ def test_same_template_reuse_goes_through_conflict_resolution(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -914,7 +916,7 @@ def test_scored_camper_form_on_different_bunk_is_allowed(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -974,7 +976,7 @@ def test_ended_scored_camper_assignment_does_not_block(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ENDED,
         created_by=lt_membership,
     )
@@ -1058,7 +1060,7 @@ def test_v2_over_live_v1_role_conflicts(org, program, lt_membership, admin_membe
         organization=org, program=program, template=v1,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "counselor"},
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -1092,7 +1094,7 @@ def test_v1_under_live_v2_role_conflicts(org, program, lt_membership, admin_memb
         organization=org, program=program, template=v2,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "counselor"},
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -1123,7 +1125,7 @@ def test_v2_over_v1_assignment_group_conflicts(
         organization=org, program=program, template=v1,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
         assignment_group=bunk,
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -1155,7 +1157,7 @@ def test_v2_over_v1_replace_ends_prior_version(
         organization=org, program=program, template=v1,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "counselor"},
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -1203,7 +1205,7 @@ def test_different_templates_same_role_still_coexist(
         organization=org, program=program, template=weekly,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "counselor"},
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -1234,7 +1236,7 @@ def test_version_family_conflict_respects_different_role(
         organization=org, program=program, template=v1,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "counselor"},
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )
@@ -1275,7 +1277,7 @@ def test_clone_unchained_version_still_conflicts(
         organization=org, program=program, template=source,
         target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "counselor"},
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
         status=TemplateAssignment.Status.ACTIVE,
         created_by=lt_membership,
     )

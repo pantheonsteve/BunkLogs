@@ -265,6 +265,9 @@ class TestGetCurrentPeriodOtherCadences:
             name="Camp Summer 2026",
             slug="summer-2026",
             program_type="summer_camp",
+            # Fixed window on purpose: every assertion below passes an explicit
+            # anchor, so this exercises the fortnight math itself rather than
+            # "today falls inside a running program".
             start_date=date(2026, 6, 1),
             end_date=date(2026, 8, 31),
         )

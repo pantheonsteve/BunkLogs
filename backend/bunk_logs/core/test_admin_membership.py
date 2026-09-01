@@ -7,7 +7,6 @@ privileged staff territory) or saving an existing Membership fails with
 "Select a valid choice" on Program/Person.
 """
 
-from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -17,6 +16,8 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -33,8 +34,8 @@ def program(org):
         name="Admin Form Org Summer",
         slug="admin-form-prog",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from bunk_logs.core.models import Membership
@@ -13,6 +11,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.permissions.observation_authoring import can_author_observation
 from bunk_logs.core.permissions.observation_authoring import observation_authorable_subject_queryset
 from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 pytestmark = pytest.mark.django_db
 
@@ -29,8 +29,8 @@ def program(org):
         name="Obs Org Summer",
         slug="obs-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

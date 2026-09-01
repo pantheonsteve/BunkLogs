@@ -33,6 +33,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.state_machine import OrderStateMachine
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -69,8 +71,8 @@ def program(org):
         name="Admin Flow Org Summer",
         slug="adminflow-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -81,8 +83,8 @@ def other_program(other_org):
         name="Other Admin Flow Summer",
         slug="other-adminflow-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

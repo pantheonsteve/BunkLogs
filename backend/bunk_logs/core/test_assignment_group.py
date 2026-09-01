@@ -17,6 +17,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.validators.template_schema import validate_template_coherence
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -40,8 +42,8 @@ def program(org):
         name="Test Org 317 Summer",
         slug="summer-317",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -52,8 +54,8 @@ def program_b(org_b):
         name="Other Org 317 Summer",
         slug="summer-317-b",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
