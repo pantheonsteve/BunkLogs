@@ -18,6 +18,7 @@ from django.db.models import When
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from bunk_logs.core.models import SUBJECT_ROLES
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
@@ -178,7 +179,7 @@ def send_reflection_reminders(self, program_id: int, role: str | None = None) ->
 
     membership_qs = (
         Membership.all_objects.filter(program=program, is_active=True)
-        .exclude(role="camper")
+        .exclude(role__in=SUBJECT_ROLES)
         .select_related("person", "person__user")
     )
     if role:

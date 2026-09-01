@@ -39,6 +39,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.core import audit
 from bunk_logs.core.assignment_resolution import resolve_members
+from bunk_logs.core.models import SUBJECT_ROLES
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
@@ -231,8 +232,8 @@ SCORED_FIELD_TYPES = ("rating_group", "single_rating")
 
 
 def _is_scored_camper_template(template: ReflectionTemplate | None) -> bool:
-    """True when a template targets campers AND collects at least one rating
-    field -- i.e. the kind of template that drives a bunk's score grid.
+    """True when a template targets campers or students AND collects at least
+    one rating field -- i.e. the kind of template that drives a bunk's score grid.
 
     The score grid renders one column per scored dimension of a *single*
     camper template; two such templates active on the same bunk on the same
@@ -241,7 +242,7 @@ def _is_scored_camper_template(template: ReflectionTemplate | None) -> bool:
     """
     if template is None:
         return False
-    targets_campers = "camper" in (template.subject_role_filter or [])
+    targets_campers = bool(SUBJECT_ROLES & set(template.subject_role_filter or []))
     schema = template.schema if isinstance(template.schema, dict) else {}
     fields = schema.get("fields", [])
     is_scored = any(

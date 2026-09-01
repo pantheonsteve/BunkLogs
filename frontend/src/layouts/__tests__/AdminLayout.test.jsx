@@ -5,8 +5,12 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 vi.mock('../../partials/Sidebar', () => ({
   default: () => <aside data-testid="mock-sidebar" />,
 }));
-vi.mock('../../partials/Header', () => ({
-  default: () => <header data-testid="mock-header" />,
+vi.mock('../../components/admin/AdminTopBar', () => ({
+  default: () => <header data-testid="mock-topbar" />,
+}));
+vi.mock('../../api/admin', () => ({
+  fetchAdminNavBadges: vi.fn().mockResolvedValue(null),
+  listAdminPrograms: vi.fn().mockResolvedValue({ results: [] }),
 }));
 
 import AdminLayout from '../AdminLayout';
@@ -18,8 +22,8 @@ function renderAt(url) {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<p data-testid="child-content">hello child</p>} />
           <Route
-            path="memberships"
-            element={<p data-testid="child-content">memberships child</p>}
+            path="people"
+            element={<p data-testid="child-content">people child</p>}
           />
         </Route>
       </Routes>
@@ -28,18 +32,17 @@ function renderAt(url) {
 }
 
 describe('AdminLayout (3.28)', () => {
-  it('renders Sidebar + Header + index child via Outlet', () => {
+  it('renders Sidebar + topbar + index child via Outlet', () => {
     renderAt('/admin');
     expect(screen.getByTestId('mock-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('mock-header')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-topbar')).toBeInTheDocument();
     expect(screen.getByTestId('child-content')).toHaveTextContent('hello child');
   });
 
   it('renders a nested child route via Outlet', () => {
-    renderAt('/admin/memberships');
+    renderAt('/admin/people');
     expect(screen.getByTestId('mock-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('mock-header')).toBeInTheDocument();
-    expect(screen.getByTestId('child-content')).toHaveTextContent('memberships child');
+    expect(screen.getByTestId('child-content')).toHaveTextContent('people child');
   });
 
   it('exposes the scroll container so children can rely on it', () => {

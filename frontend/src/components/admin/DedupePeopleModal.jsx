@@ -29,6 +29,73 @@ function repointLosersWithUsers(people, winnerId, loserStrategies) {
 }
 
 /**
+ * Which record's value survives, field by field.
+ *
+ * "Roll into winner" is not a full field-level merge on the backend — the
+ * winner's own values stay put — so a loser that has an email the winner
+ * lacks is a real loss. Showing the two side by side is what makes that
+ * visible before it happens rather than after.
+ */
+function SurvivorPreview({ winner, losers }) {
+  if (!winner) return null;
+  const rows = [
+    ['Name', (p) => p.full_name],
+    ['Email', (p) => p.email || '—'],
+    ['Login', (p) => (p.has_user ? `User #${p.user_id}` : 'none')],
+    ['Campminder', (p) => campminderId(p) || '—'],
+    ['Memberships', (p) => String((p.memberships || []).length)],
+  ];
+  return (
+    <section
+      data-testid="dedupe-survivor-preview"
+      className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto"
+    >
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-50 dark:bg-gray-800/60">
+            <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500" />
+            <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+              Kept
+            </th>
+            {losers.map((p) => (
+              <th
+                key={p.id}
+                className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500"
+              >
+                Merged away
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, read]) => (
+            <tr key={label} className="border-t border-gray-100 dark:border-gray-800">
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{label}</th>
+              <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">{read(winner)}</td>
+              {losers.map((p) => {
+                const value = read(p);
+                const lost = value !== '—' && value !== read(winner);
+                return (
+                  <td
+                    key={p.id}
+                    data-testid={lost ? `dedupe-lost-${p.id}-${label.toLowerCase()}` : undefined}
+                    className={lost
+                      ? 'px-3 py-2 text-amber-800 dark:text-amber-300 line-through'
+                      : 'px-3 py-2 text-gray-400'}
+                  >
+                    {value}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/**
  * Modal for merging duplicate Person records selected on the Admin People page.
  */
 export default function DedupePeopleModal({
@@ -196,6 +263,18 @@ export default function DedupePeopleModal({
             ))}
           </div>
         </section>
+
+        {losers.length > 0 && (
+          <section>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              What survives
+            </h3>
+            <SurvivorPreview
+              winner={people.find((p) => p.id === winnerId)}
+              losers={losers}
+            />
+          </section>
+        )}
 
         {losers.length > 0 && (
           <section>

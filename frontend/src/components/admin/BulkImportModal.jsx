@@ -9,6 +9,7 @@ import {
 const SOURCES = [
   { value: 'campminder', label: 'Campminder' },
   { value: 'tbe', label: 'Temple Beth-El' },
+  { value: 'spreadsheet', label: 'Student Import' },
 ];
 
 /**

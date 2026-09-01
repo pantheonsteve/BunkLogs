@@ -82,7 +82,6 @@ function PulseCard() {
       <HomeCard
         title="Reflection pulse"
         subtitle="No weekly reflection template is assigned yet."
-        accent="indigo"
         icon={TrendingUp}
         data-testid="dir-pulse-card"
       />
@@ -96,7 +95,6 @@ function PulseCard() {
     <HomeCard
       title="Reflection pulse"
       subtitle={`${pulse.active_madrichim} active Madrichim · ${pulse.template_name}`}
-      accent="indigo"
       icon={TrendingUp}
       badge={pulse.open_question_count > 0 && (
         <UnreadDot
@@ -149,7 +147,6 @@ function QuestionQueueCard() {
           ? 'Nothing routed to you is waiting.'
           : `${queue.count} routed to the Director, oldest first`
       }
-      accent="amber"
       icon={MessageCircleQuestion}
       data-testid="dir-queue-card"
     >
@@ -197,7 +194,6 @@ function CoverageCard() {
     <HomeCard
       title="Sunday coverage"
       subtitle="Pick a date to see who is in and who is out."
-      accent="teal"
       icon={CalendarDays}
       data-testid="dir-coverage-card"
       className="lg:col-span-2"
@@ -311,7 +307,6 @@ function FacultyActivityCard() {
     <HomeCard
       title="Faculty responsiveness"
       subtitle="Median time to a first reply. Blank means nothing answered yet."
-      accent="sky"
       icon={Clock}
       data-testid="dir-activity-card"
     >
@@ -429,7 +424,6 @@ function RosterCard() {
     <HomeCard
       title="Madrichim"
       subtitle={`${roster.count ?? rows.length} in the program`}
-      accent="violet"
       icon={Users}
       action={(
         <button
@@ -502,7 +496,6 @@ function ThemesCard() {
     <HomeCard
       title="What they're talking about"
       subtitle="Anonymized. Themes from fewer than five Madrichim are withheld."
-      accent="emerald"
       icon={Tags}
       action={(
         <Link
@@ -565,7 +558,6 @@ export default function DirectorHome() {
         <HomeCard
           title="Cohort feed"
           subtitle="Read what Madrichim are sharing, and hide anything that shouldn't be up."
-          accent="rose"
           icon={MessagesSquare}
           data-testid="dir-cohort-card"
           footer={(

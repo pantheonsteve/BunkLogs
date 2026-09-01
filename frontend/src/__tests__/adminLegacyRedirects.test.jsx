@@ -1,31 +1,33 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
-
 /**
- * Bookmark-preserving redirects for the retired AdminHub and Story 54
- * dashboard pages. Mirrors the entries in `routes/routeConfig.jsx`.
+ * Bookmark-preserving redirects for admin routes that moved.
+ *
+ * Asserted against the real route config rather than a copy of it, so a
+ * redirect that gets dropped from `routeConfig.jsx` fails here instead
+ * of silently 404-ing someone's bookmark.
  */
-function renderAt(path) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/admin/home" element={<div data-testid="admin-home" />} />
-        <Route path="/admin/hub" element={<Navigate to="/admin/home" replace />} />
-        <Route path="/admin/dashboard" element={<Navigate to="/admin/home" replace />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+import { describe, expect, it } from 'vitest';
+import { routeConfig } from '../routes/routeConfig';
+
+const adminChildren = routeConfig.find((r) => r.path === '/admin').children;
+
+function redirectTarget(path) {
+  const route = adminChildren.find((r) => r.path === path);
+  return route?.element?.props?.to;
 }
 
-describe('legacy admin home redirects', () => {
-  it('redirects /admin/hub to /admin/home', async () => {
-    renderAt('/admin/hub');
-    expect(await screen.findByTestId('admin-home')).toBeInTheDocument();
+describe('legacy admin redirects', () => {
+  it.each([
+    ['hub', '/admin/home'],
+    ['dashboard', '/admin/home'],
+    // Memberships folded into People, Assignments into Groups.
+    ['memberships', '/admin/people'],
+    ['assignments', '/admin/groups'],
+  ])('redirects /admin/%s to %s', (path, target) => {
+    expect(redirectTarget(path)).toBe(target);
   });
 
-  it('redirects /admin/dashboard to /admin/home', async () => {
-    renderAt('/admin/dashboard');
-    expect(await screen.findByTestId('admin-home')).toBeInTheDocument();
+  it('replaces history so Back does not bounce off the redirect', () => {
+    const route = adminChildren.find((r) => r.path === 'assignments');
+    expect(route.element.props.replace).toBe(true);
   });
 });

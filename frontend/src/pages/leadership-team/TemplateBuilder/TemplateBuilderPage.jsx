@@ -28,7 +28,7 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import AssignmentList from '../AssignmentList';
 import AssignFormDialog from '../AssignFormDialog';
-import { SUBJECT_MODE_OPTIONS } from '../../admin/templates/templateRouting';
+import { SUBJECT_MODE_OPTIONS } from '../../../lib/templateRouting';
 
 const TIER_1_TYPES = [
   { value: 'text', label: 'Short text' },

@@ -1,8 +1,9 @@
 """Login provisioning for admin People create + invite (identity cleanup Stage 1).
 
 Staff created through the admin flow get a User automatically (linked by
-email or created with an unusable password); campers never do. The invite
-endpoint provisions a login and delivers the email via the messaging app.
+email or created with an unusable password); subject roles (camper, student)
+never do. The invite endpoint provisions a login and delivers the email via
+the messaging app.
 """
 
 from __future__ import annotations
@@ -91,6 +92,58 @@ class TestCreateProvisionsLogin:
         assert r.status_code == 201, r.content
         assert r.json()["has_user"] is False
         assert not User.objects.filter(email="camper@example.com").exists()
+
+    def test_student_create_skips_user(self, api, org, program, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.post(URL, {
+                "first_name": "Young",
+                "last_name": "Student",
+                "email": "student@example.com",
+                "membership": {"program_id": program.id, "role": "student"},
+            }, format="json", **_hdr(org.slug))
+        assert r.status_code == 201, r.content
+        assert r.json()["has_user"] is False
+        assert not User.objects.filter(email="student@example.com").exists()
+        person = Person.all_objects.get(id=r.json()["id"])
+        assert person.user_id is None
+
+
+class TestStudentsAreNotInvitable:
+    """Students are subjects, so they never surface as "needs an invitation"."""
+
+    @pytest.fixture
+    def student(self, org, program):
+        with organization_context(org):
+            person = Person.all_objects.create(
+                organization=org, first_name="Only", last_name="Student",
+                email="only-student@example.com",
+            )
+            Membership.all_objects.create(
+                program=program, person=person, role="student", is_active=True,
+            )
+        return person
+
+    def test_absent_from_never_invited_filter(
+        self, api, org, admin_user, student,
+    ):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(URL, {"invite_status": "never"}, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        ids = [row["id"] for row in r.json()["results"]]
+        assert student.id not in ids
+
+    def test_invite_rejected(self, api, org, admin_user, student):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.post(
+                f"/api/v1/admin/people/{student.id}/invite/", {},
+                format="json", **_hdr(org.slug),
+            )
+        assert r.status_code == 400
+        student.refresh_from_db()
+        assert student.user_id is None
 
 
 class TestInvite:

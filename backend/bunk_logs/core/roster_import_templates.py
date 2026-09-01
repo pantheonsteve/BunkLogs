@@ -5,7 +5,8 @@ downloads has to match the source they picked -- a Campminder ``PersonID``
 header means nothing to ``import_tbe_roster``, which keys on names.
 
 Campminder's variants stay in ``campminder_csv``; this module only registers
-them alongside TBE's so the API can serve either.
+them alongside TBE's and the generic spreadsheet source so the API can serve
+any of them.
 
 Invariant: headers here must track the columns the matching management
 command actually reads, or admins get a file the importer silently skips.
@@ -52,9 +53,54 @@ TBE_IMPORT_TEMPLATE_VARIANTS: dict[str, dict] = {
     },
 }
 
+# Columns read by ``import_people_roster``, the source for orgs that only have
+# a spreadsheet. Only the two name columns are required; role defaults to
+# student so a plain list of names uploads as a student roster.
+SPREADSHEET_IMPORT_TEMPLATE_VARIANTS: dict[str, dict] = {
+    "students": {
+        "label": "Students",
+        "filename": "student-import-template.csv",
+        "headers": [
+            "first_name",
+            "last_name",
+            "preferred_name",
+            "email",
+            "role",
+            "grade_level",
+            "group_name",
+            "group_type",
+        ],
+        "required_headers": ["first_name", "last_name"],
+        "optional_headers": [
+            "preferred_name",
+            "email",
+            "role",
+            "grade_level",
+            "group_name",
+            "group_type",
+        ],
+        "example_rows": [
+            ["Maya", "Rosen", "", "", "", "7", "Grade 7A", ""],
+            ["Daniel", "Katz", "Danny", "", "student", "7", "Grade 7A", ""],
+            ["Sarah", "Levine", "", "sarah.levine@example.org", "faculty", "", "Grade 7A", ""],
+        ],
+        "notes": (
+            "One row per person. Role defaults to student when blank; students "
+            "and campers are subjects of reflections, so they never get a login "
+            "and cannot be invited. group_name is optional -- when set, groups "
+            "are created on first use, so spell the name identically across "
+            "rows, and group_type defaults from the program type (classroom for "
+            "religious school, bunk for summer camp). Rows are matched to an "
+            "existing person by email, then by first and last name. Rows "
+            "missing first_name or last_name are skipped with a warning."
+        ),
+    },
+}
+
 TEMPLATE_VARIANTS_BY_SOURCE: dict[str, dict[str, dict]] = {
     "campminder": IMPORT_TEMPLATE_VARIANTS,
     "tbe": TBE_IMPORT_TEMPLATE_VARIANTS,
+    "spreadsheet": SPREADSHEET_IMPORT_TEMPLATE_VARIANTS,
 }
 
 

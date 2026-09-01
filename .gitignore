@@ -14,8 +14,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the repo root: these are Python distutils build output. Unanchored
+# they also swallow frontend/src/lib/, which silently drops real source files.
+/lib/
+/lib64/
 parts/
 sdist/
 var/
