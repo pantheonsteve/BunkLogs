@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Badge from '../../components/ui/Badge';
 import PerformanceDashboard from '../../dashboards/performance/PerformanceDashboard';
 import { fetchUnitHeadDashboard } from '../../api/unitHead';
 
@@ -73,13 +74,14 @@ function SelfReflectionSection({ section, today }) {
             )}
           </p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${badge.cls}`}
+        <Badge
+          colors={badge.cls}
+          className="px-2.5 py-1 shrink-0"
           data-testid="uh-self-reflection-state"
         >
           {BadgeIcon && <BadgeIcon className="h-3.5 w-3.5" />}
           {badge.label}
-        </span>
+        </Badge>
       </div>
       <div className="mt-4 flex items-center gap-4">
         <Link

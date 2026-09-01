@@ -25,6 +25,8 @@ from bunk_logs.core.state_machine import NoTransitionToCorrectError
 from bunk_logs.core.state_machine import OrderStateMachine
 from bunk_logs.core.state_machine import TransitionPlan
 from bunk_logs.core.state_machine import filter_invalid_targets
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 pytestmark = pytest.mark.django_db
 
@@ -44,8 +46,8 @@ def program(org):
         name="SM Org Summer",
         slug="sm-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

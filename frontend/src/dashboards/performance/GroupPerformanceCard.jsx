@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import GroupDisplayName from '../../components/GroupDisplayName';
 import GroupRoster from '../../components/GroupRoster';
+import Badge from '../../components/ui/Badge';
 import ScorePieChart from './ScorePieChart';
 
 function ProgressBar({ percent, complete }) {
@@ -62,9 +63,12 @@ export default function GroupPerformanceCard({ group, date, program, tab }) {
               />
             </div>
             {complete && (
-              <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-1 rounded-full">
+              <Badge
+                colors="bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                className="shrink-0 py-1 font-semibold uppercase tracking-wide"
+              >
                 Complete
-              </span>
+              </Badge>
             )}
           </div>
 

@@ -1,8 +1,6 @@
 """Tests for ``GET /api/v1/counselor/requests/`` (Stories 7 + 8 combined list)."""
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -17,6 +15,8 @@ from bunk_logs.core.models import Order
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -40,8 +40,8 @@ def program(org):
         name="RQ Camp Summer 2026",
         slug="rq-summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 
@@ -287,8 +287,8 @@ def test_requests_does_not_leak_other_org(
         name="Other Summer",
         slug="other-rq-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
     other_user = User.objects.create_user(email="x@other.test", password="pw")
     other_person = Person.all_objects.create(

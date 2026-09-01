@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +13,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.submission import idempotent_create
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 
 @pytest.fixture
@@ -28,8 +29,8 @@ def program(org):
         name="Idem Camp Summer 2026",
         slug="summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

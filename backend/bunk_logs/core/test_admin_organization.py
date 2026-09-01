@@ -15,6 +15,8 @@ from bunk_logs.core.admin_organization import OrganizationAdminForm
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.permissions.subject_note_authoring import author_by_role_for_org
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 
@@ -174,7 +176,6 @@ def test_organization_admin_post_with_program_inlines(superuser, org, program):
 
 @pytest.fixture
 def program(org):
-    from datetime import date
 
     from bunk_logs.core.models import Program
 
@@ -183,8 +184,8 @@ def program(org):
         name="Admin Org Summer",
         slug="admin-org-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1),
-        end_date=date(2026, 8, 31),
+        start_date=SEASON_START,
+        end_date=SEASON_END,
     )
 
 

@@ -11,7 +11,6 @@ Covers, lean within full mode:
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -28,6 +27,8 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import RequestLineItem
 from bunk_logs.core.models import RequestType
 from bunk_logs.core.models import Store
+from bunk_logs.testing import SEASON_END
+from bunk_logs.testing import SEASON_START
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -50,7 +51,7 @@ def program(org):
     return Program.all_objects.create(
         organization=org, name="Catalog Camp Summer 2026", slug="catalog-summer-2026",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
 
 
@@ -142,7 +143,7 @@ def test_admin_catalog_org_scoped(org, admin_user):
     other_program = Program.all_objects.create(
         organization=other, name="Other Summer 2026", slug="other-summer",
         program_type="summer_camp",
-        start_date=date(2026, 6, 1), end_date=date(2026, 8, 31),
+        start_date=SEASON_START, end_date=SEASON_END,
     )
     other_user = User.objects.create_user(email="a2@catalog.test", password="pw")
     other_person = Person.all_objects.create(

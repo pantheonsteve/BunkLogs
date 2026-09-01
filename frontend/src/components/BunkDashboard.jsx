@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { groupDashboardLink, observationThreadLink, profileLink } from '../utils/dashboardLinks';
 import { sensitivityAudience } from '../api/observations';
+import Badge from './ui/Badge';
 import ScoreGrid from './ScoreGrid';
 import CounselorSelfReflectionsList, { counselorSelfReflectionSummary } from './CounselorSelfReflectionsList';
 
@@ -49,7 +50,7 @@ function SectionCard({ title, count, action, children, testid, state = 'populate
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">
           {title}
           {(typeof count === 'number' || typeof count === 'string') && (
-            <span className="ml-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span className="ml-2.5 text-xs font-medium text-gray-500 dark:text-gray-400">
               {count}
             </span>
           )}
@@ -67,6 +68,10 @@ const SUMMARY_TONES = {
   rose: { dot: 'bg-rose-500', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
 };
 
+// Sits on a light card, so it keeps bg-green-50 rather than the bg-green-100
+// the semantic `ok` tone uses.
+const COMPLETION_PILL = 'border border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/30 dark:text-green-300';
+
 function SummaryCard({ title, tone, people, bunkLabel, toProfile, testid }) {
   const t = SUMMARY_TONES[tone] || SUMMARY_TONES.slate;
   return (
@@ -80,9 +85,9 @@ function SummaryCard({ title, tone, people, bunkLabel, toProfile, testid }) {
           <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} aria-hidden="true" />
           {title}
         </span>
-        <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${t.badge}`}>
+        <Badge colors={t.badge} className="font-bold">
           {people.length}
-        </span>
+        </Badge>
       </div>
       {people.length === 0 ? (
         <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">None today.</p>
@@ -323,12 +328,12 @@ function NoteStreamMeta({ item }) {
   if (item.kind === 'observation') {
     if (item.sensitivity) {
       tags.push(
-        <span
+        <Badge
           key="sensitivity"
-          className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200"
+          colors="bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
         >
           {sensitivityAudience(item.sensitivity)}
-        </span>,
+        </Badge>,
       );
     }
     if (item.context) {
@@ -342,12 +347,9 @@ function NoteStreamMeta({ item }) {
     const meta = SOURCE_TAG[item.kind];
     if (meta) {
       tags.push(
-        <span
-          key="source"
-          className={`text-xs rounded-full px-2 py-0.5 font-medium ${meta.cls}`}
-        >
+        <Badge key="source" colors={meta.cls}>
           {meta.label}
-        </span>,
+        </Badge>,
       );
     }
     if (item.authorRole) {
@@ -620,12 +622,14 @@ export default function BunkDashboard({
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {completion.expected > 0 && (
-              <span
+              <Badge
                 data-testid="bunk-completion"
-                className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/30 px-3 py-1 text-xs font-semibold text-green-700 dark:text-green-300"
+                size="md"
+                colors={COMPLETION_PILL}
+                className="font-semibold"
               >
                 {completion.submitted} of {completion.expected} reflections submitted
-              </span>
+              </Badge>
             )}
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300">
               View only
