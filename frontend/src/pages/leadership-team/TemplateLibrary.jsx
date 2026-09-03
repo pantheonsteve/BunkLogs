@@ -23,8 +23,8 @@ import ActivelyAssignedTab from './ActivelyAssignedTab';
 import AssignmentDialog from './AssignmentDialog';
 
 const LIBRARY_TABS = [
-  { key: 'all', label: 'All templates' },
   { key: 'assigned', label: 'Actively assigned' },
+  { key: 'all', label: 'All templates' },
 ];
 
 const STATUS_OPTIONS = [
@@ -84,7 +84,7 @@ export default function LeadershipTeamTemplateLibrary() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { orgSlug } = useAuth();
-  const activeTab = searchParams.get('tab') === 'assigned' ? 'assigned' : 'all';
+  const activeTab = searchParams.get('tab') === 'all' ? 'all' : 'assigned';
   const [templates, setTemplates] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -98,7 +98,7 @@ export default function LeadershipTeamTemplateLibrary() {
 
   const setActiveTab = (tab) => {
     const next = new URLSearchParams(searchParams);
-    if (tab === 'assigned') next.set('tab', 'assigned');
+    if (tab === 'all') next.set('tab', 'all');
     else next.delete('tab');
     setSearchParams(next, { replace: true });
   };

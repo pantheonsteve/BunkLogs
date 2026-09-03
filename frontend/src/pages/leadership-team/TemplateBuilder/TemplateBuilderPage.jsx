@@ -15,7 +15,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  AlignLeft,
+  CircleDot,
+  List,
+  ListChecks,
+  Star,
+  Stars,
+  Type,
+} from 'lucide-react';
 import ReflectionField from '../../../components/templates/ReflectionField';
+import { slugifyFieldKey } from '../../../components/templates/FieldKeyAutocomplete';
 import {
   archiveTemplate,
   cloneTemplate,
@@ -31,13 +41,48 @@ import AssignFormDialog from '../AssignFormDialog';
 import { SUBJECT_MODE_OPTIONS } from '../../../lib/templateRouting';
 
 const TIER_1_TYPES = [
-  { value: 'text', label: 'Short text' },
-  { value: 'textarea', label: 'Long text' },
-  { value: 'text_list', label: 'Text list' },
-  { value: 'single_choice', label: 'Single choice' },
-  { value: 'multiple_choice', label: 'Multiple choice' },
-  { value: 'rating_group', label: 'Rating group' },
-  { value: 'single_rating', label: 'Single rating' },
+  {
+    value: 'text',
+    label: 'Short text',
+    Icon: Type,
+    tone: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 hover:border-sky-400 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/50',
+  },
+  {
+    value: 'textarea',
+    label: 'Long text',
+    Icon: AlignLeft,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 hover:border-teal-400 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/50',
+  },
+  {
+    value: 'text_list',
+    label: 'Text list',
+    Icon: List,
+    tone: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50',
+  },
+  {
+    value: 'single_choice',
+    label: 'Single choice',
+    Icon: CircleDot,
+    tone: 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:border-amber-400 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/50',
+  },
+  {
+    value: 'multiple_choice',
+    label: 'Multiple choice',
+    Icon: ListChecks,
+    tone: 'border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 hover:border-rose-400 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50',
+  },
+  {
+    value: 'rating_group',
+    label: 'Rating group',
+    Icon: Stars,
+    tone: 'border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100 hover:border-orange-400 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-300 dark:hover:bg-orange-900/50',
+  },
+  {
+    value: 'single_rating',
+    label: 'Single rating',
+    Icon: Star,
+    tone: 'border-yellow-200 bg-yellow-50 text-yellow-900 hover:bg-yellow-100 hover:border-yellow-400 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300 dark:hover:bg-yellow-900/50',
+  },
 ];
 
 // Valid dashboard_role values per field type.  Only types that produce
@@ -168,9 +213,24 @@ function clientValidate(template, fields) {
 }
 
 function FieldEditor({ field, languages, onChange, onRemove }) {
+  // Auto-fill key from the primary-language prompt until the user edits the key.
+  const [keyTouched, setKeyTouched] = useState(() => Boolean(field.key?.trim()));
+  const primaryLang = languages[0] ?? 'en';
   const update = (patch) => onChange({ ...field, ...patch });
-  const updatePrompt = (lang, value) =>
-    update({ prompts: { ...(field.prompts || {}), [lang]: value } });
+
+  const updatePrompt = (lang, value) => {
+    const prompts = { ...(field.prompts || {}), [lang]: value };
+    if (!keyTouched && lang === primaryLang) {
+      update({ prompts, key: slugifyFieldKey(value) });
+      return;
+    }
+    update({ prompts });
+  };
+
+  const updateKey = (value) => {
+    setKeyTouched(true);
+    update({ key: value.toLowerCase().replace(/[^a-z0-9_]/g, '') });
+  };
 
   return (
     <div
@@ -192,9 +252,10 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
           <input
             type="text"
             value={field.key}
-            onChange={(e) => update({ key: e.target.value })}
-            placeholder="field_key"
-            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 min-w-[8rem] flex-1 max-w-full"
+            onChange={(e) => updateKey(e.target.value)}
+            placeholder="auto from prompt"
+            title="Auto-filled from the prompt; edit anytime to customize"
+            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 min-w-[8rem] flex-1 max-w-full font-mono"
             data-testid={`lt-fld-key-${field._id}`}
           />
           <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 shrink-0">
@@ -951,19 +1012,23 @@ export default function TemplateBuilderPage() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
               Fields
             </h2>
-            <div className="flex flex-wrap gap-1 mb-3">
-              {TIER_1_TYPES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => onAddField(t.value)}
-                  disabled={isArchived}
-                  className="text-xs rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                  data-testid={`lt-builder-add-${t.value}`}
-                >
-                  + {t.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {TIER_1_TYPES.map((t) => {
+                const Icon = t.Icon;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => onAddField(t.value)}
+                    disabled={isArchived}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${t.tone}`}
+                    data-testid={`lt-builder-add-${t.value}`}
+                  >
+                    <Icon size={14} strokeWidth={2.25} aria-hidden="true" />
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
             <div className="space-y-2" data-testid="lt-builder-fields">
               {fields.map((field, idx) => (
