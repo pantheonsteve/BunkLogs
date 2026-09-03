@@ -92,6 +92,53 @@ describe('TemplateBuilderPage', () => {
     expect(postMock.mock.calls[0][1].schema.fields[0].key).toBe('weekly_wins');
   });
 
+  it('suffixes auto field keys so they stay unique across fields', async () => {
+    renderNew();
+    fireEvent.click(screen.getByTestId('lt-builder-add-text'));
+    fireEvent.click(screen.getByTestId('lt-builder-add-text'));
+
+    const keyFields = await screen.findAllByPlaceholderText('auto from prompt');
+    const prompts = screen.getAllByLabelText(/Prompt \(en\)/);
+    expect(keyFields).toHaveLength(2);
+
+    fireEvent.change(prompts[0], { target: { value: 'Overall mood' } });
+    fireEvent.change(prompts[1], { target: { value: 'Overall mood' } });
+
+    expect(keyFields[0]).toHaveValue('overall_mood');
+    expect(keyFields[1]).toHaveValue('overall_mood_2');
+  });
+
+  it('auto-fills option keys from labels and keeps them unique', async () => {
+    postMock.mockResolvedValue({ data: { id: 99 } });
+    renderNew();
+    fireEvent.change(screen.getByTestId('lt-builder-name'), { target: { value: 'Choice template' } });
+    fireEvent.click(screen.getByTestId('lt-builder-add-single_choice'));
+
+    const fieldKey = await screen.findByPlaceholderText('auto from prompt');
+    fireEvent.change(screen.getByLabelText(/Prompt \(en\)/), { target: { value: 'Pick one' } });
+    expect(fieldKey).toHaveValue('pick_one');
+
+    const addOpt = screen.getByTestId(/lt-opt-add-/);
+    fireEvent.click(addOpt);
+    fireEvent.click(addOpt);
+
+    const optKeys = screen.getAllByPlaceholderText('auto from label');
+    const optLabels = screen.getAllByPlaceholderText('label (en)');
+    fireEvent.change(optLabels[0], { target: { value: 'Yes' } });
+    fireEvent.change(optLabels[1], { target: { value: 'Yes' } });
+    expect(optKeys[0]).toHaveValue('yes');
+    expect(optKeys[1]).toHaveValue('yes_2');
+
+    fireEvent.change(optKeys[0], { target: { value: 'affirmative' } });
+    fireEvent.change(optLabels[0], { target: { value: 'Absolutely' } });
+    expect(optKeys[0]).toHaveValue('affirmative');
+
+    fireEvent.click(screen.getByTestId('lt-builder-save'));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    const options = postMock.mock.calls[0][1].schema.fields[0].options;
+    expect(options.map((o) => o.key)).toEqual(['affirmative', 'yes_2']);
+  });
+
   it('lets the LT user add a text field and post the new draft', async () => {
     postMock.mockResolvedValue({ data: { id: 99 } });
     renderNew();

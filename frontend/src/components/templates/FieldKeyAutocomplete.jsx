@@ -12,6 +12,20 @@ export function slugifyFieldKey(text) {
 }
 
 /**
+ * Slugify `text` and append _2, _3, … until the result is not in `taken`.
+ * Returns '' when the slugified text is empty (caller decides fallback).
+ */
+export function uniqueSlug(text, taken = [], { fallback = '' } = {}) {
+  const root = slugifyFieldKey(text) || fallback;
+  if (!root) return '';
+  const used = taken instanceof Set ? taken : new Set(taken);
+  if (!used.has(root)) return root;
+  let n = 2;
+  while (used.has(`${root}_${n}`)) n += 1;
+  return `${root}_${n}`;
+}
+
+/**
  * Text input with autocomplete from the FieldKey registry.
  * @param {object} props
  * @param {string}   props.value       - current key value

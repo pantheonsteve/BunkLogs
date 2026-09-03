@@ -25,7 +25,7 @@ import {
   Type,
 } from 'lucide-react';
 import ReflectionField from '../../../components/templates/ReflectionField';
-import { slugifyFieldKey } from '../../../components/templates/FieldKeyAutocomplete';
+import { uniqueSlug } from '../../../components/templates/FieldKeyAutocomplete';
 import {
   archiveTemplate,
   cloneTemplate,
@@ -208,11 +208,22 @@ function clientValidate(template, fields) {
     if (f.type === 'rating_group' && !(f.categories?.length > 0)) {
       issues.push(`${loc}: add at least one category.`);
     }
+    const nested = f.type === 'rating_group' ? f.categories : f.options;
+    if (Array.isArray(nested) && nested.length > 0) {
+      const kind = f.type === 'rating_group' ? 'category' : 'option';
+      const seenNested = new Set();
+      nested.forEach((item, j) => {
+        const key = item?.key?.trim();
+        if (!key) issues.push(`${loc} ${kind} ${j + 1}: key is required.`);
+        else if (seenNested.has(key)) issues.push(`${loc}: duplicate ${kind} key "${key}".`);
+        else seenNested.add(key);
+      });
+    }
   });
   return issues;
 }
 
-function FieldEditor({ field, languages, onChange, onRemove }) {
+function FieldEditor({ field, languages, onChange, onRemove, siblingKeys = [] }) {
   // Auto-fill key from the primary-language prompt until the user edits the key.
   const [keyTouched, setKeyTouched] = useState(() => Boolean(field.key?.trim()));
   const primaryLang = languages[0] ?? 'en';
@@ -221,7 +232,7 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
   const updatePrompt = (lang, value) => {
     const prompts = { ...(field.prompts || {}), [lang]: value };
     if (!keyTouched && lang === primaryLang) {
-      update({ prompts, key: slugifyFieldKey(value) });
+      update({ prompts, key: uniqueSlug(value, siblingKeys) });
       return;
     }
     update({ prompts });
@@ -292,20 +303,30 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
         ))}
 
         {(field.type === 'single_choice' || field.type === 'multiple_choice') && (
-          <OptionsEditor
-            options={field.options || []}
+          <LabeledKeyList
+            items={field.options || []}
             languages={languages}
             onChange={(options) => update({ options })}
             fieldId={field._id}
+            title="Options"
+            addLabel="+ Add option"
+            addTestId={`lt-opt-add-${field._id}`}
+            itemTestIdPrefix={`lt-opt-${field._id}`}
+            keyFallback="option"
           />
         )}
 
         {field.type === 'rating_group' && (
-          <CategoriesEditor
-            categories={field.categories || []}
+          <LabeledKeyList
+            items={field.categories || []}
             languages={languages}
             onChange={(categories) => update({ categories })}
             fieldId={field._id}
+            title="Categories"
+            addLabel="+ Add category"
+            addTestId={`lt-cat-add-${field._id}`}
+            itemTestIdPrefix={`lt-cat-${field._id}`}
+            keyFallback="category"
           />
         )}
 
@@ -330,85 +351,75 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
   );
 }
 
-function OptionsEditor({ options, languages, onChange, fieldId }) {
-  const addOption = () => onChange([
-    ...options,
-    { key: '', labels: Object.fromEntries(languages.map((l) => [l, ''])) },
-  ]);
-  const updateOption = (idx, patch) => onChange(options.map((o, i) => i === idx ? { ...o, ...patch } : o));
-  const removeOption = (idx) => onChange(options.filter((_, i) => i !== idx));
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Options</p>
-      {options.map((o, idx) => (
-        <div
-          key={idx}
-          className="rounded-md border border-gray-100 dark:border-gray-700 p-2 space-y-2"
-          data-testid={`lt-opt-${fieldId}-${idx}`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={o.key}
-              onChange={(e) => updateOption(idx, { key: e.target.value })}
-              placeholder="option_key"
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32"
-            />
-            <button
-              type="button"
-              onClick={() => removeOption(idx)}
-              className="text-xs text-red-600 hover:underline sm:ml-auto"
-            >
-              Remove
-            </button>
-          </div>
-          {languages.map((lang) => (
-            <input
-              key={lang}
-              type="text"
-              value={o.labels?.[lang] ?? ''}
-              onChange={(e) => updateOption(idx, { labels: { ...(o.labels || {}), [lang]: e.target.value } })}
-              placeholder={`label (${lang})`}
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full"
-            />
-          ))}
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={addOption}
-        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-        data-testid={`lt-opt-add-${fieldId}`}
-      >
-        + Add option
-      </button>
-    </div>
+/** Options / categories: auto-fill keys from the primary-language label. */
+function LabeledKeyList({
+  items,
+  languages,
+  onChange,
+  title,
+  addLabel,
+  addTestId,
+  itemTestIdPrefix,
+  keyFallback,
+}) {
+  const [touched, setTouched] = useState(
+    () => new Set(items.map((item, i) => (item.key?.trim() ? i : -1)).filter((i) => i >= 0)),
   );
-}
+  const primaryLang = languages[0] ?? 'en';
 
-function CategoriesEditor({ categories, languages, onChange, fieldId }) {
   const add = () => onChange([
-    ...categories,
+    ...items,
     { key: '', labels: Object.fromEntries(languages.map((l) => [l, ''])) },
   ]);
-  const update = (idx, patch) => onChange(categories.map((c, i) => i === idx ? { ...c, ...patch } : c));
-  const remove = (idx) => onChange(categories.filter((_, i) => i !== idx));
+
+  const remove = (idx) => {
+    setTouched((prev) => {
+      const next = new Set();
+      for (const t of prev) {
+        if (t < idx) next.add(t);
+        else if (t > idx) next.add(t - 1);
+      }
+      return next;
+    });
+    onChange(items.filter((_, i) => i !== idx));
+  };
+
+  const updateKey = (idx, value) => {
+    setTouched((prev) => new Set(prev).add(idx));
+    const key = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    onChange(items.map((item, i) => (i === idx ? { ...item, key } : item)));
+  };
+
+  const updateLabel = (idx, lang, value) => {
+    onChange(items.map((item, i) => {
+      if (i !== idx) return item;
+      const labels = { ...(item.labels || {}), [lang]: value };
+      if (!touched.has(idx) && lang === primaryLang) {
+        const taken = items.map((o, j) => (j === idx ? null : o.key)).filter(Boolean);
+        return { ...item, labels, key: uniqueSlug(value, taken, { fallback: keyFallback }) };
+      }
+      return { ...item, labels };
+    }));
+  };
+
   return (
     <div className="space-y-1">
-      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Categories</p>
-      {categories.map((c, idx) => (
+      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{title}</p>
+      {items.map((item, idx) => (
         <div
           key={idx}
           className="rounded-md border border-gray-100 dark:border-gray-700 p-2 space-y-2"
-          data-testid={`lt-cat-${fieldId}-${idx}`}
+          data-testid={`${itemTestIdPrefix}-${idx}`}
         >
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
-              value={c.key}
-              onChange={(e) => update(idx, { key: e.target.value })}
-              placeholder="category_key"
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32"
+              value={item.key}
+              onChange={(e) => updateKey(idx, e.target.value)}
+              placeholder="auto from label"
+              title="Auto-filled from the label; edit anytime to customize"
+              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32 font-mono"
+              data-testid={`${itemTestIdPrefix}-key-${idx}`}
             />
             <button
               type="button"
@@ -422,10 +433,11 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
             <input
               key={lang}
               type="text"
-              value={c.labels?.[lang] ?? ''}
-              onChange={(e) => update(idx, { labels: { ...(c.labels || {}), [lang]: e.target.value } })}
+              value={item.labels?.[lang] ?? ''}
+              onChange={(e) => updateLabel(idx, lang, e.target.value)}
               placeholder={`label (${lang})`}
               className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full"
+              data-testid={`${itemTestIdPrefix}-label-${idx}-${lang}`}
             />
           ))}
         </div>
@@ -434,9 +446,9 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
         type="button"
         onClick={add}
         className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-        data-testid={`lt-cat-add-${fieldId}`}
+        data-testid={addTestId}
       >
-        + Add category
+        {addLabel}
       </button>
     </div>
   );
@@ -605,6 +617,13 @@ export default function TemplateBuilderPage() {
     setWarnings([]);
     if (validationIssues.length > 0) {
       setError(validationIssues.join(' · '));
+      // Surface the issues panel — easy to miss when the save button sits above the fold.
+      requestAnimationFrame(() => {
+        const el = document.querySelector('[data-testid="lt-builder-issues"]');
+        if (typeof el?.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
       return null;
     }
     setSaving(true);
@@ -1058,6 +1077,10 @@ export default function TemplateBuilderPage() {
                   <div className="flex-1 min-w-0">
                     <FieldEditor
                       field={field}
+                      siblingKeys={fields
+                        .filter((f) => f._id !== field._id)
+                        .map((f) => f.key)
+                        .filter(Boolean)}
                       languages={template.languages}
                       onChange={(next) => onFieldChange(idx, next)}
                       onRemove={() => onFieldRemove(idx)}
