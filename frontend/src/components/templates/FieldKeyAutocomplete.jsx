@@ -2,11 +2,27 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import api from '../../api';
 
-function slugify(text) {
+/** Turn a prompt/label into a snake_case field key. */
+export function slugifyFieldKey(text) {
   return (text || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '');
+    .replace(/^_|_$/g, '')
+    .slice(0, 64);
+}
+
+/**
+ * Slugify `text` and append _2, _3, … until the result is not in `taken`.
+ * Returns '' when the slugified text is empty (caller decides fallback).
+ */
+export function uniqueSlug(text, taken = [], { fallback = '' } = {}) {
+  const root = slugifyFieldKey(text) || fallback;
+  if (!root) return '';
+  const used = taken instanceof Set ? taken : new Set(taken);
+  if (!used.has(root)) return root;
+  let n = 2;
+  while (used.has(`${root}_${n}`)) n += 1;
+  return `${root}_${n}`;
 }
 
 /**
@@ -72,7 +88,7 @@ export default function FieldKeyAutocomplete({ value, onChange, promptHint, disa
   };
 
   const openNewKeyModal = () => {
-    const suggested = slugify(promptHint) || query;
+    const suggested = slugifyFieldKey(promptHint) || query;
     setNewKeyForm({ key: suggested, display_name: promptHint || '', description: '' });
     setSaveError('');
     setNewKeyModal(true);

@@ -15,7 +15,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  AlignLeft,
+  CircleDot,
+  List,
+  ListChecks,
+  Star,
+  Stars,
+  Type,
+} from 'lucide-react';
 import ReflectionField from '../../../components/templates/ReflectionField';
+import { uniqueSlug } from '../../../components/templates/FieldKeyAutocomplete';
 import {
   archiveTemplate,
   cloneTemplate,
@@ -31,13 +41,48 @@ import AssignFormDialog from '../AssignFormDialog';
 import { SUBJECT_MODE_OPTIONS } from '../../../lib/templateRouting';
 
 const TIER_1_TYPES = [
-  { value: 'text', label: 'Short text' },
-  { value: 'textarea', label: 'Long text' },
-  { value: 'text_list', label: 'Text list' },
-  { value: 'single_choice', label: 'Single choice' },
-  { value: 'multiple_choice', label: 'Multiple choice' },
-  { value: 'rating_group', label: 'Rating group' },
-  { value: 'single_rating', label: 'Single rating' },
+  {
+    value: 'text',
+    label: 'Short text',
+    Icon: Type,
+    tone: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 hover:border-sky-400 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/50',
+  },
+  {
+    value: 'textarea',
+    label: 'Long text',
+    Icon: AlignLeft,
+    tone: 'border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 hover:border-teal-400 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/50',
+  },
+  {
+    value: 'text_list',
+    label: 'Text list',
+    Icon: List,
+    tone: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50',
+  },
+  {
+    value: 'single_choice',
+    label: 'Single choice',
+    Icon: CircleDot,
+    tone: 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:border-amber-400 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/50',
+  },
+  {
+    value: 'multiple_choice',
+    label: 'Multiple choice',
+    Icon: ListChecks,
+    tone: 'border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 hover:border-rose-400 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50',
+  },
+  {
+    value: 'rating_group',
+    label: 'Rating group',
+    Icon: Stars,
+    tone: 'border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100 hover:border-orange-400 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-300 dark:hover:bg-orange-900/50',
+  },
+  {
+    value: 'single_rating',
+    label: 'Single rating',
+    Icon: Star,
+    tone: 'border-yellow-200 bg-yellow-50 text-yellow-900 hover:bg-yellow-100 hover:border-yellow-400 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300 dark:hover:bg-yellow-900/50',
+  },
 ];
 
 // Valid dashboard_role values per field type.  Only types that produce
@@ -163,14 +208,40 @@ function clientValidate(template, fields) {
     if (f.type === 'rating_group' && !(f.categories?.length > 0)) {
       issues.push(`${loc}: add at least one category.`);
     }
+    const nested = f.type === 'rating_group' ? f.categories : f.options;
+    if (Array.isArray(nested) && nested.length > 0) {
+      const kind = f.type === 'rating_group' ? 'category' : 'option';
+      const seenNested = new Set();
+      nested.forEach((item, j) => {
+        const key = item?.key?.trim();
+        if (!key) issues.push(`${loc} ${kind} ${j + 1}: key is required.`);
+        else if (seenNested.has(key)) issues.push(`${loc}: duplicate ${kind} key "${key}".`);
+        else seenNested.add(key);
+      });
+    }
   });
   return issues;
 }
 
-function FieldEditor({ field, languages, onChange, onRemove }) {
+function FieldEditor({ field, languages, onChange, onRemove, siblingKeys = [] }) {
+  // Auto-fill key from the primary-language prompt until the user edits the key.
+  const [keyTouched, setKeyTouched] = useState(() => Boolean(field.key?.trim()));
+  const primaryLang = languages[0] ?? 'en';
   const update = (patch) => onChange({ ...field, ...patch });
-  const updatePrompt = (lang, value) =>
-    update({ prompts: { ...(field.prompts || {}), [lang]: value } });
+
+  const updatePrompt = (lang, value) => {
+    const prompts = { ...(field.prompts || {}), [lang]: value };
+    if (!keyTouched && lang === primaryLang) {
+      update({ prompts, key: uniqueSlug(value, siblingKeys) });
+      return;
+    }
+    update({ prompts });
+  };
+
+  const updateKey = (value) => {
+    setKeyTouched(true);
+    update({ key: value.toLowerCase().replace(/[^a-z0-9_]/g, '') });
+  };
 
   return (
     <div
@@ -192,9 +263,10 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
           <input
             type="text"
             value={field.key}
-            onChange={(e) => update({ key: e.target.value })}
-            placeholder="field_key"
-            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 min-w-[8rem] flex-1 max-w-full"
+            onChange={(e) => updateKey(e.target.value)}
+            placeholder="auto from prompt"
+            title="Auto-filled from the prompt; edit anytime to customize"
+            className="text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 min-w-[8rem] flex-1 max-w-full font-mono"
             data-testid={`lt-fld-key-${field._id}`}
           />
           <label className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 shrink-0">
@@ -231,20 +303,30 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
         ))}
 
         {(field.type === 'single_choice' || field.type === 'multiple_choice') && (
-          <OptionsEditor
-            options={field.options || []}
+          <LabeledKeyList
+            items={field.options || []}
             languages={languages}
             onChange={(options) => update({ options })}
             fieldId={field._id}
+            title="Options"
+            addLabel="+ Add option"
+            addTestId={`lt-opt-add-${field._id}`}
+            itemTestIdPrefix={`lt-opt-${field._id}`}
+            keyFallback="option"
           />
         )}
 
         {field.type === 'rating_group' && (
-          <CategoriesEditor
-            categories={field.categories || []}
+          <LabeledKeyList
+            items={field.categories || []}
             languages={languages}
             onChange={(categories) => update({ categories })}
             fieldId={field._id}
+            title="Categories"
+            addLabel="+ Add category"
+            addTestId={`lt-cat-add-${field._id}`}
+            itemTestIdPrefix={`lt-cat-${field._id}`}
+            keyFallback="category"
           />
         )}
 
@@ -269,85 +351,75 @@ function FieldEditor({ field, languages, onChange, onRemove }) {
   );
 }
 
-function OptionsEditor({ options, languages, onChange, fieldId }) {
-  const addOption = () => onChange([
-    ...options,
-    { key: '', labels: Object.fromEntries(languages.map((l) => [l, ''])) },
-  ]);
-  const updateOption = (idx, patch) => onChange(options.map((o, i) => i === idx ? { ...o, ...patch } : o));
-  const removeOption = (idx) => onChange(options.filter((_, i) => i !== idx));
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Options</p>
-      {options.map((o, idx) => (
-        <div
-          key={idx}
-          className="rounded-md border border-gray-100 dark:border-gray-700 p-2 space-y-2"
-          data-testid={`lt-opt-${fieldId}-${idx}`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={o.key}
-              onChange={(e) => updateOption(idx, { key: e.target.value })}
-              placeholder="option_key"
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32"
-            />
-            <button
-              type="button"
-              onClick={() => removeOption(idx)}
-              className="text-xs text-red-600 hover:underline sm:ml-auto"
-            >
-              Remove
-            </button>
-          </div>
-          {languages.map((lang) => (
-            <input
-              key={lang}
-              type="text"
-              value={o.labels?.[lang] ?? ''}
-              onChange={(e) => updateOption(idx, { labels: { ...(o.labels || {}), [lang]: e.target.value } })}
-              placeholder={`label (${lang})`}
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full"
-            />
-          ))}
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={addOption}
-        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-        data-testid={`lt-opt-add-${fieldId}`}
-      >
-        + Add option
-      </button>
-    </div>
+/** Options / categories: auto-fill keys from the primary-language label. */
+function LabeledKeyList({
+  items,
+  languages,
+  onChange,
+  title,
+  addLabel,
+  addTestId,
+  itemTestIdPrefix,
+  keyFallback,
+}) {
+  const [touched, setTouched] = useState(
+    () => new Set(items.map((item, i) => (item.key?.trim() ? i : -1)).filter((i) => i >= 0)),
   );
-}
+  const primaryLang = languages[0] ?? 'en';
 
-function CategoriesEditor({ categories, languages, onChange, fieldId }) {
   const add = () => onChange([
-    ...categories,
+    ...items,
     { key: '', labels: Object.fromEntries(languages.map((l) => [l, ''])) },
   ]);
-  const update = (idx, patch) => onChange(categories.map((c, i) => i === idx ? { ...c, ...patch } : c));
-  const remove = (idx) => onChange(categories.filter((_, i) => i !== idx));
+
+  const remove = (idx) => {
+    setTouched((prev) => {
+      const next = new Set();
+      for (const t of prev) {
+        if (t < idx) next.add(t);
+        else if (t > idx) next.add(t - 1);
+      }
+      return next;
+    });
+    onChange(items.filter((_, i) => i !== idx));
+  };
+
+  const updateKey = (idx, value) => {
+    setTouched((prev) => new Set(prev).add(idx));
+    const key = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    onChange(items.map((item, i) => (i === idx ? { ...item, key } : item)));
+  };
+
+  const updateLabel = (idx, lang, value) => {
+    onChange(items.map((item, i) => {
+      if (i !== idx) return item;
+      const labels = { ...(item.labels || {}), [lang]: value };
+      if (!touched.has(idx) && lang === primaryLang) {
+        const taken = items.map((o, j) => (j === idx ? null : o.key)).filter(Boolean);
+        return { ...item, labels, key: uniqueSlug(value, taken, { fallback: keyFallback }) };
+      }
+      return { ...item, labels };
+    }));
+  };
+
   return (
     <div className="space-y-1">
-      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Categories</p>
-      {categories.map((c, idx) => (
+      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{title}</p>
+      {items.map((item, idx) => (
         <div
           key={idx}
           className="rounded-md border border-gray-100 dark:border-gray-700 p-2 space-y-2"
-          data-testid={`lt-cat-${fieldId}-${idx}`}
+          data-testid={`${itemTestIdPrefix}-${idx}`}
         >
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
-              value={c.key}
-              onChange={(e) => update(idx, { key: e.target.value })}
-              placeholder="category_key"
-              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32"
+              value={item.key}
+              onChange={(e) => updateKey(idx, e.target.value)}
+              placeholder="auto from label"
+              title="Auto-filled from the label; edit anytime to customize"
+              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full sm:w-32 font-mono"
+              data-testid={`${itemTestIdPrefix}-key-${idx}`}
             />
             <button
               type="button"
@@ -361,10 +433,11 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
             <input
               key={lang}
               type="text"
-              value={c.labels?.[lang] ?? ''}
-              onChange={(e) => update(idx, { labels: { ...(c.labels || {}), [lang]: e.target.value } })}
+              value={item.labels?.[lang] ?? ''}
+              onChange={(e) => updateLabel(idx, lang, e.target.value)}
               placeholder={`label (${lang})`}
               className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 w-full"
+              data-testid={`${itemTestIdPrefix}-label-${idx}-${lang}`}
             />
           ))}
         </div>
@@ -373,9 +446,9 @@ function CategoriesEditor({ categories, languages, onChange, fieldId }) {
         type="button"
         onClick={add}
         className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-        data-testid={`lt-cat-add-${fieldId}`}
+        data-testid={addTestId}
       >
-        + Add category
+        {addLabel}
       </button>
     </div>
   );
@@ -544,6 +617,13 @@ export default function TemplateBuilderPage() {
     setWarnings([]);
     if (validationIssues.length > 0) {
       setError(validationIssues.join(' · '));
+      // Surface the issues panel — easy to miss when the save button sits above the fold.
+      requestAnimationFrame(() => {
+        const el = document.querySelector('[data-testid="lt-builder-issues"]');
+        if (typeof el?.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
       return null;
     }
     setSaving(true);
@@ -951,19 +1031,23 @@ export default function TemplateBuilderPage() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
               Fields
             </h2>
-            <div className="flex flex-wrap gap-1 mb-3">
-              {TIER_1_TYPES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => onAddField(t.value)}
-                  disabled={isArchived}
-                  className="text-xs rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                  data-testid={`lt-builder-add-${t.value}`}
-                >
-                  + {t.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {TIER_1_TYPES.map((t) => {
+                const Icon = t.Icon;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => onAddField(t.value)}
+                    disabled={isArchived}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${t.tone}`}
+                    data-testid={`lt-builder-add-${t.value}`}
+                  >
+                    <Icon size={14} strokeWidth={2.25} aria-hidden="true" />
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
             <div className="space-y-2" data-testid="lt-builder-fields">
               {fields.map((field, idx) => (
@@ -993,6 +1077,10 @@ export default function TemplateBuilderPage() {
                   <div className="flex-1 min-w-0">
                     <FieldEditor
                       field={field}
+                      siblingKeys={fields
+                        .filter((f) => f._id !== field._id)
+                        .map((f) => f.key)
+                        .filter(Boolean)}
                       languages={template.languages}
                       onChange={(next) => onFieldChange(idx, next)}
                       onRemove={() => onFieldRemove(idx)}

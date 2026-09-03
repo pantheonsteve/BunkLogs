@@ -67,7 +67,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
         ],
       },
     });
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-row-7')).toBeInTheDocument());
     expect(screen.getByText('Kitchen Daily')).toBeInTheDocument();
     expect(screen.getByText(/draft v1/)).toBeInTheDocument();
@@ -75,13 +75,13 @@ describe('LeadershipTeamTemplateLibrary', () => {
 
   it('shows the empty state when the org has no templates', async () => {
     getMock.mockResolvedValue({ data: { templates: [] } });
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-empty')).toBeInTheDocument());
   });
 
   it('surfaces a 403 as a friendly error', async () => {
     getMock.mockRejectedValue({ response: { status: 403 } });
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-error')).toBeInTheDocument());
     expect(screen.getByTestId('lt-tpl-error')).toHaveTextContent(/LT access/i);
   });
@@ -103,7 +103,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
         ],
       },
     });
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-row-9')).toBeInTheDocument());
     expect(screen.getByTestId('lt-tpl-assignments-9')).toHaveTextContent('3 active assignments');
     expect(screen.getByTestId('lt-tpl-assignments-10')).toHaveTextContent(/Not assigned/i);
@@ -127,7 +127,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
     postMock.mockResolvedValue({ data: { id: 40, status: 'draft', is_active: false } });
     const user = userEvent.setup();
 
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-unpublish-40')).toBeInTheDocument());
 
     // Delete hidden once responses exist
@@ -144,7 +144,12 @@ describe('LeadershipTeamTemplateLibrary', () => {
   });
 
   it('links New template to /admin/templates/new', async () => {
-    getMock.mockResolvedValue({ data: { templates: [] } });
+    getMock.mockImplementation((url) => {
+      if (String(url).includes('/assignments/')) {
+        return Promise.resolve({ data: { assignments: [] } });
+      }
+      return Promise.resolve({ data: { templates: [] } });
+    });
     renderLib();
     await waitFor(() => expect(screen.getByTestId('lt-templates-new')).toBeInTheDocument());
     expect(screen.getByTestId('lt-templates-new')).toHaveAttribute('href', '/admin/templates/new');
@@ -158,7 +163,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
         ],
       },
     });
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-edit-11')).toBeInTheDocument());
     expect(screen.getByTestId('lt-tpl-edit-11')).toHaveAttribute('href', '/admin/templates/11');
   });
@@ -172,7 +177,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
         ],
       },
     });
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-row-11')).toBeInTheDocument());
     expect(screen.getByTestId('lt-tpl-edit-11')).toBeInTheDocument();
     expect(screen.getByTestId('lt-tpl-edit-12')).toBeInTheDocument();
@@ -202,7 +207,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
     deleteMock.mockResolvedValue({});
     const user = userEvent.setup();
 
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-row-20')).toBeInTheDocument());
 
     expect(screen.getByTestId('lt-tpl-delete-20')).toBeInTheDocument();
@@ -229,7 +234,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
     });
     const user = userEvent.setup();
 
-    renderLib();
+    renderLib('/admin/templates?tab=all');
     await waitFor(() => expect(screen.getByTestId('lt-tpl-delete-30')).toBeInTheDocument());
     await user.click(screen.getByTestId('lt-tpl-delete-30'));
     expect(screen.getByTestId('lt-tpl-delete-cancel-30')).toBeInTheDocument();
@@ -239,7 +244,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
     expect(deleteMock).not.toHaveBeenCalled();
   });
 
-  it('shows actively assigned tab with grouped assignments', async () => {
+  it('defaults to actively assigned tab with grouped assignments', async () => {
     getMock.mockImplementation((url) => {
       if (String(url).includes('/assignments/')) {
         return Promise.resolve({
@@ -303,7 +308,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
       });
     });
 
-    renderLib('/admin/templates?tab=assigned');
+    renderLib();
     await waitFor(() => expect(screen.getByTestId('lt-tpl-assigned-group-9')).toBeInTheDocument());
     expect(screen.getByTestId('assignment-row-101')).toBeInTheDocument();
     expect(screen.getByTestId('assignment-row-102')).toBeInTheDocument();
@@ -316,7 +321,7 @@ describe('LeadershipTeamTemplateLibrary', () => {
     expect(screen.getByTestId('lt-tpl-assigned-edit-9')).toHaveAttribute('href', '/admin/templates/9');
   });
 
-  it('switches to assigned tab via tab control', async () => {
+  it('switches to all templates tab via tab control', async () => {
     getMock.mockImplementation((url) => {
       if (String(url).includes('/assignments/')) {
         return Promise.resolve({ data: { assignments: [] } });
@@ -326,8 +331,8 @@ describe('LeadershipTeamTemplateLibrary', () => {
     const user = userEvent.setup();
 
     renderLib();
-    await waitFor(() => expect(screen.getByTestId('lt-tpl-tab-assigned')).toBeInTheDocument());
-    await user.click(screen.getByTestId('lt-tpl-tab-assigned'));
     await waitFor(() => expect(screen.getByTestId('lt-tpl-assigned-empty')).toBeInTheDocument());
+    await user.click(screen.getByTestId('lt-tpl-tab-all'));
+    await waitFor(() => expect(screen.getByTestId('lt-tpl-empty')).toBeInTheDocument());
   });
 });
