@@ -29,6 +29,13 @@ DEFAULT_TERMS: dict[str, dict[str, str]] = {
     "unit": {"one": "unit", "other": "units"},
     "team": {"one": "team", "other": "teams"},
     "caseload": {"one": "caseload", "other": "caseloads"},
+    # The admin's merged roster area holds every ``group_type`` at once, so it
+    # needs a noun broader than ``bunk``. A school that only has classrooms
+    # renames it to "class"; the camp keeps the generic word.
+    "group": {"one": "group", "other": "groups"},
+    # ``Program`` is a year or a season to the people administering it, but
+    # "program" means a curriculum to most educators.
+    "program": {"one": "program", "other": "programs"},
     # Role nouns, for screens that name a role in prose. These do NOT rename
     # ``Membership.role`` slugs, which route templates and derive capabilities.
     "counselor": {"one": "counselor", "other": "counselors"},

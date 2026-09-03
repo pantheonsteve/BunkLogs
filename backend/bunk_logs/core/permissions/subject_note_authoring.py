@@ -50,6 +50,7 @@ DEFAULT_AUTHOR_BY_ROLE: dict[str, AuthorScope] = {
     "administrative_staff": "none",
     "housekeeping": "none",
     "camper": "none",
+    "student": "none",
 }
 
 VALID_SCOPES = frozenset(_SCOPE_RANK)

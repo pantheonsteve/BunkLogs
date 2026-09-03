@@ -353,6 +353,19 @@ class TestAdminBulkImportTemplate:
         assert any(row.startswith("Maya,Rosen,madrich,") for row in rows)
         assert any(",faculty," in row for row in rows)
 
+    def test_lists_spreadsheet_template_metadata(self, api, org, admin_user):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"source": "spreadsheet"}, **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert [item["variant"] for item in body["templates"]] == ["students"]
+        students = body["templates"][0]
+        # Only names are required; role defaults to student.
+        assert students["required_headers"] == ["first_name", "last_name"]
+        assert "role" in students["optional_headers"]
+        assert "group_name" in students["optional_headers"]
+
     def test_rejects_a_variant_from_another_source(self, api, org, admin_user):
         api.force_authenticate(user=admin_user)
         with organization_context(org):

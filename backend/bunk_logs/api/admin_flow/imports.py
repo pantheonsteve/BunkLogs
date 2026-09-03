@@ -3,18 +3,18 @@
 Two endpoints:
 
 * ``POST /api/v1/admin/people/import/preview/`` -- accepts a CSV
-  + ``source`` (``campminder`` or ``tbe``) + ``program_slug``. Parses
+  + ``source`` (see ``SUPPORTED_SOURCES``) + ``program_slug``. Parses
   the CSV in memory and returns a row-by-row diff (additions, changes,
   conflicts) without writing anything.
 * ``POST /api/v1/admin/people/import/commit/`` -- accepts the same
-  payload and invokes the existing management command
-  (``import_campminder_roster`` / ``import_tbe_roster``) inside a
-  ``transaction.atomic`` block, then writes a ``RosterImportLog``
-  row.
+  payload and invokes the matching management command (see
+  ``COMMAND_BY_SOURCE``) inside a ``transaction.atomic`` block, then
+  writes a ``RosterImportLog`` row.
 
 The commit is **idempotent**: re-running the same CSV is a no-op
-because the underlying upsert logic in those commands keys on
-``external_ids.campminder_id`` / ``external_ids.tbe_id``.
+because the underlying upsert logic keys on
+``external_ids.campminder_id`` for Campminder and on email/name for the
+name-matched sources.
 """
 
 from __future__ import annotations
@@ -44,6 +44,7 @@ from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import RosterImportLog
+from bunk_logs.core.people_csv import normalize_people_row
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.roster_import_templates import build_template_csv
 from bunk_logs.core.roster_import_templates import list_template_variants
@@ -51,19 +52,45 @@ from bunk_logs.core.roster_import_templates import variants_for_source
 
 from .common import viewer_or_403
 
-SUPPORTED_SOURCES = ("campminder", "tbe")
+SUPPORTED_SOURCES = ("campminder", "tbe", "spreadsheet")
 VALID_ROLES = frozenset(role for role, _ in Membership.ROLES)
+
+# The generic spreadsheet source has no external system behind it, so an id
+# column is optional there; rows are matched on email, then on name.
+SOURCES_REQUIRING_EXTERNAL_ID = frozenset({"campminder", "tbe"})
+
+COMMAND_BY_SOURCE = {
+    "campminder": "import_campminder_roster",
+    "tbe": "import_tbe_roster",
+    "spreadsheet": "import_people_roster",
+}
 
 
 def _normalize_row(source: str, row: dict) -> dict:
     if source == "campminder":
         return normalize_campminder_row(row)
+    if source == "spreadsheet":
+        return normalize_people_row(row)
     return row
 
 
 def _normalize_external_id(source: str, row: dict) -> str:
     key = f"{source}_id"
     return (row.get(key) or row.get("external_id") or "").strip()
+
+
+def _match_person_by_email_then_name(org, *, email: str, first_name: str, last_name: str):
+    if email:
+        person = Person.all_objects.filter(
+            organization=org, email__iexact=email,
+        ).first()
+        if person is not None:
+            return person
+    return Person.all_objects.filter(
+        organization=org,
+        first_name__iexact=first_name,
+        last_name__iexact=last_name,
+    ).first()
 
 
 def _classify_row(*, source: str, org, program, row: dict) -> dict:
@@ -77,7 +104,7 @@ def _classify_row(*, source: str, org, program, row: dict) -> dict:
     email = (row.get("email") or "").strip()
 
     issues: list[str] = []
-    if not external_id:
+    if not external_id and source in SOURCES_REQUIRING_EXTERNAL_ID:
         issues.append(f"missing {source}_id")
     if role and role not in VALID_ROLES:
         issues.append(f"unknown role {role!r}")
@@ -158,6 +185,20 @@ def _classify_row(*, source: str, org, program, row: dict) -> dict:
             if email and existing_person.email != email:
                 changed.append("email")
             if email and not existing_person.email:
+                changed.append("email")
+            classification = "change" if changed else "noop"
+    elif source == "spreadsheet":
+        # Mirrors ``import_people_roster``: email first, then name.
+        existing_person = _match_person_by_email_then_name(
+            org, email=email, first_name=first_name, last_name=last_name,
+        )
+        if existing_person is None:
+            classification = "add"
+        else:
+            changed = []
+            if preferred_name and existing_person.preferred_name != preferred_name:
+                changed.append("preferred_name")
+            if email and existing_person.email != email:
                 changed.append("email")
             classification = "change" if changed else "noop"
     else:
@@ -367,10 +408,7 @@ class AdminBulkImportCommitView(APIView):
         ) as tmp:
             tmp.write(csv_file.read())
             tmp_path = Path(tmp.name)
-        command_name = (
-            "import_campminder_roster" if source == "campminder"
-            else "import_tbe_roster"
-        )
+        command_name = COMMAND_BY_SOURCE[source]
         before_log_max_id = (
             RosterImportLog.all_objects.filter(
                 organization=ctx.organization, program=program,

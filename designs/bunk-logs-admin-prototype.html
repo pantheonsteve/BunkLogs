@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bunk Logs — Admin Prototype</title>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --panel:#ffffff;
+    --ink:#0f172a;
+    --ink2:#475569;
+    --ink3:#94a3b8;
+    --line:#e2e8f0;
+    --line2:#eef1f5;
+    --brand:#4f46e5;
+    --brand-soft:#eef2ff;
+    --brand-line:#c7d2fe;
+    --ok:#16a34a;
+    --ok-soft:#dcfce7;
+    --warn:#b45309;
+    --warn-soft:#fef3c7;
+    --warn-line:#fde68a;
+    --dang:#dc2626;
+    --dang-soft:#fee2e2;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{font:inherit;color:inherit}
+  a{color:var(--brand);text-decoration:none}
+
+  /* ---------- shell ---------- */
+  .app{display:flex;min-height:100vh}
+  .sidebar{
+    width:252px;flex:0 0 252px;background:#fff;border-right:1px solid var(--line);
+    padding:20px 14px;position:sticky;top:0;height:100vh;overflow:auto;
+  }
+  .logo{display:flex;align-items:center;gap:10px;padding:4px 8px 22px}
+  .logo-mark{
+    width:34px;height:34px;border-radius:8px;flex:0 0 34px;
+    background:linear-gradient(135deg,#c3d92e,#8fb800);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:800;font-size:12px;letter-spacing:.02em;
+  }
+  .logo-txt{font-weight:700;font-size:15px;letter-spacing:-.01em}
+  .logo-sub{font-size:11px;color:var(--ink3);font-weight:500}
+  .navsec{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--ink3);padding:16px 10px 6px}
+  .navitem{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    padding:8px 10px;border-radius:8px;border:0;background:none;cursor:pointer;
+    color:var(--ink2);font-weight:500;margin-bottom:2px;
+  }
+  .navitem:hover{background:#f1f5f9;color:var(--ink)}
+  .navitem.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+  .navitem .ico{width:18px;text-align:center;opacity:.85;font-size:15px}
+  .navitem .pill{margin-left:auto;background:var(--warn-soft);color:var(--warn);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px}
+  .navitem.on .pill{background:#fff}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{
+    display:flex;align-items:center;gap:14px;padding:12px 28px;
+    background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;
+  }
+  .yearsel{
+    display:flex;align-items:center;gap:8px;border:1px solid var(--line);
+    border-radius:9px;padding:6px 12px;background:#fff;cursor:pointer;font-weight:600;font-size:14px;
+  }
+  .yearsel:hover{border-color:var(--brand-line);background:var(--brand-soft)}
+  .yearsel .lbl{color:var(--ink3);font-weight:500}
+  .topsearch{
+    flex:1;max-width:340px;padding:7px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;
+  }
+  .spacer{flex:1}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);cursor:pointer;user-select:none}
+  .switch{width:34px;height:20px;border-radius:99px;background:#cbd5e1;position:relative;transition:.15s;flex:0 0 34px}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .switch.on{background:var(--brand)}
+  .switch.on::after{transform:translateX(14px)}
+  .avatar{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px}
+  .avatar .circ{width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+
+  .content{padding:28px;max-width:1180px;width:100%}
+
+  /* ---------- type ---------- */
+  h1{font-size:27px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:17px;margin:0 0 2px;letter-spacing:-.01em}
+  h3{font-size:14px;margin:0 0 10px;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .sub{color:var(--ink2);margin:0 0 22px}
+  .muted{color:var(--ink3)}
+  .crumb{background:none;border:0;color:var(--ink2);cursor:pointer;padding:0;margin-bottom:12px;font-weight:500}
+  .crumb:hover{color:var(--brand)}
+
+  /* ---------- cards ---------- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-h{padding:16px 18px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:12px}
+  .card-b{padding:18px}
+  .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;align-items:start}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:1080px){.grid2{grid-template-columns:1fr}}
+
+  /* ---------- buttons ---------- */
+  .btn{
+    border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:9px;
+    cursor:pointer;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn:hover{background:#f8fafc;border-color:#cbd5e1}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.primary:hover{background:#4338ca}
+  .btn.sm{padding:5px 11px;font-size:13px;border-radius:8px}
+  .btn.danger{color:var(--dang);border-color:#fecaca}
+  .btn.danger:hover{background:var(--dang-soft)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn:disabled:hover{background:#fff;border-color:var(--line)}
+  .btn.ghost{border-color:transparent;background:none;color:var(--ink2)}
+  .btn.ghost:hover{background:#f1f5f9}
+  .linkbtn{background:none;border:0;color:var(--brand);cursor:pointer;font-weight:600;padding:0;font-size:14px}
+  .linkbtn:hover{text-decoration:underline}
+
+  /* ---------- badges ---------- */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;white-space:nowrap}
+  .b-ok{background:var(--ok-soft);color:#15803d}
+  .b-warn{background:var(--warn-soft);color:var(--warn)}
+  .b-grey{background:#f1f5f9;color:var(--ink2)}
+  .b-brand{background:var(--brand-soft);color:var(--brand)}
+  .b-dang{background:var(--dang-soft);color:var(--dang)}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse}
+  th{
+    text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);
+    font-weight:700;padding:9px 14px;border-bottom:1px solid var(--line);background:#fbfcfd;
+  }
+  td{padding:12px 14px;border-bottom:1px solid var(--line2);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  tr.clickable{cursor:pointer}
+  tr.clickable:hover td{background:#f8fafc}
+  .nm{font-weight:600}
+  .em{font-size:12.5px;color:var(--ink3)}
+  .num{font-variant-numeric:tabular-nums}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
+
+  /* ---------- filters ---------- */
+  .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .fsearch{padding:7px 12px;border:1px solid var(--line);border-radius:9px;min-width:220px;background:#fff}
+  select.f{padding:7px 30px 7px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%2394a3b8' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center;cursor:pointer}
+  .chips{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .chip{padding:7px 14px;border:0;background:none;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink2);border-right:1px solid var(--line)}
+  .chip:last-child{border-right:0}
+  .chip.on{background:var(--brand);color:#fff}
+
+  /* ---------- tabs ---------- */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .tab{
+    padding:10px 16px;border:0;background:none;cursor:pointer;font-weight:600;color:var(--ink2);
+    border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:7px;
+  }
+  .tab:hover{color:var(--ink)}
+  .tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+  .tab .cnt{background:#f1f5f9;color:var(--ink2);font-size:12px;padding:0 7px;border-radius:99px;font-weight:700}
+  .tab.on .cnt{background:var(--brand-soft);color:var(--brand)}
+
+  /* ---------- misc blocks ---------- */
+  .note{
+    display:flex;gap:11px;padding:13px 15px;border-radius:10px;font-size:13.5px;line-height:1.5;
+    background:var(--warn-soft);border:1px solid var(--warn-line);color:#78350f;align-items:flex-start;
+  }
+  .note.info{background:var(--brand-soft);border-color:var(--brand-line);color:#3730a3}
+  .note.ok{background:var(--ok-soft);border-color:#bbf7d0;color:#14532d}
+  .note .ico{font-size:15px;line-height:1.35}
+  .note b{font-weight:700}
+
+  .checkrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line2)}
+  .checkrow:last-child{border-bottom:0}
+  .checkrow .mark{width:20px;height:20px;border-radius:50%;flex:0 0 20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+  .mark.done{background:var(--ok)}
+  .mark.todo{background:var(--warn)}
+  .checkrow .txt{flex:1;font-size:14px}
+  .checkrow .txt small{display:block;color:var(--ink3);font-size:12.5px;margin-top:1px}
+
+  .bar{height:7px;border-radius:99px;background:#e9edf3;overflow:hidden}
+  .bar > i{display:block;height:100%;background:var(--brand);border-radius:99px}
+  .bar.g > i{background:var(--ok)}
+  .bar.a > i{background:#f59e0b}
+
+  .stat{padding:16px 18px}
+  .stat .k{font-size:12px;color:var(--ink3);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .stat .v{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px}
+  .stat .d{font-size:13px;color:var(--ink2)}
+
+  .bulkbar{
+    display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:10px;
+    background:var(--brand-soft);border:1px solid var(--brand-line);margin-bottom:14px;
+  }
+  .bulkbar .n{font-weight:700;color:var(--brand)}
+
+  .empty{padding:38px 20px;text-align:center;color:var(--ink2)}
+  .empty h4{margin:0 0 6px;font-size:15px;color:var(--ink)}
+  .empty p{margin:0 0 16px;font-size:13.5px}
+
+  .danger-zone{border:1px solid #fecaca;border-radius:10px;padding:16px;background:#fffafa}
+  .danger-zone h4{margin:0 0 4px;font-size:14px;color:var(--dang)}
+  .danger-zone p{margin:0 0 12px;font-size:13px;color:var(--ink2)}
+
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;font-size:14px;align-items:center}
+  .kv .k{color:var(--ink2);font-weight:600}
+  .field{display:block;margin-bottom:14px}
+  .field .lb{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:5px}
+  .field input,.field select{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:#fff}
+  .hint{font-size:12.5px;color:var(--ink3);margin-top:5px}
+
+  /* ---------- modal ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:24px}
+  .scrim.on{display:flex}
+  .modal{background:#fff;border-radius:14px;width:100%;max-width:620px;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(15,23,42,.28)}
+  .modal.wide{max-width:780px}
+  .modal-h{padding:18px 22px;border-bottom:1px solid var(--line2)}
+  .modal-h h3{margin:0;font-size:17px;text-transform:none;letter-spacing:-.01em;color:var(--ink)}
+  .modal-h p{margin:4px 0 0;font-size:13.5px;color:var(--ink2)}
+  .modal-b{padding:20px 22px;overflow:auto;flex:1}
+  .modal-f{padding:14px 22px;border-top:1px solid var(--line2);display:flex;gap:10px;align-items:center;justify-content:flex-end}
+
+  .pickrow{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;cursor:pointer}
+  .pickrow:hover{background:#f8fafc}
+  .pickrow.sel{background:var(--brand-soft)}
+
+  /* ---------- overflow menu ---------- */
+  .menuwrap{position:relative;display:inline-block}
+  .menu{
+    position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);
+    border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);min-width:230px;padding:5px;z-index:50;display:none;
+  }
+  .menu.on{display:block}
+  .menu button{
+    display:block;width:100%;text-align:left;padding:8px 11px;border:0;background:none;
+    border-radius:7px;cursor:pointer;font-size:14px;color:var(--ink2);font-weight:500;
+  }
+  .menu button:hover{background:#f1f5f9;color:var(--ink)}
+  .menu .sep{height:1px;background:var(--line2);margin:5px 0}
+  .menu button.dz{color:var(--dang)}
+  .menu button.dz:hover{background:var(--dang-soft)}
+
+  /* ---------- stepper ---------- */
+  .stepper{display:flex;align-items:center;gap:0;margin-bottom:26px;flex-wrap:wrap}
+  .step{display:flex;align-items:center;gap:9px;padding-right:14px}
+  .step .n{width:26px;height:26px;border-radius:50%;background:#e2e8f0;color:var(--ink2);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex:0 0 26px}
+  .step .t{font-size:13.5px;font-weight:600;color:var(--ink3)}
+  .step.on .n{background:var(--brand);color:#fff}
+  .step.on .t{color:var(--ink)}
+  .step.done .n{background:var(--ok);color:#fff}
+  .step.done .t{color:var(--ink2)}
+  .step-line{width:26px;height:2px;background:#e2e8f0;margin-right:14px}
+
+  .optcard{
+    display:flex;gap:12px;padding:14px;border:1px solid var(--line);border-radius:11px;cursor:pointer;margin-bottom:10px;align-items:flex-start;
+  }
+  .optcard:hover{border-color:var(--brand-line);background:#fcfcff}
+  .optcard.sel{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 1px var(--brand)}
+  .optcard .rad{width:18px;height:18px;border-radius:50%;border:2px solid #cbd5e1;flex:0 0 18px;margin-top:2px;position:relative}
+  .optcard.sel .rad{border-color:var(--brand)}
+  .optcard.sel .rad::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--brand)}
+  .optcard .ttl{font-weight:700;font-size:14.5px;margin-bottom:3px}
+  .optcard .dsc{font-size:13px;color:var(--ink2);line-height:1.45}
+
+  /* ---------- design notes ---------- */
+  .dn{display:none;margin-bottom:20px}
+  body.notes .dn{display:block}
+  .dn-box{
+    border:1px dashed var(--brand-line);background:#fbfbff;border-radius:11px;padding:15px 17px;
+  }
+  .dn-box h4{margin:0 0 9px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--brand)}
+  .dn-box ul{margin:0;padding-left:18px}
+  .dn-box li{font-size:13.5px;color:var(--ink2);margin-bottom:6px;line-height:1.5}
+  .dn-box li:last-child{margin-bottom:0}
+  .dn-box b{color:var(--ink);font-weight:600}
+
+  .banner{
+    background:#fff;border:1px solid var(--line);border-left:3px solid var(--brand);
+    border-radius:10px;padding:13px 16px;margin-bottom:20px;font-size:13.5px;color:var(--ink2);
+  }
+  .banner b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">BL</div>
+      <div>
+        <div class="logo-txt">Bunk Logs</div>
+        <div class="logo-sub">Temple Beth-El</div>
+      </div>
+    </div>
+    <div class="navsec">MY WORK</div>
+    <button class="navitem" onclick="go('logs')"><span class="ico">📋</span><span id="nav-logs">Bunk Logs</span></button>
+    <div class="navsec">ADMIN</div>
+    <button class="navitem" data-v="home" onclick="go('home')"><span class="ico">◈</span>Dashboard</button>
+    <button class="navitem" data-v="people" onclick="go('people')"><span class="ico">👤</span>People<span class="pill" id="nav-people-pill">24</span></button>
+    <button class="navitem" data-v="classes" onclick="go('classes')"><span class="ico">▤</span><span id="nav-classes">Classes</span><span class="pill" id="nav-classes-pill">3</span></button>
+    <button class="navitem" data-v="forms" onclick="go('forms')"><span class="ico">✎</span>Forms</button>
+    <button class="navitem" data-v="reports" onclick="go('reports')"><span class="ico">▦</span>Reports</button>
+    <button class="navitem" data-v="setup" onclick="go('setup')"><span class="ico">⚙</span>Setup</button>
+    <button class="navitem" data-v="settings" onclick="go('settings')"><span class="ico">⚡</span>Settings</button>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="yearsel" onclick="alert('Year switcher — in the real build this changes every Admin screen at once, so program/season never has to be picked again per page.')">
+        <span class="lbl" id="year-label">School year:</span> <b>2026&#8209;27</b> <span class="muted">▾</span>
+      </button>
+      <input class="topsearch" placeholder="Search people, classes…">
+      <div class="spacer"></div>
+      <div class="toggle" onclick="toggleNotes()">
+        <div class="switch" id="sw-notes"></div><span>Design notes</span>
+      </div>
+      <div class="avatar"><div class="circ">RW</div><span>Rachel Mersky Woda</span></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+/* =====================================================================
+   Bunk Logs — Admin redesign prototype
+   All data below is fictional sample data.
+   ===================================================================== */
+
+const VOCAB = {
+  school: {
+    key:'school',
+    year:'School year', yearLbl:'School year:',
+    klass:'Class', klasses:'Classes', klassLo:'class', klassesLo:'classes',
+    student:'Student', students:'Students', studentLo:'student', studentsLo:'students',
+    staff:'Teacher', staffs:'Teachers', staffLo:'teacher', staffsLo:'teachers',
+    logs:'Bunk Logs', period:'2026-27'
+  },
+  camp: {
+    key:'camp',
+    year:'Season', yearLbl:'Season:',
+    klass:'Bunk', klasses:'Bunks', klassLo:'bunk', klassesLo:'bunks',
+    student:'Camper', students:'Campers', studentLo:'camper', studentsLo:'campers',
+    staff:'Counselor', staffs:'Counselors', staffLo:'counselor', staffsLo:'counselors',
+    logs:'Bunk Logs', period:'Summer 2027'
+  }
+};
+
+const FIRST = ['Ava','Noah','Maya','Eli','Talia','Jonah','Ruby','Asher','Nina','Ezra','Leah','Caleb','Shira','Miles','Dahlia','Simon','Hannah','Theo','Rosa','Gideon','Iris','Levi','Adina','Owen','Clara','Reuben','Sadie','Milo','Naomi','Isaac','Zoe','Aaron','Lila','Judah','Esther','Nathan','Vera','Boaz','Tamar','Felix'];
+const LAST  = ['Abramson','Feldman','Rosenthal','Katz','Weiss','Bernstein','Halpern','Stern','Gordon','Levine','Kaplan','Roth','Adler','Schwartz','Mandel','Perlman','Diamond','Ellis','Farber','Golden','Hirsch','Ingber','Jaffe','Kestler','Lowenthal','Mintz','Novak','Ozer','Pincus','Quint'];
+
+let seed = 7;
+function rnd(){ seed = (seed*9301+49297)%233280; return seed/233280; }
+function pick(a){ return a[Math.floor(rnd()*a.length)]; }
+
+const CLASSES = [
+  {id:1,  name:'PreK',        order:0,  students:12, staff:2, expected:12, submitted:12, type:'classroom'},
+  {id:2,  name:'Kindergarten',order:1,  students:16, staff:2, expected:16, submitted:14, type:'classroom'},
+  {id:3,  name:'Grade 1',     order:2,  students:18, staff:2, expected:18, submitted:18, type:'classroom'},
+  {id:4,  name:'Grade 2',     order:3,  students:17, staff:2, expected:17, submitted:11, type:'classroom'},
+  {id:5,  name:'Grade 3',     order:4,  students:19, staff:2, expected:19, submitted:19, type:'classroom'},
+  {id:6,  name:'Grade 4',     order:5,  students:15, staff:1, expected:15, submitted:15, type:'classroom'},
+  {id:7,  name:'Grade 5',     order:6,  students:14, staff:2, expected:14, submitted:9,  type:'classroom'},
+  {id:8,  name:'Grade 6',     order:7,  students:13, staff:0, expected:13, submitted:0,  type:'classroom'},
+  {id:9,  name:'Grade 7',     order:8,  students:11, staff:0, expected:11, submitted:0,  type:'classroom'},
+  {id:10, name:'Hebrew High', order:9,  students:9,  staff:1, expected:9,  submitted:8,  type:'classroom'},
+  {id:11, name:'Madrichim',   order:10, students:0,  staff:32, expected:0, submitted:0,  type:'staff', staffOnly:false}
+];
+
+/* build member rosters */
+const ROSTERS = {};
+CLASSES.forEach(c=>{
+  const st=[], sf=[];
+  for(let i=0;i<c.students;i++) st.push({id:'s'+c.id+'-'+i, name:pick(FIRST)+' '+pick(LAST), since:'Sep 13, 2026', status:'Active'});
+  for(let i=0;i<c.staff;i++)   sf.push({id:'t'+c.id+'-'+i, name:pick(FIRST)+' '+pick(LAST), since:'Aug 30, 2026', status:'Active', role: c.id===11?'Madrich':'Lead'});
+  ROSTERS[c.id]={students:st, staff:sf};
+});
+
+const PEOPLE = [
+  {id:1,  first:'Deborah', last:'Adler',      email:'d.adler@example.org',      role:'staff',   invite:'active',  seen:'Yesterday',  classes:['Grade 3']},
+  {id:2,  first:'Jonah',   last:'Bernstein',  email:'j.bernstein@example.org',  role:'staff',   invite:'active',  seen:'2 days ago', classes:['Grade 1']},
+  {id:3,  first:'Micah',   last:'Bogad',      email:'m.bogad@example.org',      role:'madrich', invite:'invited', seen:'—',          classes:['Madrichim'], dupe:true, logs:14},
+  {id:4,  first:'Micah',   last:'Bogad',      email:'micah.bogad@example.com',  role:'madrich', invite:'never',   seen:'—',          classes:[],            dupe:true, logs:0},
+  {id:5,  first:'Samuel',  last:'Buckler',    email:'s.buckler@example.org',    role:'madrich', invite:'active',  seen:'Today',      classes:['Madrichim']},
+  {id:6,  first:'Edie',    last:'Cooper',     email:'e.cooper@example.org',     role:'staff',   invite:'active',  seen:'Today',      classes:['Kindergarten']},
+  {id:7,  first:'Lindsey', last:'Dana',       email:'l.dana@example.org',       role:'staff',   invite:'invited', seen:'—',          classes:['Grade 5']},
+  {id:8,  first:'Aaron',   last:'Feldman',    email:'a.feldman@example.org',    role:'staff',   invite:'never',   seen:'—',          classes:['Grade 6']},
+  {id:9,  first:'Rachel',  last:'Mersky Woda',email:'r.merskywoda@example.org', role:'admin',   invite:'active',  seen:'Now',        classes:[]},
+  {id:10, first:'Talia',   last:'Novak',      email:'t.novak@example.org',      role:'madrich', invite:'never',   seen:'—',          classes:['Madrichim']},
+  {id:11, first:'Ezra',    last:'Perlman',    email:'e.perlman@example.org',    role:'madrich', invite:'never',   seen:'—',          classes:['Madrichim']},
+  {id:12, first:'Shira',   last:'Rosenthal',  email:'s.rosenthal@example.org',  role:'staff',   invite:'active',  seen:'3 days ago', classes:['Grade 2','Grade 4']},
+  {id:13, first:'Gideon',  last:'Stern',      email:'g.stern@example.org',      role:'staff',   invite:'never',   seen:'—',          classes:['Grade 7']},
+  {id:14, first:'Naomi',   last:'Weiss',      email:'n.weiss@example.org',      role:'staff',   invite:'active',  seen:'Yesterday',  classes:['PreK']}
+];
+const NEVER = PEOPLE.filter(p=>p.invite==='never').length;
+const INVITED = PEOPLE.filter(p=>p.invite==='invited').length;
+
+const INVITE = {
+  active:  {cls:'b-ok',   txt:'Active'},
+  invited: {cls:'b-warn', txt:'Invited Aug 12'},
+  never:   {cls:'b-grey', txt:'Never invited'}
+};
+const ROLE = {admin:'Administrator', staff:'__STAFF__', madrich:'Madrich / aide'};
+
+/* ---------- state ---------- */
+let S = {
+  vocab:'school',
+  view:'home',
+  classId:null,
+  tab:'students',
+  sel:new Set(),
+  peopleSel:new Set(),
+  filters:{q:'', role:'all', invite:'all', status:'active'},
+  step:1,
+  wizardChoices:{copy:'all', roll:'auto', staff:'carry'},
+  notes:false
+};
+function T(){ return VOCAB[S.vocab]; }
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function pct(a,b){ return b===0?0:Math.round(a/b*100); }
+
+function toggleNotes(){
+  S.notes=!S.notes;
+  document.body.classList.toggle('notes',S.notes);
+  $('sw-notes').classList.toggle('on',S.notes);
+}
+
+function go(v){
+  if(v==='logs'){ alert('This is the counselor / teacher side of the app — out of scope for this prototype.'); return; }
+  S.view=v; S.classId=null; S.sel.clear(); S.peopleSel.clear();
+  S.filters={q:'', role:'all', invite:'all', status:'active'};
+  window.scrollTo(0,0);
+  render();
+}
+function openClass(id){ S.classId=id; S.view='class'; S.tab='students'; S.sel.clear(); window.scrollTo(0,0); render(); }
+
+function applyVocab(){
+  const t=T();
+  $('nav-classes').textContent=t.klasses;
+  $('nav-logs').textContent=t.logs;
+  $('year-label').textContent=t.yearLbl;
+  document.querySelector('.yearsel b').innerHTML = t.key==='school'?'2026&#8209;27':'Summer&nbsp;2027';
+}
+
+function setNav(){
+  document.querySelectorAll('.navitem').forEach(b=>{
+    const v=b.dataset.v;
+    b.classList.toggle('on', v===S.view || (S.view==='class'&&v==='classes'));
+  });
+  // nav badges count things that need the director's attention
+  const flagged = CLASSES.filter(c=>!c.staffOnly && (c.staff===0 || c.students===0)).length;
+  $('nav-people-pill').textContent = NEVER;
+  $('nav-people-pill').style.display = NEVER?'':'none';
+  $('nav-classes-pill').textContent = flagged;
+  $('nav-classes-pill').style.display = flagged?'':'none';
+}
+
+/* ---------- modal ---------- */
+function showModal(html, wide){
+  $('modal').className = 'modal'+(wide?' wide':'');
+  $('modal').innerHTML=html;
+  $('scrim').classList.add('on');
+}
+function closeModal(){ $('scrim').classList.remove('on'); }
+
+/* ---------- overflow menu ---------- */
+function toggleMenu(e,id){
+  e.stopPropagation();
+  const m=$(id); const was=m.classList.contains('on');
+  document.querySelectorAll('.menu').forEach(x=>x.classList.remove('on'));
+  if(!was) m.classList.add('on');
+}
+document.addEventListener('click',()=>document.querySelectorAll('.menu').forEach(x=>x.classList.remove('on')));
+
+/* =====================================================================
+   VIEWS
+   ===================================================================== */
+
+function render(){
+  applyVocab(); setNav();
+  const map={home:vHome, classes:vClasses, class:vClassDetail, people:vPeople, setup:vSetup, settings:vSettings, forms:vStub, reports:vReports};
+  $('content').innerHTML = (map[S.view]||vStub)();
+  // the view is re-rendered wholesale, so put the caret back in the search box
+  if(S._focus){
+    const el=$(S._focus);
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    S._focus=null;
+  }
+}
+function liveSearch(el){
+  S.filters.q = el.value;
+  S._focus = el.id;
+  render();
+}
+
+/* ------------------------------ HOME ------------------------------ */
+function vHome(){
+  const t=T();
+  const noStaff = CLASSES.filter(c=>c.staff===0 && !c.staffOnly);
+  const noStud  = CLASSES.filter(c=>c.students===0 && !c.staffOnly);
+  const never   = PEOPLE.filter(p=>p.invite==='never').length;
+  const invited = PEOPLE.filter(p=>p.invite==='invited').length;
+  const totalExp = CLASSES.reduce((a,c)=>a+c.expected,0);
+  const totalSub = CLASSES.reduce((a,c)=>a+c.submitted,0);
+  const behind = CLASSES.filter(c=>c.expected>0 && c.submitted<c.expected)
+                        .sort((a,b)=>pct(a.submitted,a.expected)-pct(b.submitted,b.expected));
+  const tasksTotal = 6;
+  const tasksDone = 3 + (noStaff.length?0:1) + (noStud.length?0:1) + (never?0:1);
+
+  // each attention row resolves itself once the underlying problem is gone
+  const row = (open, openTxt, openSub, doneTxt, btnTxt, btnFn) => open
+    ? `<div class="checkrow"><div class="mark todo">!</div>
+         <div class="txt"><b>${openTxt}</b><small>${openSub}</small></div>
+         <button class="btn sm" onclick="${btnFn}">${btnTxt}</button></div>`
+    : `<div class="checkrow"><div class="mark done">✓</div><div class="txt">${doneTxt}</div></div>`;
+
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li><b>This screen did not exist.</b> Admin opened onto People — a directory, not an answer. Directors' two standing questions are "is this set up right?" and "who hasn't submitted?" Both are now answered above the fold.</li>
+    <li>Every count is a <b>link to the fix</b>, not just a number. "2 ${esc(t.klassesLo)} have no ${esc(t.staffLo)}" goes straight to those two ${esc(t.klassesLo)}.</li>
+    <li>The setup progress bar surfaces the start-of-year flow, which today is buried inside a "Clone to program" button on a ${esc(t.klass.toLowerCase())} detail page.</li>
+  </ul></div></div>
+
+  <h1>Good morning, Rachel</h1>
+  <p class="sub">Sunday, August 30 · ${esc(t.period)} starts in 14 days</p>
+
+  <div class="banner">
+    <b>Prototype.</b> Every screen is clickable. Flip <b>Design notes</b> on in the top bar to see what changed and why on each screen,
+    and try <b>Settings → what do you call things</b> to swap the whole app between school and camp wording.
+    Sample data is fictional and not every number reconciles.
+  </div>
+
+  <div class="grid2">
+    <div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h">
+          <div style="flex:1">
+            <h2>${esc(t.year)} setup</h2>
+            <div class="muted" style="font-size:13px">${tasksDone} of ${tasksTotal} steps complete</div>
+          </div>
+          <button class="btn primary" onclick="go('setup')">Continue setup →</button>
+        </div>
+        <div class="card-b">
+          <div class="bar" style="margin-bottom:16px"><i style="width:${pct(tasksDone,tasksTotal)}%"></i></div>
+
+          <div class="checkrow"><div class="mark done">✓</div><div class="txt">All ${CLASSES.length} ${esc(t.klassesLo)} created<small>Copied from 2025-26 on Aug 14</small></div></div>
+          <div class="checkrow"><div class="mark done">✓</div><div class="txt">${totalExp} ${esc(t.studentsLo)} enrolled<small>Rolled up a grade automatically</small></div></div>
+          <div class="checkrow"><div class="mark done">✓</div><div class="txt">Log forms assigned to every ${esc(t.klassLo)}</div></div>
+
+          ${row(noStaff.length>0,
+              `${noStaff.length} ${noStaff.length===1?esc(t.klassLo)+' has':esc(t.klassesLo)+' have'} no ${esc(t.staffLo)} assigned`,
+              `${noStaff.map(c=>esc(c.name)).join(' · ')} — nobody can write logs for ${noStaff.length===1?'this':'these'} yet`,
+              `Every ${esc(t.klassLo)} has at least one ${esc(t.staffLo)}`,
+              'Assign', "go('classes')")}
+
+          ${row(noStud.length>0,
+              `${noStud.length} ${noStud.length===1?esc(t.klassLo)+' has':esc(t.klassesLo)+' have'} no ${esc(t.studentsLo)}`,
+              `${noStud.map(c=>esc(c.name)).join(', ')} — mark ${noStud.length===1?'it':'them'} staff-only if that's intended`,
+              `Every ${esc(t.klassLo)} either has ${esc(t.studentsLo)} or is confirmed staff-only`,
+              'Review', `openClass(${noStud.length?noStud[0].id:0})`)}
+
+          ${row(never>0,
+              `${never} people have never been invited`,
+              `${invited} more ${invited===1?'was':'were'} invited but ${invited===1?'hasn\'t':'haven\'t'} signed in yet`,
+              `Everyone has been invited`,
+              'Send invitations', 'goPeopleNever()')}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <div style="flex:1"><h2>Logs this week</h2><div class="muted" style="font-size:13px">Week of Aug 24 · ${totalSub} of ${totalExp} expected</div></div>
+          <button class="btn" onclick="go('reports')">All reports</button>
+        </div>
+        <div class="card-b">
+          ${behind.length===0?'<div class="note ok"><span class="ico">✓</span><div>Everything is in. Nice week.</div></div>':`
+          <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">${esc(t.klasses)} behind, most behind first:</div>
+          ${behind.map(c=>{
+            const p=pct(c.submitted,c.expected);
+            return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:11px">
+              <div style="width:120px;font-weight:600;font-size:13.5px">${esc(c.name)}</div>
+              <div class="bar ${p>=80?'g':p>=40?'a':''}" style="flex:1"><i style="width:${p}%"></i></div>
+              <div class="num muted" style="width:66px;text-align:right;font-size:13px">${c.submitted}/${c.expected}</div>
+              <button class="btn sm ghost" onclick="openClass(${c.id})">Open</button>
+            </div>`;
+          }).join('')}`}
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="grid3" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+        <div class="card stat"><div class="k">${esc(t.students)}</div><div class="v num">${totalExp}</div><div class="d">across ${CLASSES.length} ${esc(t.klassesLo)}</div></div>
+        <div class="card stat"><div class="k">Staff</div><div class="v num">${PEOPLE.length+30}</div><div class="d"><span style="color:var(--warn);font-weight:600">${never} not invited</span></div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Quick actions</h2></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+          <button class="linkbtn" onclick="goPeopleNever()">Invite everyone who hasn't been invited</button>
+          <button class="linkbtn" onclick="go('classes')">Assign ${esc(t.staffsLo)} to ${esc(t.klassesLo)}</button>
+          <button class="linkbtn" onclick="go('people')">Add a person</button>
+          <button class="linkbtn" onclick="go('setup')">Set up next ${esc(t.year.toLowerCase())}</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2>Recent activity</h2></div>
+        <div class="card-b" style="font-size:13.5px;color:var(--ink2);line-height:1.7">
+          <div><b style="color:var(--ink)">Edie Cooper</b> submitted 16 logs · 2h ago</div>
+          <div><b style="color:var(--ink)">You</b> added 3 ${esc(t.studentsLo)} to Grade 3 · Yesterday</div>
+          <div><b style="color:var(--ink)">Samuel Buckler</b> signed in for the first time · Yesterday</div>
+          <div><b style="color:var(--ink)">You</b> copied 11 ${esc(t.klassesLo)} from 2025-26 · Aug 14</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function goPeopleNever(){
+  S.view='people'; S.peopleSel.clear();
+  S.filters={q:'', role:'all', invite:'never', status:'active'};
+  filteredPeople().forEach(p=>S.peopleSel.add(p.id));
+  window.scrollTo(0,0); render();
+}
+
+/* ---------------------------- CLASSES ----------------------------- */
+function vClasses(){
+  const t=T();
+  const q=S.filters.q.toLowerCase();
+  const list=CLASSES.filter(c=>c.name.toLowerCase().includes(q)).sort((a,b)=>a.order-b.order);
+
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li><b>Groups and Assignments are merged.</b> They were two answers to one question — who is in this ${esc(t.klassLo)}. One list now, and the assign flow lives inside the ${esc(t.klassLo)} itself.</li>
+    <li><b>Rows carry information.</b> The old list repeated the same 90-character program name under every row. That space now holds ${esc(t.student.toLowerCase())} count, ${esc(t.staff.toLowerCase())} count, and log status — the three things you're actually scanning for.</li>
+    <li><b>Problems are visible from the list.</b> "No ${esc(t.staffLo)} yet" and "No ${esc(t.studentsLo)}" surface here instead of only after you drill in.</li>
+    <li><b>Developmental sort order</b>, not alphabetical. The old list ran Grade 7 → Kindergarten → Madrichim → PreK.</li>
+  </ul></div></div>
+
+  <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:6px">
+    <div style="flex:1"><h1>${esc(t.klasses)}</h1>
+    <p class="sub">${CLASSES.length} ${esc(t.klassesLo)} in ${esc(t.period)}</p></div>
+    <button class="btn" onclick="alert('Import flow: download a template, upload, preview every row and what it will do, then commit. Nothing is written until you confirm.')">Import from file</button>
+    <button class="btn primary" onclick="alert('New ' + '${esc(t.klassLo)}' + ' form')">New ${esc(t.klassLo)}</button>
+  </div>
+
+  <div class="filters">
+    <input class="fsearch" id="q-classes" placeholder="Search ${esc(t.klassesLo)}…" value="${esc(S.filters.q)}" oninput="liveSearch(this)">
+    <div class="chips">
+      <button class="chip on">Active</button>
+      <button class="chip" onclick="alert('Archived ' + '${esc(t.klassesLo)}')">Archived</button>
+      <button class="chip" onclick="alert('All ' + '${esc(t.klassesLo)}')">All</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr>
+        <th>${esc(t.klass)}</th><th style="width:110px">${esc(t.students)}</th><th style="width:120px">${esc(t.staffs)}</th>
+        <th style="width:190px">Logs this week</th><th style="width:44px"></th>
+      </tr></thead>
+      <tbody>
+      ${list.map(c=>{
+        const p=pct(c.submitted,c.expected);
+        return `<tr class="clickable" onclick="openClass(${c.id})">
+          <td><div class="nm">${esc(c.name)}</div>${c.staffOnly?'<div class="em">Staff group · no '+esc(t.studentsLo)+' expected</div>':''}</td>
+          <td class="num">${c.students===0?(c.staffOnly?'<span class="muted">—</span>':'<span class="badge b-warn"><span class="dot"></span>None</span>'):c.students}</td>
+          <td class="num">${c.staff===0?'<span class="badge b-warn"><span class="dot"></span>None yet</span>':c.staff}</td>
+          <td>${c.expected===0?'<span class="muted" style="font-size:13px">—</span>':
+            `<div style="display:flex;align-items:center;gap:9px">
+               <div class="bar ${p>=80?'g':p>=40?'a':''}" style="flex:1;max-width:90px"><i style="width:${p}%"></i></div>
+               <span class="num" style="font-size:13px;color:var(--ink2)">${c.submitted}/${c.expected}</span>
+             </div>`}</td>
+          <td class="muted" style="text-align:right">›</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* -------------------------- CLASS DETAIL --------------------------- */
+function vClassDetail(){
+  const t=T();
+  const c=CLASSES.find(x=>x.id===S.classId);
+  const r=ROSTERS[c.id];
+  const isStudents = S.tab==='students';
+  const rows = isStudents ? r.students : r.staff;
+  const n = S.sel.size;
+
+  let body='';
+  if(S.tab==='settings'){
+    body = `
+      <div class="card"><div class="card-b" style="max-width:560px">
+        <label class="field"><span class="lb">Name</span><input value="${esc(c.name)}"></label>
+        <label class="field"><span class="lb">Type</span>
+          <select class="f" style="width:100%">
+            <option${c.type==='classroom'?' selected':''}>${esc(t.klass)} — has ${esc(t.studentsLo)} and ${esc(t.staffsLo)}</option>
+            <option${c.type==='staff'?' selected':''}>Staff group — ${esc(t.staffsLo)} only, no ${esc(t.studentsLo)}</option>
+          </select>
+          <div class="hint">A staff group won't be flagged for having no ${esc(t.studentsLo)}.</div>
+        </label>
+        <label class="field"><span class="lb">Part of</span>
+          <select class="f" style="width:100%"><option>Nothing — this is a top-level ${esc(t.klassLo)}</option><option>Lower School</option><option>Upper School</option></select>
+          <div class="hint">Optional. Used to roll reporting up. Formerly labelled "Parent".</div>
+        </label>
+        <label class="field"><span class="lb">Order in lists</span><input value="${c.order+1}" style="max-width:100px">
+          <div class="hint">Controls where this appears — so PreK sorts before Grade 1.</div></label>
+        <div style="margin:22px 0 14px;height:1px;background:var(--line2)"></div>
+        <div class="danger-zone">
+          <h4>Archive this ${esc(t.klassLo)}</h4>
+          <p>It disappears from active lists. Existing logs are kept and stay readable in Reports. You can un-archive at any time.</p>
+          <button class="btn danger" onclick="confirmArchive('${esc(c.name)}')">Archive ${esc(c.name)}…</button>
+        </div>
+      </div></div>`;
+  } else if(rows.length===0){
+    body = `<div class="card"><div class="empty">
+      <h4>No ${isStudents?esc(t.studentsLo):esc(t.staffsLo)} in this ${esc(t.klassLo)} yet</h4>
+      <p>${isStudents?'Add them one at a time, or import a list.':'Until someone is here, nobody can write logs for this '+esc(t.klassLo)+'.'}</p>
+      <button class="btn primary" onclick="openAdd(${isStudents})">Add ${isStudents?esc(t.studentsLo):esc(t.staffsLo)}</button>
+    </div></div>`;
+  } else {
+    body = `
+      ${n>0?`<div class="bulkbar">
+        <span class="n">${n} selected</span>
+        <button class="btn sm danger" onclick="confirmRemove(${n})">Remove from ${esc(t.klassLo)}</button>
+        <button class="btn sm" onclick="alert('Set an end date instead of removing — keeps the history intact.')">Set end date</button>
+        <div class="spacer"></div>
+        <button class="linkbtn" onclick="S.sel.clear();render()">Clear</button>
+      </div>`:''}
+      <div class="card"><table>
+        <thead><tr>
+          <th style="width:40px"><input type="checkbox" ${n===rows.length?'checked':''} onclick="toggleAll(this.checked)"></th>
+          <th>Name</th>
+          ${isStudents?'':'<th style="width:150px">Role</th>'}
+          <th style="width:170px">In this ${esc(t.klassLo)} since</th>
+          <th style="width:110px">Status</th>
+        </tr></thead>
+        <tbody>${rows.map(m=>`
+          <tr>
+            <td><input type="checkbox" ${S.sel.has(m.id)?'checked':''} onclick="toggleSel('${m.id}')"></td>
+            <td class="nm">${esc(m.name)}</td>
+            ${isStudents?'':`<td><span class="badge b-brand">${esc(m.role)}</span></td>`}
+            <td class="muted" style="font-size:13.5px">${esc(m.since)} <span style="color:var(--ink3)">· no end date</span></td>
+            <td><span class="badge b-ok"><span class="dot"></span>${esc(m.status)}</span></td>
+          </tr>`).join('')}</tbody>
+      </table></div>`;
+  }
+
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li><b>One page instead of two.</b> ${esc(t.students)} and ${esc(t.staffs)} are tabs on the ${esc(t.klassLo)}, not a separate Assignments screen with its own filters and its own idea of which program you're in.</li>
+    <li><b>"Subject (observed)" and "Author" are gone</b> — they're ${esc(t.studentsLo)} and ${esc(t.staffsLo)}. Those two words were the biggest comprehension barrier in the old admin.</li>
+    <li><b>"— → open" is now readable</b>: "Sep 13, 2026 · no end date".</li>
+    <li><b>slug is hidden.</b> Parent is "Part of", with an explanation. Archive is in the Settings tab's danger zone, not a grey link in the header.</li>
+    <li><b>Bulk actions appear on selection</b> and name their target and count. Nothing destructive is clickable with nothing selected.</li>
+    ${c.students===0?`<li><b>The lopsided-membership case is called out</b> rather than silently displayed as "0 subjects · 32 authors". Confirming it once turns the warning off for good.</li>`:''}
+  </ul></div></div>
+
+  <button class="crumb" onclick="go('classes')">← ${esc(t.klasses)}</button>
+  <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px">
+    <div style="flex:1">
+      <h1>${esc(c.name)}</h1>
+      <p class="sub" style="margin-bottom:0">${esc(t.klass)} · ${esc(t.period)} · Part of: <span class="muted">nothing</span></p>
+    </div>
+    <button class="btn" onclick="go('reports')">View trends</button>
+    <div class="menuwrap">
+      <button class="btn" onclick="toggleMenu(event,'m-class')">⋯</button>
+      <div class="menu" id="m-class">
+        <button onclick="alert('Rename')">Rename…</button>
+        <button onclick="alert('Copies this ' + '${esc(t.klassLo)}' + ' and its staff into another ' + '${esc(t.year.toLowerCase())}' + '.')">Copy to another ${esc(t.year.toLowerCase())}…</button>
+        <button onclick="alert('Export roster as CSV')">Export roster</button>
+        <div class="sep"></div>
+        <button class="dz" onclick="confirmArchive('${esc(c.name)}')">Archive ${esc(t.klassLo)}…</button>
+      </div>
+    </div>
+  </div>
+
+  ${(c.students===0 && !c.staffOnly)?`<div class="note" style="margin-bottom:18px"><span class="ico">◔</span><div>
+    <b>This ${esc(t.klassLo)} has ${c.staff} ${esc(t.staffsLo)} and no ${esc(t.studentsLo)}.</b>
+    That's expected for a staff group like Madrichim — but it's worth confirming, because it also looks exactly like a setup mistake.
+    <div style="margin-top:9px;display:flex;gap:8px">
+      <button class="btn sm" onclick="markStaffOnly()">Yes — mark as staff-only</button>
+      <button class="btn sm" onclick="openAdd(true)">No — add ${esc(t.studentsLo)}</button>
+    </div></div></div>`:''}
+  ${c.staffOnly?`<div class="note ok" style="margin-bottom:18px"><span class="ico">✓</span><div>
+    Confirmed as a <b>staff-only group</b> — it won't be flagged for having no ${esc(t.studentsLo)}.</div></div>`:''}
+  ${(c.staff===0 && !c.staffOnly)?`<div class="note" style="margin-bottom:18px"><span class="ico">◔</span><div>
+    <b>No ${esc(t.staffLo)} is assigned to this ${esc(t.klassLo)}.</b> Nobody can write logs for these ${c.students} ${esc(t.studentsLo)} until someone is.
+    <div style="margin-top:9px"><button class="btn sm" onclick="S.tab='staff';render();">Assign a ${esc(t.staffLo)}</button></div></div></div>`:''}
+
+  <div class="tabs">
+    <button class="tab ${S.tab==='students'?'on':''}" onclick="S.tab='students';S.sel.clear();render()">${esc(t.students)} <span class="cnt">${r.students.length}</span></button>
+    <button class="tab ${S.tab==='staff'?'on':''}" onclick="S.tab='staff';S.sel.clear();render()">${esc(t.staffs)} &amp; staff <span class="cnt">${r.staff.length}</span></button>
+    <button class="tab ${S.tab==='settings'?'on':''}" onclick="S.tab='settings';S.sel.clear();render()">Settings</button>
+  </div>
+
+  ${S.tab!=='settings'?`<div class="filters">
+    <input class="fsearch" placeholder="Search ${isStudents?esc(t.studentsLo):esc(t.staffsLo)} in this ${esc(t.klassLo)}…">
+    <div class="spacer"></div>
+    <button class="btn primary" onclick="openAdd(${isStudents})">Add ${isStudents?esc(t.students):esc(t.staffs)}</button>
+  </div>`:''}
+
+  ${body}`;
+}
+
+function toggleSel(id){ S.sel.has(id)?S.sel.delete(id):S.sel.add(id); render(); }
+function toggleAll(on){
+  const r=ROSTERS[S.classId];
+  const rows = S.tab==='students'?r.students:r.staff;
+  S.sel.clear(); if(on) rows.forEach(m=>S.sel.add(m.id));
+  render();
+}
+function markStaffOnly(){
+  const c=CLASSES.find(x=>x.id===S.classId); c.type='staff'; c.staffOnly=true;
+  render();
+}
+
+function confirmArchive(name){
+  const t=T();
+  showModal(`
+    <div class="modal-h"><h3>Archive ${esc(name)}?</h3>
+      <p>This is reversible.</p></div>
+    <div class="modal-b">
+      <div class="note ok" style="margin-bottom:14px"><span class="ico">✓</span><div>
+        <b>Nothing is deleted.</b> All logs written about this ${esc(t.klassLo)} stay in Reports, and you can restore it from the Archived filter.</div></div>
+      <div style="font-size:14px;color:var(--ink2)">Archiving will:</div>
+      <ul style="font-size:14px;color:var(--ink2);line-height:1.7;margin:8px 0 0;padding-left:20px">
+        <li>hide it from active ${esc(t.klasses.toLowerCase())} lists and log forms</li>
+        <li>end the current assignments for everyone in it</li>
+        <li>stop new logs from being written about it</li>
+      </ul>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn danger" onclick="closeModal();alert('Archived (prototype).')">Archive ${esc(name)}</button>
+    </div>`);
+}
+
+function confirmRemove(n){
+  const t=T();
+  const noun = S.tab==='students'?(n===1?t.studentLo:t.studentsLo):(n===1?t.staffLo:t.staffsLo);
+  showModal(`
+    <div class="modal-h"><h3>Remove ${n} ${esc(noun)} from ${esc(CLASSES.find(c=>c.id===S.classId).name)}?</h3></div>
+    <div class="modal-b">
+      <div class="note info" style="margin-bottom:14px"><span class="ico">i</span><div>
+        <b>Logs already written are kept.</b> They stay attached to the ${esc(noun)} and remain visible in Reports for this ${esc(t.year.toLowerCase())}.</div></div>
+      <p style="font-size:14px;color:var(--ink2);margin:0">If someone is only leaving partway through the year, <b>setting an end date</b> is usually better than removing — it keeps the record of when they were here.</p>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="closeModal();alert('End date set (prototype).')">Set end date instead</button>
+      <button class="btn danger" onclick="closeModal();S.sel.clear();render();alert('Removed. An undo toast would appear here for 10 seconds.')">Remove ${n}</button>
+    </div>`);
+}
+
+/* add-people modal */
+let addPicked = new Set();
+let addPool = [];
+let addIsStudents = true;
+function openAdd(isStudents){
+  const t=T();
+  addPicked = new Set();
+  addIsStudents = isStudents;
+  addPool = isStudents
+    ? Array.from({length:8},(_,i)=>({id:'p'+i,name:pick(FIRST)+' '+pick(LAST),meta:'Not in any '+t.klassLo+' yet'}))
+    : PEOPLE.filter(p=>p.role!=='admin').slice(0,8).map(p=>({id:'p'+p.id,name:p.first+' '+p.last,meta:p.classes.length?('In '+p.classes.join(', ')):('Not in any '+t.klassLo+' yet')}));
+  drawAdd();
+}
+function drawAdd(){
+  const t=T(); const isStudents=addIsStudents; const pool=addPool;
+  const n=addPicked.size;
+  showModal(`
+    <div class="modal-h">
+      <h3>Add ${isStudents?esc(t.students):esc(t.staffs)} to ${esc(CLASSES.find(c=>c.id===S.classId).name)}</h3>
+      <p>Pick as many as you like — you don't have to do this one at a time.</p>
+    </div>
+    <div class="modal-b">
+      <input class="fsearch" style="width:100%;margin-bottom:12px" placeholder="Search people…">
+      <div style="max-height:260px;overflow:auto;margin-bottom:16px">
+        ${pool.map(p=>`
+          <div class="pickrow ${addPicked.has(p.id)?'sel':''}" onclick="togglePick('${p.id}')">
+            <input type="checkbox" ${addPicked.has(p.id)?'checked':''} onclick="event.stopPropagation();togglePick('${p.id}')">
+            <div style="flex:1"><div class="nm">${esc(p.name)}</div><div class="em">${esc(p.meta)}</div></div>
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:14px;padding-top:14px;border-top:1px solid var(--line2)">
+        <label class="field" style="flex:1;margin:0"><span class="lb">Starting</span><input type="date" value="2026-09-13"></label>
+        <label class="field" style="flex:1;margin:0"><span class="lb">Ending <span class="muted" style="font-weight:400">(optional)</span></span><input type="date" placeholder="No end date">
+          <div class="hint">Leave blank for the whole ${esc(t.year.toLowerCase())}.</div></label>
+      </div>
+    </div>
+    <div class="modal-f">
+      <span class="muted" style="margin-right:auto;font-size:13.5px">${n===0?'Nobody selected yet':n+' selected'}</span>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" ${n===0?'disabled':''} onclick="closeModal();alert('Added '+${n}+' people (prototype).')">Add ${n>0?n+' ':''}${isStudents?esc(t.students.toLowerCase()):esc(t.staffs.toLowerCase())}</button>
+    </div>`);
+}
+function togglePick(id){ addPicked.has(id)?addPicked.delete(id):addPicked.add(id); drawAdd(); }
+
+/* ----------------------------- PEOPLE ------------------------------ */
+function filteredPeople(){
+  const f=S.filters, q=f.q.toLowerCase();
+  return PEOPLE.filter(p=>{
+    if(f.role!=='all' && p.role!==f.role) return false;
+    if(f.invite!=='all' && p.invite!==f.invite) return false;
+    if(q && !((p.first+' '+p.last).toLowerCase().includes(q)||p.email.toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first));
+}
+
+function vPeople(){
+  const t=T();
+  const f=S.filters;
+  const list=filteredPeople();
+  const n=S.peopleSel.size;
+  const neverN=NEVER;
+
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li><b>Memberships is folded in.</b> The old app had the identical person-editor on two screens with no signal which was canonical. Enrollment is a tab on the person.</li>
+    <li><b>Role and status are visible in the rows.</b> You could filter by role before but not see it, so filtering was an act of faith.</li>
+    <li><b>Invitation status is new</b>, and filterable. "Who hasn't signed in yet?" is the most-asked September question and the old admin couldn't answer it.</li>
+    <li><b>Merge is disabled below two selections</b> and opens a preview showing which record survives and what happens to the logs. Previously "Dedupe" was a red button live at one selection.</li>
+    <li>The A–Z "last name starts with" filter is gone — search already does that job.</li>
+  </ul></div></div>
+
+  <div style="display:flex;align-items:flex-start;gap:16px">
+    <div style="flex:1"><h1>People</h1><p class="sub">Everyone in ${esc(t.period)}</p></div>
+    <button class="btn" onclick="alert('Import: download template → upload → preview every row → commit. Nothing written until you confirm.')">Import</button>
+    <button class="btn primary" onclick="alert('Add person form')">Add person</button>
+  </div>
+
+  ${neverN>0 && f.invite!=='never' ? `<div class="note" style="margin-bottom:16px"><span class="ico">◔</span><div>
+    <b>${neverN} people have never been invited</b> and can't sign in yet.
+    <button class="linkbtn" style="margin-left:6px" onclick="S.filters.invite='never';render()">Show them</button></div></div>`:''}
+
+  <div class="filters">
+    <input class="fsearch" id="q-people" placeholder="Search name or email…" value="${esc(f.q)}" oninput="liveSearch(this)">
+    <select class="f" onchange="S.filters.role=this.value;render()">
+      <option value="all"${f.role==='all'?' selected':''}>Any role</option>
+      <option value="admin"${f.role==='admin'?' selected':''}>Administrator</option>
+      <option value="staff"${f.role==='staff'?' selected':''}>${esc(t.staff)}</option>
+      <option value="madrich"${f.role==='madrich'?' selected':''}>Madrich / aide</option>
+    </select>
+    <select class="f" onchange="S.filters.invite=this.value;render()">
+      <option value="all"${f.invite==='all'?' selected':''}>Any sign-in status</option>
+      <option value="active"${f.invite==='active'?' selected':''}>Active</option>
+      <option value="invited"${f.invite==='invited'?' selected':''}>Invited, not signed in</option>
+      <option value="never"${f.invite==='never'?' selected':''}>Never invited</option>
+    </select>
+    ${(f.role!=='all'||f.invite!=='all'||f.q)?`<button class="linkbtn" onclick="S.filters={q:'',role:'all',invite:'all',status:'active'};render()">Clear filters</button>`:''}
+    <div class="spacer"></div>
+    <span class="muted" style="font-size:13.5px">${list.length} of ${PEOPLE.length}</span>
+  </div>
+
+  ${n>0?`<div class="bulkbar">
+    <span class="n">${n} selected</span>
+    <button class="btn sm primary" onclick="alert('Invitations sent to '+${n}+' people (prototype).')">Send invitation</button>
+    <button class="btn sm" ${n<2?'disabled title="Select 2 or more people to merge"':''} onclick="${n>=2?'openMerge()':''}">Merge duplicates…</button>
+    ${n<2?`<span class="muted" style="font-size:12.5px">Merging needs 2 or more people selected</span>`:''}
+    <div class="spacer"></div>
+    <button class="linkbtn" onclick="S.peopleSel.clear();render()">Clear</button>
+  </div>`:''}
+
+  <div class="card">
+    <table>
+      <thead><tr>
+        <th style="width:40px"><input type="checkbox" ${n===list.length&&list.length>0?'checked':''} onclick="togglePeopleAll(this.checked)"></th>
+        <th>Name</th><th style="width:150px">Role</th><th style="width:190px">${esc(t.klasses)}</th>
+        <th style="width:160px">Sign-in status</th><th style="width:120px">Last active</th>
+      </tr></thead>
+      <tbody>
+      ${list.length===0?`<tr><td colspan="6"><div class="empty"><h4>Nobody matches these filters</h4>
+        <p>Try clearing them.</p><button class="btn" onclick="S.filters={q:'',role:'all',invite:'all',status:'active'};render()">Clear filters</button></div></td></tr>`:
+      list.map(p=>{
+        const iv=INVITE[p.invite];
+        const roleTxt = ROLE[p.role]==='__STAFF__'?t.staff:ROLE[p.role];
+        return `<tr class="clickable">
+          <td><input type="checkbox" ${S.peopleSel.has(p.id)?'checked':''} onclick="event.stopPropagation();togglePerson(${p.id})"></td>
+          <td onclick="openPerson(${p.id})"><div class="nm">${esc(p.first)} ${esc(p.last)}${p.dupe?' <span class="badge b-warn" style="margin-left:6px">Possible duplicate</span>':''}</div><div class="em">${esc(p.email)}</div></td>
+          <td onclick="openPerson(${p.id})"><span class="badge b-grey">${esc(roleTxt)}</span></td>
+          <td onclick="openPerson(${p.id})" class="muted" style="font-size:13.5px">${p.classes.length?esc(p.classes.join(', ')):'<span style="color:var(--warn)">None</span>'}</td>
+          <td onclick="openPerson(${p.id})"><span class="badge ${iv.cls}"><span class="dot"></span>${esc(iv.txt)}</span></td>
+          <td onclick="openPerson(${p.id})" class="muted" style="font-size:13.5px">${esc(p.seen)}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+function togglePerson(id){ S.peopleSel.has(id)?S.peopleSel.delete(id):S.peopleSel.add(id); render(); }
+function togglePeopleAll(on){
+  S.peopleSel.clear();
+  if(on) filteredPeople().forEach(p=>S.peopleSel.add(p.id));
+  render();
+}
+
+function openPerson(id){
+  const t=T(); const p=PEOPLE.find(x=>x.id===id); const iv=INVITE[p.invite];
+  showModal(`
+    <div class="modal-h" style="display:flex;align-items:flex-start;gap:12px">
+      <div style="flex:1"><h3>${esc(p.first)} ${esc(p.last)}</h3><p>${esc(p.email)} · <span class="badge ${iv.cls}"><span class="dot"></span>${esc(iv.txt)}</span></p></div>
+      <div class="menuwrap"><button class="btn sm" onclick="toggleMenu(event,'m-person')">⋯</button>
+        <div class="menu" id="m-person">
+          <button onclick="alert('Invitation resent')">Resend invitation</button>
+          <button onclick="alert('Password reset sent')">Send password reset</button>
+          <div class="sep"></div>
+          <button class="dz" onclick="alert('Deactivating keeps all logs and removes access. Deleting is only available once a person has no logs attached.')">Deactivate…</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-b">
+      <div class="tabs" style="margin-bottom:16px">
+        <button class="tab on">Details</button>
+        <button class="tab">${esc(t.klasses)}</button>
+        <button class="tab">Activity</button>
+      </div>
+      <div style="display:flex;gap:14px">
+        <label class="field" style="flex:1"><span class="lb">First name</span><input value="${esc(p.first)}"></label>
+        <label class="field" style="flex:1"><span class="lb">Last name</span><input value="${esc(p.last)}"></label>
+      </div>
+      <label class="field"><span class="lb">Preferred name</span><input placeholder="Optional"></label>
+      <label class="field"><span class="lb">Email</span><input value="${esc(p.email)}"></label>
+      <label class="field"><span class="lb">Role</span><select class="f" style="width:100%"><option>${esc(ROLE[p.role]==='__STAFF__'?t.staff:ROLE[p.role])}</option></select></label>
+      <div class="note info"><span class="ico">i</span><div>${esc(t.klasses)} for this person are managed on the <b>${esc(t.klasses)}</b> tab above — the same list you see from the ${esc(t.klassLo)} side. There is only one place this data lives now.</div></div>
+    </div>
+    <div class="modal-f">
+      <span class="muted" style="margin-right:auto;font-size:13px">Changes save when you click Save.</span>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="closeModal()">Save changes</button>
+    </div>`);
+}
+
+function openMerge(){
+  const ids=Array.from(S.peopleSel).slice(0,2);
+  const a=PEOPLE.find(p=>p.id===ids[0]), b=PEOPLE.find(p=>p.id===ids[1]);
+  showModal(`
+    <div class="modal-h"><h3>Merge 2 people into one record</h3>
+      <p>Check this carefully — merging can't be undone from here.</p></div>
+    <div class="modal-b">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+        ${[a,b].map((p,i)=>`
+          <div class="optcard ${i===0?'sel':''}" onclick="this.parentNode.querySelectorAll('.optcard').forEach(x=>x.classList.remove('sel'));this.classList.add('sel')">
+            <div class="rad"></div>
+            <div>
+              <div class="ttl">${esc(p.first)} ${esc(p.last)}</div>
+              <div class="dsc">${esc(p.email)}<br>
+                ${p.classes.length?esc(p.classes.join(', ')):'No '+esc(T().klassesLo)}<br>
+                <b>${p.logs||0} logs</b> · ${esc(INVITE[p.invite].txt)}</div>
+              <div class="badge ${i===0?'b-brand':'b-grey'}" style="margin-top:8px">${i===0?'Keep this one':'Merge into the other'}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="note"><span class="ico">◔</span><div>
+        <b>What will happen:</b> the record on the right is deleted. Its <b>${b.logs||0} logs</b>, ${b.classes.length} ${esc(T().klass.toLowerCase())} assignment${b.classes.length===1?'':'s'} and email alias move to the kept record. The kept record's name, role and sign-in status stay as they are.</div></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn danger" onclick="closeModal();S.peopleSel.clear();render();alert('Merged (prototype).')">Merge these 2 people</button>
+    </div>`, true);
+}
+
+/* ------------------------- SETUP WIZARD ---------------------------- */
+const STEPS=['Copy classes','Move students up','Carry staff forward','Review exceptions','Invite &amp; finish'];
+
+function vSetup(){
+  const t=T();
+  const st=S.step;
+  const stepsHtml = STEPS.map((s,i)=>{
+    const n=i+1;
+    const cls = n===st?'on':(n<st?'done':'');
+    const label = s.replace('classes',t.klassesLo).replace('students',t.studentsLo).replace('staff',t.staffsLo);
+    return `<div class="step ${cls}"><div class="n">${n<st?'✓':n}</div><div class="t">${label}</div></div>${i<STEPS.length-1?'<div class="step-line"></div>':''}`;
+  }).join('');
+
+  let panel='';
+  if(st===1){
+    panel=`
+      <h2>Which ${esc(t.klassesLo)} should 2027-28 have?</h2>
+      <p class="sub">You had ${CLASSES.length} last ${esc(t.year.toLowerCase())}.</p>
+      ${opt('copy','all','Copy all %K% from 2026-27','Recommended. You can rename, add or archive any of them afterwards.')}
+      ${opt('copy','pick','Choose which ones to copy','Useful if you are adding or dropping a grade this year.')}
+      ${opt('copy','none','Start from an empty list','You will build every %k% from scratch.')}`;
+  } else if(st===2){
+    panel=`
+      <h2>Move ${esc(t.studentsLo)} up</h2>
+      <p class="sub">${CLASSES.reduce((a,c)=>a+c.students,0)} ${esc(t.studentsLo)} enrolled in 2026-27.</p>
+      ${opt('roll','auto','Advance everyone one %k%','PreK becomes Kindergarten, Grade 1 becomes Grade 2, and so on. Grade 7 has nowhere to go — you will handle those on the next screen.')}
+      ${opt('roll','keep','Keep everyone where they are','For programs that are not grade-based.')}
+      ${opt('roll','none','Do not enroll anyone yet','Start with empty %K% and add %S% by hand or by import.')}
+      <div class="note info" style="margin-top:16px"><span class="ico">i</span><div>Nothing is written until the last step. You will see a full summary before anything changes.</div></div>`;
+  } else if(st===3){
+    panel=`
+      <h2>Carry ${esc(t.staffsLo)} forward</h2>
+      <p class="sub">44 people had a ${esc(t.staffLo)} or aide role in 2026-27.</p>
+      ${opt('staff','carry','Keep everyone in the same %k%','You can change individual assignments afterwards.')}
+      ${opt('staff','askeach','Let me confirm each person','Slower, but you will see everybody once.')}
+      ${opt('staff','none','Start with no %T% assigned','You will assign everyone from scratch.')}`;
+  } else if(st===4){
+    panel=`
+      <h2>Review exceptions</h2>
+      <p class="sub">These are the ones the rules above can't decide for you. Everything else is handled.</p>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><h2 style="flex:1">11 ${esc(t.studentsLo)} are ageing out of Grade 7</h2><span class="badge b-warn">Needs a decision</span></div>
+        <div class="card-b">
+          <p style="margin:0 0 12px;font-size:14px;color:var(--ink2)">There is no Grade 8. Where should they go?</p>
+          <div style="display:flex;gap:9px;flex-wrap:wrap">
+            <button class="btn sm" onclick="alert('Moved to Hebrew High')">Move all to Hebrew High</button>
+            <button class="btn sm" onclick="alert('Moved to Madrichim')">Move all to Madrichim</button>
+            <button class="btn sm" onclick="alert('Graduated — records kept, no new enrollment')">Graduate them</button>
+            <button class="btn sm ghost" onclick="alert('Per-student picker')">Decide one by one…</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><h2 style="flex:1">2 ${esc(t.staffsLo)} were only assigned to a ${esc(t.klassLo)} you're not copying</h2><span class="badge b-warn">Needs a decision</span></div>
+        <div class="card-b" style="font-size:14px;color:var(--ink2)">
+          <div style="margin-bottom:10px">Deborah Adler · Naomi Weiss</div>
+          <div style="display:flex;gap:9px"><button class="btn sm" onclick="alert('Kept, unassigned')">Keep them, unassigned</button><button class="btn sm" onclick="alert('Not carried forward')">Don't carry forward</button></div>
+        </div>
+      </div>
+      <div class="note ok"><span class="ico">✓</span><div><b>Everything else is clean.</b> 133 ${esc(t.studentsLo)} advance automatically and 42 ${esc(t.staffsLo)} keep their ${esc(t.klassesLo)}.</div></div>`;
+  } else {
+    panel=`
+      <h2>Ready to create 2027-28</h2>
+      <p class="sub">Here is everything that will happen. Nothing has been written yet.</p>
+      <div class="card" style="margin-bottom:16px"><div class="card-b">
+        <div class="kv">
+          <div class="k">${esc(t.klasses)}</div><div>11 created, copied from 2026-27</div>
+          <div class="k">${esc(t.students)}</div><div>133 advanced one ${esc(t.klassLo)} · 11 moved to Hebrew High</div>
+          <div class="k">${esc(t.staffs)}</div><div>42 carried forward · 2 kept unassigned</div>
+          <div class="k">Forms</div><div>Same log forms as 2026-27</div>
+        </div>
+      </div></div>
+      <label class="optcard sel" style="cursor:default">
+        <input type="checkbox" checked style="margin-top:2px">
+        <div><div class="ttl">Also send invitations to the ${NEVER+INVITED} people who have never signed in</div>
+        <div class="dsc">They'll get an email with a sign-in link. You can always do this later from People.</div></div>
+      </label>
+      <div class="note info" style="margin-top:8px"><span class="ico">i</span><div>2026-27 is not touched. Both ${esc(t.year.toLowerCase())}s stay available in the switcher at the top.</div></div>`;
+  }
+
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li><b>This flow did not exist.</b> The pieces did — "Clone to program", CSV import, "Send invitation" — but scattered across three screens with no sequence, during the busiest week of a director's year.</li>
+    <li><b>Step 4 is the point of the whole thing.</b> The system handles the 133 easy cases silently and shows you only the 13 it can't decide. That's the difference between an hour and a day.</li>
+    <li><b>Nothing writes until the last step</b>, and the summary states exactly what will happen.</li>
+  </ul></div></div>
+
+  <h1>Set up 2027-28</h1>
+  <p class="sub">Five steps. You can leave and come back — your answers are kept.</p>
+  <div class="stepper">${stepsHtml}</div>
+  <div class="card"><div class="card-b" style="max-width:660px">${panel}</div></div>
+  <div style="display:flex;gap:10px;margin-top:18px;align-items:center">
+    ${st>1?`<button class="btn" onclick="S.step--;render()">← Back</button>`:''}
+    <div class="spacer"></div>
+    <button class="btn ghost" onclick="alert('Saved. Pick it up any time from the dashboard.')">Save and finish later</button>
+    ${st<5?`<button class="btn primary" onclick="S.step++;render()">Continue →</button>`
+           :`<button class="btn primary" onclick="alert('2027-28 created (prototype).');S.step=1;go('home')">Create 2027-28</button>`}
+  </div>`;
+}
+
+function opt(group,val,title,desc){
+  const t=T();
+  const sub=s=>s.replace(/%K%/g,t.klassesLo).replace(/%k%/g,t.klassLo)
+               .replace(/%S%/g,t.studentsLo).replace(/%T%/g,t.staffsLo);
+  const on = S.wizardChoices[group]===val;
+  return `<div class="optcard ${on?'sel':''}" onclick="S.wizardChoices['${group}']='${val}';render()">
+    <div class="rad"></div><div><div class="ttl">${sub(title)}</div><div class="dsc">${sub(desc)}</div></div></div>`;
+}
+
+/* ---------------------------- SETTINGS ----------------------------- */
+function vSettings(){
+  const t=T(); const isS=S.vocab==='school';
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li>Bunk Logs serves camps and religious schools, and neither wants the other's vocabulary. <b>Try the toggle</b> — every screen in this prototype re-words itself immediately.</li>
+    <li>This replaces the fixed, abstract pair "Subject (observed)" and "Author", which belonged to the data model rather than to either audience.</li>
+  </ul></div></div>
+
+  <h1>Settings</h1>
+  <p class="sub">Organization-wide preferences</p>
+
+  <div class="card" style="max-width:660px">
+    <div class="card-h"><div><h2>What do you call things?</h2><div class="muted" style="font-size:13px">Changes wording everywhere — admin, log forms, and reports.</div></div></div>
+    <div class="card-b">
+      <div class="optcard ${isS?'sel':''}" onclick="setVocab('school')">
+        <div class="rad"></div><div>
+          <div class="ttl">School</div>
+          <div class="dsc">Students · Teachers · Classes · School year<br>
+          <span style="color:var(--ink3)">"Add Students to Grade 3 for the 2026-27 school year."</span></div></div>
+      </div>
+      <div class="optcard ${!isS?'sel':''}" onclick="setVocab('camp')">
+        <div class="rad"></div><div>
+          <div class="ttl">Camp</div>
+          <div class="dsc">Campers · Counselors · Bunks · Season<br>
+          <span style="color:var(--ink3)">"Add Campers to Bunk 3 for the Summer 2027 season."</span></div></div>
+      </div>
+      <div class="note info" style="margin-top:6px"><span class="ico">i</span><div>
+        Currently showing: <b>${esc(t.students)}</b>, <b>${esc(t.staffs)}</b>, <b>${esc(t.klasses)}</b>, <b>${esc(t.year)}</b>.
+        Switch it and look at the sidebar and the ${esc(t.klasses)} screen.</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="max-width:660px;margin-top:18px">
+    <div class="card-h"><h2>Other settings</h2></div>
+    <div class="card-b" style="color:var(--ink3);font-size:14px">Notifications, log schedules, permissions, integrations — out of scope for this prototype.</div>
+  </div>`;
+}
+function setVocab(v){ S.vocab=v; render(); }
+
+/* ------------------------------ STUBS ------------------------------ */
+function vReports(){
+  const t=T();
+  return `
+  <div class="dn"><div class="dn-box"><h4>What changed on this screen</h4><ul>
+    <li>"Madrich completion" and "Growth by grade" were two nav items sitting among configuration screens. They're reports; they live together now.</li>
+    <li><b>"Who hasn't submitted"</b> is added — it's the report directors want weekly and the old admin had no equivalent.</li>
+  </ul></div></div>
+  <h1>Reports</h1><p class="sub">${esc(t.period)}</p>
+  <div class="grid3">
+    ${[['Who hasn\'t submitted','Outstanding logs by '+t.staffLo+' and '+t.klassLo+', this week or any week.','New'],
+       ['Log completion','Submission rates over time, by '+t.klassLo+' and by person.',''],
+       ['Growth by grade','Trends across the '+t.year.toLowerCase()+' for each '+t.klassLo+'.',''],
+       ['Madrichim completion','Aide participation and hours.',''],
+       ['Individual '+t.student.toLowerCase()+' history','Everything logged about one '+t.studentLo+'.',''],
+       ['Export','Any of the above as CSV or PDF.','']
+      ].map(([a,b,c])=>`
+      <div class="card"><div class="card-b">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <div style="font-weight:700">${esc(a)}</div>${c?`<span class="badge b-brand">${esc(c)}</span>`:''}
+        </div>
+        <div style="font-size:13.5px;color:var(--ink2)">${esc(b)}</div>
+      </div></div>`).join('')}
+  </div>`;
+}
+function vStub(){
+  return `<h1>Forms</h1><p class="sub">What the logs ask</p>
+  <div class="card"><div class="empty">
+    <h4>Out of scope for this prototype</h4>
+    <p>This is where Templates and Field Keys would live, renamed to "Forms" and "Form fields".</p>
+    <button class="btn" onclick="go('home')">Back to dashboard</button>
+  </div></div>`;
+}
+
+render();
+</script>
+</body>
+</html>

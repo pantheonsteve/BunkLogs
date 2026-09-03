@@ -16,6 +16,7 @@ from .admin_organization import apply_membership_author_override
 from .admin_organization import get_organization_admin_form
 from .admin_organization import membership_author_override_initial
 from .admin_organization import membership_role_choices
+from .models import SUBJECT_ROLES
 from .models import AssignmentDashboardGrant
 from .models import AssignmentGroup
 from .models import AssignmentGroupMembership
@@ -308,7 +309,7 @@ class PersonAdmin(admin.ModelAdmin):
         for person in queryset:
             membership = (
                 Membership.all_objects.filter(person=person, is_active=True)
-                .exclude(role="camper")
+                .exclude(role__in=SUBJECT_ROLES)
                 .order_by("-created_at")
                 .first()
             )

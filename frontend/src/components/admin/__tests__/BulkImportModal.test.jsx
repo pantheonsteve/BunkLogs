@@ -90,4 +90,29 @@ describe('BulkImportModal (7_13 PR3)', () => {
     fireEvent.click(button);
     await waitFor(() => expect(downloadAdminPeopleImportTemplate).toHaveBeenCalledWith('tbe', 'roster'));
   });
+
+  it('offers the Student Import source for uploading students', async () => {
+    listAdminPeopleImportTemplates.mockImplementation(async (source) => (
+      source === 'spreadsheet'
+        ? {
+          templates: [{
+            variant: 'students',
+            label: 'Students',
+            required_headers: ['first_name', 'last_name'],
+            notes: 'Role defaults to student when blank.',
+          }],
+        }
+        : { templates: [{ variant: 'staff', label: 'Staff', required_headers: [] }] }
+    ));
+    render(<BulkImportModal programs={PROGRAMS} onClose={() => {}} />);
+    await screen.findByTestId('bulk-import-template-staff');
+
+    fireEvent.change(screen.getByDisplayValue('Campminder'), { target: { value: 'spreadsheet' } });
+
+    const button = await screen.findByTestId('bulk-import-template-students');
+    expect(screen.getByText(/Role defaults to student when blank/)).toBeInTheDocument();
+
+    fireEvent.click(button);
+    await waitFor(() => expect(downloadAdminPeopleImportTemplate).toHaveBeenCalledWith('spreadsheet', 'students'));
+  });
 });

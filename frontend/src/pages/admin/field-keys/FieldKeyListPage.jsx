@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Search,
-  Tag,
-} from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 import api from '../../../api';
+import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
+import Card, { CardBody, CardHeader } from '../../../components/ui/Card';
+import ConfirmDialog from '../../../components/ui/ConfirmDialog';
+import DataTable from '../../../components/ui/DataTable';
 import EmptyState from '../../../components/ui/EmptyState';
 import ErrorPanel from '../../../components/ui/ErrorPanel';
+import FilterBar, {
+  FilterChips,
+  FilterSelect,
+  SearchInput,
+} from '../../../components/ui/FilterBar';
 import LoadingState from '../../../components/ui/LoadingState';
+import Modal from '../../../components/ui/Modal';
+import OverflowMenu, { OverflowMenuItem } from '../../../components/ui/OverflowMenu';
+import PageHeader from '../../../components/ui/PageHeader';
 import Toast, { useToast } from '../../../components/ui/Toast';
 
 /**
@@ -177,56 +180,28 @@ function EditModal({ open, initial, busy, onClose, onSubmit }) {
 
   if (!open) return null;
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg rounded-xl bg-white dark:bg-gray-900 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            Edit field key
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            aria-label="Close"
+    <Modal
+      title="Edit field key"
+      onClose={onClose}
+      dismissible={!busy}
+      footer={
+        <>
+          <div className="flex-1" />
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            disabled={busy}
+            onClick={() => onSubmit(form)}
+            data-testid="fk-edit-submit"
           >
-            <X size={18} />
-          </button>
-        </header>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSubmit(form);
-          }}
-          className="px-5 py-4"
-        >
-          <FormFields form={form} onChange={setForm} lockKey />
-          <div className="mt-5 flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={onClose}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={busy}
-              data-testid="fk-edit-submit"
-            >
-              {busy ? 'Saving…' : 'Save changes'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+            {busy ? 'Saving…' : 'Save changes'}
+          </Button>
+        </>
+      }
+    >
+      <FormFields form={form} onChange={setForm} lockKey />
+    </Modal>
   );
 }
 
@@ -244,6 +219,8 @@ export default function FieldKeyListPage() {
   const [createError, setCreateError] = useState('');
   const [editing, setEditing] = useState(null);
   const [editBusy, setEditBusy] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const { toast, showToast } = useToast();
 
   // Debounce search so we don't spam the API on every keystroke.
@@ -350,142 +327,189 @@ export default function FieldKeyListPage() {
     [editing, load, showToast],
   );
 
-  const handleDelete = useCallback(
-    async (row) => {
-      const label = row.is_global ? `${row.key} (global)` : row.key;
-      if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
-      try {
-        await api.delete(`/api/v1/field-keys/${row.id}/`);
-        showToast(`Deleted "${row.key}".`);
-        await load();
-      } catch (err) {
-        const status = err.response?.status;
-        const detail = err.response?.data?.detail;
-        if (status === 409) {
-          showToast(detail || `"${row.key}" is referenced by one or more templates.`);
-        } else {
-          showToast(detail || 'Delete failed.');
-        }
+  const handleDelete = useCallback(async () => {
+    const row = deleting;
+    if (!row) return;
+    setDeleteBusy(true);
+    try {
+      await api.delete(`/api/v1/field-keys/${row.id}/`);
+      setDeleting(null);
+      showToast(`Deleted "${row.key}".`);
+      await load();
+    } catch (err) {
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail;
+      setDeleting(null);
+      if (status === 409) {
+        showToast(detail || `"${row.key}" is referenced by one or more templates.`);
+      } else {
+        showToast(detail || 'Delete failed.');
       }
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [deleting, load, showToast]);
+
+  const columns = [
+    {
+      key: 'key',
+      header: 'Key',
+      render: (row) => (
+        <span className="font-mono text-xs text-gray-900 dark:text-white">{row.key}</span>
+      ),
     },
-    [load, showToast],
-  );
+    {
+      key: 'display_name',
+      header: 'Display name',
+      render: (row) => (
+        <>
+          <span className="text-gray-900 dark:text-white">{row.display_name}</span>
+          {row.description && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+              {row.description}
+            </p>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      width: '9rem',
+      render: (row) => (
+        <span className="text-xs">{labelForType(row.expected_field_type)}</span>
+      ),
+    },
+    {
+      key: 'dashboard_role',
+      header: 'Dashboard role',
+      width: '10rem',
+      render: (row) => (
+        <span className="text-xs">{labelForRole(row.expected_dashboard_role)}</span>
+      ),
+    },
+    {
+      key: 'scope',
+      header: 'Scope',
+      width: '6rem',
+      render: (row) => (
+        <Badge tone={row.is_global ? 'info' : 'neutral'}>
+          {row.is_global ? 'Global' : 'Org'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      width: '7rem',
+      render: (row) => (
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {row.created_at ? new Date(row.created_at).toLocaleDateString() : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      width: '3rem',
+      align: 'right',
+      render: (row) => (
+        <OverflowMenu
+          size="sm"
+          label={`Actions for ${row.key}`}
+          triggerTestId={`fk-actions-${row.key}`}
+        >
+          <OverflowMenuItem
+            onClick={() => setEditing(row)}
+            data-testid={`fk-edit-${row.key}`}
+          >
+            Edit field key…
+          </OverflowMenuItem>
+          <OverflowMenuItem
+            danger
+            onClick={() => setDeleting(row)}
+            data-testid={`fk-delete-${row.key}`}
+          >
+            Delete field key…
+          </OverflowMenuItem>
+        </OverflowMenu>
+      ),
+    },
+  ];
 
   return (
     <main className="grow px-4 sm:px-6 lg:px-8 py-6 w-full max-w-6xl mx-auto">
-      <Link
-        to="/admin/home"
-        className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
-      >
-        <ArrowLeft size={14} /> Admin
-      </Link>
-
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Tag size={18} aria-hidden="true" />
-            Field keys
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-2xl">
-            Canonical short identifiers used across reflection templates so
-            cross-template dashboards can aggregate the same field even when
-            it lives in different templates.
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            setCreating((v) => !v);
-            setCreateError('');
-          }}
-          className="shrink-0"
-          data-testid="fk-new-btn"
-        >
-          <Plus size={16} /> {creating ? 'Close' : 'New field key'}
-        </Button>
-      </div>
+      <PageHeader
+        backTo="/admin/home"
+        title="Form fields"
+        subtitle="Shared field names. When two forms ask the same question under the same name, dashboards can report on both together."
+        actions={
+          <Button
+            onClick={() => {
+              setCreating((v) => !v);
+              setCreateError('');
+            }}
+            data-testid="fk-new-btn"
+          >
+            <Plus size={16} /> {creating ? 'Close' : 'New field key'}
+          </Button>
+        }
+      />
 
       {creating && (
-        <section
-          data-testid="fk-create-form"
-          className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5"
-        >
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-            New field key
-          </h2>
-          <form onSubmit={submitCreate}>
-            <FormFields form={createForm} onChange={setCreateForm} />
-            {createError && (
-              <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
-                {createError}
-              </p>
-            )}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setCreating(false);
-                  setCreateError('');
-                }}
-                disabled={createBusy}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={createBusy}
-                data-testid="fk-create-submit"
-              >
-                {createBusy ? 'Creating…' : 'Create field key'}
-              </Button>
-            </div>
-          </form>
-        </section>
+        <Card className="mb-6" data-testid="fk-create-form">
+          <CardHeader title="New field key" />
+          <CardBody>
+            <form onSubmit={submitCreate}>
+              <FormFields form={createForm} onChange={setCreateForm} />
+              {createError && (
+                <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
+                  {createError}
+                </p>
+              )}
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setCreating(false);
+                    setCreateError('');
+                  }}
+                  disabled={createBusy}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createBusy} data-testid="fk-create-submit">
+                  {createBusy ? 'Creating…' : 'Create field key'}
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by key prefix…"
-            data-testid="fk-search"
-            className="pl-8 pr-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="flex gap-1">
-          {SCOPE_FILTERS.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              onClick={() => setScopeFilter(s.value)}
-              data-testid={`fk-scope-${s.value}`}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                scopeFilter === s.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <select
+      <FilterBar>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by key prefix…"
+          data-testid="fk-search"
+        />
+        <FilterChips
+          value={scopeFilter}
+          onChange={setScopeFilter}
+          options={SCOPE_FILTERS}
+          testIdPrefix="fk-scope-"
+        />
+        <FilterSelect
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          onChange={setTypeFilter}
           aria-label="Filter by expected field type"
-          className="px-3 py-1 rounded-full text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-        >
-          <option value="">All types</option>
-          {FIELD_TYPE_OPTIONS.filter((o) => o.value).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          options={[
+            { value: '', label: 'All types' },
+            ...FIELD_TYPE_OPTIONS.filter((o) => o.value),
+          ]}
+        />
+      </FilterBar>
 
       {error && (
         <div className="mb-4">
@@ -495,92 +519,23 @@ export default function FieldKeyListPage() {
 
       {loading ? (
         <LoadingState>Loading field keys…</LoadingState>
-      ) : visible.length === 0 ? (
-        <EmptyState
-          title={keys.length === 0 ? 'No field keys yet' : 'No matches'}
-          data-testid="fk-empty"
-        >
-          {keys.length === 0
-            ? 'Create one to get started, or run `python manage.py seed_field_keys` to seed the standard global set.'
-            : 'No field keys match the current filters.'}
-        </EmptyState>
       ) : (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="w-full text-sm" data-testid="fk-table">
-            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Key</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Display name</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Dashboard role</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Scope</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {visible.map((row) => (
-                <tr
-                  key={row.id}
-                  data-testid={`fk-row-${row.key}`}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                  <td className="px-3 py-3 font-mono text-xs text-gray-900 dark:text-white">
-                    {row.key}
-                  </td>
-                  <td className="px-3 py-3 text-gray-900 dark:text-white">
-                    {row.display_name}
-                    {row.description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
-                        {row.description}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                    {labelForType(row.expected_field_type)}
-                  </td>
-                  <td className="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                    {labelForRole(row.expected_dashboard_role)}
-                  </td>
-                  <td className="px-3 py-3">
-                    {row.is_global ? (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                        Global
-                      </span>
-                    ) : (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                        Org
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-gray-500 dark:text-gray-400 text-xs">
-                    {row.created_at ? new Date(row.created_at).toLocaleDateString() : '—'}
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="inline-flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(row)}
-                        data-testid={`fk-edit-${row.key}`}
-                        className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-xs px-2 py-1"
-                      >
-                        <Pencil size={12} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(row)}
-                        data-testid={`fk-delete-${row.key}`}
-                        className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline text-xs px-2 py-1"
-                      >
-                        <Trash2 size={12} /> Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data-testid="fk-table"
+          columns={columns}
+          rows={visible}
+          rowTestId={(row) => `fk-row-${row.key}`}
+          empty={
+            <EmptyState
+              title={keys.length === 0 ? 'No field keys yet' : 'No matches'}
+              data-testid="fk-empty"
+            >
+              {keys.length === 0
+                ? 'Create one to get started, or run `python manage.py seed_field_keys` to seed the standard global set.'
+                : 'No field keys match the current filters.'}
+            </EmptyState>
+          }
+        />
       )}
 
       <EditModal
@@ -590,6 +545,30 @@ export default function FieldKeyListPage() {
         onClose={() => setEditing(null)}
         onSubmit={submitEdit}
       />
+
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete "${deleting.key}"?`}
+          description={
+            deleting.is_global
+              ? 'This is a global key shared by every organization.'
+              : undefined
+          }
+          confirmLabel={`Delete ${deleting.key}`}
+          consequences={[
+            'remove the key from the registry for good',
+            'stop new templates from referencing it',
+          ]}
+          busy={deleteBusy}
+          onConfirm={handleDelete}
+          onClose={() => setDeleting(null)}
+        >
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Keys already used by a template can&apos;t be deleted — you&apos;ll get told which
+            templates hold on to it.
+          </p>
+        </ConfirmDialog>
+      )}
 
       <Toast message={toast} data-testid="fk-toast" />
     </main>
