@@ -8,6 +8,7 @@ from enum import Enum
 from django.contrib.auth import get_user_model
 
 from bunk_logs.core.context import get_current_organization
+from bunk_logs.core.models import SUBJECT_ROLES
 from bunk_logs.core.models import Person
 
 User = get_user_model()
@@ -51,7 +52,7 @@ def preview_user_link(
     email = (email or "").strip()
     if not email:
         return UserLinkResult(UserLinkAction.SKIPPED_NO_EMAIL)
-    if membership_role == "camper":
+    if membership_role in SUBJECT_ROLES:
         return UserLinkResult(UserLinkAction.SKIPPED_CAMPER)
 
     if existing_person is not None and existing_person.user_id:
@@ -92,7 +93,7 @@ def ensure_user_for_imported_person(
     email = (person.email or "").strip()
     if not email:
         return UserLinkResult(UserLinkAction.SKIPPED_NO_EMAIL)
-    if membership_role == "camper":
+    if membership_role in SUBJECT_ROLES:
         return UserLinkResult(UserLinkAction.SKIPPED_CAMPER)
 
     if person.user_id:

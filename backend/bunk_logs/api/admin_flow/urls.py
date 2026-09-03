@@ -34,6 +34,7 @@ from .director import DirectorMadrichimView
 from .director import DirectorPulseView
 from .director import DirectorQueueView
 from .director import DirectorThemesView
+from .groups import AdminGroupsOverviewView
 from .growth import AdminGrowthDashboardExportView
 from .growth import AdminGrowthDashboardView
 from .growth import AdminGrowthExamplesView
@@ -42,9 +43,11 @@ from .imports import AdminBulkImportPreviewView
 from .imports import AdminBulkImportTemplateView
 from .madrich_availability import AdminMadrichAvailabilityExportView
 from .madrich_availability import AdminMadrichAvailabilityView
+from .nav import AdminNavBadgesView
 from .override import AdminOverrideEditView
 from .people import AdminMembershipDeactivateView
 from .people import AdminMembershipDetailView
+from .people import AdminPeopleBulkInviteView
 from .people import AdminPeopleDetailView
 from .people import AdminPeopleListCreateView
 from .people import AdminPersonInviteView
@@ -77,6 +80,7 @@ _audit_admin_overrides = AuditEventViewSet.as_view({"get": "admin_overrides"})
 
 urlpatterns = [
     path("dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
+    path("nav-badges/", AdminNavBadgesView.as_view(), name="admin-nav-badges"),
     path("override-edit/", AdminOverrideEditView.as_view(), name="admin-override-edit"),
     path("audit/", _audit_list, name="admin-audit"),
     path("audit/by-actor/", _audit_by_actor, name="admin-audit-by-actor"),
@@ -95,6 +99,11 @@ urlpatterns = [
         "people/<int:person_id>/invite/",
         AdminPersonInviteView.as_view(),
         name="admin-person-invite",
+    ),
+    path(
+        "people/invite/",
+        AdminPeopleBulkInviteView.as_view(),
+        name="admin-people-bulk-invite",
     ),
     path(
         "people/dedupe/preview/",
@@ -125,6 +134,14 @@ urlpatterns = [
         "memberships/<int:membership_id>/deactivate/",
         AdminMembershipDeactivateView.as_view(),
         name="admin-membership-deactivate",
+    ),
+    # ------------------------------------------------------------------
+    # Groups list with counts (admin redesign — merged Groups area)
+    # ------------------------------------------------------------------
+    path(
+        "groups/overview/",
+        AdminGroupsOverviewView.as_view(),
+        name="admin-groups-overview",
     ),
     # ------------------------------------------------------------------
     # Assignments (Story 56) — single endpoint, 5 sub-tabs

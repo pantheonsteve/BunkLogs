@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.core.management.base import CommandError
 
+from bunk_logs.core.models import SUBJECT_ROLES
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Program
@@ -29,7 +30,7 @@ def load_target_group(
 
 
 def infer_role_in_group_from_program_role(program_role: str) -> str:
-    return "subject" if program_role == "camper" else "author"
+    return "subject" if program_role in SUBJECT_ROLES else "author"
 
 
 def resolve_role_in_group(

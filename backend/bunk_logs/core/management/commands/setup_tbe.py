@@ -73,6 +73,10 @@ CANONICAL_ORG_SETTINGS: dict[str, Any] = {
         # rendered noun changes.
         "bunk": {"one": "class", "other": "classes"},
         "counselor": {"one": "faculty", "other": "faculty"},
+        # TBE's only group type is the classroom, so the admin's generic
+        # roster area reads as classes rather than "groups".
+        "group": {"one": "class", "other": "classes"},
+        "program": {"one": "school year", "other": "school years"},
     },
 }
 

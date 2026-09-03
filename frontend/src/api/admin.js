@@ -9,10 +9,27 @@ import api from '../api';
  */
 export const ADMIN_BASE = '/api/v1/admin';
 
-export async function fetchAdminDashboard() {
-  // Backend Story 54 payload. The /admin/dashboard page was removed;
-  // this helper stays so the API remains callable.
-  const resp = await api.get(`${ADMIN_BASE}/dashboard/`);
+export async function fetchAdminDashboard(params = {}) {
+  const resp = await api.get(`${ADMIN_BASE}/dashboard/`, { params });
+  return resp?.data ?? null;
+}
+
+/** The two counts the admin sidebar badges: people never invited, broken groups. */
+export async function fetchAdminNavBadges(params = {}) {
+  const resp = await api.get(`${ADMIN_BASE}/nav-badges/`, { params });
+  return resp?.data ?? null;
+}
+
+/** One row per group with subject / author / this-week submission counts. */
+export async function listAdminGroupsOverview(params = {}) {
+  const resp = await api.get(`${ADMIN_BASE}/groups/overview/`, { params });
+  return resp?.data ?? { results: [] };
+}
+
+export async function bulkInviteAdminPeople(personIds) {
+  const resp = await api.post(`${ADMIN_BASE}/people/invite/`, {
+    person_ids: personIds,
+  });
   return resp?.data ?? null;
 }
 
@@ -45,6 +62,7 @@ export function buildAdminPeopleListParams({
   search = '',
   role = '',
   status = '',
+  invite_status = '',
   program = '',
   last_name_initial = '',
   offset = 0,
@@ -55,6 +73,7 @@ export function buildAdminPeopleListParams({
   if (trimmedSearch) params.search = trimmedSearch;
   if (role) params.role = role;
   if (status) params.status = status;
+  if (invite_status) params.invite_status = invite_status;
   if (program) params.program = String(program);
   if (last_name_initial) params.last_name_initial = last_name_initial;
   return params;

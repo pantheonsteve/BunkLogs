@@ -58,8 +58,13 @@ beforeEach(() => {
   patchMock.mockReset();
   deleteMock.mockReset();
   getMock.mockResolvedValue({ data: KEYS });
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
+
+/** Row actions live behind an overflow menu; open it and fire one. */
+async function rowAction(key, action) {
+  await userEvent.click(screen.getByTestId(`fk-actions-${key}`));
+  await userEvent.click(screen.getByTestId(`fk-${action}-${key}`));
+}
 
 describe('FieldKeyListPage (3.29)', () => {
   it('lists field keys with scope chip and type label', async () => {
@@ -145,6 +150,16 @@ describe('FieldKeyListPage (3.29)', () => {
     await waitFor(() => expect(screen.getByTestId('fk-row-energy')).toBeInTheDocument());
   });
 
+  it('does not delete until the confirmation is accepted', async () => {
+    renderPage();
+    await waitFor(() => screen.getByTestId('fk-table'));
+
+    await rowAction('custom_metric', 'delete');
+
+    expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+    expect(deleteMock).not.toHaveBeenCalled();
+  });
+
   it('removes a row on successful delete', async () => {
     renderPage();
     await waitFor(() => screen.getByTestId('fk-table'));
@@ -152,7 +167,8 @@ describe('FieldKeyListPage (3.29)', () => {
     deleteMock.mockResolvedValueOnce({ status: 204 });
     getMock.mockResolvedValueOnce({ data: [KEYS[0]] }); // custom_metric removed
 
-    await userEvent.click(screen.getByTestId('fk-delete-custom_metric'));
+    await rowAction('custom_metric', 'delete');
+    await userEvent.click(screen.getByTestId('confirm-dialog-confirm'));
 
     await waitFor(() => {
       expect(deleteMock).toHaveBeenCalledWith('/api/v1/field-keys/2/');
@@ -173,7 +189,8 @@ describe('FieldKeyListPage (3.29)', () => {
       },
     });
 
-    await userEvent.click(screen.getByTestId('fk-delete-custom_metric'));
+    await rowAction('custom_metric', 'delete');
+    await userEvent.click(screen.getByTestId('confirm-dialog-confirm'));
 
     await waitFor(() => {
       expect(screen.getByTestId('fk-toast')).toHaveTextContent(/referenced by one or more templates/i);
@@ -186,7 +203,7 @@ describe('FieldKeyListPage (3.29)', () => {
     renderPage();
     await waitFor(() => screen.getByTestId('fk-table'));
 
-    await userEvent.click(screen.getByTestId('fk-edit-custom_metric'));
+    await rowAction('custom_metric', 'edit');
     const submit = await screen.findByTestId('fk-edit-submit');
     expect(submit).toBeInTheDocument();
 

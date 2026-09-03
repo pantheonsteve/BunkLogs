@@ -13,6 +13,8 @@ import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
 import { OrgLogo } from "../components/OrgBrandingAssets";
+import { useOrgBranding, useTerm } from "../context/OrgBrandingContext";
+import { adminNavItems, leadershipNavItems } from "./adminNavConfig";
 
 // Membership roles that can author a /reflect submission today; kept to
 // preserve the existing top-level "Program reflection" / "My reflections"
@@ -74,17 +76,10 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *     Concerns inbox    /dashboards/concerns
  *     Author attribution /dashboards/authors
  *
- *   ADMIN (collapsible, below Supervise)
- *     People              /admin/people
- *     Memberships         /admin/memberships
- *     Groups              /admin/groups
- *     Assignments         /admin/assignments
- *     Templates           /admin/templates
- *     Madrich completion  /admin/reflections  (religious-school orgs)
- *     Growth by grade     /admin/reflections/growth  (religious-school orgs)
- *     Request catalog     /admin/catalog
- *     Field keys          /admin/field-keys
- *     Settings            /admin/settings
+ *   ADMIN (collapsible, below Supervise) — see partials/adminNavConfig.js
+ *     People / Groups, then Forms, Reports and Setup sub-groups. Groups
+ *     is labelled per-tenant ("Classes" for TBE). Which reports appear
+ *     depends on the org's surfaces.
  *
  * Admins land on /admin (see pages/Dashboard.jsx). Leadership Team lands
  * on /leadership-team with the same My work / Supervise sections but
@@ -94,7 +89,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * Default nav (non-admin, non-LT): My work (Home/tasks/reflections/
  * observations/maintenance), Supervise (supervisor+). Help
  * (program_lead+). Camper Care omits My tasks / File a reflection /
- * My reflections / Bunk Logs — those live on the Camper Care home dashboard.
+ * My reflections / Daily logs — those live on the Camper Care home dashboard.
  * Camper Care also gets Flagged campers + Camper Care orders in the global
  * nav (dashboard cards remain secondary entry points with counts).
  * Gates use
@@ -106,10 +101,12 @@ function Sidebar({
   sidebarOpen,
   setSidebarOpen,
   variant = 'default',
+  navBadges = null,
 }) {
   const location = useLocation();
   const { pathname } = location;
   const { user } = useAuth();
+  const term = useTerm();
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -197,6 +194,7 @@ function Sidebar({
   const homePath = homePathForUser(user);
   // Which product surfaces this tenant gets (camp vs religious school).
   const surfaces = orgSurfaces(user);
+  const adminNav = canAdmin ? adminNavItems(surfaces, term) : leadershipNavItems();
   // Poll unread Observations count every 60 seconds (Step 7_23 nav badge).
   const [observationsUnread, setObservationsUnread] = useState(0);
   const pollObservations = surfaces.observations;
@@ -247,7 +245,12 @@ function Sidebar({
           <>
           <div>
             <ul className="lg:space-y-0.5">
-              <NavItem to={adminStyleHomePath} label="Home" icon={IconHome} end />
+              {/* Admins reach their home through the Admin section's
+                  Dashboard item; a second Home row up here just pointed
+                  at the same page. */}
+              {!canAdmin && (
+                <NavItem to={adminStyleHomePath} label="Home" icon={IconHome} end />
+              )}
               {canSeeHelp && (
                 <NavItem to="/help" label="Help" icon={IconHelp} />
               )}
@@ -262,9 +265,12 @@ function Sidebar({
                   label="Group Performance"
                   icon={IconGrid}
                 />
+                {/* Not "Bunk Logs" — that's the product's name, and a nav
+                    item wearing it makes every other page look like it
+                    isn't part of the product. */}
                 <NavItem
                   to="/dashboards/logs"
-                  label="Bunk Logs"
+                  label="Daily logs"
                   icon={IconBars}
                 />
               </>
@@ -318,39 +324,18 @@ function Sidebar({
             </Section>
           )}
 
-          <CollapsibleSection
-            heading="Admin"
-            activeWhen={
-              pathname === '/admin' || pathname.startsWith('/admin/')
-            }
-            icon={IconGear}
-            setSidebarExpanded={setSidebarExpanded}
-          >
-            {canAdmin && (
-              <>
-                <SubItem to="/admin/people" label="People" />
-                <SubItem to="/admin/memberships" label="Memberships" />
-                <SubItem to="/admin/groups" label="Groups" />
-                <SubItem to="/admin/assignments" label="Assignments" />
-                <SubItem to="/admin/templates" label="Templates" />
-                {/* Grade-level completion doesn't apply to a camp's unit model. */}
-                {surfaces.gradeReflections && (
-                  <>
-                    <SubItem to="/admin/reflections" label="Madrich completion" />
-                    <SubItem to="/admin/reflections/growth" label="Growth by grade" />
-                  </>
-                )}
-                {surfaces.campOps && (
-                  <SubItem to="/admin/catalog" label="Request catalog" />
-                )}
-                <SubItem to="/admin/field-keys" label="Field Keys" />
-                <SubItem to="/admin/settings" label="Settings" />
-              </>
-            )}
-            {!canAdmin && (
-              <SubItem to="/admin/templates" label="Templates" />
-            )}
-          </CollapsibleSection>
+          <Section heading="Admin">
+            {adminNav.map((item) => (
+              <NavItem
+                key={item.to}
+                to={item.to}
+                label={item.label}
+                icon={ADMIN_NAV_ICONS[item.icon]}
+                end={item.end}
+                badge={badgeCount(navBadges, item.badge)}
+              />
+            ))}
+          </Section>
           </>
           ) : (
           <>
@@ -405,7 +390,7 @@ function Sidebar({
             {canSupervise && !canSeeDashboards && canSeeLogs && !isCamperCare && !isUnitHead && (
               <NavItem
                 to="/dashboards/logs"
-                label="Bunk Logs"
+                label="Daily logs"
                 icon={IconBars}
               />
             )}
@@ -453,7 +438,7 @@ function Sidebar({
                   />
                   <NavItem
                     to="/dashboards/logs"
-                    label="Bunk Logs"
+                    label="Daily logs"
                     icon={IconBars}
                   />
                   <NavItem
@@ -519,6 +504,29 @@ function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' })
       </button>
       <div className="min-w-0 w-full max-w-full flex-1 lg:flex-none lg:w-full">
         <OrgLogo to={homePath} variant="sidebar" />
+        <Wordmark />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Product name over org name, under the mark. Hidden while the sidebar is
+ * icon-only, where there is no room for two lines of text.
+ */
+function Wordmark() {
+  const { productName, displayName, logoUrl, isClc } = useOrgBranding();
+  // With no mark to show, OrgLogo already renders the org name as text —
+  // repeating it directly underneath reads as a rendering bug.
+  if (!logoUrl && !isClc) return null;
+  if (!displayName || displayName === productName) return null;
+  return (
+    <div className="mt-2 min-w-0 lg:hidden lg:sidebar-expanded:block 2xl:block">
+      <div className="text-sm font-bold leading-tight text-gray-800 dark:text-gray-100 truncate">
+        {productName}
+      </div>
+      <div className="text-xs leading-tight text-gray-500 dark:text-gray-400 truncate">
+        {displayName}
       </div>
     </div>
   );
@@ -539,25 +547,33 @@ function Section({ heading, headingTitle, children, ...rest }) {
   );
 }
 
+// The active row is a filled pill at every width, including 2xl where the
+// old styles deliberately cleared the background and left colour alone to
+// carry the state — too quiet to find at a glance.
+const NAV_ITEM_BASE =
+  'block px-3 py-2 lg:px-2 lg:sidebar-expanded:px-3 2xl:px-3 text-gray-700 dark:text-gray-200 transition duration-150 rounded-lg';
+const NAV_ITEM_ACTIVE =
+  'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-semibold';
+const NAV_ITEM_IDLE =
+  'font-medium hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white';
+
 function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
   return (
-    <li className="px-3 py-2 rounded-lg mb-0.5 last:mb-0 lg:px-0 lg:sidebar-expanded:px-3 2xl:px-3">
+    <li className="mb-0.5 last:mb-0">
       <NavLink
         end={end}
         to={to}
         title={label}
         className={({ isActive }) =>
-          `block text-gray-800 dark:text-gray-100 transition duration-150 rounded-lg lg:rounded-md lg:sidebar-expanded:rounded-lg 2xl:rounded-lg lg:hover:bg-gray-100 dark:lg:hover:bg-gray-700/50 lg:sidebar-expanded:hover:bg-transparent dark:lg:sidebar-expanded:hover:bg-transparent 2xl:hover:bg-transparent ${
-            isActive ? "text-blue-600 dark:text-blue-400 lg:bg-gray-100 dark:lg:bg-gray-700/50 lg:sidebar-expanded:bg-transparent dark:lg:sidebar-expanded:bg-transparent 2xl:bg-transparent" : "hover:text-gray-900 dark:hover:text-white"
-          }`
+          `${NAV_ITEM_BASE} ${isActive ? NAV_ITEM_ACTIVE : NAV_ITEM_IDLE}`
         }
       >
-        <div className={`${COLLAPSED_ICON_ROW} relative lg:py-1.5 lg:sidebar-expanded:py-0 2xl:py-0`}>
+        <div className={`${COLLAPSED_ICON_ROW} relative`}>
           <Icon />
-          <span className={`${COLLAPSED_LABEL} flex items-center gap-2`}>
-            {label}
+          <span className={`${COLLAPSED_LABEL} flex flex-1 items-center gap-2.5`}>
+            <span className="truncate">{label}</span>
             {badge != null && (
-              <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
+              <span className="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
                 {badge}
               </span>
             )}
@@ -565,7 +581,7 @@ function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
           {badge != null && (
             <span
               className="hidden lg:flex lg:sidebar-expanded:hidden 2xl:hidden absolute top-0.5 right-1 h-2 w-2 rounded-full bg-violet-500"
-              aria-label={`${badge} unread`}
+              aria-label={`${badge} need attention`}
             />
           )}
         </div>
@@ -743,4 +759,58 @@ function IconHelp() {
     </svg>
   );
 }
+function IconDashboard() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75A1.5 1.5 0 0 1 5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v2.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V6.75ZM3.75 15a1.5 1.5 0 0 1 1.5-1.5h5.25a1.5 1.5 0 0 1 1.5 1.5v2.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V15ZM15.75 15a1.5 1.5 0 0 1 1.5-1.5h1.5a1.5 1.5 0 0 1 1.5 1.5v2.25a1.5 1.5 0 0 1-1.5 1.5h-1.5a1.5 1.5 0 0 1-1.5-1.5V15Z" />
+    </svg>
+  );
+}
+function IconPeople() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+    </svg>
+  );
+}
+function IconRows() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5M3.75 4.5v15M20.25 4.5v15" />
+    </svg>
+  );
+}
+function IconChart() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" />
+    </svg>
+  );
+}
+function IconSliders() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-7.5 0h1.5m1.5 6h9.75m-9.75 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.75 12h.75m11.25 6h3.75m-3.75 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-12.75 0h9.75" />
+    </svg>
+  );
+}
+
+const ADMIN_NAV_ICONS = {
+  dashboard: IconDashboard,
+  people: IconPeople,
+  groups: IconRows,
+  forms: IconPencil,
+  reports: IconChart,
+  setup: IconSliders,
+  settings: IconGear,
+};
+
+/** A badge only earns space when there is something to act on. */
+function badgeCount(navBadges, key) {
+  if (!key || !navBadges) return null;
+  const n = navBadges[key];
+  return typeof n === 'number' && n > 0 ? n : null;
+}
+
 export default Sidebar;

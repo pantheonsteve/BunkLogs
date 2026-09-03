@@ -43,6 +43,7 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
     memberships = AssignmentGroupMembershipSerializer(many=True, read_only=True)
     parent_id = serializers.PrimaryKeyRelatedField(source="parent", read_only=True)
     parent_name = serializers.CharField(source="parent.name", read_only=True, allow_null=True)
+    program_name = serializers.CharField(source="program.name", read_only=True)
 
     class Meta:
         model = AssignmentGroup
@@ -50,11 +51,13 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
             "id",
             "organization",
             "program",
+            "program_name",
             "name",
             "slug",
             "group_type",
             "parent_id",
             "parent_name",
+            "display_order",
             "metadata",
             "is_active",
             "created_at",
@@ -84,6 +87,7 @@ class AssignmentGroupListSerializer(serializers.ModelSerializer):
             "parent",
             "parent_id",
             "parent_name",
+            "display_order",
             "is_active",
             "created_at",
             "updated_at",
@@ -103,7 +107,10 @@ class AssignmentGroupWriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AssignmentGroup
-        fields = ["id", "name", "slug", "group_type", "program", "parent", "metadata", "is_active"]
+        fields = [
+            "id", "name", "slug", "group_type", "program", "parent",
+            "display_order", "metadata", "is_active",
+        ]
         read_only_fields = ["id"]
 
     def run_validators(self, attrs):

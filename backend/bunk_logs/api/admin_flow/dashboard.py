@@ -11,9 +11,18 @@ Returns three top-level sections:
   digest delivery failures, translation pipeline failures). Each card
   carries a count and a deep-link payload so the frontend doesn't have
   to know how to construct the URL.
+* ``setup_attention`` -- the three start-of-year problems the redesigned
+  dashboard leads with (groups with no author, groups with no subjects,
+  people never invited), each carrying the offending rows so the UI can
+  link to the fix rather than just report a number.
+* ``logs_this_week`` -- trailing-week completion per group, most behind
+  first.
 * ``recent_activity`` -- significant ``AuditEvent`` rows, rate-limited
   to event types that matter to an Admin (criterion 6). Routine
   submissions / note edits are excluded.
+
+``?program=`` scopes ``setup_attention`` and ``logs_this_week`` to the
+program selected in the admin header.
 
 The endpoint is gated by :class:`IsOrgAdminOrSuperuser` so a non-admin
 JWT cannot reach it even if it knows the URL.
@@ -36,11 +45,19 @@ from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.state_machine import OrderStateMachine
 
 from .common import AdminContext
 from .common import viewer_or_403
+from .groups import SUBJECT_BEARING_TYPES
+from .groups import annotated_groups
+from .groups import submission_window
+from .people import INVITE_INVITED
+from .people import INVITE_NEVER
+from .people import by_invite_status
+from .people import invitable_people
 
 # Conservative defaults for the "stale" / "pending review" / "digest
 # failures" thresholds. Each is overridable via ``Organization.settings``
@@ -94,14 +111,129 @@ class AdminDashboardView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
+        program_id = (request.query_params.get("program") or "").strip() or None
         payload = {
             "today": ctx.today.isoformat(),
             "org": _org_header(ctx),
             "org_snapshot": _build_org_snapshot(ctx),
             "attention_required": _build_attention_required(ctx),
+            "setup_attention": _build_setup_attention(ctx, program_id),
+            "logs_this_week": _build_logs_this_week(ctx, program_id),
             "recent_activity": _build_recent_activity(ctx),
         }
         return Response(payload)
+
+
+# ---------------------------------------------------------------------------
+# Setup attention + weekly completion (admin redesign)
+# ---------------------------------------------------------------------------
+
+# Enough names to say *which* groups are affected without turning an
+# attention row into a wall of text; the count carries the rest.
+ATTENTION_SAMPLE_SIZE = 5
+
+
+def _build_setup_attention(ctx: AdminContext, program_id) -> dict:
+    """The start-of-year problems, each with the rows that cause it.
+
+    Returning the offending groups and people (not just counts) is what
+    lets each row link straight to the fix instead of reporting a number
+    the admin then has to go hunt down.
+
+    ``completed`` carries the same story from the other side. A setup card
+    showing only problems reads as "nothing works yet" even in September
+    when most of it does, and it gives the progress bar no denominator.
+    """
+    groups = list(annotated_groups(ctx.organization, ctx.today, program_id=program_id))
+
+    no_author = [g for g in groups if g.author_count == 0]
+    no_subjects = [
+        g
+        for g in groups
+        if g.subject_count == 0 and g.group_type in SUBJECT_BEARING_TYPES
+    ]
+
+    people = invitable_people(ctx.organization)
+    never_invited = by_invite_status(people, INVITE_NEVER)
+    invited_not_signed_in = by_invite_status(people, INVITE_INVITED)
+
+    return {
+        "groups_without_author": {
+            "count": len(no_author),
+            "groups": [
+                {"id": g.id, "name": g.name}
+                for g in no_author[:ATTENTION_SAMPLE_SIZE]
+            ],
+        },
+        "groups_without_subjects": {
+            "count": len(no_subjects),
+            "groups": [
+                {"id": g.id, "name": g.name}
+                for g in no_subjects[:ATTENTION_SAMPLE_SIZE]
+            ],
+        },
+        "people_never_invited": {"count": never_invited.count()},
+        "people_invited_not_signed_in": {"count": invited_not_signed_in.count()},
+        "completed": _build_setup_completed(ctx, program_id, groups),
+    }
+
+
+def _build_setup_completed(ctx: AdminContext, program_id, groups) -> dict:
+    """What setup already got right, for the dashboard's green rows."""
+    group_ids = [g.id for g in groups]
+    assignments = TemplateAssignment.all_objects.filter(
+        organization=ctx.organization,
+        assignment_group_id__in=group_ids,
+        status__in=(
+            TemplateAssignment.Status.SCHEDULED,
+            TemplateAssignment.Status.ACTIVE,
+        ),
+    )
+    if program_id:
+        assignments = assignments.filter(program_id=program_id)
+
+    return {
+        "groups_created": len(groups),
+        "groups_total": len(groups),
+        "subjects_enrolled": sum(g.subject_count for g in groups),
+        "groups_with_forms": assignments.values("assignment_group_id").distinct().count(),
+    }
+
+
+def _build_logs_this_week(ctx: AdminContext, program_id) -> dict:
+    """Completion for the trailing week, most-behind first.
+
+    Groups with zero expected subjects are left out entirely rather than
+    counted as complete -- a staff-only team has nothing to submit and
+    would otherwise inflate the org-wide rate.
+    """
+    window_start, window_end = submission_window(ctx.today)
+    groups = [
+        g
+        for g in annotated_groups(ctx.organization, ctx.today, program_id=program_id)
+        if g.subject_count > 0
+    ]
+
+    behind = sorted(
+        (g for g in groups if g.submitted_count < g.subject_count),
+        key=lambda g: g.submitted_count / g.subject_count,
+    )
+
+    return {
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
+        "submitted": sum(g.submitted_count for g in groups),
+        "expected": sum(g.subject_count for g in groups),
+        "behind": [
+            {
+                "id": g.id,
+                "name": g.name,
+                "submitted": g.submitted_count,
+                "expected": g.subject_count,
+            }
+            for g in behind
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +516,8 @@ def _build_recent_activity(ctx: AdminContext) -> list[dict]:
         .order_by("-created_at")[: RECENT_ACTIVITY_LIMIT * 2],
     )
 
+    person_by_membership = _person_ids_for_memberships(events)
+
     out: list[dict] = []
     for e in events:
         if len(out) >= RECENT_ACTIVITY_LIMIT:
@@ -397,7 +531,7 @@ def _build_recent_activity(ctx: AdminContext) -> list[dict]:
             "created_at": e.created_at.isoformat(),
             "actor": actor_name,
             "is_admin_override": e.is_admin_override,
-            "deep_link": _deep_link_for(e),
+            "deep_link": _deep_link_for(e, person_by_membership),
             "summary": _summarize(e),
         })
     return out
@@ -411,7 +545,26 @@ def _actor_display(event: AuditEvent) -> str | None:
     return None
 
 
-def _deep_link_for(event: AuditEvent) -> str:
+def _person_ids_for_memberships(events) -> dict[str, int]:
+    """Membership id -> person id, resolved in one query for the whole feed.
+
+    Membership rows have no page of their own; they open the person's
+    profile. ``content_id`` is a string column holding whatever PK the
+    producing code wrote, so non-numeric values are skipped rather than
+    blowing up the whole feed.
+    """
+    ids = {
+        e.content_id
+        for e in events
+        if e.content_type == "membership" and str(e.content_id).isdigit()
+    }
+    if not ids:
+        return {}
+    rows = Membership.all_objects.filter(id__in=ids).values_list("id", "person_id")
+    return {str(membership_id): person_id for membership_id, person_id in rows}
+
+
+def _deep_link_for(event: AuditEvent, person_by_membership: dict[str, int]) -> str:
     """Best-effort frontend path for a given audit row."""
     ct = event.content_type
     cid = event.content_id
@@ -422,9 +575,12 @@ def _deep_link_for(event: AuditEvent) -> str:
     if ct == "flag":
         return f"/admin/operations/flags/{cid}"
     if ct == "membership":
-        return f"/admin/memberships/{cid}"
+        person_id = person_by_membership.get(str(cid))
+        return f"/admin/people/{person_id}" if person_id else "/admin/people"
     if ct == "supervision":
-        return f"/admin/assignments?supervision_id={cid}"
+        # Supervision is edited inside a group, and the event doesn't say
+        # which, so the list is as close as we can honestly get.
+        return "/admin/groups"
     if ct in ("reflection_template", "template_assignment"):
         return f"/admin/templates/{cid}"
     if ct == "person":
