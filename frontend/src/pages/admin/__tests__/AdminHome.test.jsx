@@ -158,7 +158,7 @@ describe('AdminHome dashboard', () => {
 
     const heading = await screen.findByRole('heading', { level: 1 });
     expect(heading).toHaveTextContent(/^Good (morning|afternoon|evening), Edie$/);
-    expect(screen.getByText(/Sunday, August 30/)).toBeInTheDocument();
+    expect(await screen.findByText(/Sunday, August 30/)).toBeInTheDocument();
   });
 
   it('scores setup as a fraction, with the done steps ticked', async () => {

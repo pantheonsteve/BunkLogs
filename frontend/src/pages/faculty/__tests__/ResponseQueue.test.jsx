@@ -81,6 +81,17 @@ const roster = {
     open_thread_count: 2,
     unread_thread_count: 1,
     open_challenge_count: 0,
+  }, {
+    person_id: 20,
+    display_name: 'Ben Submitted',
+    grade_level: 10,
+    classroom_id: 12,
+    reflection_state: 'complete',
+    reflection_id: 88,
+    next_session_availability: 'available',
+    open_thread_count: 0,
+    unread_thread_count: 0,
+    open_challenge_count: 0,
   }],
   period: { start: '2026-09-14', end: '2026-09-20' },
   next_session: '2026-09-27',
@@ -137,7 +148,22 @@ describe('Faculty homepage — response queue and roster', () => {
     await waitFor(() => screen.getByTestId('fac-roster-row-10'));
     expect(screen.getByTestId('fac-roster-row-10')).toHaveAttribute('href', '/faculty/roster/10');
     expect(screen.getByTestId('fac-roster-state-10')).toHaveTextContent('Not yet');
-    expect(screen.getByTestId('fac-roster-row-10')).toHaveTextContent('Not set');
+    expect(screen.getByTestId('fac-roster-row-10')).toHaveTextContent('Old Ari');
+    expect(screen.queryByTestId('fac-roster-open-10')).toBeNull();
+    expect(screen.getByTestId('fac-roster-availability-header')).toHaveTextContent('Availability');
+    expect(screen.getByTestId('fac-roster-availability-header')).toHaveTextContent('Sep 27');
+  });
+
+  it('puts an Open button next to a submitted reflection', async () => {
+    renderDashboard();
+    await waitFor(() => screen.getByTestId('fac-roster-open-20'));
+    const row = screen.getByTestId('fac-roster-row-20').closest('tr');
+    expect(screen.getByTestId('fac-roster-state-20')).toHaveTextContent('Submitted');
+    expect(screen.getByTestId('fac-roster-open-20')).toHaveAttribute(
+      'href', '/reflections/88?returnTo=%2Ffaculty',
+    );
+    expect(screen.getByTestId('fac-roster-open-20')).toHaveTextContent('Open');
+    expect(row.textContent).toMatch(/Submitted.*Available.*Open/);
   });
 
   it('separates an unanswered Sunday from a full house', async () => {

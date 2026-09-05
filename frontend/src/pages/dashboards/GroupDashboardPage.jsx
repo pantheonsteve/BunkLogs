@@ -23,6 +23,8 @@ import UnsupportedGroupDashboard from '../../components/UnsupportedGroupDashboar
 import GroupRoster from '../../components/GroupRoster';
 import GroupTemplateResponses from '../../components/GroupTemplateResponses';
 import { fetchGroupDashboard } from '../../api/dashboards';
+import { useAuth } from '../../auth/AuthContext';
+import { membershipRolesForUser } from '../../utils/auth/capability';
 import { withDateParam } from '../../utils/dashboardLinks';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -34,12 +36,18 @@ const BACK_TO_BY_ROLE = Object.freeze({
   camper_care: '/camper-care',
   unit_head: '/unit-head',
   leadership_team: '/leadership-team',
-  classroom_author: '/dashboards',
 });
 
 const ADMIN_BACK_TO = '/groups/performance';
 
-function backToFor(role, { date, urlDate, program, tab } = {}) {
+function classroomAuthorHome(user) {
+  const roles = membershipRolesForUser(user);
+  if (roles.includes('faculty')) return '/faculty';
+  if (roles.includes('madrich')) return '/madrich';
+  return FALLBACK_BACK_TO;
+}
+
+function backToFor(role, { date, urlDate, program, tab, user } = {}) {
   if (role === 'admin') {
     const params = new URLSearchParams();
     if (date) params.set('date', date);
@@ -51,7 +59,10 @@ function backToFor(role, { date, urlDate, program, tab } = {}) {
   // Carry the day the user was viewing back to their role home so the
   // round-trip preserves the selected date. Only propagate an explicit
   // URL date (not the resolved "today") to keep default links clean.
-  return withDateParam(BACK_TO_BY_ROLE[role] ?? FALLBACK_BACK_TO, urlDate);
+  const home = role === 'classroom_author'
+    ? classroomAuthorHome(user)
+    : (BACK_TO_BY_ROLE[role] ?? FALLBACK_BACK_TO);
+  return withDateParam(home, urlDate);
 }
 
 // Wrap the legacy BunkDashboard so the dispatch test can target it
@@ -74,6 +85,7 @@ const COMPONENT_BY_GROUP_TYPE = Object.freeze({
 
 export default function GroupDashboardPage() {
   const { groupId } = useParams();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const dateParam = searchParams.get('date') || '';
 
@@ -172,6 +184,7 @@ export default function GroupDashboardPage() {
     urlDate: dateParam,
     program: searchParams.get('program') || '',
     tab: searchParams.get('tab') || '',
+    user,
   });
 
   if (!Dash) {

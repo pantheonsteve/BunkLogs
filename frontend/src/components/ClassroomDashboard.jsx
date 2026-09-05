@@ -111,7 +111,7 @@ function Card({ title, count, testId, children }) {
   );
 }
 
-function CompletionSection({ completion }) {
+function CompletionSection({ completion, returnTo }) {
   if (!completion) {
     return (
       <Card title="Weekly reflections" testId="classroom-completion-section">
@@ -146,14 +146,30 @@ function CompletionSection({ completion }) {
               className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
             >
               <span className="truncate text-gray-900 dark:text-white">{s.name}</span>
-              <span
-                className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-                  s.state === 'complete'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
-                    : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {s.state === 'complete' ? 'Submitted' : 'Missing'}
+              <span className="flex items-center gap-2 shrink-0">
+                <span
+                  className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    s.state === 'complete'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                      : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {s.state === 'complete' ? 'Submitted' : 'Missing'}
+                </span>
+                {s.reflection_id && (
+                  <Link
+                    to={
+                      returnTo
+                        ? `/reflections/${s.reflection_id}?returnTo=${encodeURIComponent(returnTo)}`
+                        : `/reflections/${s.reflection_id}`
+                    }
+                    className="inline-flex items-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-2.5 py-1 transition-colors"
+                    data-testid={`classroom-completion-open-${s.person_id}`}
+                    aria-label={`Open ${s.name}'s reflection`}
+                  >
+                    Open
+                  </Link>
+                )}
               </span>
             </li>
           ))}
@@ -281,7 +297,10 @@ export default function ClassroomDashboard({
       {isFacultyView ? (
         <>
           {challenges && <ChallengesSection challenges={challenges} />}
-          <CompletionSection completion={data.completion} />
+          <CompletionSection
+            completion={data.completion}
+            returnTo={group.id ? `/dashboards/group/${group.id}` : undefined}
+          />
           <AvailabilitySection availability={data.availability} />
         </>
       ) : (

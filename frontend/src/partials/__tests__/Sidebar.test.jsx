@@ -444,6 +444,15 @@ describe('Sidebar — religious-school admin surfaces', () => {
     expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
+
+  it('gives faculty My tasks and File a reflection', () => {
+    renderWith(schoolUser('supervisor', ['faculty']));
+    const links = hrefs();
+    expect(links).toContain('/faculty');
+    expect(links).toContain('/tasks');
+    expect(links).toContain('/reflect');
+    expect(links).toContain('/my-reflections');
+  });
 });
 
 describe('Sidebar — org-aware header (TBE Frontend Readiness)', () => {

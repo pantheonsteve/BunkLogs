@@ -11,7 +11,9 @@ from django.test.utils import override_settings
 
 from bunk_logs.core.management.commands.seed_tbe_dev_data import ADMIN_EMAIL
 from bunk_logs.core.management.commands.seed_tbe_dev_data import CHECK_IN_TEMPLATE_SLUG
+from bunk_logs.core.management.commands.seed_tbe_dev_data import FACULTY_TEMPLATE_SLUG
 from bunk_logs.core.management.commands.seed_tbe_dev_data import GRADES
+from bunk_logs.core.management.commands.seed_tbe_dev_data import MADRICH_TEMPLATE_SLUG
 from bunk_logs.core.management.commands.seed_tbe_dev_data import TEST_PROGRAM_SLUG
 from bunk_logs.core.management.commands.seed_tbe_dev_data import _madrich_email
 from bunk_logs.core.models import MadrichAvailability
@@ -27,10 +29,53 @@ User = get_user_model()
 
 pytestmark = pytest.mark.django_db
 
+_MINIMAL_SCHEMA = {
+    "fields": [
+        {"key": "note", "type": "textarea", "required": False, "prompts": {"en": "Notes"}},
+    ],
+}
+
 
 @pytest.fixture(autouse=True)
 def _debug_true(settings):
     settings.DEBUG = True
+
+
+@pytest.fixture(autouse=True)
+def _ensure_global_templates(db):
+    """Reuse-db test runs may lack data-migration rows; seed needs both slugs."""
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug=MADRICH_TEMPLATE_SLUG,
+        version=1,
+        defaults={
+            "name": "TBE Madrich Weekly 3-2-1",
+            "cadence": "weekly",
+            "schema": _MINIMAL_SCHEMA,
+            "languages": ["en"],
+            "is_active": True,
+            "subject_mode": "self",
+            "author_role_filter": ["madrich"],
+            "role": "madrich",
+            "program_type": "religious_school",
+        },
+    )
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug=FACULTY_TEMPLATE_SLUG,
+        version=1,
+        defaults={
+            "name": "Faculty Weekly Reflection",
+            "cadence": "weekly",
+            "schema": _MINIMAL_SCHEMA,
+            "languages": ["en"],
+            "is_active": True,
+            "subject_mode": "self",
+            "author_role_filter": ["faculty"],
+            "role": "faculty",
+            "program_type": "religious_school",
+        },
+    )
 
 
 def _run_setup_tbe():
@@ -71,17 +116,27 @@ def test_creates_program_admin_madrichim_and_assignment():
         assert membership.is_active
         assert membership.grade_level == grade
 
-    assignments = TemplateAssignment.all_objects.filter(
+    madrich_assignments = TemplateAssignment.all_objects.filter(
         program=program, target_type=TemplateAssignment.TargetType.ROLE,
         target_payload={"role": "madrich"},
     )
     assert all(
         a.status == TemplateAssignment.Status.ACTIVE and a.is_required
-        for a in assignments
+        for a in madrich_assignments
     )
-    assert set(assignments.values_list("template__slug", flat=True)) == {
+    assert set(madrich_assignments.values_list("template__slug", flat=True)) == {
         "tbe-madrich-3-2-1-weekly", CHECK_IN_TEMPLATE_SLUG,
     }
+
+    faculty_assignments = TemplateAssignment.all_objects.filter(
+        program=program, target_type=TemplateAssignment.TargetType.ROLE,
+        target_payload={"role": "faculty"},
+    )
+    assert faculty_assignments.count() == 1
+    faculty_assignment = faculty_assignments.get()
+    assert faculty_assignment.template.slug == "faculty-self-reflection"
+    assert faculty_assignment.status == TemplateAssignment.Status.ACTIVE
+    assert faculty_assignment.is_required
 
     # 3 of 5 madrichim get a sample submission; 2 stay "not submitted".
     assert Reflection.all_objects.filter(program=program).count() == 3

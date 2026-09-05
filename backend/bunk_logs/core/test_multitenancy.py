@@ -127,7 +127,7 @@ def test_reflection_template_includes_global_for_org(org_alpha):
         schema={"fields": [_field_schema("x")]},
     )
     with organization_context(org_alpha):
-        # Global role templates from migrations 0029/0030/0032/0034/0037
+        # Global role templates from migrations 0029/0030/0032/0034/0037/0066
         # are always present; exclude them so this test stays focused on
         # org/global scoping.
         seeded_global_slugs = (
@@ -136,6 +136,7 @@ def test_reflection_template_includes_global_for_org(org_alpha):
             "camper-care-self-reflection",
             "leadership-team-self-reflection",
             "tbe-madrich-3-2-1-weekly",
+            "faculty-self-reflection",
         )
         ids = set(
             ReflectionTemplate.objects.exclude(slug__in=seeded_global_slugs)

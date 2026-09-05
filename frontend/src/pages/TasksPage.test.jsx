@@ -137,13 +137,14 @@ describe('TasksPage', () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('Daily Check-In')).toBeInTheDocument());
     expect(screen.getByText(/your reflection/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /submit reflection/i })).toBeInTheDocument();
   });
 
   it('self card navigates to form on click', async () => {
     getMock.mockResolvedValue({ data: { tasks: [selfTask()] } });
     renderPage();
-    const card = await waitFor(() => screen.getByRole('button', { name: /daily check-in.*not yet submitted/i }));
-    await userEvent.click(card);
+    const cta = await waitFor(() => screen.getByRole('button', { name: /submit reflection/i }));
+    await userEvent.click(cta);
     expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('/reflect?'));
     expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('template=1'));
     expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('program=summer-2026'));
@@ -157,6 +158,7 @@ describe('TasksPage', () => {
     getMock.mockResolvedValue({ data: { tasks: [task] } });
     renderPage();
     await waitFor(() => expect(screen.getByText(/Submitted \d/i)).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: /edit reflection/i })).toHaveAttribute('href', '/reflections/99');
   });
 
   // Roster section (single_subject)

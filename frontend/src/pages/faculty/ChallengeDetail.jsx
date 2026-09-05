@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   fetchFacultyChallenge,
   replyToChallenge,
@@ -108,10 +108,21 @@ export default function FacultyChallengeDetail() {
     }
   };
 
+  const inboxLink = (
+    <Link
+      to="/faculty/challenges"
+      className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+      data-testid="faculty-challenge-detail-back"
+    >
+      ← Back to challenges
+    </Link>
+  );
+
   if (loading) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="faculty-challenge-detail-loading">
-        <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+        {inboxLink}
+        <p className="mt-3 text-gray-500 dark:text-gray-400">Loading…</p>
       </div>
     );
   }
@@ -119,7 +130,8 @@ export default function FacultyChallengeDetail() {
   if (!challenge) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="faculty-challenge-detail-error">
-        <p className="text-red-600 dark:text-red-400">{error || 'Challenge not found.'}</p>
+        {inboxLink}
+        <p className="mt-3 text-red-600 dark:text-red-400">{error || 'Challenge not found.'}</p>
       </div>
     );
   }
@@ -133,6 +145,7 @@ export default function FacultyChallengeDetail() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-2xl mx-auto space-y-4">
+      {inboxLink}
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
           {challenge.category_label}

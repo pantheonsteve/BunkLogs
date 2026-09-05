@@ -46,6 +46,7 @@ describe('FacultyChallengeInbox', () => {
     await waitFor(() => screen.getByTestId('faculty-challenge-row-c-1'));
 
     expect(screen.getByTestId('faculty-challenge-row-c-1')).toHaveTextContent('Maya Madrich');
+    expect(screen.getByTestId('faculty-challenge-inbox-back')).toHaveAttribute('href', '/faculty');
   });
 
   it('shows an empty state when no challenges match', async () => {

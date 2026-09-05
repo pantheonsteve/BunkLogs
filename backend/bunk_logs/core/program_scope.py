@@ -77,6 +77,35 @@ def primary_operational_membership(
     )
 
 
+def primary_membership(
+    person: Person,
+    *,
+    today: date,
+    **filters,
+) -> Membership | None:
+    """Newest operational membership, else newest active one.
+
+    Auth payloads already fall back to off-season memberships so people
+    keep their role between sessions. Role-home endpoints must do the
+    same or they 403 while the UI still routes the user there.
+    """
+    related = ("program", "program__organization")
+    membership = (
+        operational_memberships_qs(person, today=today, **filters)
+        .select_related(*related)
+        .order_by("-created_at")
+        .first()
+    )
+    if membership is not None:
+        return membership
+    return (
+        Membership.objects.filter(person=person, is_active=True, **filters)
+        .select_related(*related)
+        .order_by("-created_at")
+        .first()
+    )
+
+
 def operational_author_groups_qs(
     person: Person,
     *,
