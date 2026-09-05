@@ -1,6 +1,6 @@
 .PHONY: help up down restart logs shell ps \
         migrate makemigrations superuser seed seed-rbac setup-crane-lake onboard-clc seed-clc-assignments \
-        setup-tbe seed-tbe tbe-demo \
+        setup-tbe seed-tbe seed-tbe-client-test cleanup-tbe-client-test tbe-demo \
         test test-backend test-frontend test-e2e \
         lint lint-backend lint-frontend \
         frontend-install frontend-dev \
@@ -30,6 +30,8 @@ help:
 	@echo "  make seed-clc-assignments  Seed 12 TemplateAssignment rows for CLC Summer 2026 (pass DRY_RUN=1 to preview)"
 	@echo "  make setup-tbe       New tenant models: ensure TBE org + Religious School 2026-27 program"
 	@echo "  make seed-tbe        Seed the local TBE sandbox: admin, 5 madrichim, 2 templates (pass RESET=1 to rebuild)"
+	@echo "  make seed-tbe-client-test  Seed TBE client-test sandbox (PASSWORD=... required; DRY_RUN=1 / CONFIRM_PRODUCTION=1)"
+	@echo "  make cleanup-tbe-client-test  Tear down TBE client-test sandbox (pass CONFIRM=1 to delete)"
 	@echo "  make tbe-demo        setup-tbe + seed-tbe + a walkthrough of every new TBE surface to check out (pass RESET=1)"
 	@echo "  make audit-duplicates  Audit duplicate Person/User identity issues (ORG_SLUG=clc)"
 	@echo "  make merge-persons     Merge duplicate Persons (ORG_SLUG=clc WINNER=1 LOSER=2 APPLY=1)"
@@ -103,6 +105,14 @@ setup-tbe:
 
 seed-tbe:
 	$(DJANGO_EXEC) python manage.py seed_tbe_dev_data $(if $(RESET),--reset,)
+
+seed-tbe-client-test:
+	$(DJANGO_EXEC) python manage.py seed_tbe_client_test --password '$(PASSWORD)' \
+	  $(if $(DRY_RUN),--dry-run,) \
+	  $(if $(CONFIRM_PRODUCTION),--confirm-production,)
+
+cleanup-tbe-client-test:
+	$(DJANGO_EXEC) python manage.py cleanup_tbe_client_test $(if $(CONFIRM),--confirm,)
 
 tbe-demo:
 	./scripts/seed_tbe_local.sh $(if $(RESET),--reset,)

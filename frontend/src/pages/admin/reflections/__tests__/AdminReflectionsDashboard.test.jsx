@@ -106,9 +106,10 @@ describe('AdminReflectionsDashboard', () => {
   it('refetches with the selected grade levels when a grade pill is toggled', async () => {
     fetchMock.mockResolvedValue(samplePayload);
     renderAt();
+    const gradeEightButton = await screen.findByTestId('admin-reflections-grade-8');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTestId('admin-reflections-grade-8'));
+    fireEvent.click(gradeEightButton);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock).toHaveBeenLastCalledWith(
