@@ -204,6 +204,26 @@ class TestFacultyDashboard:
         assert resp.status_code == 200, resp.content
         assert resp.json()["classrooms"] == []
 
+    def test_faculty_on_future_program_still_loads(self, api, org):
+        today = get_today(org)
+        future = Program.all_objects.create(
+            organization=org,
+            name=f"{org.name} Religious School next year",
+            slug="faculty-home-future",
+            program_type="religious_school",
+            start_date=today + timedelta(days=10),
+            end_date=today + timedelta(days=200),
+            is_active=True,
+        )
+        _authenticate(
+            api, org, future, role="faculty", email="fac-future@tbe.test",
+        )
+        resp = _get(api, org)
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["classrooms"] == []
+        assert body["header"]["program_name"] == future.name
+
     @pytest.mark.parametrize("role", ["madrich", "counselor"])
     def test_non_faculty_denied(self, api, org, program, classroom, role):
         _authenticate(

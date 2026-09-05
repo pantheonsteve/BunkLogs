@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import GroupDashboardPage from '../GroupDashboardPage';
 
 const getMock = vi.fn();
+const useAuthMock = vi.fn(() => ({ user: { membership_roles: [] } }));
 
 vi.mock('../../../api', () => ({
   default: {
@@ -11,8 +12,13 @@ vi.mock('../../../api', () => ({
   },
 }));
 
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => useAuthMock(),
+}));
+
 beforeEach(() => {
   getMock.mockReset();
+  useAuthMock.mockReturnValue({ user: { membership_roles: [] } });
 });
 
 function bunkPayload(role = 'camper_care') {
@@ -139,6 +145,22 @@ describe('GroupDashboardPage', () => {
     renderAt('/dashboards/group/11');
     const backLink = await screen.findByRole('link', { name: /back/i });
     expect(backLink).toHaveAttribute('href', expectedHref);
+  });
+
+  it('routes faculty classroom authors back to /faculty', async () => {
+    useAuthMock.mockReturnValue({ user: { membership_roles: ['faculty'] } });
+    getMock.mockResolvedValueOnce({ data: classroomPayload('classroom_author') });
+    renderAt('/dashboards/group/192');
+    const backLink = await screen.findByRole('link', { name: /back/i });
+    expect(backLink).toHaveAttribute('href', '/faculty');
+  });
+
+  it('routes madrich classroom authors back to /madrich', async () => {
+    useAuthMock.mockReturnValue({ user: { membership_roles: ['madrich'] } });
+    getMock.mockResolvedValueOnce({ data: classroomPayload('classroom_author') });
+    renderAt('/dashboards/group/192');
+    const backLink = await screen.findByRole('link', { name: /back/i });
+    expect(backLink).toHaveAttribute('href', '/madrich');
   });
 
   it('preserves the URL date on the role back link for a round-trip', async () => {

@@ -112,5 +112,15 @@ describe('FacultyDashboard', () => {
     getMock.mockRejectedValue(new Error('boom'));
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-error'));
+    expect(screen.getByTestId('fac-error')).toHaveTextContent('Could not load dashboard.');
+  });
+
+  it('surfaces the API error detail when the dashboard is forbidden', async () => {
+    getMock.mockRejectedValue({
+      response: { data: { detail: 'Faculty role required.' } },
+    });
+    renderDashboard();
+    await waitFor(() => screen.getByTestId('fac-error'));
+    expect(screen.getByTestId('fac-error')).toHaveTextContent('Faculty role required.');
   });
 });

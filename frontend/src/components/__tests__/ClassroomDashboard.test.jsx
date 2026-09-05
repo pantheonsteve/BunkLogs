@@ -92,7 +92,11 @@ describe('ClassroomDashboard', () => {
     expect(completion).toHaveTextContent('1 of 2 submitted');
     expect(completion).toHaveTextContent('Weekly 3-2-1');
     expect(screen.getByTestId('classroom-completion-1')).toHaveTextContent('Submitted');
+    expect(screen.getByTestId('classroom-completion-open-1')).toHaveAttribute(
+      'href', '/reflections/9?returnTo=%2Fdashboards%2Fgroup%2F12',
+    );
     expect(screen.getByTestId('classroom-completion-2')).toHaveTextContent('Missing');
+    expect(screen.queryByTestId('classroom-completion-open-2')).toBeNull();
 
     expect(screen.getByTestId('classroom-availability-1')).toHaveTextContent('Available');
     expect(screen.getByTestId('classroom-availability-2')).toHaveTextContent('Not set');

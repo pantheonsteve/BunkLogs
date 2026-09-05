@@ -187,20 +187,12 @@ function TaskStatusIcon({ done, star = false }) {
 function SelfSection({ task, onNavigate }) {
   const ss = task.self_status;
   const done = ss?.submitted;
+  const reflectionHref = ss?.reflection_id ? `/reflections/${ss.reflection_id}` : null;
 
   return (
     <article
-      className={`${CARD_BASE} ${done ? CARD_DONE : CARD_PENDING} ${!done ? 'cursor-pointer' : ''}`}
-      role="button"
-      tabIndex={0}
+      className={`${CARD_BASE} ${done ? CARD_DONE : CARD_PENDING}`}
       aria-label={`${task.template.name} — ${done ? 'completed' : 'not yet submitted'}`}
-      onClick={() => !done && onNavigate(task)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          if (!done) onNavigate(task);
-        }
-      }}
     >
       <div
         className={`h-1 ${done ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500'}`}
@@ -218,11 +210,27 @@ function SelfSection({ task, onNavigate }) {
           <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300 mt-3">
             Submitted {new Date(ss.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
-        ) : (
-          <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-3 font-medium">
-            Tap to open form →
-          </p>
-        )}
+        ) : null}
+        <div className="mt-4">
+          {done && reflectionHref ? (
+            <Link
+              to={reflectionHref}
+              data-testid="tasks-submit-reflection"
+              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+            >
+              Edit reflection
+            </Link>
+          ) : (
+            <button
+              type="button"
+              data-testid="tasks-submit-reflection"
+              onClick={() => onNavigate(task)}
+              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+            >
+              Submit reflection
+            </button>
+          )}
+        </div>
       </div>
     </article>
   );

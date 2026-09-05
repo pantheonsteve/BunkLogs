@@ -384,6 +384,41 @@ def _ensure_madrich_weekly_template(db):
 
 
 @pytest.fixture(autouse=True)
+def _ensure_faculty_self_reflection_template(db):
+    """Re-seed the faculty weekly self-reflection template before every test."""
+    ReflectionTemplate.all_objects.update_or_create(
+        organization=None,
+        slug="faculty-self-reflection",
+        version=1,
+        defaults={
+            "name": "Faculty Weekly Reflection",
+            "description": "Auto-seeded for tests via api/tests/conftest.py.",
+            "cadence": "weekly",
+            "schema": {
+                "fields": [
+                    {"key": "overall_week", "type": "single_rating", "required": False, "scale": [1, 5]},
+                    {"key": "wins", "type": "text_list", "required": False},
+                    {"key": "improvements", "type": "text_list", "required": False},
+                    {"key": "support_needed", "type": "textarea", "required": False},
+                ],
+            },
+            "languages": ["en"],
+            "is_active": True,
+            "subject_mode": "self",
+            "assignment_scope": "none",
+            "assignment_group_types": [],
+            "author_role_filter": ["faculty"],
+            "subject_role_filter": [],
+            "required_per_subject_per_period": 1,
+            "subject_visible": False,
+            "supports_privacy": False,
+            "role": "faculty",
+            "program_type": "religious_school",
+        },
+    )
+
+
+@pytest.fixture(autouse=True)
 def _ensure_leadership_team_self_reflection_template(db):
     """Re-seed the LT self-reflection template before every test (Step 7_12)."""
     ReflectionTemplate.all_objects.update_or_create(
@@ -424,6 +459,7 @@ _AUTOSEED_ROLE_SLUGS: tuple[tuple[str, str], ...] = (
     ("kitchen_staff", "kitchen-staff-self-reflection"),
     ("leadership_team", "leadership-team-self-reflection"),
     ("madrich", "tbe-madrich-3-2-1-weekly"),
+    ("faculty", "faculty-self-reflection"),
 )
 
 

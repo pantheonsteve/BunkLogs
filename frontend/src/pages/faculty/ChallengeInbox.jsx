@@ -111,7 +111,16 @@ export default function FacultyChallengeInbox() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-white">Classroom challenges</h1>
+      <div>
+        <Link
+          to="/faculty"
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          data-testid="faculty-challenge-inbox-back"
+        >
+          ← Back to home
+        </Link>
+        <h1 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">Classroom challenges</h1>
+      </div>
 
       <div className="flex flex-wrap gap-3">
         <select

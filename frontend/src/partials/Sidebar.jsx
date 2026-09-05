@@ -21,7 +21,7 @@ import { adminNavItems, leadershipNavItems } from "./adminNavConfig";
 // gates.
 const REFLECTION_FORM_ROLES = [
   'counselor', 'junior_counselor', 'general_counselor',
-  'admin', 'unit_head',
+  'admin', 'unit_head', 'faculty',
   'camper_care', 'health_center', 'medical', 'special_diets',
 ];
 

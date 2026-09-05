@@ -1216,6 +1216,15 @@ class ReflectionViewSet(viewsets.ModelViewSet):
         viewer_memberships = list(
             operational_memberships_qs(viewer, today=today).select_related("program"),
         )
+        # Auth and role homes fall back to an off-season membership so
+        # faculty (and others) can still submit before a program window
+        # opens. My-tasks must use the same rule or /tasks stays empty.
+        if not viewer_memberships:
+            viewer_memberships = list(
+                Membership.objects.filter(
+                    person=viewer, is_active=True,
+                ).select_related("program"),
+            )
         author_agms = list(
             operational_author_groups_qs(viewer, today=today).select_related("group"),
         )

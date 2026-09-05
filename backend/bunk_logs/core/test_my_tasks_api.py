@@ -357,6 +357,85 @@ def test_my_tasks_leadership_assignment_appears(org, program, lt_membership):
 
 
 @pytest.mark.django_db
+def test_my_tasks_faculty_assignment_appears(org, program, lt_membership):
+    """Faculty weekly self-reflection surfaces on /tasks."""
+    user = User.objects.create_user(email="faculty_tasks@test.com", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="Fac", last_name="Ulty", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="faculty", is_active=True,
+    )
+    faculty_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Faculty Weekly Reflection",
+        slug="faculty-weekly-my-tasks",
+        cadence="weekly",
+        schema=SIMPLE_SCHEMA,
+        languages=["en"],
+        subject_mode="self",
+        author_role_filter=["faculty"],
+        is_active=True,
+    )
+    _role_assignment(
+        organization=org,
+        program=program,
+        template=faculty_template,
+        role="faculty",
+        lt_membership=lt_membership,
+    )
+    with organization_context(org):
+        client = _authed_client(user, org)
+        resp = client.get("/api/v1/reflections/my-tasks/")
+
+    assert resp.status_code == 200
+    slugs = {t["template"]["slug"] for t in resp.data["tasks"]}
+    assert "faculty-weekly-my-tasks" in slugs
+
+
+@pytest.mark.django_db
+def test_my_tasks_off_season_membership_still_lists_tasks(org, program, lt_membership):
+    """Faculty still see assigned tasks before the program window opens."""
+    user = User.objects.create_user(email="faculty_offseason@test.com", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="Early", last_name="Faculty", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="faculty", is_active=True,
+    )
+    faculty_template = ReflectionTemplate.all_objects.create(
+        organization=org,
+        name="Faculty Weekly Reflection",
+        slug="faculty-offseason-my-tasks",
+        cadence="weekly",
+        schema=SIMPLE_SCHEMA,
+        languages=["en"],
+        subject_mode="self",
+        author_role_filter=["faculty"],
+        is_active=True,
+    )
+    _role_assignment(
+        organization=org,
+        program=program,
+        template=faculty_template,
+        role="faculty",
+        lt_membership=lt_membership,
+    )
+    today = get_today(org)
+    program.start_date = today + timedelta(days=14)
+    program.end_date = today + timedelta(days=120)
+    program.save(update_fields=["start_date", "end_date"])
+
+    with organization_context(org):
+        client = _authed_client(user, org)
+        resp = client.get("/api/v1/reflections/my-tasks/")
+
+    assert resp.status_code == 200
+    slugs = {t["template"]["slug"] for t in resp.data["tasks"]}
+    assert "faculty-offseason-my-tasks" in slugs
+
+
+@pytest.mark.django_db
 def test_my_tasks_team_self_reflection_subject_in_group(org, program, lt_membership):
     """Kitchen-style team assignment surfaces for subjects, not only authors."""
     user = User.objects.create_user(email="kitchen_tasks@test.com", password="pw")

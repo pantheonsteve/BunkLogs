@@ -63,6 +63,7 @@ User = get_user_model()
 TBE_ORG_SLUG = "tbe"
 TEST_PROGRAM_SLUG = "dev-test"
 MADRICH_TEMPLATE_SLUG = "tbe-madrich-3-2-1-weekly"
+FACULTY_TEMPLATE_SLUG = "faculty-self-reflection"
 CHECK_IN_TEMPLATE_SLUG = "tbe-dev-mid-year-check-in"
 CHECK_IN_TEMPLATE_NAME = "Mid-Year Check-In"
 CHECK_IN_SCHEMA = {
@@ -119,8 +120,8 @@ def _all_seed_emails() -> list[str]:
 class Command(BaseCommand):
     help = (
         "DEBUG-only. Seed a self-contained TBE dev/test sandbox: a perpetually "
-        "operational Program, an admin user, 5 madrichim (grades 8-12), two "
-        "concurrent template assignments, and a few sample reflections."
+        "operational Program, an admin user, 5 madrichim (grades 8-12), faculty, "
+        "madrich + faculty template assignments, and a few sample reflections."
     )
 
     def add_arguments(self, parser) -> None:
@@ -153,12 +154,15 @@ class Command(BaseCommand):
 
         program = self._ensure_test_program(org)
         template = self._get_madrich_template()
-        self._ensure_template_assignment(org, program, template)
+        self._ensure_template_assignment(org, program, template, role="madrich")
 
         check_in = self._ensure_check_in_template(org)
         self._ensure_template_assignment(
-            org, program, check_in, start=date.today() - timedelta(days=14),
+            org, program, check_in, start=date.today() - timedelta(days=14), role="madrich",
         )
+
+        faculty_template = self._get_faculty_template()
+        self._ensure_template_assignment(org, program, faculty_template, role="faculty")
 
         admin_person = self._upsert_admin(org, program)
         madrich_people = [self._upsert_madrich(org, program, grade) for grade in GRADES]
@@ -259,6 +263,21 @@ class Command(BaseCommand):
         )
         return program
 
+    def _get_faculty_template(self) -> ReflectionTemplate:
+        template = ReflectionTemplate.all_objects.filter(
+            organization__isnull=True,
+            slug=FACULTY_TEMPLATE_SLUG,
+            is_active=True,
+        ).order_by("-version").first()
+        if template is None:
+            msg = (
+                f"Global template slug={FACULTY_TEMPLATE_SLUG!r} not found. "
+                "Expected it from migration 0066_seed_faculty_self_reflection_template "
+                "-- run migrations first."
+            )
+            raise CommandError(msg)
+        return template
+
     def _get_madrich_template(self) -> ReflectionTemplate:
         template = (
             ReflectionTemplate.all_objects.filter(
@@ -316,6 +335,7 @@ class Command(BaseCommand):
         program: Program,
         template: ReflectionTemplate,
         *,
+        role: str,
         start: date | None = None,
     ) -> TemplateAssignment:
         # Anchored a year back so the assignment is active regardless of the
@@ -327,7 +347,7 @@ class Command(BaseCommand):
             program=program,
             template=template,
             target_type=TemplateAssignment.TargetType.ROLE,
-            target_payload={"role": "madrich"},
+            target_payload={"role": role},
             defaults={
                 "start_date": start,
                 "status": TemplateAssignment.Status.ACTIVE,
@@ -336,7 +356,7 @@ class Command(BaseCommand):
         )
         verb = "Created" if created else "Using existing"
         self.stdout.write(
-            f"{verb} TemplateAssignment pk={assignment.pk} for role=madrich "
+            f"{verb} TemplateAssignment pk={assignment.pk} for role={role} "
             f"-> {template.slug!r}.",
         )
         return assignment

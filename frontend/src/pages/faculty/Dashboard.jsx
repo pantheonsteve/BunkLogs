@@ -242,23 +242,51 @@ function RosterCard() {
       }
       data-testid="fac-roster-card"
     >
-      <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-        {rows.map((row) => {
-          const meta = statusMeta(row.next_session_availability || 'unset');
-          return (
-            <li key={row.person_id} className="py-2">
-              <Link
-                to={`/faculty/roster/${row.person_id}`}
-                className="flex flex-wrap items-center justify-between gap-2 group"
-                data-testid={`fac-roster-row-${row.person_id}`}
-              >
-                <span className="text-sm text-gray-900 dark:text-white group-hover:underline">
-                  {row.display_name}
-                  {typeof row.grade_level === 'number' && (
-                    <span className="text-gray-500 dark:text-gray-400"> · Grade {row.grade_level}</span>
-                  )}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <th className="font-normal pb-2 pr-3">Madrich</th>
+            <th className="font-normal pb-2 px-2">Reflection</th>
+            <th className="font-normal pb-2 px-2" data-testid="fac-roster-availability-header">
+              Availability
+              {roster.next_session && (
+                <span className="block normal-case tracking-normal text-gray-400 dark:text-gray-500">
+                  {formatDate(roster.next_session)}
                 </span>
-                <span className="flex items-center gap-2">
+              )}
+            </th>
+            <th className="font-normal pb-2 pl-2 w-16">
+              <span className="sr-only">Open reflection</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const meta = statusMeta(row.next_session_availability || 'unset');
+            return (
+              <tr
+                key={row.person_id}
+                className="align-middle border-t border-gray-200 dark:border-gray-600 odd:bg-gray-50 dark:odd:bg-gray-700/40"
+              >
+                <td className="py-3 pr-3 first:pl-2">
+                  <span className="inline-flex items-center gap-2">
+                    <Link
+                      to={`/faculty/roster/${row.person_id}`}
+                      className="text-sm text-gray-900 dark:text-white hover:underline"
+                      data-testid={`fac-roster-row-${row.person_id}`}
+                    >
+                      {row.display_name}
+                      {typeof row.grade_level === 'number' && (
+                        <span className="text-gray-500 dark:text-gray-400"> · Grade {row.grade_level}</span>
+                      )}
+                    </Link>
+                    <UnreadDot
+                      count={row.unread_thread_count}
+                      label={`${row.unread_thread_count} unread`}
+                    />
+                  </span>
+                </td>
+                <td className="py-3 px-2">
                   {row.reflection_state && (
                     <span
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -271,19 +299,29 @@ function RosterCard() {
                       {row.reflection_state === 'complete' ? 'Submitted' : 'Not yet'}
                     </span>
                   )}
+                </td>
+                <td className="py-3 px-2">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.pill}`}>
                     {meta.label}
                   </span>
-                  <UnreadDot
-                    count={row.unread_thread_count}
-                    label={`${row.unread_thread_count} unread`}
-                  />
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                </td>
+                <td className="py-3 pl-2">
+                  {row.reflection_id && (
+                    <Link
+                      to={`/reflections/${row.reflection_id}?returnTo=${encodeURIComponent('/faculty')}`}
+                      className="inline-flex items-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-2.5 py-1 transition-colors"
+                      data-testid={`fac-roster-open-${row.person_id}`}
+                      aria-label={`Open ${row.display_name}'s reflection`}
+                    >
+                      Open
+                    </Link>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </HomeCard>
   );
 }
@@ -361,8 +399,9 @@ export default function FacultyDashboard() {
       const data = await fetchFacultyDashboard(orgSlug);
       setDashboard(data);
       setError(null);
-    } catch {
-      setError('Could not load dashboard.');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Could not load dashboard.');
     } finally {
       setLoading(false);
     }
