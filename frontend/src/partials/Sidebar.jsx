@@ -31,7 +31,7 @@ const SIDEBAR_SHELL =
 const COLLAPSED_ICON_ROW =
   'flex items-center lg:justify-center lg:sidebar-expanded:justify-start 2xl:justify-start';
 const COLLAPSED_LABEL =
-  'text-sm font-medium ml-4 lg:ml-0 lg:sidebar-expanded:ml-4 2xl:ml-4 lg:hidden lg:sidebar-expanded:inline 2xl:inline duration-200';
+  'inline-flex items-center text-sm font-medium ml-4 lg:ml-0 lg:sidebar-expanded:ml-4 2xl:ml-4 lg:hidden lg:sidebar-expanded:inline-flex 2xl:inline-flex duration-200';
 const COLLAPSED_SECTION_RULE =
   'hidden lg:block lg:sidebar-expanded:hidden 2xl:hidden border-t border-gray-200 dark:border-gray-700/60 mx-1 mb-3';
 const COLLAPSED_SECTION_HEADING =
@@ -568,12 +568,12 @@ function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
           `${NAV_ITEM_BASE} ${isActive ? NAV_ITEM_ACTIVE : NAV_ITEM_IDLE}`
         }
       >
-        <div className={`${COLLAPSED_ICON_ROW} relative`}>
+        <div className={`${COLLAPSED_ICON_ROW} relative w-full`}>
           <Icon />
-          <span className={`${COLLAPSED_LABEL} flex flex-1 items-center gap-2.5`}>
+          <span className={`${COLLAPSED_LABEL} flex-1 min-w-0 gap-2`}>
             <span className="truncate">{label}</span>
             {badge != null && (
-              <span className="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
+              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
                 {badge}
               </span>
             )}
