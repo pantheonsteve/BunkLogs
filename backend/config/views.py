@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlencode
 
 import requests
 from allauth.socialaccount.helpers import complete_social_login
@@ -34,9 +35,37 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from bunk_logs.users.frontend_origins import remember_frontend_origin
+from bunk_logs.users.frontend_origins import resolve_frontend_url
+from bunk_logs.users.frontend_origins import sign_frontend_origin
+from bunk_logs.users.frontend_origins import unsign_frontend_origin
+
 User = get_user_model()
 
 from django.db import connections
+
+
+def _oauth_frontend_url(request, candidate=None):
+    state = request.GET.get("state")
+    if not state and hasattr(request, "data"):
+        state = request.data.get("state")
+    return resolve_frontend_url(
+        request,
+        candidate=candidate or unsign_frontend_origin(state),
+    )
+
+
+def _google_auth_url(request, social_app, redirect_uri):
+    frontend_url = resolve_frontend_url(request)
+    remember_frontend_origin(request, frontend_url)
+    params = {
+        "client_id": social_app.client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "email profile",
+        "state": sign_frontend_origin(frontend_url),
+    }
+    return f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
 
 
 @csrf_exempt
@@ -291,8 +320,8 @@ class GoogleCallbackView(APIView):
             user = social_login.account.user
             refresh = RefreshToken.for_user(user)
 
-            # In a real scenario, you might want to create a JWT and redirect to frontend with it
-            redirect_url = f"{settings.FRONTEND_URL}?token={refresh.access_token}"
+            frontend_url = _oauth_frontend_url(request)
+            redirect_url = f"{frontend_url}?token={refresh.access_token}"
             return redirect(redirect_url)
 
         except Exception as e:
@@ -454,9 +483,7 @@ def google_login(request):
 
         # Define redirect URL back to backend
         redirect_uri = request.build_absolute_uri(reverse("google_callback"))
-
-        # Build Google OAuth URL
-        auth_url = f"https://accounts.google.com/o/oauth2/auth?client_id={social_app.client_id}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile"
+        auth_url = _google_auth_url(request, social_app, redirect_uri)
 
         return Response({"auth_url": auth_url})
     except Exception as e:
@@ -493,11 +520,9 @@ def google_callback(request):
     code = request.GET.get("code")
 
     if error:
-        # Log the error for debugging
-        # Redirect to frontend with error message - use environment FRONTEND_URL
-        frontend_url = getattr(settings, "FRONTEND_URL", "https://clc.bunklogs.net")
+        frontend_url = _oauth_frontend_url(request)
         return HttpResponseRedirect(
-            f"{frontend_url}/signin?auth_error={error}",
+            f"{frontend_url}/signin?{urlencode({'auth_error': error})}",
         )
 
     if not code:
@@ -561,23 +586,20 @@ def google_callback(request):
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
 
-        # Debug: Log the tokens and redirect URL
-
-        # Build redirect URL manually (don't use urlencode which might cause issues)
-        frontend_url = getattr(settings, "FRONTEND_URL", "https://clc.bunklogs.net")
-
-        # FIXED: Manual URL construction instead of urlencode
-        redirect_url = f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}"
-
-
+        frontend_url = _oauth_frontend_url(request)
+        redirect_url = (
+            f"{frontend_url}/auth/callback#access_token={access_token}"
+            f"&refresh_token={refresh_token}"
+        )
         return HttpResponseRedirect(redirect_url)
     except Exception:
         import traceback
-        traceback.print_exc()  # Print full traceback for debugging
+        traceback.print_exc()
 
-        # Redirect to frontend with error - use environment FRONTEND_URL
-        frontend_url = getattr(settings, "FRONTEND_URL", "https://clc.bunklogs.net")
-        return HttpResponseRedirect(f"{frontend_url}/signin?auth_error=callback_failed")
+        frontend_url = _oauth_frontend_url(request)
+        return HttpResponseRedirect(
+            f"{frontend_url}/signin?{urlencode({'auth_error': 'callback_failed'})}",
+        )
 
 
 @extend_schema(

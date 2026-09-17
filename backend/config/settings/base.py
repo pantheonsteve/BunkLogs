@@ -510,16 +510,16 @@ if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
         "https://storage.googleapis.com",  # For your actual frontend
         "https://storage.cloud.google.com",
-        "https://clc.bunklogs.net",  # Your actual frontend URL
-        "https://clc.bunklogs.net",
+        "https://clc.bunklogs.net",  # Frontend domain (Crane Lake)
+        "https://tbe.bunklogs.net",  # Frontend domain (Temple Beth-El)
         "https://www.bunklogs.net",
         "https://admin.bunklogs.net",
     ]
     CSRF_TRUSTED_ORIGINS = [
         "https://storage.googleapis.com",
         "https://storage.cloud.google.com",
-        "https://clc.bunklogs.net",  # Your actual frontend URL
-        "https://clc.bunklogs.net",
+        "https://clc.bunklogs.net",  # Frontend domain (Crane Lake)
+        "https://tbe.bunklogs.net",  # Frontend domain (Temple Beth-El)
         "https://www.bunklogs.net",
         "https://admin.bunklogs.net",
     ]

@@ -19,7 +19,8 @@ function SocialLoginButton({ provider = "google" }) {
 
     try {
       // Call your custom Google OAuth endpoint to get the auth URL
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/api/auth/google/`, {
+      const frontendUrl = encodeURIComponent(window.location.origin);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/api/auth/google/?frontend_url=${frontendUrl}`, {
         method: 'GET',
         credentials: 'include',
         headers: {

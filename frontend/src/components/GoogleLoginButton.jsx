@@ -8,7 +8,9 @@ function GoogleLoginButton() {
     try {
       setLoading(true);
       // Get auth URL from backend
-      const response = await api.get('/api/auth/google/');
+      const response = await api.get('/api/auth/google/', {
+        params: { frontend_url: window.location.origin },
+      });
       
       // Redirect to Google auth
       if (response.data.auth_url) {

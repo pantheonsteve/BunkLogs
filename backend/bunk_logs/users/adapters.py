@@ -8,6 +8,8 @@ from django.conf import settings
 from django.http import HttpRequest
 from django.http import HttpResponseRedirect
 
+from bunk_logs.users.frontend_origins import resolve_frontend_url
+
 if typing.TYPE_CHECKING:
     from allauth.socialaccount.models import SocialLogin
 
@@ -39,8 +41,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         return True
 
     def get_login_error_url(self, request, provider, error=None, exception=None, extra_context=None):
-        """Override to redirect to the configured frontend URL for errors"""
-        frontend_url = getattr(settings, "FRONTEND_URL", "https://clc.bunklogs.net")
+        """Redirect OAuth errors to the SPA origin the user started from."""
+        frontend_url = resolve_frontend_url(request)
         return f"{frontend_url}/signin?auth_error={error or 'unknown'}"
 
     def pre_social_login(self, request, sociallogin):
