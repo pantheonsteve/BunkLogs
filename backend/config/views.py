@@ -35,6 +35,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from bunk_logs.users.frontend_origins import attach_frontend_origin_cookie
 from bunk_logs.users.frontend_origins import remember_frontend_origin
 from bunk_logs.users.frontend_origins import resolve_frontend_url
 from bunk_logs.users.frontend_origins import sign_frontend_origin
@@ -483,9 +484,11 @@ def google_login(request):
 
         # Define redirect URL back to backend
         redirect_uri = request.build_absolute_uri(reverse("google_callback"))
+        frontend_url = resolve_frontend_url(request)
         auth_url = _google_auth_url(request, social_app, redirect_uri)
-
-        return Response({"auth_url": auth_url})
+        response = Response({"auth_url": auth_url})
+        attach_frontend_origin_cookie(response, frontend_url)
+        return response
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 

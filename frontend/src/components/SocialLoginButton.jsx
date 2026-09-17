@@ -1,5 +1,6 @@
 import { redirectToProvider, AuthProcess } from "../lib/allauth";
 import { useConfig } from "../context/AllAuthContext";
+import { rememberOauthFrontendOrigin } from "../utils/oauthFrontendOrigin";
 
 function SocialLoginButton({ provider = "google" }) {
   const { config, loading } = useConfig();
@@ -19,6 +20,7 @@ function SocialLoginButton({ provider = "google" }) {
 
     try {
       // Call your custom Google OAuth endpoint to get the auth URL
+      rememberOauthFrontendOrigin();
       const frontendUrl = encodeURIComponent(window.location.origin);
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://admin.bunklogs.net'}/api/auth/google/?frontend_url=${frontendUrl}`, {
         method: 'GET',

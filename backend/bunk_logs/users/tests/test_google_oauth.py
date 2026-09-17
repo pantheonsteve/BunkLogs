@@ -41,6 +41,7 @@ def test_google_login_embeds_tbe_origin_in_state(google_app):
     params = parse_qs(urlparse(auth_url).query)
     assert unsign_frontend_origin(params["state"][0]) == "https://tbe.bunklogs.net"
     assert params["client_id"] == [google_app.client_id]
+    assert response.cookies["oauth_frontend_origin"].value == "https://tbe.bunklogs.net"
 
 
 @pytest.mark.django_db

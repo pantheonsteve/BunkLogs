@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { homePathForUser } from '../utils/auth/capability';
+import { bounceToIntendedOauthOrigin, clearOauthFrontendOrigin } from '../utils/oauthFrontendOrigin';
 
 function AuthCallback() {
   const navigate = useNavigate();
@@ -19,6 +20,11 @@ function AuthCallback() {
 
     const handleAuthCallback = async () => {
       try {
+        // Multi-org users must finish login on the tenant they started on.
+        if (bounceToIntendedOauthOrigin()) {
+          return;
+        }
+
         // Mark as processed immediately
         hasProcessed.current = true;
 
@@ -62,6 +68,7 @@ function AuthCallback() {
 
         if (accessToken && refreshToken) {
           console.log('✅ Tokens found, logging in...');
+          clearOauthFrontendOrigin();
           
           // Clear the URL fragment BEFORE login to prevent issues
           window.history.replaceState({}, document.title, window.location.pathname);

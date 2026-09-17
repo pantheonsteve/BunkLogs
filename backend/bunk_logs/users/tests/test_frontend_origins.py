@@ -67,6 +67,15 @@ def test_resolve_uses_session_backup():
     assert resolve_frontend_url(request) == "https://tbe.bunklogs.net"
 
 
+@override_settings(FRONTEND_URL="https://clc.bunklogs.net")
+def test_resolve_uses_cookie_for_multi_org_user():
+    rf = RequestFactory()
+    request = rf.get("/api/auth/google/callback/")
+    request.COOKIES = {"oauth_frontend_origin": "https://tbe.bunklogs.net"}
+    request.session = {}
+    assert resolve_frontend_url(request) == "https://tbe.bunklogs.net"
+
+
 def test_sign_unsign_roundtrip():
     origin = "https://tbe.bunklogs.net"
     assert unsign_frontend_origin(sign_frontend_origin(origin)) == origin
@@ -80,7 +89,13 @@ def test_resolve_prefers_explicit_candidate():
     request.GET = {}
     request.META = {}
     request.session = {}
+    request.COOKIES = {}
     assert (
         resolve_frontend_url(request, candidate="https://tbe.bunklogs.net")
         == "https://tbe.bunklogs.net"
     )
+
+
+@override_settings(FRONTEND_URL="https://clc.bunklogs.net")
+def test_resolve_accepts_tenant_slug_candidate():
+    assert resolve_frontend_url(None, candidate="tbe") == "https://tbe.bunklogs.net"
