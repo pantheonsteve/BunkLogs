@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../api';
+import { rememberOauthFrontendOrigin } from '../utils/oauthFrontendOrigin';
 
 function GoogleLoginButton() {
   const [loading, setLoading] = useState(false);
@@ -8,7 +9,10 @@ function GoogleLoginButton() {
     try {
       setLoading(true);
       // Get auth URL from backend
-      const response = await api.get('/api/auth/google/');
+      rememberOauthFrontendOrigin();
+      const response = await api.get('/api/auth/google/', {
+        params: { frontend_url: window.location.origin },
+      });
       
       // Redirect to Google auth
       if (response.data.auth_url) {

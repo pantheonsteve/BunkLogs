@@ -167,7 +167,8 @@ FRONTEND_URL = env("FRONTEND_URL", default="https://clc.bunklogs.net")
 
 # CORS settings for Render.com deployment with GCS frontend
 CORS_ALLOWED_ORIGINS = [
-    "https://clc.bunklogs.net",  # Your actual frontend URL
+    "https://clc.bunklogs.net",  # Frontend domain (Crane Lake)
+    "https://tbe.bunklogs.net",  # Frontend domain (Temple Beth-El)
     "https://bunklogs.net",
     "https://www.bunklogs.net",
     "https://admin.bunklogs.net",  # Admin subdomain
@@ -176,7 +177,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://clc.bunklogs.net",  # Your actual frontend URL
+    "https://clc.bunklogs.net",  # Frontend domain (Crane Lake)
+    "https://tbe.bunklogs.net",  # Frontend domain (Temple Beth-El)
     "https://bunklogs.net",
     "https://www.bunklogs.net",
     "https://admin.bunklogs.net",  # Admin subdomain

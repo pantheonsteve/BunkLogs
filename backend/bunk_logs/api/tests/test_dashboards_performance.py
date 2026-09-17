@@ -110,7 +110,7 @@ def _assign_template(org, program, template, *, group=None):
 
 def test_supervisor_sees_supervised_bunk_with_completion(api_client, org, program, unit_and_bunks, scored_camper_template):
     unit, maple = unit_and_bunks
-    day = date(2026, 7, 10)
+    day = get_today(org)
 
     counselor_user = _user("counselor@test.com")
     counselor = _person(org, "Sam", "Counselor", user=counselor_user)
