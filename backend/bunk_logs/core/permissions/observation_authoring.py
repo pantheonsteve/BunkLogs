@@ -6,6 +6,10 @@ the organization. Roster assignment (``AssignmentGroupMembership``) still
 governs who sees what on dashboards; sensitivity + recipient gates constrain
 distribution after submit.
 
+The one exception is ``participant`` capability, which cannot tag a peer --
+someone who co-authors one of the viewer's own groups. Madrichim write about
+their students, not about each other.
+
 Recipient tagging still uses the capability / sensitivity map.
 """
 
@@ -14,6 +18,8 @@ from __future__ import annotations
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.permissions.observation_read import view_by_capability_for_org
+from bunk_logs.core.permissions.subject_dashboard import co_author_person_ids_subquery
+from bunk_logs.core.permissions.subject_dashboard import viewer_capability
 from bunk_logs.core.permissions.subject_note_authoring import authorable_subject_queryset
 from bunk_logs.core.permissions.subject_note_authoring import can_author_subject_note
 from bunk_logs.core.permissions.subject_note_authoring import max_author_scope
@@ -22,9 +28,12 @@ from bunk_logs.core.permissions.super_admin import is_super_admin
 
 def observation_authorable_subject_queryset(viewer_person: Person, org):
     """Person queryset taggable as subjects on an observation."""
-    if max_author_scope(viewer_person, org) == "none":
+    if viewer_person is None or max_author_scope(viewer_person, org) == "none":
         return Person.all_objects.none()
-    return Person.all_objects.filter(organization=org)
+    base = Person.all_objects.filter(organization=org)
+    if viewer_capability(viewer_person, org) == "participant":
+        return base.exclude(id__in=co_author_person_ids_subquery(viewer_person))
+    return base
 
 
 def can_author_observation(
@@ -40,7 +49,9 @@ def can_author_observation(
         return False
     if subject.organization_id != org.id:
         return False
-    return max_author_scope(viewer_person, org) != "none"
+    return observation_authorable_subject_queryset(viewer_person, org).filter(
+        id=subject.id,
+    ).exists()
 
 
 def recipients_clearing_sensitivity(viewer_person: Person, org, sensitivity: str):

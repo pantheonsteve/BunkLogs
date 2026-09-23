@@ -39,8 +39,29 @@ def _viewer_capability(person: Person, org) -> str | None:
     return None
 
 
-def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
+def supervisory_group_ids(viewer: Person) -> set[int]:
+    """Author groups the viewer supervises, minus the ones they belong to.
+
+    A Madrich holds ``author`` on their classroom *and* is a ``subject`` in it,
+    which makes them a member of that roster rather than a supervisor of it.
+    Counselors author their bunk without being subjects in it, so this returns
+    their full author set unchanged.
+    """
     group_ids = author_group_ids_with_descendants(viewer)
+    if not group_ids:
+        return set()
+    return group_ids - set(
+        AssignmentGroupMembership.all_objects.filter(
+            person=viewer,
+            group_id__in=group_ids,
+            role_in_group="subject",
+            is_active=True,
+        ).values_list("group_id", flat=True),
+    )
+
+
+def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
+    group_ids = supervisory_group_ids(viewer)
     if not group_ids:
         return False
     return AssignmentGroupMembership.all_objects.filter(
@@ -52,7 +73,7 @@ def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
 
 
 def _supervised_subject_ids(viewer: Person) -> set[int]:
-    group_ids = author_group_ids_with_descendants(viewer)
+    group_ids = supervisory_group_ids(viewer)
     if not group_ids:
         return set()
     return set(
@@ -127,4 +148,5 @@ __all__ = [
     "NOTE_VIS_BY_CAP",
     "filter_subject_notes_readable",
     "subject_note_read_q",
+    "supervisory_group_ids",
 ]

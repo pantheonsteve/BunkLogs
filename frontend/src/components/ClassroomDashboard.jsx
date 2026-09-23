@@ -5,20 +5,32 @@
  * backend populates only on the faculty-author path: open challenges
  * (Step 4_8, MA7), weekly reflection completion, and Sunday
  * availability (Step 7_24). A Madrich landing here sees none of them —
- * peer completion state is off-limits per Story 61 criterion 4.
+ * peer completion state is off-limits per Story 61 criterion 4, which is
+ * also why the Madrichim and staff rosters are faculty-only.
+ *
+ * Students and Madrichim are both group `subject`s, so the roster splits
+ * on `membership_role`. Every student row opens their profile and can
+ * take an observation inline.
  *
  * `completion` and `availability` arrive as explicit nulls when the
  * program has no weekly template assigned / no upcoming sessions, which
  * is a different message than "you can't see this".
  */
 
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import ObservationComposer from './observations/ObservationComposer';
+import { observationThreadLink, profileLink } from '../utils/dashboardLinks';
 
 const STATUS_STYLES = {
   open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
   acknowledged: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
   resolved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
 };
+
+function personName(p) {
+  return `${p.preferred_name || p.first_name} ${p.last_name}`.trim();
+}
 
 function StatusBadge({ status }) {
   const cls = STATUS_STYLES[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
@@ -258,8 +270,17 @@ export default function ClassroomDashboard({
   const authors = data?.authors || [];
   const challenges = data?.challenges || null;
   // The faculty-only blocks arrive together, as explicit nulls when
-  // unconfigured — so key presence, not truthiness, marks the viewer.
-  const isFacultyView = data ? 'completion' in data : false;
+  // unconfigured — so key presence, not truthiness, is the fallback for
+  // payloads predating the explicit flag.
+  const isFacultyView = data?.viewer?.is_faculty_author
+    ?? (data ? 'completion' in data : false);
+  // Anyone on the roster who isn't a Madrich is a student: the TBE importer
+  // files stray roles as subjects too, and they shouldn't vanish off the page.
+  const madrichim = subjects.filter((s) => s.membership_role === 'madrich');
+  const students = subjects.filter((s) => s.membership_role !== 'madrich');
+  const navigate = useNavigate();
+  const [composeSubject, setComposeSubject] = useState(null);
+  const returnTo = group.id ? `/dashboards/group/${group.id}` : null;
 
   return (
     <div
@@ -279,7 +300,7 @@ export default function ClassroomDashboard({
               {group.name || 'Classroom'}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Classroom dashboard · {summary.subject_count || 0} students · {summary.author_count || 0} staff
+              Classroom dashboard · {students.length} students · {madrichim.length} madrichim · {summary.author_count || 0} staff
             </p>
           </div>
           <label className="text-sm text-gray-700 dark:text-gray-200">
@@ -320,48 +341,109 @@ export default function ClassroomDashboard({
         <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
           Students{' '}
           <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-            ({subjects.length})
+            ({students.length})
           </span>
         </h2>
-        {subjects.length === 0 ? (
+        {students.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">no students enrolled yet.</p>
         ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 text-sm">
-            {subjects.map((s) => (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 text-sm">
+            {students.map((s) => (
               <li
                 key={s.id}
                 data-testid={`classroom-subject-${s.id}`}
-                className="px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
+                className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
               >
-                {s.preferred_name || s.first_name} {s.last_name}
+                <Link
+                  to={profileLink(s.id, { groupId: group.id, date: selectedDate })}
+                  className="truncate text-blue-700 dark:text-blue-300 hover:underline"
+                  data-testid={`classroom-subject-link-${s.id}`}
+                >
+                  {personName(s)}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setComposeSubject({ id: s.id, full_name: personName(s) })}
+                  className="shrink-0 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+                  data-testid={`classroom-observe-${s.id}`}
+                >
+                  Add observation
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section
-        data-testid="section-authors"
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
-      >
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-          Faculty & Madrich{' '}
-          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-            ({authors.length})
-          </span>
-        </h2>
-        {authors.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">no staff assigned yet.</p>
-        ) : (
-          <ul className="text-sm space-y-1">
-            {authors.map((a) => (
-              <li key={a.id} data-testid={`classroom-author-${a.id}`}>
-                {a.name}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {isFacultyView && (
+        <section
+          data-testid="section-madrichim"
+          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
+        >
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+            Madrichim{' '}
+            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+              ({madrichim.length})
+            </span>
+          </h2>
+          {madrichim.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">no madrichim assigned yet.</p>
+          ) : (
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 text-sm">
+              {madrichim.map((m) => (
+                <li
+                  key={m.id}
+                  data-testid={`classroom-madrich-${m.id}`}
+                  className="px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
+                >
+                  <Link
+                    to={profileLink(m.id, { groupId: group.id, date: selectedDate })}
+                    className="text-blue-700 dark:text-blue-300 hover:underline"
+                  >
+                    {personName(m)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {isFacultyView && (
+        <section
+          data-testid="section-authors"
+          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
+        >
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+            Faculty & Madrich{' '}
+            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+              ({authors.length})
+            </span>
+          </h2>
+          {authors.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">no staff assigned yet.</p>
+          ) : (
+            <ul className="text-sm space-y-1">
+              {authors.map((a) => (
+                <li key={a.id} data-testid={`classroom-author-${a.id}`}>
+                  {a.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {composeSubject && (
+        <ObservationComposer
+          initialSubjects={[composeSubject]}
+          onClose={() => setComposeSubject(null)}
+          onSent={(created) => {
+            setComposeSubject(null);
+            if (created?.id) navigate(observationThreadLink(created.id, returnTo));
+          }}
+        />
+      )}
     </div>
   );
 }

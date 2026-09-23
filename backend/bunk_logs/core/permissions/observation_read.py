@@ -11,6 +11,10 @@ the authoring-time sensitivity gate, so they always cleared). The hierarchy leg
 is intersected with the org sensitivity map. "Covers ANY subject" means the read
 ``Q`` ORs across the ``subjects`` M2M, so a multi-subject observation is visible
 to either subject's hierarchy.
+
+The hierarchy leg skips groups the viewer is themselves a subject in, so a
+Madrich -- who authors their classroom and is observed in it -- reads only what
+they wrote or were tagged on. See ``subject_note_read.supervisory_group_ids``.
 """
 
 from __future__ import annotations

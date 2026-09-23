@@ -6,10 +6,17 @@
  * keep the stub. `completion` / `availability` arrive as explicit nulls
  * when unconfigured, which is a different message than "not yours".
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import ClassroomDashboard from '../ClassroomDashboard';
+
+vi.mock('../../api/observations', async (importOriginal) => ({
+  ...(await importOriginal()),
+  searchObservationSubjects: vi.fn().mockResolvedValue([]),
+  fetchRecipientCandidates: vi.fn().mockResolvedValue([]),
+}));
 
 const basePayload = {
   header: { group: { id: 12, name: 'Grade 9 — Room 204' } },
@@ -17,6 +24,11 @@ const basePayload = {
   subjects: [],
   authors: [],
 };
+
+const roster = [
+  { id: 41, first_name: 'Sam', last_name: 'Student', preferred_name: '', membership_role: 'student' },
+  { id: 42, first_name: 'Mira', last_name: 'Madrich', preferred_name: '', membership_role: 'madrich' },
+];
 
 const facultyPayload = {
   ...basePayload,
@@ -111,5 +123,47 @@ describe('ClassroomDashboard', () => {
     expect(screen.getByTestId('classroom-availability-section')).toHaveTextContent(
       'No upcoming sessions are scheduled.',
     );
+  });
+});
+
+describe('ClassroomDashboard roster', () => {
+  it('links students to their profile and keeps Madrichim off a Madrich view', () => {
+    renderDashboard({
+      ...basePayload,
+      subjects: roster,
+      viewer: { is_faculty_author: false },
+    });
+
+    expect(screen.getByTestId('classroom-subject-link-41')).toHaveAttribute(
+      'href', '/profile/41?group=12',
+    );
+    expect(screen.queryByTestId('classroom-subject-42')).toBeNull();
+    expect(screen.queryByTestId('section-madrichim')).toBeNull();
+    expect(screen.queryByTestId('section-authors')).toBeNull();
+  });
+
+  it('gives faculty the Madrichim roster alongside the students', () => {
+    renderDashboard({
+      ...basePayload,
+      subjects: roster,
+      viewer: { is_faculty_author: true },
+    });
+
+    expect(screen.getByTestId('classroom-subject-41')).toBeInTheDocument();
+    expect(screen.getByTestId('classroom-madrich-42')).toHaveTextContent('Mira Madrich');
+  });
+
+  it('opens the composer prefilled with the student that was clicked', async () => {
+    const user = userEvent.setup();
+    renderDashboard({
+      ...basePayload,
+      subjects: roster,
+      viewer: { is_faculty_author: false },
+    });
+
+    await user.click(screen.getByTestId('classroom-observe-41'));
+
+    expect(screen.getByTestId('observation-subject-chips')).toHaveTextContent('Sam Student');
+    expect(screen.getByTestId('observation-composer-body')).toBeInTheDocument();
   });
 });

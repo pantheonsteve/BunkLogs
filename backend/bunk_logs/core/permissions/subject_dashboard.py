@@ -6,6 +6,8 @@ observation read access and from observation authoring scope.
 
 from __future__ import annotations
 
+from django.db.models import Q
+
 from bunk_logs.core.models import ROLE_TO_CAPABILITY
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -53,6 +55,29 @@ def viewer_capability(person: Person, org) -> str | None:
     return None
 
 
+def co_author_person_ids_subquery(viewer: Person):
+    """People who hold ``author`` on a group the viewer also authors.
+
+    The peer test for ``participant`` viewers. A Madrich authors their classroom
+    alongside the other Madrichim, who are *also* listed as subjects in it, so
+    plain supervision would hand a Madrich a peer's profile. Students hold no
+    authorship, so they stay reachable.
+    """
+    group_ids = author_group_ids_with_descendants(viewer)
+    if not group_ids:
+        return AssignmentGroupMembership.all_objects.none().values("person_id")
+    return AssignmentGroupMembership.all_objects.filter(
+        group_id__in=group_ids,
+        role_in_group="author",
+        is_active=True,
+    ).exclude(person=viewer).values("person_id")
+
+
+def is_co_author_peer(viewer: Person, subject: Person) -> bool:
+    """True if ``subject`` co-authors one of the viewer's own groups."""
+    return co_author_person_ids_subquery(viewer).filter(person=subject).exists()
+
+
 def viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
     """True if the viewer supervises the subject (any group hierarchy path).
 
@@ -98,7 +123,11 @@ def can_view_subject_dashboard(
     if cap in ("admin", "program_lead", "domain_specialist"):
         return True
     if cap in ("supervisor", "participant"):
-        if viewer_person.id == subject.id or viewer_supervises_subject(viewer_person, subject):
+        if viewer_person.id == subject.id:
+            return True
+        if cap == "participant" and is_co_author_peer(viewer_person, subject):
+            return False
+        if viewer_supervises_subject(viewer_person, subject):
             return True
     return can_author_subject_note(viewer_person, subject, org, user)
 
@@ -163,7 +192,13 @@ def viewable_subject_queryset(viewer_person: Person | None, org, user):
     )
     if not ids:
         return base.none()
-    return base.filter(id__in=ids)
+    qs = base.filter(id__in=ids)
+    if cap == "participant":
+        qs = qs.filter(
+            Q(id=viewer_person.id)
+            | ~Q(id__in=co_author_person_ids_subquery(viewer_person)),
+        )
+    return qs
 
 
 def camper_subject_person_ids_subquery(org):
@@ -187,6 +222,8 @@ def viewable_camper_queryset(viewer_person: Person | None, org, user):
 __all__ = [
     "camper_subject_person_ids_subquery",
     "can_view_subject_dashboard",
+    "co_author_person_ids_subquery",
+    "is_co_author_peer",
     "viewable_camper_queryset",
     "viewable_subject_queryset",
     "viewer_capability",
