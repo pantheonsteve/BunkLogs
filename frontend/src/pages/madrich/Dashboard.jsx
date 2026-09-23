@@ -1,13 +1,9 @@
 /**
  * Madrich (TBE) dashboard — Step 7_14, Stories 61 and 63.
  *
- * Three top-level sections (Story 61 criterion 3):
- *   1. Header — name, role label "Madrich", grade level, active program.
- *   2. My reflections — one card per template the Madrich currently owes
- *      (Story 63), each framed by its own cadence: "Week of [start]-[end]"
- *      for the recurring weekly 3-2-1, "Available to submit" for on-demand
- *      forms. An empty list is the nothing-assigned-yet state.
- *   3. History shortcut.
+ * Required work (reflections, availability) sits in one row under the
+ * header. Optional work (report a challenge, teaching-team feed) is a
+ * second row. History and past-entry cards follow.
  *
  * No bunk lists, faculty submissions, peer-Madrich data, or camp-side
  * operational signal per Story 61 criterion 4. Per TBE Tier 1 scope:
@@ -26,6 +22,17 @@ import CardSkeleton from '../../components/ui/CardSkeleton';
 import HomeCard from '../../components/ui/HomeCard';
 import UnreadDot from '../../components/ui/UnreadDot';
 import { statusMeta } from '../../utils/availabilityStatus';
+
+const primaryCta = 'inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors';
+const secondaryCta = 'inline-block rounded-lg border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 text-sm font-medium px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+
+function BandLabel({ children }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      {children}
+    </p>
+  );
+}
 
 function formatPeriodLabel(cadence, periodStart, periodEnd) {
   if (cadence === 'on_demand') return 'Available to submit';
@@ -121,7 +128,7 @@ function AvailabilityCard({ availability }) {
       <AvailabilityStrip />
       <Link
         to={availability?.calendar_url || '/madrich/availability'}
-        className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+        className={primaryCta}
         data-testid="md-availability-cta"
       >
         Update availability
@@ -131,23 +138,6 @@ function AvailabilityCard({ availability }) {
 }
 
 function ReportChallengeCard() {
-  const { orgSlug } = useAuth();
-  const [hasClassroom, setHasClassroom] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetchClassrooms(orgSlug)
-      .then((data) => {
-        if (active) setHasClassroom((data?.classrooms || []).length > 0);
-      })
-      .catch(() => {
-        if (active) setHasClassroom(false);
-      });
-    return () => { active = false; };
-  }, [orgSlug]);
-
-  if (!hasClassroom) return null;
-
   return (
     <section
       aria-label="Report a challenge"
@@ -162,7 +152,7 @@ function ReportChallengeCard() {
       </p>
       <Link
         to="/madrich/challenges/new"
-        className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+        className={secondaryCta}
         data-testid="md-challenge-cta"
       >
         Report a challenge
@@ -236,7 +226,7 @@ function ReflectionStatusCard({ card }) {
       )}
       <Link
         to={actionPath}
-        className="mt-2 inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+        className={`mt-2 ${primaryCta}`}
         data-testid="md-reflection-cta"
       >
         {ctaLabel}
@@ -342,6 +332,40 @@ function TrendsCard() {
   );
 }
 
+function OptionalBand({ cohort }) {
+  const { orgSlug } = useAuth();
+  const [hasClassroom, setHasClassroom] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchClassrooms(orgSlug)
+      .then((data) => {
+        if (active) setHasClassroom((data?.classrooms || []).length > 0);
+      })
+      .catch(() => {
+        if (active) setHasClassroom(false);
+      })
+      .finally(() => {
+        if (active) setChecked(true);
+      });
+    return () => { active = false; };
+  }, [orgSlug]);
+
+  const showCohort = Boolean(cohort?.enabled);
+  if ((!checked && !showCohort) || (checked && !hasClassroom && !showCohort)) return null;
+
+  return (
+    <section aria-label="Optional" className="space-y-3" data-testid="md-optional">
+      <BandLabel>Optional</BandLabel>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {hasClassroom && <ReportChallengeCard />}
+        <CohortCard cohort={cohort} />
+      </div>
+    </section>
+  );
+}
+
 function CohortCard({ cohort }) {
   const term = useTerm();
   if (!cohort?.enabled) return null;
@@ -365,7 +389,7 @@ function CohortCard({ cohort }) {
       footer={(
         <Link
           to={cohort.url || '/madrich/cohort'}
-          className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+          className={secondaryCta}
           data-testid="md-cohort-cta"
         >
           {`Open ${term('cohort')} feed`}
@@ -430,7 +454,7 @@ export default function MadrichDashboard() {
   const gradeLevel = header?.grade_level;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-8">
       <div>
         <p className="text-sm text-gray-500 dark:text-gray-400">{header.program_name}</p>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">{header.name}</h1>
@@ -458,44 +482,50 @@ export default function MadrichDashboard() {
         </div>
       )}
 
-      {cards.length === 0 ? (
-        <NoAssignmentsCard />
-      ) : (
-        cards.map(card => (
-          <ReflectionStatusCard key={card.template_id} card={card} />
-        ))
-      )}
-
-      {entryCards.map((card) => (
-        <ThreadedFieldCard key={card.field_key} card={card} />
-      ))}
-
-      <TrendsCard />
-
-      <CohortCard cohort={cohort} />
-
-      <AvailabilityCard availability={availability} />
-
-      <ReportChallengeCard />
-
-      <section
-        aria-label="My reflections"
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-        data-testid="md-history-section"
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            My reflections
-          </h2>
-          <Link
-            to={history_entry?.url ?? '/madrich/history'}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-            data-testid="md-history-link"
-          >
-            View history →
-          </Link>
+      <section aria-label="Required" className="space-y-3" data-testid="md-required">
+        <BandLabel>Required</BandLabel>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div className="space-y-4">
+            {cards.length === 0 ? (
+              <NoAssignmentsCard />
+            ) : (
+              cards.map(card => (
+                <ReflectionStatusCard key={card.template_id} card={card} />
+              ))
+            )}
+          </div>
+          <AvailabilityCard availability={availability} />
         </div>
       </section>
+
+      <OptionalBand cohort={cohort} />
+
+      <div className="space-y-4">
+        {entryCards.map((card) => (
+          <ThreadedFieldCard key={card.field_key} card={card} />
+        ))}
+
+        <TrendsCard />
+
+        <section
+          aria-label="My reflections"
+          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+          data-testid="md-history-section"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              My reflections
+            </h2>
+            <Link
+              to={history_entry?.url ?? '/madrich/history'}
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              data-testid="md-history-link"
+            >
+              View history →
+            </Link>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
