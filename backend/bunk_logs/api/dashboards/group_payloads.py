@@ -164,14 +164,26 @@ def _strip_private(rows: list[dict]) -> list[dict]:
     ]
 
 
-def _briefs_for_persons(persons: list[Person]) -> list[dict]:
-    """Flatten Person rows into the brief shape the bunk payload uses."""
+def _briefs_for_persons(
+    persons: list[Person], role_by_person_id: dict[int, str] | None = None,
+) -> list[dict]:
+    """Flatten Person rows into the brief shape the bunk payload uses.
+
+    ``role_by_person_id`` adds a ``membership_role`` key. Classroom rosters need
+    it because the TBE importer lists Madrichim and students alike as group
+    subjects, so the program role is the only thing separating them.
+    """
     return [
         {
             "id": p.id,
             "first_name": p.first_name,
             "last_name": p.last_name,
             "preferred_name": p.preferred_name or "",
+            **(
+                {"membership_role": role_by_person_id.get(p.id)}
+                if role_by_person_id is not None
+                else {}
+            ),
         }
         for p in persons
     ]
@@ -498,6 +510,13 @@ def build_classroom_dashboard_payload(
         .select_related("person")
         .order_by("person__last_name", "person__first_name"),
     )
+    subject_persons = [agm.person for agm in subjects if agm.person]
+    role_by_person_id = dict(
+        Membership.objects.filter(
+            person__in=subject_persons, program=program, is_active=True,
+        ).values_list("person_id", "role"),
+    )
+    is_faculty = _is_faculty_author(request=request, group=group, program=program)
 
     payload = {
         "header": {
@@ -511,7 +530,7 @@ def build_classroom_dashboard_payload(
             "date": target_date.isoformat(),
             "today": today.isoformat(),
         },
-        "subjects": _briefs_for_persons([agm.person for agm in subjects if agm.person]),
+        "subjects": _briefs_for_persons(subject_persons, role_by_person_id),
         "authors": [
             {
                 "id": agm.person.id,
@@ -523,8 +542,9 @@ def build_classroom_dashboard_payload(
             "subject_count": len(subjects),
             "author_count": len(authors),
         },
+        "viewer": {"is_faculty_author": is_faculty},
     }
-    if not _is_faculty_author(request=request, group=group, program=program):
+    if not is_faculty:
         return payload
 
     payload["challenges"] = _classroom_challenges_summary(group=group)

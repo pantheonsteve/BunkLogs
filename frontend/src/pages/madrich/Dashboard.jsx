@@ -2,11 +2,13 @@
  * Madrich (TBE) dashboard — Step 7_14, Stories 61 and 63.
  *
  * Required work (reflections, availability) sits in one row under the
- * header. Optional work (report a challenge, teaching-team feed) is a
- * second row. History and past-entry cards follow.
+ * header. Optional work (my classroom, report a challenge, teaching-team
+ * feed) is a second row. History and past-entry cards follow.
  *
- * No bunk lists, faculty submissions, peer-Madrich data, or camp-side
- * operational signal per Story 61 criterion 4. Per TBE Tier 1 scope:
+ * No faculty submissions, peer-Madrich data, or camp-side operational
+ * signal per Story 61 criterion 4. The classroom card is the one roster
+ * link, and it lands on a dashboard that withholds peer completion,
+ * availability, and challenges from a Madrich. Per TBE Tier 1 scope:
  * English only, no LanguagePicker.
  */
 
@@ -332,26 +334,66 @@ function TrendsCard() {
   );
 }
 
+/**
+ * Roster entry point (§4.4). The classroom dashboard withholds every
+ * faculty-only block from a Madrich, so this leads to the student list and
+ * nothing peer-related.
+ */
+function MyClassroomCard({ classrooms }) {
+  const only = classrooms.length === 1 ? classrooms[0] : null;
+
+  return (
+    <HomeCard
+      title={only ? only.name : 'My classrooms'}
+      subtitle="Your students — open one to add an observation."
+      data-testid="md-classroom-card"
+      footer={only && (
+        <Link
+          to={`/dashboards/group/${only.assignment_group_id}`}
+          className={secondaryCta}
+          data-testid={`md-classroom-link-${only.assignment_group_id}`}
+        >
+          View students
+        </Link>
+      )}
+    >
+      {!only && (
+        <ul className="space-y-1">
+          {classrooms.map((c) => (
+            <li key={c.assignment_group_id}>
+              <Link
+                to={`/dashboards/group/${c.assignment_group_id}`}
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                data-testid={`md-classroom-link-${c.assignment_group_id}`}
+              >
+                {c.name} →
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </HomeCard>
+  );
+}
+
 function OptionalBand({ cohort }) {
   const { orgSlug } = useAuth();
-  const [hasClassroom, setHasClassroom] = useState(false);
-  const [checked, setChecked] = useState(false);
+  const [classrooms, setClassrooms] = useState(null);
 
   useEffect(() => {
     let active = true;
     fetchClassrooms(orgSlug)
       .then((data) => {
-        if (active) setHasClassroom((data?.classrooms || []).length > 0);
+        if (active) setClassrooms(data?.classrooms || []);
       })
       .catch(() => {
-        if (active) setHasClassroom(false);
-      })
-      .finally(() => {
-        if (active) setChecked(true);
+        if (active) setClassrooms([]);
       });
     return () => { active = false; };
   }, [orgSlug]);
 
+  const checked = classrooms !== null;
+  const hasClassroom = checked && classrooms.length > 0;
   const showCohort = Boolean(cohort?.enabled);
   if ((!checked && !showCohort) || (checked && !hasClassroom && !showCohort)) return null;
 
@@ -359,6 +401,7 @@ function OptionalBand({ cohort }) {
     <section aria-label="Optional" className="space-y-3" data-testid="md-optional">
       <BandLabel>Optional</BandLabel>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {hasClassroom && <MyClassroomCard classrooms={classrooms} />}
         {hasClassroom && <ReportChallengeCard />}
         <CohortCard cohort={cohort} />
       </div>

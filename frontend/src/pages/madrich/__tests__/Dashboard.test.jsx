@@ -216,4 +216,25 @@ describe('MadrichDashboard', () => {
     await waitFor(() => screen.getByTestId('md-availability-card'));
     expect(screen.queryByTestId('md-availability-nudge')).toBeNull();
   });
+
+  it('points the classroom card at the group dashboard for the roster', async () => {
+    getMock.mockImplementation((url) => Promise.resolve({
+      data: url.includes('/challenges/classrooms/')
+        ? { classrooms: [{ assignment_group_id: 88, name: 'Grade 7A' }] }
+        : samplePayload,
+    }));
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-classroom-card'));
+    expect(screen.getByTestId('md-classroom-card')).toHaveTextContent('Grade 7A');
+    expect(screen.getByTestId('md-classroom-link-88')).toHaveAttribute(
+      'href', '/dashboards/group/88',
+    );
+  });
+
+  it('hides the classroom card when the Madrich is on no classroom', async () => {
+    getMock.mockResolvedValue({ data: samplePayload });
+    render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('md-availability-card'));
+    expect(screen.queryByTestId('md-classroom-card')).toBeNull();
+  });
 });

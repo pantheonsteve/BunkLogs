@@ -875,6 +875,72 @@ class TestClassroomFacultyBlocks:
         assert body["availability"] is None
 
 
+class TestClassroomRoster:
+    """``membership_role`` separates students from Madrichim on the roster.
+
+    Both are group ``subject``s, so the program role is the only thing the
+    frontend can partition on.
+    """
+
+    @pytest.fixture
+    def class_url(self, classroom):
+        return f"/api/v1/dashboards/group/{classroom.id}/"
+
+    @pytest.fixture
+    def roster(self, org, program, classroom):
+        madrich, _ = _enroll_madrich(
+            org, program, classroom, first="Ari", email="ari-roster@dash.test",
+        )
+        student = Person.all_objects.create(
+            organization=org, first_name="Sam", last_name="Student",
+        )
+        Membership.all_objects.create(
+            program=program, person=student, role="student", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=classroom, person=student,
+            role_in_group="subject", is_active=True,
+        )
+        return {"madrich": madrich, "student": student}
+
+    def _view_as(self, api, org, program, classroom, class_url, *, role, email):
+        person, user = _make_person(org, first="Vie", last="Wer", email=email)
+        Membership.all_objects.create(
+            program=program, person=person, role=role, is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=classroom, person=person,
+            role_in_group="author", is_active=True,
+        )
+        api.force_authenticate(user=user)
+        with organization_context(org):
+            resp = api.get(class_url, **_hdr(org.slug))
+        assert resp.status_code == 200, resp.content
+        return resp.json()
+
+    def test_faculty_roster_tags_each_subject_with_its_program_role(
+        self, api, org, program, classroom, class_url, roster,
+    ):
+        body = self._view_as(
+            api, org, program, classroom, class_url,
+            role="faculty", email="fac-roster@dash.test",
+        )
+        by_id = {s["id"]: s["membership_role"] for s in body["subjects"]}
+        assert by_id[roster["student"].id] == "student"
+        assert by_id[roster["madrich"].id] == "madrich"
+        assert body["viewer"]["is_faculty_author"] is True
+
+    def test_madrich_gets_the_roster_but_is_not_flagged_as_faculty(
+        self, api, org, program, classroom, class_url, roster,
+    ):
+        body = self._view_as(
+            api, org, program, classroom, class_url,
+            role="madrich", email="mad-roster@dash.test",
+        )
+        assert roster["student"].id in {s["id"] for s in body["subjects"]}
+        assert body["viewer"]["is_faculty_author"] is False
+
+
 # ---------------------------------------------------------------------------
 # Unsupported group_type
 # ---------------------------------------------------------------------------
