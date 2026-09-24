@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Circle, ClipboardList } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
+import HomeCard from '../../components/ui/HomeCard';
 
 const CARD_BASE =
   'rounded-2xl border bg-white dark:bg-gray-900 shadow-sm overflow-hidden';
@@ -408,7 +409,10 @@ function SummaryBar({ tasks }) {
 // ---------------------------------------------------------------------------
 // Props:
 //   variant: 'page' — standalone /tasks layout (narrow column, gray backdrop)
-//            'embedded' — inside CounselorDashboard card (full width)
+//            'embedded' — a HomeCard section on a role homepage, which renders
+//            nothing at all when there is no work due
+//   testId: data-testid for the embedded card, so each homepage can keep its
+//           own prefix
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -453,7 +457,17 @@ function ObservationsRequiringResponseSection() {
   );
 }
 
-export default function ReflectionTasksPanel({ variant = 'page' }) {
+function periodLabel(period) {
+  if (!period?.start) return null;
+  const day = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+  if (!period.end || period.end === period.start) return day(period.start);
+  return `Week of ${day(period.start)} – ${day(period.end)}`;
+}
+
+export default function ReflectionTasksPanel({ variant = 'page', testId = 'tasks-card' }) {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -531,48 +545,77 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
     [tasks],
   );
 
-  const inner = (
-    <>
-      {!embedded && (
-        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex gap-4 min-w-0">
-            <div className="hidden sm:flex shrink-0 w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 items-center justify-center">
-              <ClipboardList className="w-6 h-6 text-indigo-700 dark:text-indigo-300" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                My work
-              </p>
-              <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mt-0.5">
-                My Tasks
-              </h1>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mt-1">{headingLabel}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 max-w-2xl">
-                Tap a camper or assignment below to file today&apos;s reflections. Completed work
-                stays visible so you can review or edit.
-              </p>
-            </div>
+  function renderTask(task) {
+    if (task.subject_mode === 'self') {
+      return <SelfSection key={task.id} task={task} onNavigate={handleSelfNavigate} />;
+    }
+    if (task.subject_mode === 'group') {
+      return <GroupSection key={task.id} task={task} onNavigate={handleGroupNavigate} />;
+    }
+    return <SubjectSection key={task.id} task={task} onPillTap={handlePillTap} />;
+  }
+
+  // A homepage section has to earn its space: a quiet week renders nothing
+  // rather than an empty card, and a failed fetch stays silent because the
+  // page around it is still useful.
+  if (embedded) {
+    if (loading || error || !tasks?.length) return null;
+    return (
+      <HomeCard
+        title="My tasks"
+        subtitle={periodLabel(tasks[0].period)}
+        data-testid={testId}
+      >
+        <div
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5"
+          data-testid="tasks-list"
+        >
+          {tasks.map(renderTask)}
+        </div>
+      </HomeCard>
+    );
+  }
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[80rem] mx-auto">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-4 min-w-0">
+          <div className="hidden sm:flex shrink-0 w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 items-center justify-center">
+            <ClipboardList className="w-6 h-6 text-indigo-700 dark:text-indigo-300" aria-hidden="true" />
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0 sm:pt-1">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              My work
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mt-0.5">
+              My Tasks
+            </h1>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mt-1">{headingLabel}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 max-w-2xl">
+              Tap a camper or assignment below to file today&apos;s reflections. Completed work
+              stays visible so you can review or edit.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 shrink-0 sm:pt-1">
+          <Link
+            to="/my-reflections"
+            data-testid="tasks-my-reflections-link"
+            className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            My reflections
+          </Link>
+          {showCoverageLink && (
             <Link
-              to="/my-reflections"
-              data-testid="tasks-my-reflections-link"
+              to="/groups/performance"
+              data-testid="tasks-coverage-link"
               className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              My reflections
+              Performance →
             </Link>
-            {showCoverageLink && (
-              <Link
-                to="/groups/performance"
-                data-testid="tasks-coverage-link"
-                className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-100 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                Performance →
-              </Link>
-            )}
-          </div>
-        </header>
-      )}
+          )}
+        </div>
+      </header>
 
       {loading && (
         <p className="text-gray-700 dark:text-gray-300 text-sm font-medium">Loading tasks…</p>
@@ -598,37 +641,15 @@ export default function ReflectionTasksPanel({ variant = 'page' }) {
           )}
 
           <div
-            className={
-              embedded
-                ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5'
-                : 'grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5'
-            }
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5"
             data-testid="tasks-list"
           >
-            {tasks.map((task) => {
-              if (task.subject_mode === 'self') {
-                return <SelfSection key={task.id} task={task} onNavigate={handleSelfNavigate} />;
-              }
-              if (task.subject_mode === 'group') {
-                return <GroupSection key={task.id} task={task} onNavigate={handleGroupNavigate} />;
-              }
-              return <SubjectSection key={task.id} task={task} onPillTap={handlePillTap} />;
-            })}
+            {tasks.map(renderTask)}
           </div>
 
           <ObservationsRequiringResponseSection />
         </>
       )}
-    </>
-  );
-
-  if (embedded) {
-    return <div className="w-full">{inner}</div>;
-  }
-
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[80rem] mx-auto">
-      {inner}
     </div>
   );
 }

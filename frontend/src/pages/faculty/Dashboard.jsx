@@ -9,6 +9,9 @@
  * `reflections` is null when the Director hasn't assigned a weekly
  * template yet, and `availability` is null off-season — both are
  * rendered as explanatory copy rather than a misleading zero.
+ *
+ * Above the supervision cards sits the faculty member's own work, fed by
+ * the shared tasks panel — everything below it is about other people.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -19,6 +22,7 @@ import { useTerm } from '../../context/OrgBrandingContext';
 import CardSkeleton from '../../components/ui/CardSkeleton';
 import HomeCard from '../../components/ui/HomeCard';
 import UnreadDot from '../../components/ui/UnreadDot';
+import ReflectionTasksPanel from '../../partials/tasks/ReflectionTasksPanel';
 import { statusMeta } from '../../utils/availabilityStatus';
 
 function formatDate(iso) {
@@ -447,6 +451,8 @@ export default function FacultyDashboard() {
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">{header?.name}</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Faculty</p>
       </div>
+
+      <ReflectionTasksPanel variant="embedded" testId="fac-tasks-card" />
 
       {responseQueue && <ResponseQueueCard queue={responseQueue} />}
 

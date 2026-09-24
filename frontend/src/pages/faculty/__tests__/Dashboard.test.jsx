@@ -6,7 +6,7 @@
  * aren't on a roster yet.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FacultyDashboard from '../Dashboard';
 
@@ -18,6 +18,12 @@ vi.mock('../../../api', () => ({
 vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => ({ orgSlug: 'tbe', user: { id: 42 } }),
 }));
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, useNavigate: () => mockNavigate };
+});
 
 const dashboardPayload = {
   today: '2026-09-10',
@@ -43,17 +49,39 @@ const dashboardPayload = {
   challenges_url: '/faculty/challenges',
 };
 
+const facultySelfTask = {
+  id: 'tpl-31-2026-09-07',
+  template: { id: 31, name: 'Faculty Weekly Reflection' },
+  assignment_group: null,
+  subject_mode: 'self',
+  period: { start: '2026-09-07', end: '2026-09-13' },
+  program_slug: 'client-test',
+  subjects: [],
+  completion: { covered: 0, total: 1, my_count: 0 },
+  self_status: { submitted: false, reflection_id: null, submitted_at: null },
+};
+
 function renderDashboard() {
   return render(<MemoryRouter><FacultyDashboard /></MemoryRouter>);
 }
 
+/** The page fans out to the dashboard, the roster, and the shared tasks panel. */
+function mockApi({ dashboard = dashboardPayload, tasks = [] } = {}) {
+  getMock.mockImplementation((url) => (
+    url.includes('/reflections/my-tasks/')
+      ? Promise.resolve({ data: { tasks } })
+      : Promise.resolve({ data: dashboard })
+  ));
+}
+
 beforeEach(() => {
   getMock.mockReset();
+  mockNavigate.mockReset();
 });
 
 describe('FacultyDashboard', () => {
   it('renders a card per classroom with its three signals', async () => {
-    getMock.mockResolvedValue({ data: dashboardPayload });
+    mockApi();
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-classroom-12'));
 
@@ -79,8 +107,8 @@ describe('FacultyDashboard', () => {
   });
 
   it('explains unconfigured signals rather than showing zeroes', async () => {
-    getMock.mockResolvedValue({
-      data: {
+    mockApi({
+      dashboard: {
         ...dashboardPayload,
         classrooms: [{
           ...dashboardPayload.classrooms[0],
@@ -103,9 +131,34 @@ describe('FacultyDashboard', () => {
   });
 
   it('shows an empty state for faculty without a classroom', async () => {
-    getMock.mockResolvedValue({ data: { ...dashboardPayload, classrooms: [] } });
+    mockApi({ dashboard: { ...dashboardPayload, classrooms: [] } });
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-no-classrooms'));
+  });
+
+  it('leads with the faculty member’s own reflection and links to the form', async () => {
+    mockApi({ tasks: [facultySelfTask] });
+    renderDashboard();
+
+    const card = await screen.findByTestId('fac-tasks-card');
+    expect(card).toHaveTextContent('Faculty Weekly Reflection');
+    expect(card).toHaveTextContent('Week of Sep 7 – Sep 13');
+    // Their own work comes before anything about the people they supervise.
+    expect(card.compareDocumentPosition(screen.getByTestId('fac-classroom-12')))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    fireEvent.click(screen.getByTestId('tasks-submit-reflection'));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/reflect?template=31&program=client-test'
+      + '&period_start=2026-09-07&period_end=2026-09-13',
+    );
+  });
+
+  it('omits the tasks section entirely when nothing is due', async () => {
+    mockApi({ tasks: [] });
+    renderDashboard();
+    await waitFor(() => screen.getByTestId('fac-classroom-12'));
+    expect(screen.queryByTestId('fac-tasks-card')).toBeNull();
   });
 
   it('offers a retry when the dashboard fails to load', async () => {

@@ -39,7 +39,9 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 import ObservationsInbox from './ObservationsInbox';
 import ObservationThread from './ObservationThread';
-import ObservationComposer from '../../components/observations/ObservationComposer';
+import ObservationComposer, {
+  dateOnlyToLocalDatetime,
+} from '../../components/observations/ObservationComposer';
 
 const INBOX = {
   count: 1,
@@ -465,5 +467,44 @@ describe('ObservationComposer', () => {
     await userEvent.click(screen.getByTestId('observation-composer-submit'));
     expect(screen.getByText('Please add at least one subject.')).toBeDefined();
     expect(postMock).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a field error the backend rejected, not a generic message', async () => {
+    postMock.mockRejectedValue({
+      response: { status: 400, data: { observed_at: 'Cannot be in the future.' } },
+    });
+    render(
+      <MemoryRouter>
+        <ObservationComposer
+          onClose={vi.fn()}
+          initialSubjects={[{ id: 3, full_name: 'Cam Per' }]}
+        />
+      </MemoryRouter>,
+    );
+    await waitFor(() => screen.getByText('Bob UH'));
+    await userEvent.type(screen.getByTestId('observation-composer-body'), 'Great swim');
+    await userEvent.click(screen.getByTestId('observation-composer-submit'));
+    await waitFor(() => {
+      expect(screen.getByText('Cannot be in the future.')).toBeDefined();
+    });
+  });
+});
+
+describe('dateOnlyToLocalDatetime', () => {
+  it('defaults a past day to midday', () => {
+    expect(dateOnlyToLocalDatetime('2020-05-23')).toBe('2020-05-23T12:00');
+  });
+
+  it('caps a day whose midday has not happened yet at the current time', () => {
+    vi.useFakeTimers();
+    try {
+      // 9:30am local on 2026-09-24 — midday is still ahead of us.
+      vi.setSystemTime(new Date(2026, 8, 24, 9, 30));
+      expect(dateOnlyToLocalDatetime('2026-09-24')).toBe('2026-09-24T09:30');
+      // A future day can never yield a future timestamp either.
+      expect(dateOnlyToLocalDatetime('2026-12-25')).toBe('2026-09-24T09:30');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

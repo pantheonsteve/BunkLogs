@@ -25,16 +25,34 @@ function defaultObservedAtLocal() {
   return d.toISOString().slice(0, 16);
 }
 
-/** Map a profile row date (YYYY-MM-DD) to a datetime-local default (midday). */
+/**
+ * Map a profile row date (YYYY-MM-DD) to a datetime-local default (midday),
+ * capped at the current time — the backend rejects a future observed_at, and
+ * midday is still ahead of us when composing about today before noon.
+ */
 export function dateOnlyToLocalDatetime(dateOnly) {
-  if (!dateOnly) return defaultObservedAtLocal();
+  const now = defaultObservedAtLocal();
+  if (!dateOnly) return now;
   const day = String(dateOnly).slice(0, 10);
-  return `${day}T12:00`;
+  const midday = `${day}T12:00`;
+  return midday > now ? now : midday;
 }
 
 function localDatetimeToIso(local) {
   if (!local) return null;
   return new Date(local).toISOString();
+}
+
+/** First readable message in a DRF error body, whichever field was rejected. */
+function errorMessage(data) {
+  if (!data) return null;
+  if (typeof data === 'string') return data;
+  if (data.detail) return String(data.detail);
+  for (const value of Object.values(data)) {
+    const first = Array.isArray(value) ? value[0] : value;
+    if (typeof first === 'string') return first;
+  }
+  return null;
 }
 
 export default function ObservationComposer({
@@ -161,11 +179,7 @@ export default function ObservationComposer({
         onClose?.();
         return;
       }
-      const detail = err.response?.data;
-      setError(
-        (detail && (detail.detail || detail.recipient_ids || detail.subject_ids))
-          || 'Failed to save observation.',
-      );
+      setError(errorMessage(err.response?.data) || 'Failed to save observation.');
     } finally {
       setSubmitting(false);
     }
