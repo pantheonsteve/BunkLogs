@@ -493,6 +493,7 @@ SPA_URL = FRONTEND_URL
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
 
 HEADLESS_ONLY = True
+HEADLESS_ADAPTER = "bunk_logs.users.headless.HeadlessAdapter"
 HEADLESS_FRONTEND_URLS = {
     "account_confirm_email": f"{FRONTEND_URL}/accounts/verify-email/{{key}}",
     "account_reset_password": f"{FRONTEND_URL}/accounts/password/reset",

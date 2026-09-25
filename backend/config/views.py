@@ -36,6 +36,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from bunk_logs.users.frontend_origins import attach_frontend_origin_cookie
+from bunk_logs.users.frontend_origins import origin_for_account_email
 from bunk_logs.users.frontend_origins import remember_frontend_origin
 from bunk_logs.users.frontend_origins import resolve_frontend_url
 from bunk_logs.users.frontend_origins import sign_frontend_origin
@@ -735,6 +736,5 @@ def password_reset_redirect(request, key):
     This handles the case where users click password reset links from emails
     and redirects them to the frontend with the reset key.
     """
-    # Use dynamic FRONTEND_URL instead of hardcoded localhost
-    frontend_url = f"{settings.FRONTEND_URL}/accounts/password/reset/key/{key}"
-    return HttpResponseRedirect(frontend_url)
+    origin = origin_for_account_email(request)
+    return HttpResponseRedirect(f"{origin}/accounts/password/reset/key/{key}")

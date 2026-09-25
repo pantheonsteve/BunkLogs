@@ -98,12 +98,7 @@ def is_allowed_frontend_origin(origin: str | None) -> bool:
         return parsed.scheme == "http" and parsed.port in _LOCAL_DEV_PORTS
 
     labels = host.split(".")
-    if (
-        parsed.scheme == "https"
-        and parsed.port is None
-        and len(labels) == 3
-        and labels[-2:] == ["bunklogs", "net"]
-    ):
+    if parsed.scheme == "https" and parsed.port is None and len(labels) == 3 and labels[-2:] == ["bunklogs", "net"]:
         return labels[0] not in _RESERVED_LABELS
     return False
 
@@ -113,6 +108,26 @@ def origin_from_referer(referer: str | None) -> str | None:
     if not parsed.scheme or not parsed.hostname:
         return None
     return normalize_origin(f"{parsed.scheme}://{parsed.netloc}")
+
+
+def origin_for_account_email(request=None) -> str:
+    """SPA origin for account emails (password reset, email confirmation).
+
+    Uses this request's Origin, then Referer. Skips the Google OAuth cookie
+    and session — those can belong to a different tenant than the form the
+    user just submitted. Unknown or reserved hosts fall back to FRONTEND_URL.
+    """
+    if request is None:
+        return default_frontend_origin()
+    meta = getattr(request, "META", None) or {}
+    candidates = (
+        normalize_origin(meta.get("HTTP_ORIGIN")),
+        origin_from_referer(meta.get("HTTP_REFERER")),
+    )
+    for origin in candidates:
+        if origin and is_allowed_frontend_origin(origin):
+            return origin
+    return default_frontend_origin()
 
 
 def resolve_frontend_url(request=None, candidate: str | None = None) -> str:
