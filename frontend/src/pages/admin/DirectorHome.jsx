@@ -246,6 +246,7 @@ function CoverageCard() {
                 </th>
                 {room.cells.map((cell) => {
                   const meta = coverageTone(cell);
+                  const faculty = cell.faculty;
                   return (
                     <td key={cell.session_date} className="py-2 px-2">
                       <button
@@ -261,6 +262,16 @@ function CoverageCard() {
                         {cell.unset > 0 && ` · ${cell.unset} unanswered`}
                         {cell.tentative > 0 && ` · ${cell.tentative} tentative`}
                       </button>
+                      {/* Faculty answer for the same Sunday but are counted
+                          apart: they staff the room, they don't fill it. */}
+                      {faculty?.roster_size > 0 && (
+                        <span
+                          className="block mt-1 text-[11px] text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                          data-testid={`dir-coverage-faculty-${room.id}-${cell.session_date}`}
+                        >
+                          {faculty.available}/{faculty.roster_size} faculty
+                        </span>
+                      )}
                     </td>
                   );
                 })}
@@ -539,9 +550,9 @@ function ThemesCard() {
   );
 }
 
-export default function DirectorHome() {
+export default function DirectorHome({ className = 'mt-10' }) {
   return (
-    <section aria-label="Religious school overview" className="mt-10" data-testid="director-home">
+    <section aria-label="Religious school overview" className={className} data-testid="director-home">
       <div className="flex items-center gap-3 mb-4">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">This week</h2>
         <span className="h-px flex-1 bg-gradient-to-r from-indigo-400 via-violet-300 to-transparent dark:from-indigo-500 dark:via-violet-700" />

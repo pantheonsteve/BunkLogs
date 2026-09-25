@@ -42,8 +42,14 @@ def build_matrix_rows(
     program: Program,
     memberships: list[Membership],
     session_dates: list[date],
+    *,
+    role: str = "madrich",
 ) -> list[dict]:
-    """One row per membership, ordered by grade then name (AC4.1/AC4.4 shape)."""
+    """One row per membership, ordered by grade then name (AC4.1/AC4.4 shape).
+
+    ``role`` is stamped on each row so callers can render faculty and
+    Madrichim as separate blocks; sorting stays within one call's rows.
+    """
     person_ids = [m.person_id for m in memberships if m.person_id]
     by_person: dict[int, dict[date, MadrichAvailability]] = {}
     if person_ids and session_dates:
@@ -69,6 +75,7 @@ def build_matrix_rows(
             "person_id": person.id if person else None,
             "display_name": _display_name(person) if person else "",
             "grade_level": m.grade_level,
+            "role": role,
             "cells": cells,
         })
     rows.sort(

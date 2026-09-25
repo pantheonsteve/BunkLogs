@@ -75,6 +75,15 @@ def admin_user(org, program):
 
 
 @pytest.fixture
+def faculty(org, program):
+    person = Person.all_objects.create(organization=org, first_name="Fran", last_name="Teacher")
+    Membership.all_objects.create(
+        program=program, person=person, role="faculty", is_active=True,
+    )
+    return person
+
+
+@pytest.fixture
 def madrichim(org, program):
     def _make(first, last, grade_level):
         person = Person.all_objects.create(organization=org, first_name=first, last_name=last)
@@ -118,6 +127,42 @@ class TestAdminMadrichAvailabilityMatrix:
         assert summary["available_counts"][session_dates[0].isoformat()] == 1
         assert summary["unset_counts"][session_dates[0].isoformat()] == 1
 
+    def test_faculty_rows_appear_first_and_stay_out_of_summary(
+        self, api, org, program, admin_user, madrichim, faculty, session_dates,
+    ):
+        """Faculty answer for themselves, but the summary is a staffing count
+        of the Madrichim only, so a faculty "available" must not inflate it.
+        """
+        api.force_authenticate(user=admin_user)
+        MadrichAvailability.all_objects.create(
+            organization=org, program=program, person=faculty,
+            session_date=session_dates[0], status="available",
+        )
+
+        with organization_context(org):
+            r = api.get("/api/v1/admin/madrich-availability/", **_hdr(org.slug))
+        assert r.status_code == 200
+        rows = r.json()["rows"]
+        assert [row["role"] for row in rows] == ["faculty", "madrich", "madrich", "madrich"]
+        assert rows[0]["display_name"] == "Fran Teacher"
+        assert rows[0]["cells"][0]["status"] == "available"
+        assert rows[0]["grade_level"] is None
+
+        summary = r.json()["summary"]
+        assert summary["available_counts"][session_dates[0].isoformat()] == 0
+        assert summary["unset_counts"][session_dates[0].isoformat()] == 3
+
+    def test_csv_export_includes_faculty_with_role_column(
+        self, api, org, program, admin_user, madrichim, faculty, session_dates,
+    ):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get("/api/v1/admin/madrich-availability/export.csv", **_hdr(org.slug))
+        assert r.status_code == 200
+        lines = r.content.decode().strip().splitlines()
+        assert len(lines) - 1 == (len(madrichim) + 1) * len(session_dates)
+        assert any(line.split(",")[3] == "faculty" for line in lines[1:])
+
     def test_admin_matrix_defaults_to_next_8_sessions(self, api, org, admin_user):
         api.force_authenticate(user=admin_user)
         with organization_context(org):
@@ -139,7 +184,9 @@ class TestAdminMadrichAvailabilityMatrix:
         assert r.status_code == 200
         assert r["Content-Type"] == "text/csv"
         lines = r.content.decode().strip().splitlines()
-        assert lines[0] == "session_date,first_name,last_name,grade_level,status,note,updated_at"
+        assert lines[0] == (
+            "session_date,first_name,last_name,role,grade_level,status,note,updated_at"
+        )
         # One row per (madrich, session) pair.
         assert len(lines) - 1 == len(madrichim) * len(session_dates)
 

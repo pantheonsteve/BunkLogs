@@ -1,9 +1,9 @@
 /**
- * Madrich availability calendar tests — Step 4_7.
+ * Availability calendar tests — Step 4_7.
  *
  * Covers rendering upcoming sessions, PUT-ing the correct body on a
- * status tap, and the disabled/explanation state once a session has
- * locked (MA6).
+ * status tap, the disabled/explanation state once a session has locked
+ * (MA6), and that `scope` picks the right role's endpoints.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -83,6 +83,25 @@ describe('AvailabilityCalendar', () => {
     expect(screen.getByTestId('availability-status-2026-09-20-available')).toBeDisabled();
     expect(screen.getByTestId('availability-status-2026-09-20-tentative')).toBeDisabled();
     expect(screen.getByTestId('availability-status-2026-09-20-unavailable')).toBeDisabled();
+  });
+
+  it('talks to the faculty endpoints when scoped to faculty', async () => {
+    getMock.mockResolvedValue({ data: samplePayload });
+    putMock.mockResolvedValue({ data: samplePayload.sessions[0] });
+    const user = userEvent.setup();
+    render(<MemoryRouter><AvailabilityCalendar scope="faculty" /></MemoryRouter>);
+    await waitFor(() => expect(getMock).toHaveBeenCalledWith(
+      '/api/v1/faculty/availability/',
+      expect.anything(),
+    ));
+
+    await user.click(screen.getByTestId('availability-status-2026-09-13-tentative'));
+
+    await waitFor(() => expect(putMock).toHaveBeenCalledWith(
+      '/api/v1/faculty/availability/2026-09-13/',
+      { status: 'tentative', note: '' },
+      expect.objectContaining({ headers: { 'X-Organization-Slug': 'tbe' } }),
+    ));
   });
 
   it('shows an empty state when there are no upcoming sessions', async () => {

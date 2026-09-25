@@ -169,7 +169,7 @@ class Command(BaseCommand):
         faculty_person = self._upsert_faculty(org, program)
 
         self._seed_sample_reflections(org, program, template, madrich_people)
-        self._seed_sample_availability(org, program, madrich_people)
+        self._seed_sample_availability(org, program, madrich_people, faculty_person)
 
         classroom = self._ensure_classroom(org, program, madrich_people, faculty_person)
         self._seed_classroom_challenges(org, program, classroom, madrich_people, faculty_person)
@@ -500,8 +500,13 @@ class Command(BaseCommand):
         org: Organization,
         program: Program,
         madrich_people: list[Person],
+        faculty_person: Person | None = None,
     ) -> None:
-        """AC5.4: sample rows for 3 of 5 dev madrichim so the admin matrix is testable."""
+        """AC5.4: sample rows for 3 of 5 dev madrichim so the admin matrix is testable.
+
+        The faculty member answers the first Sunday only, leaving the second
+        unset so the Director grid has a faculty gap to chase.
+        """
         session_dates = [
             date.fromisoformat(s) for s in (program.settings or {}).get("session_dates", [])
         ]
@@ -527,6 +532,17 @@ class Command(BaseCommand):
             f"{len(upcoming)} upcoming session date(s); "
             f"{len(madrich_people) - len(seeded_people)} left unset.",
         )
+
+        if faculty_person is not None:
+            MadrichAvailability.all_objects.update_or_create(
+                organization=org, program=program, person=faculty_person,
+                session_date=upcoming[0],
+                defaults={"status": MadrichAvailability.STATUS_AVAILABLE},
+            )
+            self.stdout.write(
+                f"  Seeded faculty availability for {upcoming[0].isoformat()}; "
+                f"{len(upcoming) - 1} upcoming session(s) left unset.",
+            )
 
     # ------------------------------------------------------- classroom (4_8)
 

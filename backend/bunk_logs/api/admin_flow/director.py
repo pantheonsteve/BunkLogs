@@ -255,12 +255,73 @@ class DirectorQueueView(APIView):
         return paginator.get_paginated_response(items)
 
 
+def _faculty_person_ids(program: Program) -> set[int]:
+    return set(
+        Membership.objects.filter(
+            program=program, role=FACULTY, is_active=True,
+        ).values_list("person_id", flat=True),
+    )
+
+
+def _classroom_people(
+    group_ids: list[int],
+    role_in_group: str,
+    *,
+    limit_to: set[int] | None = None,
+) -> dict[int, list[int]]:
+    """Person ids per classroom, optionally narrowed to a role's members."""
+    by_group: dict[int, list[int]] = {gid: [] for gid in group_ids}
+    rows = AssignmentGroupMembership.objects.filter(
+        group_id__in=group_ids, role_in_group=role_in_group, is_active=True,
+    ).values_list("group_id", "person_id")
+    for group_id, person_id in rows:
+        if person_id and (limit_to is None or person_id in limit_to):
+            by_group[group_id].append(person_id)
+    return by_group
+
+
+def _coverage_counts(
+    person_ids: list[int],
+    statuses: dict[tuple[int, str], str],
+    key: str,
+) -> dict[str, int]:
+    counts = {
+        MadrichAvailability.STATUS_AVAILABLE: 0,
+        MadrichAvailability.STATUS_TENTATIVE: 0,
+        MadrichAvailability.STATUS_UNAVAILABLE: 0,
+        "unset": 0,
+    }
+    for person_id in person_ids:
+        status_value = statuses.get((person_id, key))
+        counts[status_value if status_value in counts else "unset"] += 1
+    return counts
+
+
+def _coverage_cell(counts: dict[str, int], person_ids: list[int]) -> dict:
+    return {
+        "available": counts[MadrichAvailability.STATUS_AVAILABLE],
+        "tentative": counts[MadrichAvailability.STATUS_TENTATIVE],
+        "unavailable": counts[MadrichAvailability.STATUS_UNAVAILABLE],
+        "unset": counts["unset"],
+        "roster_size": len(person_ids),
+    }
+
+
+def _needs_chasing(counts: dict[str, int]) -> bool:
+    return counts["unset"] > 0 or counts[MadrichAvailability.STATUS_TENTATIVE] > 0
+
+
 class DirectorCoverageView(APIView):
     """Upcoming Sundays x classrooms, with per-cell status counts.
 
     A cell is flagged when anybody is unset or tentative -- those are the
     two states a Director can act on. There is no required-headcount
     target to compare against.
+
+    Faculty answer for their own Sundays too, but they are classroom
+    authors rather than subjects and are not interchangeable with the
+    Madrichim, so their counts ride along in a separate ``faculty`` block
+    instead of diluting the staffing headcount.
     """
 
     permission_classes = [IsAuthenticated]
@@ -285,14 +346,18 @@ class DirectorCoverageView(APIView):
                 ],
             })
 
-        roster = list(
-            AssignmentGroupMembership.objects.filter(
-                group_id__in=[g.id for g in groups],
-                role_in_group=SUBJECT,
-                is_active=True,
-            ).values_list("group_id", "person_id"),
+        group_ids = [g.id for g in groups]
+        people_by_group = _classroom_people(group_ids, SUBJECT)
+        faculty_by_group = _classroom_people(
+            group_ids, AUTHOR, limit_to=_faculty_person_ids(program),
         )
-        person_ids = {pid for _, pid in roster if pid}
+
+        person_ids = {
+            pid
+            for by_group in (people_by_group, faculty_by_group)
+            for ids in by_group.values()
+            for pid in ids
+        }
         statuses: dict[tuple[int, str], str] = {}
         if person_ids:
             for person_id, session_date, status_value in MadrichAvailability.objects.filter(
@@ -300,35 +365,21 @@ class DirectorCoverageView(APIView):
             ).values_list("person_id", "session_date", "status"):
                 statuses[(person_id, session_date.isoformat())] = status_value
 
-        people_by_group: dict[int, list[int]] = {g.id: [] for g in groups}
-        for group_id, person_id in roster:
-            if person_id:
-                people_by_group[group_id].append(person_id)
-
         classrooms = []
         for group in groups:
             members = people_by_group.get(group.id, [])
+            faculty = faculty_by_group.get(group.id, [])
             cells = []
             for session in sessions:
                 key = session.isoformat()
-                counts = {
-                    MadrichAvailability.STATUS_AVAILABLE: 0,
-                    MadrichAvailability.STATUS_TENTATIVE: 0,
-                    MadrichAvailability.STATUS_UNAVAILABLE: 0,
-                    "unset": 0,
-                }
-                for person_id in members:
-                    status_value = statuses.get((person_id, key))
-                    counts[status_value if status_value in counts else "unset"] += 1
+                counts = _coverage_counts(members, statuses, key)
+                faculty_counts = _coverage_counts(faculty, statuses, key)
                 cells.append({
                     "session_date": key,
-                    "available": counts[MadrichAvailability.STATUS_AVAILABLE],
-                    "tentative": counts[MadrichAvailability.STATUS_TENTATIVE],
-                    "unavailable": counts[MadrichAvailability.STATUS_UNAVAILABLE],
-                    "unset": counts["unset"],
-                    "roster_size": len(members),
-                    "flagged": counts["unset"] > 0
-                    or counts[MadrichAvailability.STATUS_TENTATIVE] > 0,
+                    **_coverage_cell(counts, members),
+                    "faculty": _coverage_cell(faculty_counts, faculty),
+                    "flagged": _needs_chasing(counts)
+                    or (bool(faculty) and _needs_chasing(faculty_counts)),
                 })
             classrooms.append({
                 "id": group.id,
@@ -375,14 +426,17 @@ class DirectorCoverageDetailView(APIView):
                 program=program, group_type=CLASSROOM, is_active=True,
             ).order_by("name"),
         )
-        roster = list(
-            AssignmentGroupMembership.objects.filter(
-                group_id__in=[g.id for g in groups],
-                role_in_group=SUBJECT,
-                is_active=True,
-            ).values_list("group_id", "person_id"),
+        group_ids = [g.id for g in groups]
+        people_by_group = _classroom_people(group_ids, SUBJECT)
+        faculty_by_group = _classroom_people(
+            group_ids, AUTHOR, limit_to=_faculty_person_ids(program),
         )
-        person_ids = {pid for _, pid in roster if pid}
+        person_ids = {
+            pid
+            for by_group in (people_by_group, faculty_by_group)
+            for ids in by_group.values()
+            for pid in ids
+        }
 
         people = {p.id: p for p in Person.objects.filter(id__in=person_ids)}
         memberships = {
@@ -398,11 +452,6 @@ class DirectorCoverageDetailView(APIView):
             ).values_list("person_id", "status", "note")
         }
 
-        people_by_group: dict[int, list[int]] = {g.id: [] for g in groups}
-        for group_id, person_id in roster:
-            if person_id:
-                people_by_group[group_id].append(person_id)
-
         totals = _empty_coverage_totals()
         classrooms = []
         for group in groups:
@@ -415,6 +464,7 @@ class DirectorCoverageDetailView(APIView):
                     "membership_id": membership.id if membership else None,
                     "display_name": display_name(people.get(person_id)),
                     "grade_level": membership.grade_level if membership else None,
+                    "role": MADRICH,
                     "status": status_value,
                     "note": note or "",
                 })
@@ -427,11 +477,29 @@ class DirectorCoverageDetailView(APIView):
                     e["display_name"].casefold(),
                 ),
             )
+            # Faculty follow the Madrichim they staff the room with, and stay
+            # out of ``roster_size`` and ``totals`` for the same reason they
+            # get their own counts in the grid. ``membership_id`` is null so
+            # the client doesn't link them to a Madrich member page.
+            faculty_entries = [
+                {
+                    "person_id": person_id,
+                    "membership_id": None,
+                    "display_name": display_name(people.get(person_id)),
+                    "grade_level": None,
+                    "role": FACULTY,
+                    "status": answers.get(person_id, (None, ""))[0],
+                    "note": answers.get(person_id, (None, ""))[1] or "",
+                }
+                for person_id in faculty_by_group.get(group.id, [])
+            ]
+            faculty_entries.sort(key=lambda e: e["display_name"].casefold())
+
             classrooms.append({
                 "id": group.id,
                 "name": group.name,
                 "roster_size": len(entries),
-                "people": entries,
+                "people": entries + faculty_entries,
             })
 
         return Response({

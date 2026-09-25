@@ -51,6 +51,7 @@ const dashboardPayload = {
 
 const facultySelfTask = {
   id: 'tpl-31-2026-09-07',
+  kind: 'reflection',
   template: { id: 31, name: 'Faculty Weekly Reflection' },
   assignment_group: null,
   subject_mode: 'self',
@@ -59,6 +60,25 @@ const facultySelfTask = {
   subjects: [],
   completion: { covered: 0, total: 1, my_count: 0 },
   self_status: { submitted: false, reflection_id: null, submitted_at: null },
+};
+
+const availabilityTask = {
+  id: 'availability',
+  kind: 'availability',
+  title: 'My Sunday availability',
+  program_slug: 'client-test',
+  completion: { covered: 0, total: 1, my_count: 0 },
+  availability: {
+    next_session_date: '2026-09-13',
+    next_session_label: 'Sun Sep 13',
+    next_session_status: null,
+    upcoming_unset_count: 2,
+    calendar_url: '/faculty/availability',
+    sessions: [
+      { session_date: '2026-09-13', label: 'Sun Sep 13', status: null },
+      { session_date: '2026-09-20', label: 'Sun Sep 20', status: 'available' },
+    ],
+  },
 };
 
 function renderDashboard() {
@@ -159,6 +179,45 @@ describe('FacultyDashboard', () => {
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-classroom-12'));
     expect(screen.queryByTestId('fac-tasks-card')).toBeNull();
+  });
+
+  it('asks for Sunday availability even when no reflection is due', async () => {
+    mockApi({ tasks: [availabilityTask] });
+    renderDashboard();
+
+    const card = await screen.findByTestId('fac-tasks-card');
+    expect(card).toHaveTextContent('My Sunday availability');
+    expect(screen.getByTestId('tasks-availability-subtitle')).toHaveTextContent(
+      'Next Sunday (Sep 13): Not set',
+    );
+    expect(card).toHaveTextContent('2 upcoming Sundays not marked yet.');
+    // Unanswered and "can't come" must never read the same.
+    expect(screen.getByTestId('tasks-availability-pill-2026-09-13')).toHaveTextContent('Not set');
+    expect(screen.getByTestId('tasks-availability-pill-2026-09-20')).toHaveTextContent('Available');
+    expect(screen.getByTestId('tasks-availability-cta')).toHaveAttribute(
+      'href', '/faculty/availability',
+    );
+  });
+
+  it('marks the availability task done once the next Sunday is answered', async () => {
+    mockApi({
+      tasks: [{
+        ...availabilityTask,
+        completion: { covered: 1, total: 1, my_count: 1 },
+        availability: {
+          ...availabilityTask.availability,
+          next_session_status: 'available',
+          upcoming_unset_count: 0,
+        },
+      }],
+    });
+    renderDashboard();
+
+    await screen.findByTestId('tasks-availability-card');
+    expect(screen.getByTestId('tasks-availability-subtitle')).toHaveTextContent(
+      'Next Sunday (Sep 13): Available',
+    );
+    expect(screen.getByTestId('fac-tasks-card')).not.toHaveTextContent('not marked yet');
   });
 
   it('offers a retry when the dashboard fails to load', async () => {

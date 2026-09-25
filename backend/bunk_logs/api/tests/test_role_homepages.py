@@ -763,6 +763,74 @@ class TestDirector:
         # Flagged on unset/tentative -- there is no required-headcount target.
         assert cell["flagged"] is True
 
+    def test_coverage_counts_classroom_faculty_separately_from_madrichim(
+        self, api, org, program, classroom, next_sunday,
+    ):
+        """Faculty staff the room but are not interchangeable with the teens,
+        so their answers ride in their own block and only share ``flagged``.
+        """
+        madrich, _ = _madrich(org, program, classroom, "Yes")
+        faculty, _ = _faculty(org, program, classroom)
+        MadrichAvailability.objects.create(
+            organization=org, program=program, person=madrich,
+            session_date=next_sunday,
+            status=MadrichAvailability.STATUS_AVAILABLE,
+        )
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        resp = _get(api, org, "/api/v1/admin/reflections/coverage/")
+        assert resp.status_code == 200, resp.content
+        cell = resp.json()["classrooms"][0]["cells"][0]
+        assert cell["available"] == 1
+        assert cell["roster_size"] == 1
+        assert cell["faculty"] == {
+            "available": 0, "tentative": 0, "unavailable": 0,
+            "unset": 1, "roster_size": 1,
+        }
+        # Every Madrich answered; the faculty member has not.
+        assert cell["flagged"] is True
+
+        MadrichAvailability.objects.create(
+            organization=org, program=program, person=faculty,
+            session_date=next_sunday,
+            status=MadrichAvailability.STATUS_AVAILABLE,
+        )
+        resp = _get(api, org, "/api/v1/admin/reflections/coverage/")
+        cell = resp.json()["classrooms"][0]["cells"][0]
+        assert cell["faculty"]["available"] == 1
+        assert cell["flagged"] is False
+
+    def test_coverage_detail_lists_faculty_after_the_madrichim(
+        self, api, org, program, classroom, next_sunday,
+    ):
+        _madrich(org, program, classroom, "Yes", grade=9)
+        faculty, _ = _faculty(org, program, classroom)
+        MadrichAvailability.objects.create(
+            organization=org, program=program, person=faculty,
+            session_date=next_sunday,
+            status=MadrichAvailability.STATUS_UNAVAILABLE,
+            note="At a conference",
+        )
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        resp = _get(
+            api, org, f"/api/v1/admin/reflections/coverage/{next_sunday.isoformat()}/",
+        )
+        assert resp.status_code == 200, resp.content
+        room = resp.json()["classrooms"][0]
+        assert [(p["display_name"], p["role"]) for p in room["people"]] == [
+            ("Yes Rich", "madrich"),
+            ("Fay Teacher", "faculty"),
+        ]
+        entry = room["people"][-1]
+        assert entry["status"] == "unavailable"
+        assert entry["note"] == "At a conference"
+        # Faculty stay out of the staffing headcount, and carry no Madrich
+        # member page to link to.
+        assert room["roster_size"] == 1
+        assert entry["membership_id"] is None
+        assert resp.json()["totals"]["roster_size"] == 1
+
     def test_coverage_detail_names_who_is_in_and_who_never_answered(
         self, api, org, program, classroom, next_sunday,
     ):

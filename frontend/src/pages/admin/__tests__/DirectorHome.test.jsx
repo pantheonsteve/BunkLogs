@@ -45,8 +45,16 @@ const coverage = {
     name: 'Tzedakah 101',
     roster_size: 4,
     cells: [
-      { session_date: '2026-09-27', available: 2, tentative: 1, unavailable: 0, unset: 1, roster_size: 4, flagged: true },
-      { session_date: '2026-10-04', available: 4, tentative: 0, unavailable: 0, unset: 0, roster_size: 4, flagged: false },
+      {
+        session_date: '2026-09-27',
+        available: 2, tentative: 1, unavailable: 0, unset: 1, roster_size: 4, flagged: true,
+        faculty: { available: 0, tentative: 0, unavailable: 0, unset: 1, roster_size: 1 },
+      },
+      {
+        session_date: '2026-10-04',
+        available: 4, tentative: 0, unavailable: 0, unset: 0, roster_size: 4, flagged: false,
+        faculty: { available: 1, tentative: 0, unavailable: 0, unset: 0, roster_size: 1 },
+      },
     ],
   }],
 };
@@ -59,10 +67,11 @@ const coverageDetail = {
     name: 'Tzedakah 101',
     roster_size: 4,
     people: [
-      { person_id: 1, membership_id: 3189, display_name: 'Ari Rich', grade_level: 9, status: 'available', note: '' },
-      { person_id: 2, membership_id: 3190, display_name: 'Bee Rich', grade_level: 10, status: 'available', note: '' },
-      { person_id: 3, membership_id: 3191, display_name: 'Cy Rich', grade_level: 11, status: 'tentative', note: 'Might have a game' },
-      { person_id: 4, membership_id: null, display_name: 'Dot Rich', grade_level: 12, status: null, note: '' },
+      { person_id: 1, membership_id: 3189, display_name: 'Ari Rich', grade_level: 9, role: 'madrich', status: 'available', note: '' },
+      { person_id: 2, membership_id: 3190, display_name: 'Bee Rich', grade_level: 10, role: 'madrich', status: 'available', note: '' },
+      { person_id: 3, membership_id: 3191, display_name: 'Cy Rich', grade_level: 11, role: 'madrich', status: 'tentative', note: 'Might have a game' },
+      { person_id: 4, membership_id: null, display_name: 'Dot Rich', grade_level: 12, role: 'madrich', status: null, note: '' },
+      { person_id: 9, membership_id: null, display_name: 'Rabbi Gold', grade_level: null, role: 'faculty', status: null, note: '' },
     ],
   }],
 };
@@ -161,6 +170,31 @@ describe('Director homepage inside AdminHome', () => {
     expect(screen.getByTestId('dir-coverage-12-2026-09-27')).toHaveTextContent('1 tentative');
     expect(screen.getByTestId('dir-coverage-12-2026-10-04')).toHaveTextContent('4/4');
     expect(screen.getByTestId('dir-coverage-12-2026-10-04')).not.toHaveTextContent('unanswered');
+  });
+
+  it('counts classroom faculty beside the Madrichim rather than inside them', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    // The Madrich headcount stays 2/4 -- the faculty line is its own signal.
+    expect(screen.getByTestId('dir-coverage-12-2026-09-27')).toHaveTextContent('2/4');
+    expect(screen.getByTestId('dir-coverage-faculty-12-2026-09-27')).toHaveTextContent(
+      '0/1 faculty',
+    );
+    expect(screen.getByTestId('dir-coverage-faculty-12-2026-10-04')).toHaveTextContent(
+      '1/1 faculty',
+    );
+  });
+
+  it('badges faculty in the drill-down and does not link them to a Madrich page', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    fireEvent.click(screen.getByTestId('dir-coverage-date-2026-09-27'));
+
+    await waitFor(() => screen.getByTestId('coverage-detail-summary'));
+    const unanswered = screen.getByTestId('coverage-detail-section-unset');
+    expect(unanswered).toHaveTextContent('Rabbi Gold');
+    expect(screen.getByTestId('coverage-detail-faculty-9')).toHaveTextContent('Faculty');
+    expect(screen.getByTestId('coverage-detail-person-9').querySelector('a')).toBeNull();
   });
 
   it('opens a Sunday to show who is in, who is tentative, and who never answered', async () => {

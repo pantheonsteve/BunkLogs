@@ -3,6 +3,7 @@ import { CheckCircle2, Circle, ClipboardList } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api';
 import HomeCard from '../../components/ui/HomeCard';
+import { statusLabel, statusMeta } from '../../utils/availabilityStatus';
 
 const CARD_BASE =
   'rounded-2xl border bg-white dark:bg-gray-900 shadow-sm overflow-hidden';
@@ -331,6 +332,94 @@ function GroupSection({ task, onNavigate }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section: availability (not a reflection — no template, no form)
+// ---------------------------------------------------------------------------
+
+function formatSunday(iso) {
+  if (!iso) return '';
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Sunday availability, answered on its own calendar rather than a reflection
+ * form. "Done" tracks the next session only, so the card reads as settled
+ * once the Sunday in front of you is answered; the pills say how far ahead
+ * the rest of the answers go. `unset` is never conflated with "can't come".
+ */
+function AvailabilitySection({ task }) {
+  const info = task.availability || {};
+  const done = task.completion.covered >= task.completion.total;
+  const unset = info.upcoming_unset_count ?? 0;
+
+  return (
+    <article
+      className={`${CARD_BASE} ${done ? CARD_DONE : CARD_PENDING}`}
+      aria-label={`${task.title} — ${done ? 'next Sunday answered' : 'next Sunday not answered'}`}
+      data-testid="tasks-availability-card"
+    >
+      <div
+        className={`h-1 ${done ? 'bg-emerald-500' : 'bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500'}`}
+        aria-hidden="true"
+      />
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base text-gray-900 dark:text-white">{task.title}</p>
+            <p
+              className="text-sm text-gray-600 dark:text-gray-300 mt-0.5"
+              data-testid="tasks-availability-subtitle"
+            >
+              {info.next_session_date
+                ? `Next Sunday (${formatSunday(info.next_session_date)}): ${statusLabel(info.next_session_status || 'unset')}`
+                : 'No upcoming Sundays scheduled yet.'}
+            </p>
+          </div>
+          <TaskStatusIcon done={done} />
+        </div>
+
+        {(info.sessions || []).length > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-2" data-testid="tasks-availability-strip">
+            {info.sessions.map((session) => {
+              const meta = statusMeta(session.status || 'unset');
+              return (
+                <li key={session.session_date}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${meta.pill}`}
+                    data-testid={`tasks-availability-pill-${session.session_date}`}
+                  >
+                    {session.label}
+                    <span className="opacity-70">· {meta.label}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {unset > 0 && (
+          <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
+            {`${unset} upcoming Sunday${unset === 1 ? '' : 's'} not marked yet.`}
+          </p>
+        )}
+
+        <div className="mt-4">
+          <Link
+            to={info.calendar_url || '/faculty/availability'}
+            data-testid="tasks-availability-cta"
+            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+          >
+            Update availability
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Summary bar
 // ---------------------------------------------------------------------------
 
@@ -546,6 +635,9 @@ export default function ReflectionTasksPanel({ variant = 'page', testId = 'tasks
   );
 
   function renderTask(task) {
+    if (task.kind === 'availability') {
+      return <AvailabilitySection key={task.id} task={task} />;
+    }
     if (task.subject_mode === 'self') {
       return <SelfSection key={task.id} task={task} onNavigate={handleSelfNavigate} />;
     }
@@ -563,7 +655,7 @@ export default function ReflectionTasksPanel({ variant = 'page', testId = 'tasks
     return (
       <HomeCard
         title="My tasks"
-        subtitle={periodLabel(tasks[0].period)}
+        subtitle={periodLabel(tasks.find((t) => t.period)?.period)}
         data-testid={testId}
       >
         <div

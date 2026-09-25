@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchDashboard, fetchTrends } from '../../api/madrich';
-import { fetchAvailability } from '../../api/madrichAvailability';
+import { fetchAvailability } from '../../api/availability';
 import { fetchClassrooms } from '../../api/madrichChallenges';
 import { useAuth } from '../../auth/AuthContext';
 import { useTerm } from '../../context/OrgBrandingContext';

@@ -38,6 +38,7 @@ from .dashboards import subject as subject_dashboard
 from .dashboards import template as template_dashboard
 from .dashboards import trends as trends_dashboard
 from .faculty import availability as faculty_availability
+from .faculty import availability_self as faculty_availability_self
 from .faculty import challenges as faculty_challenges
 from .faculty import dashboard as faculty_dashboard
 from .faculty import roster as faculty_roster
@@ -219,6 +220,18 @@ urlpatterns = [
         "faculty/classrooms/<int:group_id>/availability/",
         faculty_availability.FacultyClassroomAvailabilityView.as_view(),
         name="faculty-classroom-availability",
+    ),
+    # The faculty member's own Sunday commitments, same calendar the
+    # Madrichim get (the route above is their read-only classroom view).
+    path(
+        "faculty/availability/",
+        faculty_availability_self.FacultyAvailabilityListView.as_view(),
+        name="faculty-availability-list",
+    ),
+    path(
+        "faculty/availability/<str:session_date>/",
+        faculty_availability_self.FacultyAvailabilityDetailView.as_view(),
+        name="faculty-availability-detail",
     ),
     # ------------------------------------------------------------------
     # Entry threads and cohort feed — shared by all three TBE role

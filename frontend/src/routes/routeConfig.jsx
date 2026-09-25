@@ -85,7 +85,7 @@ const KitchenStaffHistory = lazy(() => import('../pages/kitchen-staff/History'))
 const MadrichDashboard = lazy(() => import('../pages/madrich/Dashboard'));
 const MadrichReflectionForm = lazy(() => import('../pages/madrich/ReflectionForm'));
 const MadrichHistory = lazy(() => import('../pages/madrich/History'));
-const MadrichAvailabilityCalendar = lazy(() => import('../pages/madrich/AvailabilityCalendar'));
+const AvailabilityCalendar = lazy(() => import('../pages/availability/AvailabilityCalendar'));
 const MadrichChallengeLog = lazy(() => import('../pages/madrich/ChallengeLog'));
 const MadrichChallengeForm = lazy(() => import('../pages/madrich/ChallengeForm'));
 const MadrichChallengeDetail = lazy(() => import('../pages/madrich/ChallengeDetail'));
@@ -213,7 +213,7 @@ export const routeConfig = [
       { path: '/madrich/history', element: <MadrichHistory /> },
       { path: '/madrich/reflection/new', element: <MadrichReflectionForm /> },
       { path: '/madrich/reflection/:reflectionId/edit', element: <MadrichReflectionForm /> },
-      { path: '/madrich/availability', element: <MadrichAvailabilityCalendar /> },
+      { path: '/madrich/availability', element: <AvailabilityCalendar scope="madrich" /> },
       { path: '/madrich/challenges', element: <MadrichChallengeLog /> },
       { path: '/madrich/challenges/new', element: <MadrichChallengeForm /> },
       { path: '/madrich/challenges/:challengeId', element: <MadrichChallengeDetail /> },
@@ -221,6 +221,7 @@ export const routeConfig = [
       { path: '/madrich/cohort', element: <MadrichCohortFeed /> },
       { path: '/madrich/threads/:threadId', element: <ThreadPage /> },
       { path: '/faculty', element: <FacultyDashboard /> },
+      { path: '/faculty/availability', element: <AvailabilityCalendar scope="faculty" /> },
       { path: '/faculty/challenges', element: <FacultyChallengeInbox /> },
       { path: '/faculty/challenges/:challengeId', element: <FacultyChallengeDetail /> },
       { path: '/faculty/queue', element: <FacultyQueue /> },

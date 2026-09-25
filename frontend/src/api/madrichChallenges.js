@@ -1,7 +1,7 @@
 /**
  * Madrich Classroom Challenge Log client — Step 4_8, MA7.
  *
- * Mirrors `madrichAvailability.js`'s header/pattern. Separate module
+ * Mirrors `availability.js`'s header/pattern. Separate module
  * from the reflection + availability clients since challenges are a
  * distinct operational channel (semi-anonymous to peers, faculty
  * follow-up), not a reflection.

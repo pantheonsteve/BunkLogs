@@ -1,10 +1,14 @@
-"""Org-admin Madrich staffing matrix — Step 4_7 AC4.
+"""Org-admin staffing matrix for Sunday availability — Step 4_7 AC4.
 
 Mirrors ``admin_flow/reflections.py``: gated on the standard ``admin_flow``
 org-admin Membership (no Supervision relationship exists over the
 ``madrich`` role, same reasoning as Step 4_4). Query params ``program``
 (slug), ``from``/``to`` (ISO dates) select the session window; default is
 the active religious-school program's next 8 sessions.
+
+Rows cover faculty and Madrichim, tagged by ``role``. The summary counts
+stay Madrichim-only: it answers "is this Sunday staffed?", and faculty are
+not interchangeable with the teens they supervise.
 """
 
 from __future__ import annotations
@@ -36,6 +40,10 @@ from .common import viewer_or_403
 if TYPE_CHECKING:
     from datetime import date
 
+MADRICH = "madrich"
+FACULTY = "faculty"
+ROLES = (FACULTY, MADRICH)
+
 
 def _resolve_program(ctx, program_slug: str | None) -> Program | None:
     if program_slug:
@@ -51,12 +59,24 @@ def _resolve_program(ctx, program_slug: str | None) -> Program | None:
     )
 
 
-def _madrich_memberships(program: Program):
+def _memberships(program: Program, role: str):
     return (
-        Membership.objects.filter(program=program, role="madrich", is_active=True)
+        Membership.objects.filter(program=program, role=role, is_active=True)
         .select_related("person")
         .order_by("person__last_name", "person__first_name")
     )
+
+
+def _matrix_rows(program: Program, session_dates: list[date]) -> list[dict]:
+    """Faculty block first, then Madrichim -- fewer faculty, and they staff the room."""
+    rows: list[dict] = []
+    for role in ROLES:
+        rows.extend(
+            build_matrix_rows(
+                program, list(_memberships(program, role)), session_dates, role=role,
+            ),
+        )
+    return rows
 
 
 def _parse_date_param(raw: str | None, *, label: str) -> date | None:
@@ -92,17 +112,17 @@ class AdminMadrichAvailabilityView(APIView):
                 "summary": {"available_counts": {}, "unset_counts": {}},
             })
 
-        memberships = list(_madrich_memberships(program))
         session_dates = resolve_session_window(
             program, from_date=from_date, to_date=to_date, today=ctx.today,
         )
-        rows = build_matrix_rows(program, memberships, session_dates)
+        rows = _matrix_rows(program, session_dates)
+        madrich_rows = [r for r in rows if r["role"] == MADRICH]
 
         return Response({
             "program": _program_payload(program),
             "sessions": [d.isoformat() for d in session_dates],
             "rows": rows,
-            "summary": summarize_counts(rows, session_dates),
+            "summary": summarize_counts(madrich_rows, session_dates),
         })
 
 
@@ -117,10 +137,12 @@ class AdminMadrichAvailabilityExportView(APIView):
         from_date = _parse_date_param(request.query_params.get("from"), label="from")
         to_date = _parse_date_param(request.query_params.get("to"), label="to")
 
-        memberships: list[Membership] = []
+        memberships: list[tuple[str, Membership]] = []
         session_dates: list[date] = []
         if program is not None:
-            memberships = list(_madrich_memberships(program))
+            memberships = [
+                (role, m) for role in ROLES for m in _memberships(program, role)
+            ]
             session_dates = resolve_session_window(
                 program, from_date=from_date, to_date=to_date, today=ctx.today,
             )
@@ -139,19 +161,22 @@ class AdminMadrichAvailabilityExportView(APIView):
         filename_bit = program.slug if program else "no-program"
         return _csv_response(
             rows,
-            header=["session_date", "first_name", "last_name", "grade_level", "status", "note", "updated_at"],
+            header=[
+                "session_date", "first_name", "last_name", "role",
+                "grade_level", "status", "note", "updated_at",
+            ],
             filename=f"madrich-availability-{filename_bit}.csv",
         )
 
 
 def _export_rows(
     program: Program | None,
-    memberships: list[Membership],
+    memberships: list[tuple[str, Membership]],
     session_dates: list[date],
 ) -> list[list[Any]]:
     if program is None or not memberships or not session_dates:
         return []
-    person_ids = [m.person_id for m in memberships if m.person_id]
+    person_ids = [m.person_id for _, m in memberships if m.person_id]
     lookup: dict[tuple[int, date], MadrichAvailability] = {}
     if person_ids:
         qs = MadrichAvailability.objects.filter(
@@ -161,7 +186,7 @@ def _export_rows(
             lookup[(row.person_id, row.session_date)] = row
 
     out: list[list[Any]] = []
-    for m in memberships:
+    for role, m in memberships:
         person = m.person
         for d in session_dates:
             row = lookup.get((m.person_id, d))
@@ -169,6 +194,7 @@ def _export_rows(
                 d.isoformat(),
                 person.first_name if person else "",
                 person.last_name if person else "",
+                role,
                 m.grade_level if m.grade_level is not None else "",
                 row.status if row else "",
                 row.note if row else "",
