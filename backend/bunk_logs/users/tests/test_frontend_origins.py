@@ -3,13 +3,17 @@
 from unittest.mock import MagicMock
 
 import pytest
+from allauth.core.context import request_context
 from django.test import RequestFactory
 from django.test import override_settings
 
 from bunk_logs.users.frontend_origins import is_allowed_frontend_origin
+from bunk_logs.users.frontend_origins import origin_for_account_email
 from bunk_logs.users.frontend_origins import resolve_frontend_url
 from bunk_logs.users.frontend_origins import sign_frontend_origin
 from bunk_logs.users.frontend_origins import unsign_frontend_origin
+from bunk_logs.users.headless import HeadlessAdapter
+from config.views import password_reset_redirect
 
 
 @pytest.mark.parametrize(
@@ -90,12 +94,73 @@ def test_resolve_prefers_explicit_candidate():
     request.META = {}
     request.session = {}
     request.COOKIES = {}
-    assert (
-        resolve_frontend_url(request, candidate="https://tbe.bunklogs.net")
-        == "https://tbe.bunklogs.net"
-    )
+    assert resolve_frontend_url(request, candidate="https://tbe.bunklogs.net") == "https://tbe.bunklogs.net"
 
 
 @override_settings(FRONTEND_URL="https://clc.bunklogs.net")
 def test_resolve_accepts_tenant_slug_candidate():
     assert resolve_frontend_url(None, candidate="tbe") == "https://tbe.bunklogs.net"
+
+
+@override_settings(FRONTEND_URL="https://clc.bunklogs.net")
+def test_account_email_origin_uses_request_origin_not_oauth_cookie():
+    rf = RequestFactory()
+    request = rf.post(
+        "/_allauth/browser/v1/auth/password/reset",
+        HTTP_ORIGIN="https://tbe.bunklogs.net",
+    )
+    request.COOKIES = {"oauth_frontend_origin": "https://clc.bunklogs.net"}
+    assert origin_for_account_email(request) == "https://tbe.bunklogs.net"
+
+
+@override_settings(FRONTEND_URL="https://clc.bunklogs.net")
+def test_account_email_origin_rejects_reserved_host():
+    rf = RequestFactory()
+    request = rf.post(
+        "/_allauth/browser/v1/auth/password/reset",
+        HTTP_ORIGIN="https://admin.bunklogs.net",
+        HTTP_REFERER="https://evil.example.com/reset-password",
+    )
+    assert origin_for_account_email(request) == "https://clc.bunklogs.net"
+
+
+@override_settings(FRONTEND_URL="https://clc.bunklogs.net")
+def test_account_email_origin_uses_referer_when_origin_missing():
+    rf = RequestFactory()
+    request = rf.post(
+        "/_allauth/browser/v1/auth/password/reset",
+        HTTP_REFERER="https://tbe.bunklogs.net/reset-password",
+    )
+    assert origin_for_account_email(request) == "https://tbe.bunklogs.net"
+
+
+@override_settings(
+    FRONTEND_URL="https://clc.bunklogs.net",
+    HEADLESS_FRONTEND_URLS={
+        "account_reset_password_from_key": ("https://clc.bunklogs.net/accounts/password/reset/key/{key}"),
+    },
+)
+def test_headless_reset_url_uses_requesting_tenant():
+    rf = RequestFactory()
+    request = rf.post(
+        "/_allauth/browser/v1/auth/password/reset",
+        HTTP_ORIGIN="https://tbe.bunklogs.net",
+    )
+    with request_context(request):
+        url = HeadlessAdapter().get_frontend_url(
+            "account_reset_password_from_key",
+            key="reset-key",
+        )
+    assert url == "https://tbe.bunklogs.net/accounts/password/reset/key/reset-key"
+
+
+@override_settings(FRONTEND_URL="https://clc.bunklogs.net")
+def test_password_reset_redirect_follows_request_origin():
+    rf = RequestFactory()
+    request = rf.get(
+        "/accounts/password/reset/key/reset-key",
+        HTTP_ORIGIN="https://tbe.bunklogs.net",
+    )
+    response = password_reset_redirect(request, "reset-key")
+    assert response.status_code == 302
+    assert response["Location"] == ("https://tbe.bunklogs.net/accounts/password/reset/key/reset-key")

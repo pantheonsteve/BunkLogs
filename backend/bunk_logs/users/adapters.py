@@ -8,6 +8,7 @@ from django.conf import settings
 from django.http import HttpRequest
 from django.http import HttpResponseRedirect
 
+from bunk_logs.users.frontend_origins import origin_for_account_email
 from bunk_logs.users.frontend_origins import resolve_frontend_url
 
 if typing.TYPE_CHECKING:
@@ -15,25 +16,27 @@ if typing.TYPE_CHECKING:
 
     from bunk_logs.users.models import User
 
+
 class AccountAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request: HttpRequest) -> bool:
         return getattr(settings, "ACCOUNT_ALLOW_REGISTRATION", True)
 
     def get_email_confirmation_url(self, request, emailconfirmation):
-        """Constructs the email confirmation (activation) url."""
-        # Use dynamic FRONTEND_URL from settings
-        return f"{settings.FRONTEND_URL}/verify-email/{emailconfirmation.key}"
+        """Email confirmation link on the SPA host that requested it."""
+        origin = origin_for_account_email(request)
+        return f"{origin}/verify-email/{emailconfirmation.key}"
 
     def get_password_reset_url(self, request, passwordreset):
-        """Constructs the password reset url."""
-        # Use dynamic FRONTEND_URL from settings
-        return f"{settings.FRONTEND_URL}/accounts/password/reset/key/{passwordreset.key}"
+        """Password reset link on the SPA host that requested it."""
+        origin = origin_for_account_email(request)
+        return f"{origin}/accounts/password/reset/key/{passwordreset.key}"
 
     def get_login_redirect_url(self, request):
         """
         Override to redirect to frontend after login
         """
         return settings.LOGIN_REDIRECT_URL
+
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def is_open_for_signup(self, request: HttpRequest, sociallogin: SocialLogin) -> bool:
@@ -105,6 +108,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         # Generate JWT tokens for headless mode
         from rest_framework_simplejwt.tokens import RefreshToken
+
         refresh = RefreshToken.for_user(user)
 
         # Store tokens in session for callback handling

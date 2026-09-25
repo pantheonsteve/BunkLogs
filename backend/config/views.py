@@ -36,6 +36,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from bunk_logs.users.frontend_origins import attach_frontend_origin_cookie
+from bunk_logs.users.frontend_origins import origin_for_account_email
 from bunk_logs.users.frontend_origins import remember_frontend_origin
 from bunk_logs.users.frontend_origins import resolve_frontend_url
 from bunk_logs.users.frontend_origins import sign_frontend_origin
@@ -144,14 +145,16 @@ def get_csrf_token(request):
 @require_GET
 def get_auth_status(request):
     if request.user.is_authenticated:
-        return JsonResponse({
-            "isAuthenticated": True,
-            "user": {
-                "id": request.user.id,
-                "email": request.user.email,
-                "name": request.user.get_full_name(),
-            },
-        })
+        return JsonResponse(
+            {
+                "isAuthenticated": True,
+                "user": {
+                    "id": request.user.id,
+                    "email": request.user.email,
+                    "name": request.user.get_full_name(),
+                },
+            }
+        )
     return JsonResponse({"isAuthenticated": False})
 
 
@@ -165,10 +168,12 @@ def logout_view(request):
 @permission_classes([IsAuthenticated])
 def token_refresh(request):
     refresh = RefreshToken.for_user(request.user)
-    return Response({
-        "refresh": str(refresh),
-        "access": str(refresh.access_token),
-    })
+    return Response(
+        {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        }
+    )
 
 
 @api_view(["POST"])
@@ -178,6 +183,7 @@ def token_authenticate(request):
     # This endpoint would be used to exchange JWT for session authentication
     # Useful when transitioning from token to session auth
     return Response({"message": "Authentication successful"})
+
 
 @extend_schema(
     summary="Google OAuth Login",
@@ -199,6 +205,7 @@ class GoogleLoginView(APIView):
     """
     View for initiating Google OAuth login
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -232,17 +239,25 @@ class GoogleLoginView(APIView):
             # Store the state in the session for later verification
             request.session["socialaccount_state"] = state
 
-            return Response({
-                "authorization_url": auth_url,
-            })
+            return Response(
+                {
+                    "authorization_url": auth_url,
+                }
+            )
 
         except Exception as e:
             import traceback
+
             error_traceback = traceback.format_exc()
-            return Response({
-                "error": str(e),
-                "detail": error_traceback if settings.DEBUG else None,
-            }, status=500)
+            return Response(
+                {
+                    "error": str(e),
+                    "detail": error_traceback if settings.DEBUG else None,
+                },
+                status=500,
+            )
+
+
 @extend_schema(
     summary="Google OAuth Callback",
     description="Handle callback from Google OAuth",
@@ -270,6 +285,7 @@ class GoogleCallbackView(APIView):
     Handles the callback from Google OAuth
     This would be used with the redirect flow (not popup)
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -306,7 +322,7 @@ class GoogleCallbackView(APIView):
 
             # Get user info
             userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
-            headers = {"Authorization": f'Bearer {token["access_token"]}'}
+            headers = {"Authorization": f"Bearer {token['access_token']}"}
             userinfo_response = requests.get(userinfo_url, headers=headers)
             userinfo = userinfo_response.json()
             login_data.update(userinfo)
@@ -371,7 +387,7 @@ def validate_google_token(request):
     This is used with the GoogleLogin component from @react-oauth/google
     """
 
-     # Print request information for debugging
+    # Print request information for debugging
 
     credential = request.data.get("credential")
 
@@ -444,20 +460,23 @@ def validate_google_token(request):
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "name": user.get_full_name(),
-            },
-            "tokens": {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-        })
+        return Response(
+            {
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "name": user.get_full_name(),
+                },
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+            }
+        )
 
     except Exception as e:
         return Response({"error": str(e)}, status=400)
+
 
 @extend_schema(
     summary="Google Login (OAuth Flow)",
@@ -491,6 +510,7 @@ def google_login(request):
         return response
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+
 
 @extend_schema(
     summary="Google OAuth Callback Handler",
@@ -553,7 +573,7 @@ def google_callback(request):
 
         # Get user info from Google
         userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
-        headers = {"Authorization": f'Bearer {token_data["access_token"]}'}
+        headers = {"Authorization": f"Bearer {token_data['access_token']}"}
         userinfo = requests.get(userinfo_url, headers=headers).json()
 
         # Get or create user
@@ -590,13 +610,11 @@ def google_callback(request):
         refresh_token = str(refresh)
 
         frontend_url = _oauth_frontend_url(request)
-        redirect_url = (
-            f"{frontend_url}/auth/callback#access_token={access_token}"
-            f"&refresh_token={refresh_token}"
-        )
+        redirect_url = f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}"
         return HttpResponseRedirect(redirect_url)
     except Exception:
         import traceback
+
         traceback.print_exc()
 
         frontend_url = _oauth_frontend_url(request)
@@ -666,22 +684,27 @@ def google_login_callback(request):
         token_data = response.json()
 
         if "error" in token_data:
-            return Response({
-                "error": token_data.get("error"),
-                "error_description": token_data.get("error_description"),
-            }, status=400)
+            return Response(
+                {
+                    "error": token_data.get("error"),
+                    "error_description": token_data.get("error_description"),
+                },
+                status=400,
+            )
 
         # Verify token and get user info
         adapter = GoogleOAuth2Adapter(request)
-        login_data = adapter.parse_token({
-            "access_token": token_data["access_token"],
-            "id_token": token_data.get("id_token"),
-            "expires_in": token_data.get("expires_in"),
-        })
+        login_data = adapter.parse_token(
+            {
+                "access_token": token_data["access_token"],
+                "id_token": token_data.get("id_token"),
+                "expires_in": token_data.get("expires_in"),
+            }
+        )
 
         # Get user info
         userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
-        headers = {"Authorization": f'Bearer {token_data["access_token"]}'}
+        headers = {"Authorization": f"Bearer {token_data['access_token']}"}
         userinfo_response = requests.get(userinfo_url, headers=headers)
         userinfo = userinfo_response.json()
         login_data.update(userinfo)
@@ -696,23 +719,26 @@ def google_login_callback(request):
             user = social_login.account.user
             refresh = RefreshToken.for_user(user)
 
-            return Response({
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "name": user.get_full_name(),
-                },
-                "tokens": {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                },
-            })
+            return Response(
+                {
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "name": user.get_full_name(),
+                    },
+                    "tokens": {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token),
+                    },
+                }
+            )
         return Response({"error": "Login failed"}, status=400)
 
     except SocialApp.DoesNotExist:
         return Response({"error": "Google authentication is not configured"}, status=500)
     except Exception as e:
         return Response({"error": str(e)}, status=400)
+
 
 @extend_schema(
     summary="Password Reset Redirect",
@@ -735,6 +761,5 @@ def password_reset_redirect(request, key):
     This handles the case where users click password reset links from emails
     and redirects them to the frontend with the reset key.
     """
-    # Use dynamic FRONTEND_URL instead of hardcoded localhost
-    frontend_url = f"{settings.FRONTEND_URL}/accounts/password/reset/key/{key}"
-    return HttpResponseRedirect(frontend_url)
+    origin = origin_for_account_email(request)
+    return HttpResponseRedirect(f"{origin}/accounts/password/reset/key/{key}")
