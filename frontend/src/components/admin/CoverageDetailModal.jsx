@@ -4,6 +4,8 @@
  * The Director coverage grid only carries counts, so this answers the question
  * those counts raise: who is in, who is out, and who never answered. Opened
  * from a date header (whole program) or a single cell (one classroom).
+ * Classroom faculty appear alongside their Madrichim, badged, since chasing
+ * an unanswered teacher is the same job as chasing an unanswered teen.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -41,6 +43,14 @@ function PersonRow({ person, showClassroom }) {
       <span className="font-medium text-gray-900 dark:text-white">
         {person.display_name || 'Unnamed'}
       </span>
+      {person.role === 'faculty' && (
+        <span
+          className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300"
+          data-testid={`coverage-detail-faculty-${person.person_id}`}
+        >
+          Faculty
+        </span>
+      )}
       {meta && <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{meta}</span>}
       {person.note && (
         <span className="block text-xs text-gray-600 dark:text-gray-300 mt-0.5">{person.note}</span>
@@ -96,7 +106,12 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
     (room.people || []).map((person) => ({ ...person, classroom_name: room.name }))
   ));
   const byStatus = (status) => people.filter((p) => (p.status || 'unset') === status);
-  const availableCount = byStatus('available').length;
+  // The headline count is about staffing the room, so it counts Madrichim;
+  // faculty get their own tally rather than padding it.
+  const isFaculty = (p) => p.role === 'faculty';
+  const madrichim = people.filter((p) => !isFaculty(p));
+  const faculty = people.filter(isFaculty);
+  const availableIn = (rows) => rows.filter((p) => p.status === 'available').length;
 
   return (
     <div
@@ -115,7 +130,8 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
             </h2>
             {payload && (
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5" data-testid="coverage-detail-summary">
-                {availableCount} of {people.length} available
+                {availableIn(madrichim)} of {madrichim.length} available
+                {faculty.length > 0 && ` · ${availableIn(faculty)} of ${faculty.length} faculty`}
                 {scoped.length === 1 ? ` · ${scoped[0].name}` : ''}
               </p>
             )}
@@ -137,7 +153,7 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
 
           {payload && people.length === 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="coverage-detail-empty">
-              No Madrichim are rostered for this Sunday.
+              Nobody is rostered for this Sunday.
             </p>
           )}
 

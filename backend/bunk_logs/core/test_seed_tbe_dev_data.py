@@ -142,8 +142,12 @@ def test_creates_program_admin_madrichim_and_assignment():
     assert Reflection.all_objects.filter(program=program).count() == 3
 
 
-def test_seeds_sample_availability_for_3_of_5_madrichim():
-    """Step 4_7 AC5.4: sample availability rows across the rolling session_dates."""
+def test_seeds_sample_availability_for_3_of_5_madrichim_and_the_faculty():
+    """Step 4_7 AC5.4: sample availability rows across the rolling session_dates.
+
+    The faculty row matters because the Director grid counts faculty apart
+    from the Madrichim, so an empty faculty block would go untested locally.
+    """
     _run_setup_tbe()
     call_command("seed_tbe_dev_data", stdout=StringIO())
 
@@ -155,7 +159,13 @@ def test_seeds_sample_availability_for_3_of_5_madrichim():
         row.person_id
         for row in MadrichAvailability.all_objects.filter(program=program)
     }
-    assert len(people_with_availability) == 3
+    roles = set(
+        Membership.all_objects.filter(
+            program=program, person_id__in=people_with_availability,
+        ).values_list("role", flat=True),
+    )
+    assert roles == {"madrich", "faculty"}
+    assert len(people_with_availability) == 4
 
 
 def test_seeds_a_second_concurrent_template_for_the_story_63_dashboard():

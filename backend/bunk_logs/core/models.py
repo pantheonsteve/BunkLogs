@@ -3193,7 +3193,10 @@ class ReflectionAttentionMarker(models.Model):
 
 
 class MadrichAvailability(models.Model):
-    """A Madrich's Sunday-session staffing commitment (Step 4_7, TBE Tier 1).
+    """A Sunday-session staffing commitment (Step 4_7, TBE Tier 1).
+
+    Named for its first author role; faculty answer for themselves against
+    these same rows, so ``person`` may hold either role's Membership.
 
     Operational scheduling signal for Directors -- deliberately separate from
     ``Reflection`` (Story 62 c3: no day-off toggle on reflections). One row

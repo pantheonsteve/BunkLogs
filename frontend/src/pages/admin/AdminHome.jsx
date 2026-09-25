@@ -238,6 +238,38 @@ export default function AdminHome() {
     .filter((r) => r.role !== 'camper')
     .reduce((sum, r) => sum + (r.count || 0), 0);
   const behindCount = logs?.behind?.length ?? 0;
+  // At a religious school the director's week is the reason they opened the
+  // page; setup is a once-a-term chore, so it moves under the fold.
+  const setupLast = surfaces.gradeReflections;
+
+  const setupCard = (
+    <Card data-testid="admin-home-setup">
+      <CardHeader
+        title={`${shortLabel || term('program', { capitalize: true })} setup`}
+        subtitle={`${stepsDone} of ${setupSteps.length} steps complete`}
+        action={(
+          <Link
+            to="/admin/setup"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          >
+            Continue setup →
+          </Link>
+        )}
+      >
+        <ProgressBar
+          value={stepsDone}
+          total={setupSteps.length}
+          className="mt-2"
+          data-testid="setup-progress"
+        />
+      </CardHeader>
+      <CardBody className="divide-y divide-gray-100 dark:divide-gray-800 py-1">
+        {setupSteps.map((step) => (
+          <AttentionRow key={step.testId} {...step} />
+        ))}
+      </CardBody>
+    </Card>
+  );
 
   return (
     <main
@@ -254,6 +286,17 @@ export default function AdminHome() {
         </p>
       </header>
 
+      {/* Outside the loading gate: these cards fetch on their own and should
+          not wait on the dashboard request. */}
+      {setupLast && (
+        <section className="mb-8">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+            Reflections
+          </h2>
+          <DirectorHome className="" />
+        </section>
+      )}
+
       {error && (
         <div className="mb-4">
           <ErrorPanel>{error}</ErrorPanel>
@@ -265,32 +308,7 @@ export default function AdminHome() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2 space-y-5">
-            <Card data-testid="admin-home-setup">
-              <CardHeader
-                title={`${shortLabel || term('program', { capitalize: true })} setup`}
-                subtitle={`${stepsDone} of ${setupSteps.length} steps complete`}
-                action={(
-                  <Link
-                    to="/admin/setup"
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                  >
-                    Continue setup →
-                  </Link>
-                )}
-              >
-                <ProgressBar
-                  value={stepsDone}
-                  total={setupSteps.length}
-                  className="mt-2"
-                  data-testid="setup-progress"
-                />
-              </CardHeader>
-              <CardBody className="divide-y divide-gray-100 dark:divide-gray-800 py-1">
-                {setupSteps.map((step) => (
-                  <AttentionRow key={step.testId} {...step} />
-                ))}
-              </CardBody>
-            </Card>
+            {!setupLast && setupCard}
 
             <Card data-testid="admin-home-logs">
               <CardHeader
@@ -445,12 +463,12 @@ export default function AdminHome() {
         </div>
       )}
 
-      {surfaces.gradeReflections && (
+      {setupLast && !loading && (
         <section className="mt-8">
           <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
-            Reflections
+            Setup
           </h2>
-          <DirectorHome />
+          {setupCard}
         </section>
       )}
     </main>

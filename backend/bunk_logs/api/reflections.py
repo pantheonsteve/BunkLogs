@@ -4,6 +4,7 @@ import calendar
 import hashlib
 from datetime import date
 from datetime import timedelta
+from types import SimpleNamespace
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Case
@@ -19,6 +20,8 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from bunk_logs.api.availability_self import availability_sessions_payload
+from bunk_logs.api.faculty.availability_self import CALENDAR_URL as FACULTY_CALENDAR_URL
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.assignment_resolution import assignment_cadence
 from bunk_logs.core.assignment_resolution import list_required_assignments_for
@@ -42,6 +45,11 @@ from bunk_logs.core.reflection_threads import materialize_threads_and_shares
 from bunk_logs.core.theme_tagging import enqueue_theme_tagging_for_reflection
 from bunk_logs.core.time_utils import get_today
 from bunk_logs.core.translation import enqueue_translation_for_reflection
+
+# Only faculty self-report availability through my-tasks; Madrichim get the
+# same calendar from a card on their own dashboard instead.
+AVAILABILITY_ROLE = "faculty"
+AVAILABILITY_PREVIEW_SESSIONS = 4
 
 
 def _person_for_request(request):
@@ -465,6 +473,7 @@ def _tasks_from_required_assignments(
 
                 tasks.append({
                     "id": _task_id(tpl.id, group_id, period_start),
+                    "kind": "reflection",
                     "template": ReflectionTemplateSummarySerializer(tpl).data,
                     "assignment_group": assignment_group_payload,
                     "subject_mode": "self",
@@ -510,6 +519,7 @@ def _tasks_from_required_assignments(
                     my_count = sum(1 for s in subjects_data if s["covered_by_me"])
                     tasks.append({
                         "id": _task_id(tpl.id, group.id, period_start),
+                        "kind": "reflection",
                         "template": ReflectionTemplateSummarySerializer(tpl).data,
                         "assignment_group": {
                             "id": group.id,
@@ -550,6 +560,7 @@ def _tasks_from_required_assignments(
                     )
                     tasks.append({
                         "id": _task_id(tpl.id, group.id, period_start),
+                        "kind": "reflection",
                         "template": ReflectionTemplateSummarySerializer(tpl).data,
                         "assignment_group": {
                             "id": group.id,
@@ -569,6 +580,76 @@ def _tasks_from_required_assignments(
                     })
 
     return tasks
+
+
+def _availability_task(
+    *,
+    viewer: Person,
+    organization,
+    viewer_memberships: list[Membership],
+    today: date,
+) -> dict | None:
+    """Sunday availability as a task row for the roles that self-report it.
+
+    Availability is not a Reflection, so this row carries no template and is
+    told apart by ``kind``. "Done" means the *next* session is answered:
+    demanding all 16 upcoming Sundays would leave the task permanently
+    outstanding. Returns ``None`` when the program has no configured
+    ``session_dates``, which is what keeps non-TBE programs out.
+    """
+    membership = next(
+        (
+            m for m in viewer_memberships
+            if m.role == AVAILABILITY_ROLE
+            and m.program.organization_id == organization.id
+        ),
+        None,
+    )
+    if membership is None:
+        return None
+
+    ctx = SimpleNamespace(
+        person=viewer,
+        organization=organization,
+        program=membership.program,
+        today=today,
+    )
+    sessions = availability_sessions_payload(ctx)
+    if not sessions:
+        return None
+
+    next_session = sessions[0]
+    next_commitment = next_session["commitment"]
+    answered = next_commitment is not None
+
+    return {
+        "id": "availability",
+        "kind": "availability",
+        "title": "My Sunday availability",
+        "program_slug": membership.program.slug,
+        "completion": {
+            "covered": 1 if answered else 0,
+            "total": 1,
+            "my_count": 1 if answered else 0,
+        },
+        "availability": {
+            "next_session_date": next_session["session_date"],
+            "next_session_label": next_session["label"],
+            "next_session_status": next_commitment["status"] if answered else None,
+            "upcoming_unset_count": sum(
+                1 for s in sessions if s["commitment"] is None
+            ),
+            "calendar_url": FACULTY_CALENDAR_URL,
+            "sessions": [
+                {
+                    "session_date": s["session_date"],
+                    "label": s["label"],
+                    "status": s["commitment"]["status"] if s["commitment"] else None,
+                }
+                for s in sessions[:AVAILABILITY_PREVIEW_SESSIONS]
+            ],
+        },
+    }
 
 
 def _build_periods(today: date, cadence: str) -> list[tuple[date, date]]:
@@ -1236,14 +1317,25 @@ class ReflectionViewSet(viewsets.ModelViewSet):
             author_agms=author_agms,
             today=today,
         )
+        availability = _availability_task(
+            viewer=viewer,
+            organization=org,
+            viewer_memberships=viewer_memberships,
+            today=today,
+        )
+        if availability is not None:
+            tasks.append(availability)
 
         cadence_order = {"daily": 0, "weekly": 1, "biweekly": 2, "monthly": 3, "on_demand": 4}
 
         def _sort_key(t: dict) -> tuple:
             comp = t["completion"]
             incomplete = 0 if comp["covered"] < comp["total"] else 1
-            cadence = cadence_order.get(t["template"]["cadence"], 5)
-            return (incomplete, cadence, t["template"]["name"])
+            # Non-reflection rows (availability) have no template, so they
+            # fall to the end of their completion bucket.
+            template = t.get("template") or {}
+            cadence = cadence_order.get(template.get("cadence"), 5)
+            return (incomplete, cadence, template.get("name") or t.get("title") or "")
 
         tasks.sort(key=_sort_key)
         return Response({"tasks": tasks})

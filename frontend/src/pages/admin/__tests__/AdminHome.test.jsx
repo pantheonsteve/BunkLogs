@@ -205,9 +205,13 @@ describe('AdminHome dashboard', () => {
     expect(screen.queryByTestId('admin-home-links')).not.toBeInTheDocument();
   });
 
-  it('still appends the reflections section at a religious school', async () => {
+  it('leads with this week and drops setup to the bottom at a religious school', async () => {
     renderHome(adminIn(['religious_school']));
-    expect(await screen.findByTestId('director-home')).toBeInTheDocument();
+
+    const director = await screen.findByTestId('director-home');
+    const setup = await screen.findByTestId('admin-home-setup');
+    expect(director.compareDocumentPosition(setup))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('surfaces a load failure instead of rendering an empty dashboard', async () => {

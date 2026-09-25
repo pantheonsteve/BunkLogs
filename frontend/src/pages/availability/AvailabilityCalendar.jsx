@@ -1,17 +1,19 @@
 /**
- * Madrich Sunday availability calendar — Step 4_7.
+ * Sunday availability calendar — Step 4_7.
  *
  * Month-grouped list of upcoming program sessions (mobile-first; no
- * calendar-widget dependency). Each card lets the Madrich mark
+ * calendar-widget dependency). Each card lets the viewer mark
  * Available / Tentative / Unavailable with an optional short note.
  * Operational scheduling signal only -- separate from the reflection
  * flow (Story 62 c3: no day-off toggle on reflections).
  *
- * Per Story 61: no other Madrichim's availability is shown here.
+ * `scope` picks which role's endpoints to talk to; Madrichim and faculty
+ * answer the same question, so they share the page. Either way this shows
+ * only the viewer's own answers (Story 61).
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchAvailability, upsertAvailability } from '../../api/madrichAvailability';
+import { fetchAvailability, upsertAvailability } from '../../api/availability';
 import { useAuth } from '../../auth/AuthContext';
 import { useTerm } from '../../context/OrgBrandingContext';
 
@@ -40,7 +42,7 @@ function groupByMonth(sessions) {
   return groups;
 }
 
-function SessionCard({ session, orgSlug, onSaved }) {
+function SessionCard({ session, orgSlug, scope, onSaved }) {
   const term = useTerm();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -62,7 +64,7 @@ function SessionCard({ session, orgSlug, onSaved }) {
       await upsertAvailability(orgSlug, session.session_date, {
         status: nextStatus,
         note: nextNote,
-      });
+      }, scope);
       await onSaved();
     } catch {
       setError('Could not save. Try again.');
@@ -169,7 +171,7 @@ function SessionCard({ session, orgSlug, onSaved }) {
   );
 }
 
-export default function AvailabilityCalendar() {
+export default function AvailabilityCalendar({ scope = 'madrich' }) {
   const { orgSlug } = useAuth();
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -178,7 +180,7 @@ export default function AvailabilityCalendar() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAvailability(orgSlug);
+      const data = await fetchAvailability(orgSlug, scope);
       setPayload(data);
       setError(null);
     } catch {
@@ -186,7 +188,7 @@ export default function AvailabilityCalendar() {
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, scope]);
 
   useEffect(() => {
     load();
@@ -240,6 +242,7 @@ export default function AvailabilityCalendar() {
                   key={session.session_date}
                   session={session}
                   orgSlug={orgSlug}
+                  scope={scope}
                   onSaved={load}
                 />
               ))}

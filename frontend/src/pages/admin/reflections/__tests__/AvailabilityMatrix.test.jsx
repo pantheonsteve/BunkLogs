@@ -1,8 +1,9 @@
 /**
  * Admin availability matrix tests — Step 4_7 AC4.
  *
- * Renders the staffing grid (rows = Madrichim, columns = sessions) with
- * status labels against a mocked API, and covers the empty/error states.
+ * Renders the staffing grid (rows = faculty then Madrichim, columns =
+ * sessions) with status labels against a mocked API, and covers the
+ * empty/error states.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -21,14 +22,21 @@ const samplePayload = {
   sessions: ['2026-09-13', '2026-09-20'],
   rows: [
     {
-      person_id: 21, display_name: 'Maya Alpha', grade_level: 8,
+      person_id: 9, display_name: 'Fran Teacher', grade_level: null, role: 'faculty',
+      cells: [
+        { session_date: '2026-09-13', status: 'available', note: '' },
+        { session_date: '2026-09-20', status: 'available', note: '' },
+      ],
+    },
+    {
+      person_id: 21, display_name: 'Maya Alpha', grade_level: 8, role: 'madrich',
       cells: [
         { session_date: '2026-09-13', status: 'available', note: '' },
         { session_date: '2026-09-20', status: null, note: '' },
       ],
     },
     {
-      person_id: 22, display_name: 'Ben Beta', grade_level: 10,
+      person_id: 22, display_name: 'Ben Beta', grade_level: 10, role: 'madrich',
       cells: [
         { session_date: '2026-09-13', status: 'unavailable', note: 'Family event' },
         { session_date: '2026-09-20', status: 'tentative', note: '' },
@@ -61,6 +69,36 @@ describe('AvailabilityMatrix', () => {
 
     const summary = screen.getByTestId('availability-matrix-summary');
     expect(summary).toHaveTextContent('1');
+  });
+
+  it('splits faculty and Madrichim into their own blocks, faculty first', async () => {
+    fetchMock.mockResolvedValue(samplePayload);
+    render(<MemoryRouter><AvailabilityMatrix /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('availability-matrix-block-faculty'));
+
+    const facultyBlock = screen.getByTestId('availability-matrix-block-faculty');
+    expect(facultyBlock).toHaveTextContent('Faculty');
+    expect(facultyBlock).toHaveTextContent('Fran Teacher');
+    expect(facultyBlock).not.toHaveTextContent('Maya Alpha');
+
+    const madrichBlock = screen.getByTestId('availability-matrix-block-madrich');
+    expect(madrichBlock).toHaveTextContent('Maya Alpha');
+    expect(madrichBlock).toHaveTextContent('Ben Beta');
+
+    // Faculty availability must not read as extra staffing headcount.
+    expect(screen.getByTestId('availability-matrix-summary')).toHaveTextContent(
+      'Madrichim available',
+    );
+  });
+
+  it('treats a row with no role as a Madrich so an older payload still renders', async () => {
+    fetchMock.mockResolvedValue({
+      ...samplePayload,
+      rows: [{ ...samplePayload.rows[1], role: undefined }],
+    });
+    render(<MemoryRouter><AvailabilityMatrix /></MemoryRouter>);
+    await waitFor(() => screen.getByTestId('availability-matrix-block-madrich'));
+    expect(screen.getByText('Maya Alpha')).toBeInTheDocument();
   });
 
   it('links the Export CSV button to the export URL', async () => {

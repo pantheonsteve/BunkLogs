@@ -1,10 +1,12 @@
 /**
  * TBE Director/Admin staffing matrix — Step 4_7 AC4.
  *
- * Madrichim x upcoming Sundays grid for staffing decisions, exportable to
- * CSV. Lives alongside the reflections completion dashboard (Step 4_4)
- * rather than as a standalone route, since both are org-admin TBE tools.
- * Cell status is shown with an icon + text label, never color alone (a11y).
+ * Faculty and Madrichim x upcoming Sundays grid for staffing decisions,
+ * exportable to CSV. Lives alongside the reflections completion dashboard
+ * (Step 4_4) rather than as a standalone route, since both are org-admin
+ * TBE tools. Cell status is shown with an icon + text label, never color
+ * alone (a11y). The two roles are separate blocks because the summary
+ * headcount at the bottom counts Madrichim only.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -54,6 +56,33 @@ function sessionLabel(sessionDate) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+const ROLE_BLOCKS = [
+  { role: 'faculty', heading: 'Faculty' },
+  { role: 'madrich', heading: 'Madrichim' },
+];
+
+// Madrichim were the only role before faculty answered for themselves, so a
+// row with no role is one of theirs rather than one to drop on the floor.
+const roleOf = (row) => row.role || 'madrich';
+
+function PersonRows({ rows }) {
+  return rows.map((row) => (
+    <tr key={row.person_id} data-testid={`availability-matrix-row-${row.person_id}`}>
+      <td className="px-3 py-2 whitespace-nowrap">
+        <span className="font-medium text-gray-900 dark:text-white">{row.display_name}</span>
+        {row.grade_level != null && (
+          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">Grade {row.grade_level}</span>
+        )}
+      </td>
+      {row.cells.map((cell) => (
+        <td key={cell.session_date} className="px-3 py-2" title={cell.note || undefined}>
+          <StatusCell status={cell.status} />
+        </td>
+      ))}
+    </tr>
+  ));
+}
+
 export default function AvailabilityMatrix() {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +125,7 @@ export default function AvailabilityMatrix() {
 
   const { program, sessions, rows, summary } = payload;
   const exportUrl = exportAdminMadrichAvailabilityUrl();
+  const madrichCount = rows.filter((row) => roleOf(row) === 'madrich').length;
 
   if (!program || sessions.length === 0) {
     return (
@@ -114,7 +144,7 @@ export default function AvailabilityMatrix() {
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Availability</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {program.name} · {rows.length} Madrichim
+            {program.name} · {madrichCount} Madrichim · {rows.length - madrichCount} faculty
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -139,7 +169,7 @@ export default function AvailabilityMatrix() {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Madrich</th>
+              <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Person</th>
               {sessions.map((s) => (
                 <th key={s} className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">
                   {sessionLabel(s)}
@@ -147,34 +177,44 @@ export default function AvailabilityMatrix() {
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {rows.length === 0 ? (
+          {rows.length === 0 ? (
+            <tbody className="bg-white dark:bg-gray-900">
               <tr>
                 <td colSpan={sessions.length + 1} className="px-3 py-4 text-gray-500 dark:text-gray-400">
-                  No Madrichim found for this program.
+                  Nobody is enrolled on this program yet.
                 </td>
               </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.person_id} data-testid={`availability-matrix-row-${row.person_id}`}>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <span className="font-medium text-gray-900 dark:text-white">{row.display_name}</span>
-                    {row.grade_level != null && (
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">Grade {row.grade_level}</span>
-                    )}
-                  </td>
-                  {row.cells.map((cell) => (
-                    <td key={cell.session_date} className="px-3 py-2" title={cell.note || undefined}>
-                      <StatusCell status={cell.status} />
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
+            </tbody>
+          ) : (
+            ROLE_BLOCKS.map(({ role, heading }) => {
+              const roleRows = rows.filter((row) => roleOf(row) === role);
+              if (roleRows.length === 0) return null;
+              return (
+                <tbody
+                  key={role}
+                  className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700"
+                  data-testid={`availability-matrix-block-${role}`}
+                >
+                  <tr className="bg-gray-50 dark:bg-gray-800/60">
+                    <th
+                      colSpan={sessions.length + 1}
+                      scope="colgroup"
+                      className="px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                    >
+                      {heading}
+                      <span className="ml-2 font-normal normal-case tracking-normal">{roleRows.length}</span>
+                    </th>
+                  </tr>
+                  <PersonRows rows={roleRows} />
+                </tbody>
+              );
+            })
+          )}
           <tfoot className="bg-gray-50 dark:bg-gray-800">
             <tr data-testid="availability-matrix-summary">
-              <td className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Available</td>
+              <td className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">
+                Madrichim available
+              </td>
               {sessions.map((s) => (
                 <td key={s} className="px-3 py-2 text-gray-700 dark:text-gray-300">
                   {summary?.available_counts?.[s] ?? 0}
