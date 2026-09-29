@@ -23,7 +23,6 @@ from rest_framework.test import APIClient
 
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.context import organization_context
-from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
 from bunk_logs.core.models import MaintenanceTicket
@@ -34,6 +33,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.state_machine import OrderStateMachine
+from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.testing import SEASON_END
 from bunk_logs.testing import SEASON_START
 

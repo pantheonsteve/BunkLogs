@@ -61,8 +61,6 @@ from .common import viewer_or_403
 if TYPE_CHECKING:
     from datetime import date
 
-    from bunk_logs.core.models import Program
-
 MADRICH = "madrich"
 FACULTY = "faculty"
 WEEKLY = "weekly"
