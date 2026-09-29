@@ -605,9 +605,14 @@ class TestCohortFeed:
         api.force_authenticate(user=feed["peer"])
         assert _get(api, org, "/api/v1/cohort/feed/").json()["results"] == []
 
-        # The author still sees their own post, so it doesn't vanish silently.
+        # A hidden post is gone for the author too. Only a director can
+        # still see it, so they can put it back.
         api.force_authenticate(user=feed["author"])
-        assert len(_get(api, org, "/api/v1/cohort/feed/").json()["results"]) == 1
+        assert _get(api, org, "/api/v1/cohort/feed/").json()["results"] == []
+        api.force_authenticate(user=feed["admin"])
+        hidden = _get(api, org, "/api/v1/cohort/feed/").json()["results"]
+        assert [row["id"] for row in hidden] == [feed["share"].id]
+        assert hidden[0]["is_hidden"] is True
 
     def test_peer_cannot_hide_a_post(self, api, org, feed):
         api.force_authenticate(user=feed["peer"])
@@ -625,6 +630,19 @@ class TestCohortFeed:
         assert set(rows) == {feed["author_person"].id, feed["peer_person"].id}
         assert rows[feed["peer_person"].id]["is_me"] is True
         assert rows[feed["author_person"].id]["grade_level"] == 10
+
+    def test_cohort_members_excludes_students(self, api, org, program, classroom, feed):
+        student, _user = _person(org, "Stu", "Dent", email="stu-feed@hp.test")
+        Membership.all_objects.create(
+            program=program, person=student, role="student", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=classroom, person=student, role_in_group="subject", is_active=True,
+        )
+        api.force_authenticate(user=feed["peer"])
+        ids = {row["id"] for row in _get(api, org, "/api/v1/cohort/members/").json()["results"]}
+        assert student.id not in ids
+        assert ids == {feed["author_person"].id, feed["peer_person"].id}
 
 
 # ---------------------------------------------------------------------------
@@ -800,6 +818,29 @@ class TestDirector:
         assert cell["faculty"]["available"] == 1
         assert cell["flagged"] is False
 
+    def test_coverage_ignores_students_and_campers_who_never_answer(
+        self, api, org, program, classroom, next_sunday,
+    ):
+        _madrich(org, program, classroom, "Yes")
+        for role, first in (("student", "Stu"), ("camper", "Cam")):
+            person, _user = _person(org, first, "Dent", email=f"{role}@hp.test")
+            Membership.all_objects.create(
+                program=program, person=person, role=role, is_active=True,
+            )
+            AssignmentGroupMembership.all_objects.create(
+                group=classroom, person=person, role_in_group="subject", is_active=True,
+            )
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        cell = _get(api, org, "/api/v1/admin/reflections/coverage/").json()["classrooms"][0]["cells"][0]
+        assert cell["roster_size"] == 1
+        assert cell["unset"] == 1
+        detail = _get(
+            api, org, f"/api/v1/admin/reflections/coverage/{next_sunday.isoformat()}/",
+        ).json()["classrooms"][0]
+        assert [p["display_name"] for p in detail["people"]] == ["Yes Rich"]
+        assert detail["roster_size"] == 1
+
     def test_coverage_detail_lists_faculty_after_the_madrichim(
         self, api, org, program, classroom, next_sunday,
     ):
@@ -912,6 +953,54 @@ class TestDirector:
             if r["person_id"] == faculty.id
         )
         assert row["median_response_hours"] is not None
+
+    def test_faculty_activity_counts_madrichim_not_students(
+        self, api, org, program, classroom,
+    ):
+        _madrich(org, program, classroom, "Ari")
+        student, _ = _person(org, "Sam", "Student", email="sam-student@hp.test")
+        Membership.all_objects.create(
+            program=program, person=student, role="student", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=classroom, person=student, role_in_group="subject", is_active=True,
+        )
+        faculty, _ = _faculty(org, program, classroom)
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        row = next(
+            r for r in _get(api, org, "/api/v1/admin/reflections/faculty-activity/").json()["results"]
+            if r["person_id"] == faculty.id
+        )
+        assert row["assigned_madrich_count"] == 1
+
+    def test_pulse_drops_weeks_before_the_program_starts(
+        self, api, org, program, classroom, template,
+    ):
+        program.start_date = get_today(org) - timedelta(days=3)
+        program.save(update_fields=["start_date"])
+        _madrich(org, program, classroom, "Ari")
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        periods = _get(api, org, "/api/v1/admin/reflections/pulse/").json()["periods"]
+        assert periods
+        assert len(periods) < 8
+        assert periods[0]["period_end"] >= program.start_date.isoformat()
+
+    def test_roster_flags_madrichim_with_no_classroom(
+        self, api, org, program, classroom,
+    ):
+        _madrich(org, program, classroom, "Grouped")
+        loose, _ = _person(org, "Loose", "Rich", email="loose@hp.test")
+        Membership.all_objects.create(
+            program=program, person=loose, role="madrich", is_active=True,
+        )
+        _, admin_user = _admin(org, program)
+        api.force_authenticate(user=admin_user)
+        body = _get(api, org, "/api/v1/admin/reflections/madrichim/").json()
+        assert body["count"] == 2
+        assert body["ungrouped_madrichim"]["count"] == 1
+        assert body["ungrouped_madrichim"]["people"][0]["display_name"] == "Loose Rich"
 
     def test_themes_suppress_groups_under_the_contributor_threshold(
         self, api, org, program, classroom, template,

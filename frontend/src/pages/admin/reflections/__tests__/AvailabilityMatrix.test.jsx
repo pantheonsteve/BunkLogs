@@ -1,12 +1,11 @@
 /**
  * Admin availability matrix tests — Step 4_7 AC4.
  *
- * Renders the staffing grid (rows = faculty then Madrichim, columns =
- * sessions) with status labels against a mocked API, and covers the
- * empty/error states.
+ * Renders the staffing grid (one role tab at a time, columns = sessions)
+ * with status labels against a mocked API, and covers the empty/error states.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AvailabilityMatrix from '../AvailabilityMatrix';
 
@@ -71,24 +70,25 @@ describe('AvailabilityMatrix', () => {
     expect(summary).toHaveTextContent('1');
   });
 
-  it('splits faculty and Madrichim into their own blocks, faculty first', async () => {
+  it('shows one role at a time, with a summary for that role', async () => {
     fetchMock.mockResolvedValue(samplePayload);
     render(<MemoryRouter><AvailabilityMatrix /></MemoryRouter>);
-    await waitFor(() => screen.getByTestId('availability-matrix-block-faculty'));
-
-    const facultyBlock = screen.getByTestId('availability-matrix-block-faculty');
-    expect(facultyBlock).toHaveTextContent('Faculty');
-    expect(facultyBlock).toHaveTextContent('Fran Teacher');
-    expect(facultyBlock).not.toHaveTextContent('Maya Alpha');
+    await waitFor(() => screen.getByTestId('availability-matrix-block-madrich'));
 
     const madrichBlock = screen.getByTestId('availability-matrix-block-madrich');
     expect(madrichBlock).toHaveTextContent('Maya Alpha');
     expect(madrichBlock).toHaveTextContent('Ben Beta');
+    expect(madrichBlock).not.toHaveTextContent('Fran Teacher');
+    expect(screen.getByTestId('availability-matrix-tab-madrich')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('availability-matrix-summary')).toHaveTextContent('Madrichim available');
 
-    // Faculty availability must not read as extra staffing headcount.
-    expect(screen.getByTestId('availability-matrix-summary')).toHaveTextContent(
-      'Madrichim available',
-    );
+    fireEvent.click(screen.getByTestId('availability-matrix-tab-faculty'));
+    const facultyBlock = screen.getByTestId('availability-matrix-block-faculty');
+    expect(facultyBlock).toHaveTextContent('Fran Teacher');
+    expect(facultyBlock).not.toHaveTextContent('Maya Alpha');
+    const facultySummary = screen.getByTestId('availability-matrix-summary');
+    expect(facultySummary).toHaveTextContent('Faculty available');
+    expect(facultySummary).toHaveTextContent('1');
   });
 
   it('treats a row with no role as a Madrich so an older payload still renders', async () => {

@@ -1,9 +1,9 @@
 /**
  * Director homepage cards — Step 4_9 §6.
  *
- * Rendered inside AdminHome for religious-school orgs only. "Director" is not
- * a role: it is the admin capability in a school org, and the same AdminHome
- * serves camp admins, so every card here sits behind
+ * Rendered inside AdminHome's section tabs for religious-school orgs only.
+ * "Director" is not a role: it is the admin capability in a school org, and
+ * the same AdminHome serves camp admins, so every card here sits behind
  * `orgSurfaces(user).gradeReflections`.
  *
  * Each card fetches independently. One slow or empty endpoint should degrade
@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ProgressBar from '../../components/ui/ProgressBar';
 import {
   CalendarDays,
   ChevronRight,
@@ -30,23 +31,30 @@ import {
   fetchDirectorQueue,
   fetchDirectorThemes,
 } from '../../api/director';
-import CoverageDetailModal from '../../components/admin/CoverageDetailModal';
+import CoverageDetailModal, { formatSunday } from '../../components/admin/CoverageDetailModal';
 import CardSkeleton from '../../components/ui/CardSkeleton';
 import HomeCard from '../../components/ui/HomeCard';
 import UnreadDot from '../../components/ui/UnreadDot';
+import { useAdminProgram } from '../../context/AdminProgramContext';
 import { statusMeta } from '../../utils/availabilityStatus';
 
 /** Fetch-once-on-mount helper. `null` means still loading, `false` means failed. */
-function useCardData(fetcher) {
+function useCardData(fetcher, ready = true) {
   const [data, setData] = useState(null);
   useEffect(() => {
+    if (!ready) return undefined;
     let active = true;
     fetcher()
       .then((result) => { if (active) setData(result); })
       .catch(() => { if (active) setData(false); });
     return () => { active = false; };
-  }, [fetcher]);
+  }, [fetcher, ready]);
   return data;
+}
+
+function useDirectorProgram() {
+  const { programId, program, ready } = useAdminProgram();
+  return { program: programId || undefined, programRecord: program, ready };
 }
 
 function formatDate(iso) {
@@ -62,18 +70,31 @@ function percent(rate) {
 }
 
 /**
- * Coverage cells are coloured by what the Director can act on, not by a
- * headcount target (none is configured). An unanswered Sunday is the most
- * actionable state, so it reads red even though nobody has said "no".
+ * Color one roster on its own. Red is a real gap: everyone answered and
+ * nobody is available. Tentative is yellow. Gray is "someone has not
+ * answered". A full set of available answers is green.
  */
-function coverageTone(cell) {
-  if (cell.unset > 0) return statusMeta('unavailable');
-  if (cell.tentative > 0) return statusMeta('tentative');
+function coverageTone(counts) {
+  const gap = counts.roster_size > 0
+    && counts.available === 0
+    && counts.unset === 0
+    && counts.unavailable > 0;
+  if (gap) return statusMeta('unavailable');
+  if (counts.tentative > 0) return statusMeta('tentative');
+  if (counts.unset > 0) return statusMeta('unset');
   return statusMeta('available');
 }
 
-function PulseCard() {
-  const pulse = useCardData(useCallback(fetchDirectorPulse, []));
+function isMadrichimGroup(name) {
+  return (name || '').toLowerCase().includes('madrich');
+}
+
+export function PulseCard() {
+  const { program, ready } = useDirectorProgram();
+  const pulse = useCardData(
+    useCallback(() => fetchDirectorPulse({ program }), [program]),
+    ready,
+  );
   if (pulse === null) return <CardSkeleton rows={3} data-testid="dir-pulse-loading" />;
   if (pulse === false) return null;
 
@@ -105,11 +126,33 @@ function PulseCard() {
       data-testid="dir-pulse-card"
     >
       <p className="text-3xl font-bold text-indigo-700 dark:text-indigo-300" data-testid="dir-pulse-rate">
-        {percent(current.rate)}
+        {current.submitted ?? 0} of {current.expected ?? 0}
         <span className="ml-2 text-sm font-normal text-gray-700 dark:text-gray-300">
-          this week ({current.submitted} of {current.expected})
+          reflected this week
         </span>
       </p>
+      {(current.expected || 0) > 0 && (
+        <ProgressBar
+          value={current.submitted ?? 0}
+          total={current.expected}
+          className="mt-3"
+          data-testid="dir-pulse-progress"
+        />
+      )}
+      {(current.expected || 0) > 0 && (current.submitted || 0) === 0 && (
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300" data-testid="dir-pulse-empty">
+          Reflections open Sunday.
+          {' '}
+          <Link to="/admin/reflections" className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline">
+            Remind Madrichim
+          </Link>
+        </p>
+      )}
+      {(current.submitted || 0) > 0 && (current.submitted || 0) < (current.expected || 0) && (
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          {current.expected - current.submitted} Madrichim haven&apos;t reflected
+        </p>
+      )}
       <ul className="mt-3 flex items-end gap-1" data-testid="dir-pulse-sparkline">
         {periods.map((p) => (
           <li
@@ -132,21 +175,32 @@ function PulseCard() {
   );
 }
 
-function QuestionQueueCard() {
-  const queue = useCardData(useCallback(() => fetchDirectorQueue({ pageSize: 5 }), []));
+export function QuestionQueueCard({ onCount }) {
+  const { program, ready } = useDirectorProgram();
+  const queue = useCardData(
+    useCallback(() => fetchDirectorQueue({ pageSize: 5, program }), [program]),
+    ready,
+  );
+  useEffect(() => {
+    if (queue && onCount) onCount(queue.count ?? (queue.results || []).length);
+  }, [queue, onCount]);
   if (queue === null) return <CardSkeleton rows={3} data-testid="dir-queue-loading" />;
   if (queue === false) return null;
 
   const items = queue.results || [];
 
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="dir-queue-card">
+        No questions waiting.
+      </p>
+    );
+  }
+
   return (
     <HomeCard
       title="Questions for you"
-      subtitle={
-        items.length === 0
-          ? 'Nothing routed to you is waiting.'
-          : `${queue.count} routed to the Director, oldest first`
-      }
+      subtitle={`${queue.count} routed to the Director, oldest first`}
       icon={MessageCircleQuestion}
       data-testid="dir-queue-card"
     >
@@ -179,112 +233,57 @@ function QuestionQueueCard() {
   );
 }
 
-function CoverageCard() {
-  const coverage = useCardData(useCallback(fetchDirectorCoverage, []));
-  // `{ sessionDate, classroomId }` for the open drill-down, or null.
+const PILL_CLASS = 'inline-flex items-center justify-center whitespace-nowrap min-w-[9.5rem] text-xs font-semibold px-2 py-1 rounded-full ring-1 ring-inset ring-current/25 hover:ring-current/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
+
+export function CoverageCard({ nextOnly = false }) {
+  const { program, ready } = useDirectorProgram();
+  const coverage = useCardData(
+    useCallback(() => fetchDirectorCoverage({ program }), [program]),
+    ready,
+  );
   const [detail, setDetail] = useState(null);
+  const [showAll, setShowAll] = useState(!nextOnly);
   if (coverage === null) return <CardSkeleton rows={4} data-testid="dir-coverage-loading" />;
   if (coverage === false) return null;
 
   const sessions = coverage.sessions || [];
   const classrooms = coverage.classrooms || [];
-  if (sessions.length === 0 || classrooms.length === 0) return null;
+  if (sessions.length === 0 || classrooms.length === 0) {
+    return (
+      <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="dir-coverage-empty">
+        No upcoming sessions to staff.
+      </p>
+    );
+  }
+  const visibleSessions = showAll ? sessions : sessions.slice(0, 1);
+  const nextDate = sessions[0];
 
   return (
     <HomeCard
-      title="Sunday coverage"
-      subtitle="Pick a date to see who is in and who is out."
+      title={nextOnly && !showAll ? 'This Sunday' : 'Sunday coverage'}
+      subtitle={nextOnly && !showAll
+        ? formatSunday(nextDate)
+        : 'Pick a date to see who is in and who is out.'}
       icon={CalendarDays}
       data-testid="dir-coverage-card"
       className="lg:col-span-2"
+      action={nextOnly && (
+        <button
+          type="button"
+          onClick={() => setShowAll((open) => !open)}
+          className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+          data-testid="dir-coverage-toggle"
+        >
+          {showAll ? 'This Sunday only' : 'View upcoming Sundays'}
+        </button>
+      )}
     >
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <caption className="sr-only">
-            Availability by classroom for the next {sessions.length} Sundays
-          </caption>
-          <thead>
-            <tr className="bg-gray-100 dark:bg-gray-700/60">
-              <th
-                scope="col"
-                className="text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200 py-2 pl-3 pr-3 rounded-l-lg"
-              >
-                Classroom
-              </th>
-              {sessions.map((session, i) => (
-                <th
-                  key={session}
-                  scope="col"
-                  className={`text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200 py-2 px-2 whitespace-nowrap ${
-                    i === sessions.length - 1 ? 'rounded-r-lg pr-3' : ''
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setDetail({ sessionDate: session, classroomId: null })}
-                    className="uppercase tracking-wide hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline"
-                    data-testid={`dir-coverage-date-${session}`}
-                  >
-                    {formatDate(session)}
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {classrooms.map((room) => (
-              <tr
-                key={room.id}
-                className="border-t border-gray-200 dark:border-gray-700 even:bg-gray-50/70 dark:even:bg-gray-900/30"
-              >
-                <th
-                  scope="row"
-                  className="text-left font-semibold text-gray-900 dark:text-white py-2 pl-3 pr-3 whitespace-nowrap"
-                >
-                  {room.name}
-                  <span className="font-normal text-gray-600 dark:text-gray-300"> ({room.roster_size})</span>
-                </th>
-                {room.cells.map((cell) => {
-                  const meta = coverageTone(cell);
-                  const faculty = cell.faculty;
-                  return (
-                    <td key={cell.session_date} className="py-2 px-2">
-                      <button
-                        type="button"
-                        onClick={() => setDetail({
-                          sessionDate: cell.session_date, classroomId: room.id,
-                        })}
-                        title={`${room.name} on ${formatDate(cell.session_date)} — who is in and who is out`}
-                        className={`inline-block text-xs font-semibold px-2 py-1 rounded-full ring-1 ring-inset ring-current/25 hover:ring-current/60 ${meta.pill}`}
-                        data-testid={`dir-coverage-${room.id}-${cell.session_date}`}
-                      >
-                        {cell.available}/{cell.roster_size}
-                        {cell.unset > 0 && ` · ${cell.unset} unanswered`}
-                        {cell.tentative > 0 && ` · ${cell.tentative} tentative`}
-                      </button>
-                      {/* Faculty answer for the same Sunday but are counted
-                          apart: they staff the room, they don't fill it. */}
-                      {faculty?.roster_size > 0 && (
-                        <span
-                          className="block mt-1 text-[11px] text-gray-600 dark:text-gray-300 whitespace-nowrap"
-                          data-testid={`dir-coverage-faculty-${room.id}-${cell.session_date}`}
-                        >
-                          {faculty.available}/{faculty.roster_size} faculty
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <ul className="mt-3 flex flex-wrap gap-2" data-testid="dir-coverage-legend">
+      <ul className="mb-3 flex flex-wrap gap-2" data-testid="dir-coverage-legend">
         {[
-          ['unavailable', 'Someone has not answered'],
+          ['unset', 'No responses yet'],
           ['tentative', 'Someone is tentative'],
-          ['available', 'Everyone is in'],
+          ['unavailable', 'A real gap'],
+          ['available', 'Covered'],
         ].map(([status, label]) => (
           <li
             key={status}
@@ -294,35 +293,169 @@ function CoverageCard() {
           </li>
         ))}
       </ul>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <caption className="sr-only">
+            Availability by classroom for the next {visibleSessions.length} Sundays
+          </caption>
+          <thead>
+            <tr className="bg-gray-100 dark:bg-gray-700/60">
+              <th
+                scope="col"
+                className="text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200 py-2 pl-3 pr-3 rounded-l-lg"
+              >
+                Classroom
+              </th>
+              {visibleSessions.map((session, i) => (
+                <th
+                  key={session}
+                  scope="col"
+                  className={`text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200 py-2 px-2 whitespace-nowrap ${
+                    i === visibleSessions.length - 1 ? 'rounded-r-lg pr-3' : ''
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setDetail({
+                      sessionDate: session, classroomId: null, classroomName: null,
+                    })}
+                    className="uppercase tracking-wide hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                    data-testid={`dir-coverage-date-${session}`}
+                  >
+                    {formatDate(session)}
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {classrooms.map((room) => {
+              const cells = (room.cells || []).filter((cell) => visibleSessions.includes(cell.session_date));
+              return (
+                <tr
+                  key={room.id}
+                  className={`border-t border-gray-200 dark:border-gray-700 ${
+                    isMadrichimGroup(room.name)
+                      ? 'border-t-2 border-t-gray-400 dark:border-t-gray-500'
+                      : 'even:bg-gray-50/70 dark:even:bg-gray-900/30'
+                  }`}
+                >
+                  <th
+                    scope="row"
+                    className="text-left font-semibold text-gray-900 dark:text-white py-2 pl-3 pr-3 whitespace-nowrap"
+                  >
+                    {room.name}
+                    {room.roster_size > 0 && (
+                      <span className="font-normal text-gray-600 dark:text-gray-300"> ({room.roster_size})</span>
+                    )}
+                  </th>
+                  {cells.map((cell) => {
+                    const showRoom = cell.roster_size > 0;
+                    const meta = showRoom ? coverageTone(cell) : null;
+                    const faculty = cell.faculty;
+                    const showFaculty = faculty?.roster_size > 0;
+                    const facultyMeta = showFaculty ? coverageTone(faculty) : null;
+                    const openDetail = () => setDetail({
+                      sessionDate: cell.session_date,
+                      classroomId: room.id,
+                      classroomName: room.name,
+                    });
+                    const label = `${room.name} on ${formatDate(cell.session_date)} — who is in and who is out`;
+                    return (
+                      <td key={cell.session_date} className="py-2 px-2">
+                        <div className="flex flex-col items-start gap-1">
+                          {showRoom && (
+                            <button
+                              type="button"
+                              onClick={openDetail}
+                              aria-label={label}
+                              title={label}
+                              className={`${PILL_CLASS} ${meta.pill}`}
+                              data-testid={`dir-coverage-${room.id}-${cell.session_date}`}
+                            >
+                              {cell.available}/{cell.roster_size}
+                              {cell.unset > 0 && ` · ${cell.unset} unanswered`}
+                              {cell.tentative > 0 && ` · ${cell.tentative} tentative`}
+                            </button>
+                          )}
+                          {showFaculty && (
+                            <button
+                              type="button"
+                              onClick={openDetail}
+                              aria-label={`${label} (faculty)`}
+                              title={`${label} (faculty)`}
+                              className={`${PILL_CLASS} ${facultyMeta.pill}`}
+                              data-testid={`dir-coverage-faculty-${room.id}-${cell.session_date}`}
+                            >
+                              {faculty.available}/{faculty.roster_size} faculty
+                              {faculty.unset > 0 && ` · ${faculty.unset} unanswered`}
+                              {faculty.tentative > 0 && ` · ${faculty.tentative} tentative`}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {detail && (
         <CoverageDetailModal
           sessionDate={detail.sessionDate}
           classroomId={detail.classroomId}
+          classroomName={detail.classroomName}
+          program={program}
           onClose={() => setDetail(null)}
-          onClearClassroom={() => setDetail((d) => ({ ...d, classroomId: null }))}
+          onClearClassroom={() => setDetail((d) => ({ ...d, classroomId: null, classroomName: null }))}
         />
       )}
     </HomeCard>
   );
 }
 
-function FacultyActivityCard() {
-  const activity = useCardData(useCallback(fetchDirectorFacultyActivity, []));
+function FacultyActivityCard({ onWaiting }) {
+  const { program, ready } = useDirectorProgram();
+  const activity = useCardData(
+    useCallback(() => fetchDirectorFacultyActivity({ program }), [program]),
+    ready,
+  );
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    if (!activity || !onWaiting) return;
+    onWaiting((activity.results || []).filter((row) => row.open_thread_count > 0).length);
+  }, [activity, onWaiting]);
   if (activity === null) return <CardSkeleton rows={3} data-testid="dir-activity-loading" />;
   if (activity === false) return null;
 
   const rows = activity.results || [];
   if (rows.length === 0) return null;
+  const waiting = rows.filter((row) => row.open_thread_count > 0);
+  const headline = waiting.length
+    ? `${waiting.length} ${waiting.length === 1 ? 'has' : 'have'} an open thread`
+    : 'No open threads';
+  const shown = showAll ? rows : rows.slice(0, 5);
 
   return (
     <HomeCard
       title="Faculty responsiveness"
-      subtitle="Median time to a first reply. Blank means nothing answered yet."
+      subtitle={headline}
       icon={Clock}
       data-testid="dir-activity-card"
+      action={rows.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setShowAll((open) => !open)}
+          className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+        >
+          {showAll ? 'Show less' : 'View all →'}
+        </button>
+      )}
     >
       <ul className="space-y-1.5">
-        {rows.map((row) => (
+        {shown.map((row) => (
           <li key={row.person_id}>
             <RosterRow
               to={
@@ -335,6 +468,11 @@ function FacultyActivityCard() {
               secondary={`${row.assigned_madrich_count} Madrichim`}
               trailing={(
                 <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300" data-testid={`dir-activity-median-${row.person_id}`}>
+                    {row.median_response_hours === null || row.median_response_hours === undefined
+                      ? '—'
+                      : `${row.median_response_hours}h median`}
+                  </span>
                   <span
                     className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       row.open_thread_count > 0
@@ -344,11 +482,6 @@ function FacultyActivityCard() {
                   >
                     {row.open_thread_count} open
                   </span>
-                  {row.median_response_hours !== null && (
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {row.median_response_hours}h median
-                    </span>
-                  )}
                   {row.oldest_unanswered_days !== null
                     && row.oldest_unanswered_days !== undefined && (
                     <span className="text-xs font-medium text-rose-700 dark:text-rose-300">
@@ -410,15 +543,20 @@ function RosterRow({ to, testId, primary, secondary, trailing }) {
 }
 
 function RosterCard() {
-  const roster = useCardData(useCallback(() => fetchDirectorMadrichim({ pageSize: 10 }), []));
+  const { program, ready } = useDirectorProgram();
+  const roster = useCardData(
+    useCallback(() => fetchDirectorMadrichim({ pageSize: 10, program }), [program]),
+    ready,
+  );
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
+  const [showAll, setShowAll] = useState(false);
 
   async function handleExport() {
     setExporting(true);
     setExportError(null);
     try {
-      await downloadMadrichimCsv();
+      await downloadMadrichimCsv({ program });
     } catch {
       setExportError('Could not download the CSV.');
     } finally {
@@ -430,21 +568,38 @@ function RosterCard() {
   if (roster === false) return null;
 
   const rows = roster.results || [];
+  const behind = rows.filter((row) => row.reflection_state !== 'complete');
+  const shown = showAll ? rows : (behind.length ? behind : rows).slice(0, 5);
+  const showingFullList = showAll || shown.length === rows.length;
 
   return (
     <HomeCard
       title="Madrichim"
-      subtitle={`${roster.count ?? rows.length} in the program`}
+      subtitle={
+        behind.length
+          ? `${behind.length} haven't reflected this week`
+          : `${roster.count ?? rows.length} in the program, all reflected`
+      }
       icon={Users}
-      action={(
+      action={showingFullList && (
         <button
           type="button"
           onClick={handleExport}
           disabled={exporting}
           data-testid="dir-roster-export"
-          className="rounded-lg border border-violet-300 dark:border-violet-700 text-sm font-medium px-3 py-1.5 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30 disabled:opacity-50"
+          className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
         >
           {exporting ? 'Preparing…' : 'Export CSV'}
+        </button>
+      )}
+      footer={!showAll && rows.length > shown.length && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+          data-testid="dir-roster-view-all"
+        >
+          View all →
         </button>
       )}
       data-testid="dir-roster-card"
@@ -453,7 +608,7 @@ function RosterCard() {
         <p className="text-xs text-red-600 dark:text-red-400 mb-2" role="alert">{exportError}</p>
       )}
       <ul className="space-y-1.5">
-        {rows.map((row) => (
+        {shown.map((row) => (
           <li key={row.person_id}>
             <RosterRow
               to={
@@ -496,7 +651,11 @@ function RosterCard() {
 }
 
 function ThemesCard() {
-  const themes = useCardData(useCallback(fetchDirectorThemes, []));
+  const { program, ready } = useDirectorProgram();
+  const themes = useCardData(
+    useCallback(() => fetchDirectorThemes({ program }), [program]),
+    ready,
+  );
   if (themes === null) return <CardSkeleton rows={3} data-testid="dir-themes-loading" />;
   if (themes === false) return null;
 
@@ -511,7 +670,7 @@ function ThemesCard() {
       action={(
         <Link
           to={themes.growth_dashboard_url || '/admin/reflections/growth'}
-          className="text-sm font-medium text-emerald-700 dark:text-emerald-300 hover:underline"
+          className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
           data-testid="dir-themes-growth-link"
         >
           Growth by grade →
@@ -520,8 +679,8 @@ function ThemesCard() {
       data-testid="dir-themes-card"
     >
       {rows.length === 0 ? (
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          Not enough tagged reflections yet.
+        <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="dir-themes-empty">
+          Themes appear once {themes.min_contributors || 5}+ Madrichim have tagged reflections.
         </p>
       ) : (
         <ul className="flex flex-wrap gap-2">
@@ -550,38 +709,53 @@ function ThemesCard() {
   );
 }
 
-export default function DirectorHome({ className = 'mt-10' }) {
+function CohortCard() {
   return (
-    <section aria-label="Religious school overview" className={className} data-testid="director-home">
-      <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">This week</h2>
-        <span className="h-px flex-1 bg-gradient-to-r from-indigo-400 via-violet-300 to-transparent dark:from-indigo-500 dark:via-violet-700" />
-      </div>
-      {/* items-start so a short card does not stretch to the height of a long
-          neighbour in the same grid row. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <PulseCard />
-        <QuestionQueueCard />
-        <CoverageCard />
-        <RosterCard />
-        <FacultyActivityCard />
-        <ThemesCard />
-        <HomeCard
-          title="Cohort feed"
-          subtitle="Read what Madrichim are sharing, and hide anything that shouldn't be up."
-          icon={MessagesSquare}
-          data-testid="dir-cohort-card"
-          footer={(
-            <Link
-              to="/madrich/cohort"
-              className="inline-block rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2 shadow-sm transition-colors"
-              data-testid="dir-cohort-link"
-            >
-              Open cohort feed
-            </Link>
-          )}
-        />
-      </div>
-    </section>
+    <HomeCard
+      title="Cohort feed"
+      subtitle="Read what Madrichim are sharing, and hide anything that shouldn't be up."
+      icon={MessagesSquare}
+      data-testid="dir-cohort-card"
+      footer={(
+        <Link
+          to="/madrich/cohort"
+          className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+          data-testid="dir-cohort-link"
+        >
+          Open cohort feed
+        </Link>
+      )}
+    />
   );
+}
+
+/**
+ * The religious-school cards, sorted into the admin home's fixed sections.
+ * `onQueueCount` and `onFacultyWaiting` feed the Follow-ups tab badge.
+ */
+export function directorSections({ logs = null, onQueueCount, onFacultyWaiting } = {}) {
+  return {
+    staffing: <CoverageCard nextOnly />,
+    followUps: (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <QuestionQueueCard onCount={onQueueCount} />
+        <FacultyActivityCard onWaiting={onFacultyWaiting} />
+      </div>
+    ),
+    progress: (
+      <div className="space-y-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          {logs}
+          <PulseCard />
+        </div>
+        <RosterCard />
+      </div>
+    ),
+    insights: (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <ThemesCard />
+        <CohortCard />
+      </div>
+    ),
+  };
 }

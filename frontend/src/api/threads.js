@@ -52,9 +52,11 @@ export async function resolveThread(orgSlug, threadId) {
 }
 
 /** GET /api/v1/cohort/feed/ */
-export async function fetchCohortFeed(orgSlug, { page = 1, pageSize = 20 } = {}) {
+export async function fetchCohortFeed(orgSlug, { page = 1, pageSize = 20, group } = {}) {
+  const params = { page, page_size: pageSize };
+  if (group) params.group = group;
   const { data } = await api.get(`${COHORT}/feed/`, {
-    params: { page, page_size: pageSize },
+    params,
     ...orgHeaders(orgSlug),
   });
   return data;
@@ -77,7 +79,7 @@ export async function toggleShareLike(orgSlug, shareId) {
 /** POST /api/v1/cohort/shares/{id}/hide/ — admin only. */
 export async function setShareHidden(orgSlug, shareId, hidden) {
   const { data } = await api.post(
-    `${COHORT}/shares/${shareId}/hide/`, { hidden }, orgHeaders(orgSlug),
+    `${COHORT}/shares/${shareId}/hide/`, { is_hidden: hidden }, orgHeaders(orgSlug),
   );
   return data;
 }

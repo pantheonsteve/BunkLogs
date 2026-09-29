@@ -49,10 +49,9 @@ describe('adminNavItems', () => {
     expect(paths(adminNavItems(BARE, campTerm))).not.toContain('/admin/reports');
   });
 
-  it('badges only People and Groups', () => {
+  it('badges only Groups', () => {
     const badged = adminNavItems(CAMP, campTerm).filter((i) => i.badge);
     expect(badged.map((i) => [i.to, i.badge])).toEqual([
-      ['/admin/people', 'peopleNeverInvited'],
       ['/admin/groups', 'groupsNeedingAttention'],
     ]);
   });

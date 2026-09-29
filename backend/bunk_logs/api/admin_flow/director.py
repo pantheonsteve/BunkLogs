@@ -47,6 +47,7 @@ from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import MadrichAvailability
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionThemeTag
 from bunk_logs.core.models import ThreadMessage
@@ -80,8 +81,21 @@ MIN_THEME_CONTRIBUTORS = 5
 QUEUE_PREVIEW_LIMIT = 5
 
 
-def _program(ctx) -> Program | None:
-    """The religious-school program this Director's homepage is about."""
+def _program(ctx, request=None) -> Program | None:
+    """The religious-school program this Director's homepage is about.
+
+    ``?program=`` wins when it belongs to this org, so the switcher and
+    these cards describe the same school year. Omitted, the viewer's own
+    membership program (or the current madrich program) is unchanged.
+    """
+    if request is not None:
+        raw = (request.query_params.get("program") or "").strip()
+        if raw.isdigit():
+            selected = Program.all_objects.filter(
+                pk=int(raw), organization=ctx.organization,
+            ).first()
+            if selected is not None and selected.program_type == RELIGIOUS_SCHOOL:
+                return selected
     if ctx.membership is not None and ctx.membership.program_id:
         program = ctx.membership.program
         if program.program_type == RELIGIOUS_SCHOOL:
@@ -92,11 +106,45 @@ def _program(ctx) -> Program | None:
 
 
 def _madrich_memberships(program: Program) -> list[Membership]:
+    """Active Madrichim in this program: a membership, not a classroom seat."""
     return list(
         Membership.objects.filter(
             program=program, role=MADRICH, is_active=True,
         ).select_related("person"),
     )
+
+
+def ungrouped_madrichim(program: Program) -> dict:
+    """Madrichim with a membership and no classroom subject row.
+
+    The coverage grid counts who is rostered in a room. These people are
+    in the pulse and the roster, and nowhere on Sunday, so the gap has to
+    be a setup warning rather than a silent difference in the totals.
+    """
+    memberships = _madrich_memberships(program)
+    person_ids = [m.person_id for m in memberships]
+    grouped = set(
+        AssignmentGroupMembership.objects.filter(
+            person_id__in=person_ids or [0],
+            role_in_group=SUBJECT,
+            is_active=True,
+            group__group_type=CLASSROOM,
+            group__program=program,
+            group__is_active=True,
+        ).values_list("person_id", flat=True),
+    )
+    missing = [m for m in memberships if m.person_id not in grouped]
+    return {
+        "count": len(missing),
+        "people": [
+            {
+                "person_id": m.person_id,
+                "membership_id": m.id,
+                "display_name": display_name(m.person),
+            }
+            for m in missing[:5]
+        ],
+    }
 
 
 def _empty_coverage_totals() -> dict[str, int]:
@@ -118,7 +166,17 @@ def _prior_periods(program, org, today: date, count: int) -> list[tuple[date, da
     for _ in range(count - 1):
         start = start - timedelta(days=7)
         periods.append((start, start + timedelta(days=6)))
-    return list(reversed(periods))
+    ordered = list(reversed(periods))
+    # Weeks that end before the program starts (or start after it ends)
+    # are not this program's history.
+    start_bound = program.start_date if program is not None else None
+    end_bound = program.end_date if program is not None else None
+    return [
+        (period_start, period_end)
+        for period_start, period_end in ordered
+        if (start_bound is None or period_end >= start_bound)
+        and (end_bound is None or period_start <= end_bound)
+    ]
 
 
 class DirectorPulseView(APIView):
@@ -132,7 +190,7 @@ class DirectorPulseView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return Response({"available": False, "periods": [], "current": None})
 
@@ -196,6 +254,7 @@ class DirectorPulseView(APIView):
             "periods": series,
             "current": series[-1] if series else None,
             "open_question_count": open_queue,
+            "ungrouped_madrichim": ungrouped_madrichim(program),
         })
 
 
@@ -229,7 +288,7 @@ class DirectorQueueView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             paginator = DirectorQueuePagination()
             paginator.paginate_queryset(EntryThread.objects.none(), request, view=self)
@@ -255,10 +314,81 @@ class DirectorQueueView(APIView):
         return paginator.get_paginated_response(items)
 
 
+def _is_test_group(group) -> bool:
+    meta = group.metadata or {}
+    if meta.get("is_test") or meta.get("test"):
+        return True
+    return "test" in (group.name or "").casefold()
+
+
+def _grade_sort_key(group) -> tuple:
+    """PreK, Kindergarten, Grade 1… then everyone else, Madrichim last."""
+    name = (group.name or "").casefold().strip()
+    if "madrich" in name:
+        return (3, 0, name)
+    if name.startswith("pre"):
+        return (0, 0, name)
+    if name in {"k", "kindergarten"} or "kinder" in name:
+        return (0, 1, name)
+    digits = ""
+    for part in name.replace("-", " ").split():
+        if part.isdigit():
+            digits = part
+            break
+    if digits and ("grade" in name or name.startswith("g ")):
+        return (1, int(digits), name)
+    return (2, 0, name)
+
+
+def _ordered_classrooms(program: Program) -> list:
+    """Classrooms in director order, hiding test rooms outside dev."""
+    from django.conf import settings
+
+    groups = list(
+        AssignmentGroup.objects.filter(
+            program=program, group_type=CLASSROOM, is_active=True,
+        ),
+    )
+    if not settings.DEBUG:
+        groups = [g for g in groups if not _is_test_group(g)]
+    if any(g.display_order for g in groups):
+        groups.sort(key=lambda g: (g.display_order, g.name.casefold()))
+    else:
+        groups.sort(key=_grade_sort_key)
+    return groups
+
+
+def _subject_roles(program: Program, person_ids: set[int]) -> dict[int, Membership]:
+    """Active membership per person, preferring a Madrich row when they have two."""
+    chosen: dict[int, Membership] = {}
+    if not person_ids:
+        return chosen
+    for membership in Membership.objects.filter(
+        program=program, is_active=True, person_id__in=person_ids,
+    ):
+        current = chosen.get(membership.person_id)
+        if current is None or membership.role == MADRICH:
+            chosen[membership.person_id] = membership
+    return chosen
+
+
 def _faculty_person_ids(program: Program) -> set[int]:
     return set(
         Membership.objects.filter(
             program=program, role=FACULTY, is_active=True,
+        ).values_list("person_id", flat=True),
+    )
+
+
+def _madrich_person_ids(program: Program) -> set[int]:
+    """People who can answer Sunday availability as a classroom subject.
+
+    Students and campers are subjects too, but they never log in, so an
+    unanswered row from them is not a staffing gap.
+    """
+    return set(
+        Membership.objects.filter(
+            program=program, role=MADRICH, is_active=True,
         ).values_list("person_id", flat=True),
     )
 
@@ -318,26 +448,24 @@ class DirectorCoverageView(APIView):
     two states a Director can act on. There is no required-headcount
     target to compare against.
 
-    Faculty answer for their own Sundays too, but they are classroom
-    authors rather than subjects and are not interchangeable with the
-    Madrichim, so their counts ride along in a separate ``faculty`` block
-    instead of diluting the staffing headcount.
+    The classroom count is Madrichim only. Students and campers are
+    subjects of the same rooms and never log in, so they are not a
+    staffing gap. Faculty answer for their own Sundays too, but they are
+    classroom authors rather than subjects and are not interchangeable
+    with the Madrichim, so their counts ride along in a separate
+    ``faculty`` block.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return Response({"sessions": [], "classrooms": []})
 
         sessions = resolve_session_window(program, today=ctx.today)[:COVERAGE_SESSIONS]
-        groups = list(
-            AssignmentGroup.objects.filter(
-                program=program, group_type=CLASSROOM, is_active=True,
-            ).order_by("name"),
-        )
+        groups = _ordered_classrooms(program)
         if not sessions or not groups:
             return Response({
                 "sessions": [s.isoformat() for s in sessions],
@@ -347,7 +475,9 @@ class DirectorCoverageView(APIView):
             })
 
         group_ids = [g.id for g in groups]
-        people_by_group = _classroom_people(group_ids, SUBJECT)
+        people_by_group = _classroom_people(
+            group_ids, SUBJECT, limit_to=_madrich_person_ids(program),
+        )
         faculty_by_group = _classroom_people(
             group_ids, AUTHOR, limit_to=_faculty_person_ids(program),
         )
@@ -413,7 +543,7 @@ class DirectorCoverageDetailView(APIView):
             msg = "Invalid session date; expected YYYY-MM-DD."
             raise ValidationError(msg)
 
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return Response({
                 "session_date": target.isoformat(),
@@ -421,13 +551,11 @@ class DirectorCoverageDetailView(APIView):
                 "classrooms": [],
             })
 
-        groups = list(
-            AssignmentGroup.objects.filter(
-                program=program, group_type=CLASSROOM, is_active=True,
-            ).order_by("name"),
-        )
+        groups = _ordered_classrooms(program)
         group_ids = [g.id for g in groups]
-        people_by_group = _classroom_people(group_ids, SUBJECT)
+        people_by_group = _classroom_people(
+            group_ids, SUBJECT, limit_to=_madrich_person_ids(program),
+        )
         faculty_by_group = _classroom_people(
             group_ids, AUTHOR, limit_to=_faculty_person_ids(program),
         )
@@ -439,12 +567,7 @@ class DirectorCoverageDetailView(APIView):
         }
 
         people = {p.id: p for p in Person.objects.filter(id__in=person_ids)}
-        memberships = {
-            m.person_id: m
-            for m in Membership.objects.filter(
-                program=program, role=MADRICH, person_id__in=person_ids,
-            )
-        }
+        memberships = _subject_roles(program, person_ids)
         answers = {
             person_id: (status_value, note)
             for person_id, status_value, note in MadrichAvailability.objects.filter(
@@ -459,12 +582,15 @@ class DirectorCoverageDetailView(APIView):
             for person_id in people_by_group.get(group.id, []):
                 status_value, note = answers.get(person_id, (None, ""))
                 membership = memberships.get(person_id)
+                role = membership.role if membership else "student"
                 entries.append({
                     "person_id": person_id,
-                    "membership_id": membership.id if membership else None,
+                    "membership_id": (
+                        membership.id if membership and role == MADRICH else None
+                    ),
                     "display_name": display_name(people.get(person_id)),
                     "grade_level": membership.grade_level if membership else None,
-                    "role": MADRICH,
+                    "role": role,
                     "status": status_value,
                     "note": note or "",
                 })
@@ -521,7 +647,7 @@ class DirectorFacultyActivityView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return Response({"results": []})
 
@@ -549,12 +675,21 @@ class DirectorFacultyActivityView(APIView):
             target = authors_by_group if role == AUTHOR else subjects_by_group
             target.setdefault(group_id, []).append(person_id)
 
-        # faculty person -> the Madrichim they supervise
+        # Classroom subjects include students. Responsiveness is about the
+        # Madrichim this faculty member authors a room with, not every child
+        # in the grade.
+        madrich_ids = {
+            m.person_id for m in _madrich_memberships(program)
+        }
         supervised: dict[int, set[int]] = {pid: set() for pid in faculty_person_ids}
         for group_id, authors in authors_by_group.items():
+            subjects = [
+                pid for pid in subjects_by_group.get(group_id, [])
+                if pid in madrich_ids
+            ]
             for author_id in authors:
                 if author_id in supervised:
-                    supervised[author_id].update(subjects_by_group.get(group_id, []))
+                    supervised[author_id].update(subjects)
 
         all_subjects = {pid for ids in supervised.values() for pid in ids}
         threads = list(
@@ -627,7 +762,7 @@ class DirectorThemesView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return Response({"themes": [], "suppressed_count": 0})
 
@@ -731,11 +866,16 @@ class DirectorMadrichimView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return Response({"results": [], "period": None})
         rows, period = _roster_rows(ctx, program)
-        return Response({"results": rows, "period": period})
+        return Response({
+            "results": rows,
+            "count": len(rows),
+            "period": period,
+            "ungrouped_madrichim": ungrouped_madrichim(program),
+        })
 
 
 class DirectorMadrichimExportView(APIView):
@@ -745,7 +885,7 @@ class DirectorMadrichimExportView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        program = _program(ctx)
+        program = _program(ctx, request)
         if program is None:
             return _csv_response([], header=[], filename="madrichim.csv")
         rows, period = _roster_rows(ctx, program)

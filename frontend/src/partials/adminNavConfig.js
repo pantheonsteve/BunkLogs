@@ -95,24 +95,30 @@ export function adminSetupLinks(surfaces, term) {
  */
 export function adminNavItems(surfaces, term) {
   const items = [
-    { to: '/admin/home', label: 'Dashboard', icon: 'dashboard', end: true },
-    { to: '/admin/people', label: 'People', icon: 'people', badge: 'peopleNeverInvited' },
+    { to: '/admin/home', label: 'Home', icon: 'dashboard', end: true, placement: 'home' },
+    {
+      to: '/admin/people',
+      label: 'People',
+      icon: 'people',
+      placement: 'manage',
+    },
     {
       to: '/admin/groups',
       label: term('group', { plural: true, capitalize: true }),
       icon: 'groups',
       badge: 'groupsNeedingAttention',
+      placement: 'manage',
     },
-    { to: '/admin/forms', label: 'Forms', icon: 'forms' },
+    { to: '/admin/forms', label: 'Forms', icon: 'forms', placement: 'manage' },
   ];
 
   if (adminReportLinks(surfaces).length) {
-    items.push({ to: '/admin/reports', label: 'Reports', icon: 'reports' });
+    items.push({ to: '/admin/reports', label: 'Reports', icon: 'reports', placement: 'manage' });
   }
 
   items.push(
-    { to: '/admin/setup', label: 'Setup', icon: 'setup' },
-    { to: '/admin/settings', label: 'Settings', icon: 'settings' },
+    { to: '/admin/setup', label: 'Setup', icon: 'setup', placement: 'footer' },
+    { to: '/admin/settings', label: 'Settings', icon: 'settings', placement: 'footer' },
   );
 
   return items;

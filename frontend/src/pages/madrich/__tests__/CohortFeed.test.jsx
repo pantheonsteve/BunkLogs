@@ -118,18 +118,24 @@ describe('Cohort feed', () => {
     );
   });
 
-  it('marks a hidden post as hidden and offers to unhide it', async () => {
+  it('marks a hidden post as hidden and confirms before unhiding it', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockImplementation(() => true);
     renderFeed();
     await waitFor(() => screen.getByTestId('cohort-post-3'));
     expect(screen.getByTestId('cohort-hidden-3')).toHaveTextContent('Hidden from the cohort');
     expect(screen.getByTestId('cohort-hide-3')).toHaveTextContent('Unhide');
+    expect(screen.queryByTestId('md-cohort-filter-all')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('cohort-hide-3'));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-dialog')).toHaveTextContent('Unhide this post?');
+    await userEvent.click(screen.getByTestId('confirm-dialog-confirm'));
     expect(postMock).toHaveBeenCalledWith(
       '/api/v1/cohort/shares/3/hide/',
-      { hidden: false },
+      { is_hidden: false },
       expect.objectContaining({ headers: { 'X-Organization-Slug': 'tbe' } }),
     );
+    confirmSpy.mockRestore();
   });
 
   it('offers no moderation control to someone without the permission', async () => {
@@ -138,11 +144,15 @@ describe('Cohort feed', () => {
     expect(screen.queryByTestId('cohort-hide-1')).toBeNull();
   });
 
-  it('lists cohort members with initials', async () => {
+  it('lists cohort members as an avatar row and opens the full roster', async () => {
     renderFeed();
-    await waitFor(() => screen.getByTestId('md-cohort-members'));
-    expect(screen.getByTestId('md-cohort-members')).toHaveTextContent('A1');
-    expect(screen.getByTestId('md-cohort-members')).toHaveTextContent('Author 1');
+    const row = await screen.findByTestId('md-cohort-members');
+    expect(row).toHaveTextContent('A1');
+    expect(row).toHaveAccessibleName('1 Madrich, view all');
+    expect(row).not.toHaveTextContent('Author 1');
+
+    await userEvent.click(row);
+    expect(screen.getByTestId('md-cohort-roster-modal')).toHaveTextContent('Author 1');
   });
 
   it('sends a Madrich home to their dashboard and an admin to Admin Home', async () => {
@@ -180,6 +190,61 @@ describe('Cohort feed', () => {
       data: url.includes('/cohort/members/') ? members : { ...feed, count: 0, results: [] },
     }));
     renderFeed();
-    await waitFor(() => screen.getByTestId('md-cohort-empty'));
+    const empty = await screen.findByTestId('md-cohort-empty');
+    expect(empty).toHaveTextContent('No posts yet');
+    expect(screen.getByTestId('md-cohort-share-cta')).toHaveAttribute(
+      'href',
+      '/madrich/reflection/new',
+    );
+  });
+
+  it('lets an admin filter hidden posts and pick a cohort', async () => {
+    mockUseAuth.mockReturnValue({
+      orgSlug: 'tbe',
+      user: userWith('admin', ['admin']),
+    });
+    getMock.mockImplementation((url, config) => Promise.resolve({
+      data: url.includes('/cohort/members/')
+        ? {
+          ...members,
+          cohorts: [
+            { id: 1, name: 'Madrichim' },
+            { id: 2, name: 'Grade 1' },
+          ],
+        }
+        : feed,
+    }));
+    renderFeed();
+    await screen.findByTestId('md-cohort-picker');
+    expect(screen.queryByTestId('md-cohort-share-cta')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('md-cohort-filter-hidden'));
+    expect(screen.getByTestId('cohort-post-3')).toBeInTheDocument();
+    expect(screen.queryByTestId('cohort-post-1')).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByTestId('md-cohort-picker'), '2');
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith(
+        '/api/v1/cohort/feed/',
+        expect.objectContaining({ params: expect.objectContaining({ group: '2' }) }),
+      );
+    });
+  });
+
+  it('gives an admin an empty state without a reflection link', async () => {
+    mockUseAuth.mockReturnValue({
+      orgSlug: 'tbe',
+      user: userWith('admin', ['admin']),
+    });
+    getMock.mockImplementation((url) => Promise.resolve({
+      data: url.includes('/cohort/members/')
+        ? { results: [], cohorts: [] }
+        : { ...feed, count: 0, results: [] },
+    }));
+    renderFeed();
+    const empty = await screen.findByTestId('md-cohort-empty');
+    expect(empty).toHaveTextContent('Nothing shared yet');
+    expect(empty).toHaveTextContent('Madrichim can share ideas from their weekly reflection.');
+    expect(screen.queryByTestId('md-cohort-share-cta')).not.toBeInTheDocument();
   });
 });

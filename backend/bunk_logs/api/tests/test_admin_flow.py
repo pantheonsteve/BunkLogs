@@ -23,6 +23,7 @@ from rest_framework.test import APIClient
 
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.context import organization_context
+from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Flag
 from bunk_logs.core.models import MaintenanceTicket
@@ -285,6 +286,98 @@ class TestAdminDashboard:
         assert "edited" not in ev_types or all(
             e["content_type"] != "reflection" for e in activity
         )
+
+    def test_program_staff_count_excludes_students_and_other_programs(
+        self, api, org, program, admin_user,
+    ):
+        other = Program.all_objects.create(
+            organization=org, name="Admin Flow Org Winter", slug="adminflow-other-season",
+            program_type="summer_camp",
+            start_date=SEASON_START, end_date=SEASON_END,
+        )
+        student = Person.all_objects.create(
+            organization=org, first_name="Stu", last_name="Dent",
+        )
+        counselor = Person.all_objects.create(
+            organization=org, first_name="Cal", last_name="Staff",
+        )
+        outsider = Person.all_objects.create(
+            organization=org, first_name="Out", last_name="Side",
+        )
+        Membership.all_objects.create(
+            program=program, person=student, role="student", is_active=True,
+        )
+        Membership.all_objects.create(
+            program=program, person=counselor, role="counselor", is_active=True,
+        )
+        Membership.all_objects.create(
+            program=program, person=counselor, role="faculty", is_active=False,
+        )
+        Membership.all_objects.create(
+            program=other, person=outsider, role="faculty", is_active=True,
+        )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            scoped = api.get(
+                "/api/v1/admin/dashboard/", {"program": program.id}, **_hdr(org.slug),
+            )
+            whole = api.get("/api/v1/admin/dashboard/", **_hdr(org.slug))
+        # The admin fixture plus the counselor. The student, the inactive
+        # faculty row, and the other program stay out.
+        assert scoped.json()["program_staff_count"] == 2
+        assert whole.json()["program_staff_count"] == 3
+
+    def test_logs_week_follows_the_program_period(
+        self, api, org, program, admin_user,
+    ):
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            scoped = api.get(
+                "/api/v1/admin/dashboard/", {"program": program.id}, **_hdr(org.slug),
+            )
+            bare = api.get("/api/v1/admin/dashboard/", **_hdr(org.slug))
+        today = date.fromisoformat(scoped.json()["today"])
+        start, end = get_current_period(
+            "weekly", org, program=program, anchor=today,
+        )
+        logs = scoped.json()["logs_this_week"]
+        assert logs["window_start"] == start.isoformat()
+        assert logs["window_end"] == end.isoformat()
+        bare_logs = bare.json()["logs_this_week"]
+        assert bare_logs["window_start"] == (today - timedelta(days=6)).isoformat()
+        assert bare_logs["window_end"] == today.isoformat()
+
+    def test_recent_activity_groups_identical_rows_and_drops_actorless(
+        self, api, org, program, admin_user, admin_membership,
+    ):
+        with organization_context(org):
+            for i in range(2):
+                person = Person.all_objects.create(
+                    organization=org, first_name=f"New{i}", last_name="Member",
+                )
+                membership = Membership.all_objects.create(
+                    program=program, person=person, role="counselor", is_active=True,
+                )
+                audit_module.created(
+                    admin_membership, membership, content_type="membership",
+                )
+            AuditEvent.all_objects.create(
+                organization=org,
+                program=program,
+                event_type=AuditEvent.EventType.CREATED,
+                content_type="membership",
+                content_id="0",
+            )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get("/api/v1/admin/dashboard/", **_hdr(org.slug))
+        created = [
+            e for e in r.json()["recent_activity"]
+            if e["summary"] == "Membership created"
+        ]
+        assert len(created) == 1
+        assert created[0]["count"] == 2
+        assert created[0]["actor"].startswith("Ada")
 
 
 # ---------------------------------------------------------------------------

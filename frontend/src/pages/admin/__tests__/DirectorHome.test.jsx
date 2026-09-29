@@ -56,6 +56,22 @@ const coverage = {
         faculty: { available: 1, tentative: 0, unavailable: 0, unset: 0, roster_size: 1 },
       },
     ],
+  }, {
+    id: 13,
+    name: 'Grade 1',
+    roster_size: 0,
+    cells: [
+      {
+        session_date: '2026-09-27',
+        available: 0, tentative: 0, unavailable: 0, unset: 0, roster_size: 0, flagged: true,
+        faculty: { available: 0, tentative: 0, unavailable: 0, unset: 2, roster_size: 2 },
+      },
+      {
+        session_date: '2026-10-04',
+        available: 0, tentative: 0, unavailable: 0, unset: 0, roster_size: 0, flagged: false,
+        faculty: { available: 2, tentative: 0, unavailable: 0, unset: 0, roster_size: 2 },
+      },
+    ],
   }],
 };
 
@@ -149,15 +165,24 @@ describe('Director homepage inside AdminHome', () => {
   it('is absent for a camp org, and fetches none of its endpoints', async () => {
     renderHome(adminIn(['summer_camp']));
     await waitFor(() => screen.getByTestId('admin-home-setup'));
-    expect(screen.queryByTestId('director-home')).toBeNull();
+    expect(screen.queryByTestId('dir-coverage-card')).toBeNull();
     const reflectionCalls = getMock.mock.calls.filter(([url]) => url.includes('/reflections/'));
     expect(reflectionCalls).toEqual([]);
+  });
+
+  it('counts questions and faculty open threads on the Follow-ups tab', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-activity-card'));
+    // One routed question, plus one faculty member with an open thread.
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-tab-follow-ups')).toHaveTextContent('Follow-ups2');
+    });
+    expect(screen.getByRole('status', { name: '2 waiting on a reply' })).toBeInTheDocument();
   });
 
   it('reports this week\'s completion rate and the open question count', async () => {
     renderHome();
     await waitFor(() => screen.getByTestId('dir-pulse-card'));
-    expect(screen.getByTestId('dir-pulse-rate')).toHaveTextContent('80%');
     expect(screen.getByTestId('dir-pulse-rate')).toHaveTextContent('8 of 10');
     expect(screen.getByTestId('dir-pulse-card')).toHaveTextContent('10 active Madrichim');
     expect(screen.getByTestId('dir-pulse-sparkline').children).toHaveLength(2);
@@ -168,6 +193,7 @@ describe('Director homepage inside AdminHome', () => {
     await waitFor(() => screen.getByTestId('dir-coverage-card'));
     expect(screen.getByTestId('dir-coverage-12-2026-09-27')).toHaveTextContent('1 unanswered');
     expect(screen.getByTestId('dir-coverage-12-2026-09-27')).toHaveTextContent('1 tentative');
+    fireEvent.click(screen.getByTestId('dir-coverage-toggle'));
     expect(screen.getByTestId('dir-coverage-12-2026-10-04')).toHaveTextContent('4/4');
     expect(screen.getByTestId('dir-coverage-12-2026-10-04')).not.toHaveTextContent('unanswered');
   });
@@ -175,14 +201,30 @@ describe('Director homepage inside AdminHome', () => {
   it('counts classroom faculty beside the Madrichim rather than inside them', async () => {
     renderHome();
     await waitFor(() => screen.getByTestId('dir-coverage-card'));
-    // The Madrich headcount stays 2/4 -- the faculty line is its own signal.
     expect(screen.getByTestId('dir-coverage-12-2026-09-27')).toHaveTextContent('2/4');
-    expect(screen.getByTestId('dir-coverage-faculty-12-2026-09-27')).toHaveTextContent(
-      '0/1 faculty',
-    );
-    expect(screen.getByTestId('dir-coverage-faculty-12-2026-10-04')).toHaveTextContent(
-      '1/1 faculty',
-    );
+    const unansweredFaculty = screen.getByTestId('dir-coverage-faculty-12-2026-09-27');
+    expect(unansweredFaculty.tagName).toBe('BUTTON');
+    expect(unansweredFaculty).toHaveTextContent('0/1 faculty');
+    expect(unansweredFaculty).toHaveTextContent('1 unanswered');
+    expect(unansweredFaculty.className).toContain('bg-slate-100');
+
+    fireEvent.click(screen.getByTestId('dir-coverage-toggle'));
+    const coveredRoom = screen.getByTestId('dir-coverage-12-2026-10-04');
+    expect(coveredRoom).toHaveTextContent('4/4');
+    expect(coveredRoom.className).toContain('bg-green-100');
+    const coveredFaculty = screen.getByTestId('dir-coverage-faculty-12-2026-10-04');
+    expect(coveredFaculty).toHaveTextContent('1/1 faculty');
+    expect(coveredFaculty.className).toContain('bg-green-100');
+  });
+
+  it('hides the classroom pill when only students are rostered', async () => {
+    renderHome();
+    await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    expect(screen.queryByTestId('dir-coverage-13-2026-09-27')).not.toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: 'Grade 1' })).toBeInTheDocument();
+    const faculty = screen.getByTestId('dir-coverage-faculty-13-2026-09-27');
+    expect(faculty).toHaveTextContent('0/2 faculty');
+    expect(faculty).toHaveTextContent('2 unanswered');
   });
 
   it('badges faculty in the drill-down and does not link them to a Madrich page', async () => {
@@ -203,7 +245,7 @@ describe('Director homepage inside AdminHome', () => {
     fireEvent.click(screen.getByTestId('dir-coverage-date-2026-09-27'));
 
     await waitFor(() => screen.getByTestId('coverage-detail-summary'));
-    expect(screen.getByTestId('coverage-detail-summary')).toHaveTextContent('2 of 4 available');
+    expect(screen.getByTestId('coverage-detail-summary')).toHaveTextContent('2 of 4 Madrichim');
     expect(screen.getByTestId('coverage-detail-section-available')).toHaveTextContent('Ari Rich');
     expect(screen.getByTestId('coverage-detail-section-tentative')).toHaveTextContent('Might have a game');
     expect(screen.getByTestId('coverage-detail-section-unset')).toHaveTextContent('Dot Rich');

@@ -107,7 +107,9 @@ describe('DevImpersonation', () => {
         refresh_token: 'refresh-token',
         user: expect.objectContaining({ email: 'counselor@test.com' }),
       });
-      expect(screen.getByTestId('dev-impersonation-banner')).toBeInTheDocument();
+      const banner = screen.getByTestId('dev-impersonation-banner');
+      expect(banner).toBeInTheDocument();
+      expect(banner.className).not.toContain('fixed');
     });
   });
 });

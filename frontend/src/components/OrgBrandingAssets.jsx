@@ -4,6 +4,7 @@
  * precedence; Crane Lake falls back to bundled assets; other tenants
  * fall back to text / gradient when no images are configured.
  */
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useOrgBranding } from '../context/OrgBrandingContext';
 import CampLogo from '../images/clc-logo.jpeg';
@@ -22,15 +23,33 @@ const SIDEBAR_LOGO_TEXT =
  * @param {'default' | 'sidebar'} variant
  *   `sidebar` sizes the mark to fit the nav column (icon-only or expanded).
  */
-export function OrgLogo({ to = '/', className = 'shrink-0 mr-2 sm:mr-3', variant = 'default' }) {
+export function OrgLogo({
+  to = '/',
+  className = 'shrink-0 mr-2 sm:mr-3',
+  variant = 'default',
+  onLoadError,
+}) {
   const { isClc, displayName, logoUrl, loading } = useOrgBranding();
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(logoUrl) && !failed;
+  const handleError = () => {
+    setFailed(true);
+    onLoadError?.();
+  };
 
   if (variant === 'sidebar') {
     return (
       <NavLink end to={to} className="block w-full min-w-0 max-w-full" title={displayName}>
         <div className={SIDEBAR_LOGO_BOX}>
-          {logoUrl ? (
-            <img className={SIDEBAR_LOGO_IMAGE} src={logoUrl} alt={displayName} />
+          {showImage ? (
+            <img
+              className={SIDEBAR_LOGO_IMAGE}
+              src={logoUrl}
+              alt={displayName}
+              onError={handleError}
+            />
+          ) : failed ? (
+            <span className={SIDEBAR_LOGO_TEXT} data-testid="org-logo-fallback">{displayName}</span>
           ) : isClc ? (
             <img className={SIDEBAR_LOGO_IMAGE} src={CampLogo} alt="Crane Lake" />
           ) : loading ? (
@@ -49,8 +68,19 @@ export function OrgLogo({ to = '/', className = 'shrink-0 mr-2 sm:mr-3', variant
 
   return (
     <NavLink end to={to} className="block">
-      {logoUrl ? (
-        <img className={logoClassName} src={logoUrl} alt={displayName} width="140" height="36" />
+      {showImage ? (
+        <img
+          className={logoClassName}
+          src={logoUrl}
+          alt={displayName}
+          width="140"
+          height="36"
+          onError={handleError}
+        />
+      ) : failed ? (
+        <span className="text-lg font-semibold text-gray-800 dark:text-gray-100" data-testid="org-logo-fallback">
+          {displayName}
+        </span>
       ) : isClc ? (
         <img className={className} width="70" height="35" viewBox="0 0 36 36" src={CampLogo} alt="Crane Lake" />
       ) : loading ? (
