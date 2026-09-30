@@ -23,13 +23,15 @@ function RouteFallback() {
 
 export function RootLayout() {
   return (
-    <>
+    <div className="flex h-dvh flex-col">
       <RedirectHandler />
       <DevImpersonation />
-      <Suspense fallback={<RouteFallback />}>
-        <Outlet />
-      </Suspense>
-    </>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+        </Suspense>
+      </div>
+    </div>
   );
 }
 

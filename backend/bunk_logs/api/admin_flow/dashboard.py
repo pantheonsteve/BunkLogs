@@ -51,7 +51,9 @@ from bunk_logs.core.state_machine import OrderStateMachine
 
 from .common import AdminContext
 from .common import viewer_or_403
+from .director import ungrouped_madrichim
 from .groups import SUBJECT_BEARING_TYPES
+from .groups import _program_for_window
 from .groups import annotated_groups
 from .groups import submission_window
 from .people import INVITE_INVITED
@@ -116,6 +118,7 @@ class AdminDashboardView(APIView):
             "today": ctx.today.isoformat(),
             "org": _org_header(ctx),
             "org_snapshot": _build_org_snapshot(ctx),
+            "program_staff_count": _program_staff_count(ctx, program_id),
             "attention_required": _build_attention_required(ctx),
             "setup_attention": _build_setup_attention(ctx, program_id),
             "logs_this_week": _build_logs_this_week(ctx, program_id),
@@ -174,8 +177,32 @@ def _build_setup_attention(ctx: AdminContext, program_id) -> dict:
         },
         "people_never_invited": {"count": never_invited.count()},
         "people_invited_not_signed_in": {"count": invited_not_signed_in.count()},
+        "ungrouped_madrichim": _ungrouped_for_program(ctx, program_id),
         "completed": _build_setup_completed(ctx, program_id, groups),
     }
+
+
+def _ungrouped_for_program(ctx: AdminContext, program_id) -> dict:
+    program = _program_for_window(ctx.organization, program_id)
+    if program is None or program.program_type != "religious_school":
+        return {"count": 0, "people": []}
+    return ungrouped_madrichim(program)
+
+
+# People the logs are about. Everyone else with an active membership in
+# the selected program is staff. Distinct people, so two roles don't
+# count twice, and other programs don't leak in.
+_SUBJECT_ROLES = ("camper", "student")
+
+
+def _program_staff_count(ctx: AdminContext, program_id) -> int:
+    qs = Membership.all_objects.filter(
+        program__organization=ctx.organization,
+        is_active=True,
+    ).exclude(role__in=_SUBJECT_ROLES)
+    if program_id:
+        qs = qs.filter(program_id=program_id)
+    return qs.values("person_id").distinct().count()
 
 
 def _build_setup_completed(ctx: AdminContext, program_id, groups) -> dict:
@@ -201,13 +228,14 @@ def _build_setup_completed(ctx: AdminContext, program_id, groups) -> dict:
 
 
 def _build_logs_this_week(ctx: AdminContext, program_id) -> dict:
-    """Completion for the trailing week, most-behind first.
+    """Completion for the program's current week, most-behind first.
 
     Groups with zero expected subjects are left out entirely rather than
     counted as complete -- a staff-only team has nothing to submit and
     would otherwise inflate the org-wide rate.
     """
-    window_start, window_end = submission_window(ctx.today)
+    program = _program_for_window(ctx.organization, program_id)
+    window_start, window_end = submission_window(ctx.today, program)
     groups = [
         g
         for g in annotated_groups(ctx.organization, ctx.today, program_id=program_id)
@@ -520,9 +548,23 @@ def _build_recent_activity(ctx: AdminContext) -> list[dict]:
 
     out: list[dict] = []
     for e in events:
+        actor_name = _actor_display(e)
+        # A row with nobody attached is a system write. It doesn't tell
+        # the director who did what, so it stays out of the feed.
+        if not actor_name or not actor_name.strip():
+            continue
+        summary = _summarize(e)
+        previous = out[-1] if out else None
+        if (
+            previous is not None
+            and previous["actor"] == actor_name
+            and previous["event_type"] == e.event_type
+            and previous["summary"] == summary
+        ):
+            previous["count"] += 1
+            continue
         if len(out) >= RECENT_ACTIVITY_LIMIT:
             break
-        actor_name = _actor_display(e)
         out.append({
             "id": str(e.id),
             "event_type": e.event_type,
@@ -530,9 +572,10 @@ def _build_recent_activity(ctx: AdminContext) -> list[dict]:
             "content_id": e.content_id,
             "created_at": e.created_at.isoformat(),
             "actor": actor_name,
+            "count": 1,
             "is_admin_override": e.is_admin_override,
             "deep_link": _deep_link_for(e, person_by_membership),
-            "summary": _summarize(e),
+            "summary": summary,
         })
     return out
 

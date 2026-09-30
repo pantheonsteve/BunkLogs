@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 const mockUseAuth = vi.fn();
@@ -24,7 +23,12 @@ vi.mock('../../../api/admin', () => ({
 // DirectorHome fires seven independent requests of its own; this page's
 // behaviour is what's under test.
 vi.mock('../DirectorHome', () => ({
-  default: () => <div data-testid="director-home" />,
+  directorSections: ({ logs }) => ({
+    staffing: <div data-testid="director-staffing" />,
+    followUps: <div data-testid="director-follow-ups" />,
+    progress: <div>{logs}</div>,
+    insights: <div data-testid="director-insights" />,
+  }),
 }));
 
 import AdminHome from '../AdminHome';
@@ -118,9 +122,8 @@ describe('AdminHome dashboard', () => {
       /2 groups have no counselors assigned/i,
     );
     expect(screen.getByTestId('attention-no-author')).toHaveTextContent('Grade 3 · Grade 5');
-    expect(screen.getByTestId('attention-never-invited')).toHaveTextContent(
-      /7 people have never been invited/i,
-    );
+    expect(screen.queryByText(/never been invited/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /send invitations/i })).not.toBeInTheDocument();
   });
 
   it('ticks off a check that has no problems instead of hiding it', async () => {
@@ -140,19 +143,6 @@ describe('AdminHome dashboard', () => {
     expect(names).toEqual(['Grade 5', 'Grade 3']);
   });
 
-  it('sends the never-invited row to People pre-filtered to that state', async () => {
-    renderHome();
-
-    await screen.findByTestId('attention-never-invited');
-    await userEvent.click(screen.getByRole('button', { name: /send invitations/i }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(
-        '/admin/people?invite_status=never',
-      );
-    });
-  });
-
   it('opens with a greeting and the date rather than the word Dashboard', async () => {
     renderHome();
 
@@ -165,8 +155,9 @@ describe('AdminHome dashboard', () => {
     renderHome();
 
     const setup = await screen.findByTestId('admin-home-setup');
-    // Six steps; groups, subjects, forms and no-subjects are done.
-    expect(setup).toHaveTextContent('4 of 6 steps complete');
+    fireEvent.click(screen.getByTestId('dashboard-tab-program'));
+    // Five steps; groups, subjects, forms and no-subjects are done.
+    expect(setup).toHaveTextContent('4 of 5 steps complete');
     expect(screen.getByTestId('setup-progress')).toHaveAttribute('aria-valuenow', '4');
     expect(screen.getByTestId('setup-groups-created')).toHaveTextContent('2 groups created');
     expect(screen.getByTestId('setup-forms-assigned')).toHaveTextContent(
@@ -205,13 +196,37 @@ describe('AdminHome dashboard', () => {
     expect(screen.queryByTestId('admin-home-links')).not.toBeInTheDocument();
   });
 
-  it('leads with this week and drops setup to the bottom at a religious school', async () => {
+  it('sorts a religious school into the five sections, opening on Staffing', async () => {
     renderHome(adminIn(['religious_school']));
 
-    const director = await screen.findByTestId('director-home');
-    const setup = await screen.findByTestId('admin-home-setup');
-    expect(director.compareDocumentPosition(setup))
-      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const tabs = await screen.findAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Staffing', 'Follow-ups', 'Progress', 'Insights', 'Program1',
+    ]);
+    expect(screen.getByTestId('dashboard-tab-staffing')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('director-staffing')).toBeVisible();
+    expect(screen.getByTestId('admin-home-logs')).not.toBeVisible();
+    expect(screen.getByTestId('admin-home-setup')).not.toBeVisible();
+
+    fireEvent.click(screen.getByTestId('dashboard-tab-progress'));
+    expect(screen.getByTestId('admin-home-logs')).toBeVisible();
+  });
+
+  it('keeps attention, setup, counts, and activity together on the Program tab', async () => {
+    renderHome();
+    const tabs = await screen.findAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Progress', 'Program1']);
+    expect(screen.getByRole('status', { name: '1 item needs attention' })).toBeInTheDocument();
+    expect(screen.getByTestId('admin-home-logs')).toBeVisible();
+    expect(screen.getByTestId('admin-home-attention')).not.toBeVisible();
+    expect(screen.getByTestId('stat-staff')).not.toBeVisible();
+
+    fireEvent.click(screen.getByTestId('dashboard-tab-program'));
+    expect(screen.getByTestId('admin-home-attention')).toBeVisible();
+    expect(screen.getByTestId('admin-home-setup')).toBeVisible();
+    expect(screen.getByTestId('stat-staff')).toBeVisible();
+    expect(screen.getByTestId('admin-home-activity')).toBeVisible();
+    expect(screen.getByTestId('admin-home-logs')).not.toBeVisible();
   });
 
   it('surfaces a load failure instead of rendering an empty dashboard', async () => {

@@ -95,7 +95,7 @@ describe('AvailabilityCalendar', () => {
       expect.anything(),
     ));
 
-    await user.click(screen.getByTestId('availability-status-2026-09-13-tentative'));
+    await user.click(await screen.findByTestId('availability-status-2026-09-13-tentative'));
 
     await waitFor(() => expect(putMock).toHaveBeenCalledWith(
       '/api/v1/faculty/availability/2026-09-13/',

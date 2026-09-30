@@ -35,7 +35,7 @@ function AdminShell() {
   const navBadges = useNavBadges();
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
@@ -71,6 +71,8 @@ function useNavBadges() {
         setBadges(data && {
           peopleNeverInvited: data.people_never_invited,
           groupsNeedingAttention: data.groups_needing_attention,
+          setupProgress: data.setup_progress,
+          questionsForYou: data.questions_for_you,
         });
       })
       .catch(() => {});

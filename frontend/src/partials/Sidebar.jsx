@@ -25,6 +25,14 @@ const REFLECTION_FORM_ROLES = [
   'camper_care', 'health_center', 'medical', 'special_diets',
 ];
 
+// Roles that file or answer a reflection of their own. Admin alone does
+// not: the Director answers questions, which is a separate count.
+const PERSONAL_REFLECTION_ROLES = [
+  'counselor', 'junior_counselor', 'general_counselor',
+  'unit_head', 'faculty', 'madrich',
+  'camper_care', 'health_center', 'medical', 'special_diets',
+];
+
 // Shared layout classes for the lg–xl icon-only sidebar (expanded at 2xl+ or via toggle).
 const SIDEBAR_SHELL =
   'flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-[4.5rem] lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-white dark:bg-gray-800 p-4 lg:p-2 lg:sidebar-expanded:p-4 2xl:p-4 transition-all duration-200 ease-in-out';
@@ -195,6 +203,10 @@ function Sidebar({
   // Which product surfaces this tenant gets (camp vs religious school).
   const surfaces = orgSurfaces(user);
   const adminNav = canAdmin ? adminNavItems(surfaces, term) : leadershipNavItems();
+  const hasReflectionWork = PERSONAL_REFLECTION_ROLES.some((role) => membershipRoles.includes(role))
+    || (navBadges?.questionsForYou > 0);
+  const setupProgress = navBadges?.setupProgress;
+  const setupIncomplete = !setupProgress || setupProgress.done < setupProgress.total;
   // Poll unread Observations count every 60 seconds (Step 7_23 nav badge).
   const [observationsUnread, setObservationsUnread] = useState(0);
   const pollObservations = surfaces.observations;
@@ -232,7 +244,7 @@ function Sidebar({
           homePath={homePath}
         />
 
-        <div className="space-y-6">
+        <div className="flex flex-1 flex-col space-y-6">
           {isMaintenanceOnly ? (
             <Section heading="My work">
               <NavItem
@@ -248,15 +260,19 @@ function Sidebar({
               {/* Admins reach their home through the Admin section's
                   Dashboard item; a second Home row up here just pointed
                   at the same page. */}
-              {!canAdmin && (
-                <NavItem to={adminStyleHomePath} label="Home" icon={IconHome} end />
-              )}
-              {canSeeHelp && (
+              <NavItem
+                to={canAdmin ? '/admin/home' : adminStyleHomePath}
+                label="Home"
+                icon={IconHome}
+                end
+              />
+              {!canAdmin && canSeeHelp && (
                 <NavItem to="/help" label="Help" icon={IconHelp} />
               )}
             </ul>
           </div>
 
+          {(hasReflectionWork || surfaces.campDashboards || surfaces.observations || surfaces.campOps) && (
           <Section heading="My work">
             {surfaces.campDashboards && (
               <>
@@ -275,11 +291,20 @@ function Sidebar({
                 />
               </>
             )}
-            <NavItem
-              to="/dashboards/reflections"
-              label="Reflections"
-              icon={IconClipboard}
-            />
+            {surfaces.campDashboards && canSeeReflectionsDashboard && (
+              <NavItem
+                to="/dashboards/reflections"
+                label="Reflections"
+                icon={IconClipboard}
+              />
+            )}
+            {!surfaces.campDashboards && hasReflectionWork && (
+              <NavItem
+                to="/admin/reflections"
+                label="Reflections"
+                icon={IconClipboard}
+              />
+            )}
             {surfaces.observations && (
               <NavItem
                 to="/observations"
@@ -303,6 +328,7 @@ function Sidebar({
               </>
             )}
           </Section>
+          )}
 
           {surfaces.campDashboards && (
             <Section heading="Supervise">
@@ -324,18 +350,46 @@ function Sidebar({
             </Section>
           )}
 
-          <Section heading="Admin">
-            {adminNav.map((item) => (
-              <NavItem
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                icon={ADMIN_NAV_ICONS[item.icon]}
-                end={item.end}
-                badge={badgeCount(navBadges, item.badge)}
-              />
-            ))}
+          <Section heading={canAdmin ? 'Manage' : 'Admin'}>
+            {(canAdmin ? adminNav.filter((item) => item.placement !== 'footer' && item.placement !== 'home') : adminNav).map((item) => {
+              const count = badgeCount(navBadges, item.badge);
+              return (
+                <NavItem
+                  key={item.to}
+                  to={item.to}
+                  label={item.label}
+                  icon={ADMIN_NAV_ICONS[item.icon] || IconClipboard}
+                  end={item.end}
+                  badge={count}
+                  badgeLabel={count != null && item.badgeNoun ? `${count} ${item.badgeNoun}` : null}
+                />
+              );
+            })}
           </Section>
+          {canAdmin && (
+            <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700/60">
+              <ul className="lg:space-y-0.5">
+                {adminNav.filter((item) => item.placement === 'footer' && (item.to !== '/admin/setup' || setupIncomplete)).map((item) => {
+                  const progress = item.to === '/admin/setup' && setupProgress && setupIncomplete
+                    ? `${setupProgress.done}/${setupProgress.total}`
+                    : null;
+                  return (
+                    <NavItem
+                      key={item.to}
+                      to={item.to}
+                      label={item.label}
+                      icon={ADMIN_NAV_ICONS[item.icon]}
+                      badge={progress}
+                      badgeLabel={progress ? `${progress} setup steps complete` : null}
+                    />
+                  );
+                })}
+                {canSeeHelp && (
+                  <NavItem to="/help" label="Help" icon={IconHelp} />
+                )}
+              </ul>
+            </div>
+          )}
           </>
           ) : (
           <>
@@ -488,6 +542,7 @@ function Sidebar({
 }
 
 function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   return (
     <div className="flex justify-between mb-10 lg:mb-4 lg:sidebar-expanded:mb-10 2xl:mb-10 pr-3 sm:px-2 lg:pr-0 lg:justify-center lg:sidebar-expanded:justify-between 2xl:justify-between lg:sidebar-expanded:pr-3 2xl:pr-3">
       <button
@@ -503,8 +558,8 @@ function SidebarHeader({ trigger, sidebarOpen, setSidebarOpen, homePath = '/' })
         </svg>
       </button>
       <div className="min-w-0 w-full max-w-full flex-1 lg:flex-none lg:w-full">
-        <OrgLogo to={homePath} variant="sidebar" />
-        <Wordmark />
+        <OrgLogo to={homePath} variant="sidebar" onLoadError={() => setLogoFailed(true)} />
+        {logoFailed ? null : <Wordmark />}
       </div>
     </div>
   );
@@ -557,7 +612,7 @@ const NAV_ITEM_ACTIVE =
 const NAV_ITEM_IDLE =
   'font-medium hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white';
 
-function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
+function NavItem({ to, label, icon: Icon, end = false, badge = null, badgeLabel = null }) {
   return (
     <li className="mb-0.5 last:mb-0">
       <NavLink
@@ -573,7 +628,10 @@ function NavItem({ to, label, icon: Icon, end = false, badge = null }) {
           <span className={`${COLLAPSED_LABEL} flex-1 min-w-0 gap-2`}>
             <span className="truncate">{label}</span>
             {badge != null && (
-              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-violet-500 text-white text-xs font-bold leading-none">
+              <span
+                className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-violet-500 text-white text-xs font-bold leading-none"
+                aria-label={badgeLabel || undefined}
+              >
                 {badge}
               </span>
             )}

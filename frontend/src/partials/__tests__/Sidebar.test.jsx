@@ -10,7 +10,7 @@
  * are asserted via `getByText` against the uppercase heading string.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // Stub the logo import so the test runner doesn't try to decode JPEG.
@@ -72,11 +72,11 @@ function schoolUser(capability, roles) {
   };
 }
 
-function renderWith(user, { path = '/dashboard' } = {}) {
+function renderWith(user, { path = '/dashboard', navBadges = null } = {}) {
   mockUseAuth.mockReturnValue({ user });
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Sidebar sidebarOpen={true} setSidebarOpen={() => {}} />
+      <Sidebar sidebarOpen={true} setSidebarOpen={() => {}} navBadges={navBadges} />
     </MemoryRouter>,
   );
 }
@@ -88,9 +88,9 @@ function hrefs() {
     .filter(Boolean);
 }
 
-/** Just the Admin block — the org logo also links to /admin/home. */
+/** Just the Manage block — the org logo also links to /admin/home. */
 function adminSectionHrefs() {
-  const heading = screen.getAllByText('Admin').find((el) => el.tagName === 'H3');
+  const heading = screen.getAllByText('Manage').find((el) => el.tagName === 'H3');
   return within(heading.parentElement)
     .getAllByRole('link')
     .map((a) => a.getAttribute('href'));
@@ -234,21 +234,18 @@ describe('Sidebar — section gating (3.32)', () => {
   it('admin sees the curated Admin IA, not the default My work nav', () => {
     renderWith(orgUser('admin', ['admin']), { path: '/admin/home' });
 
-    // Home folded into the Admin section's Dashboard item.
-    expect(screen.queryByRole('link', { name: 'Home' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
-      'href',
-      '/admin/home',
-    );
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin/home');
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
     expect(screen.getByRole('link', { name: 'Daily logs' })).toHaveAttribute(
       'href',
       '/dashboards/logs',
     );
-    expect(screen.getAllByRole('link', { name: 'Reflections' }).some(
-      (el) => el.getAttribute('href') === '/dashboards/reflections',
-    )).toBe(true);
-    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Reflections' })).toHaveAttribute(
+      'href',
+      '/dashboards/reflections',
+    );
+    expect(screen.getAllByText('Manage').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supervise').length).toBeGreaterThan(0);
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
@@ -283,7 +280,7 @@ describe('Sidebar — section gating (3.32)', () => {
   it('super admin via is_staff alone sees Admin even without a role', () => {
     renderWith({ is_staff: true });
 
-    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Manage').length).toBeGreaterThan(0);
     expect(screen.queryByText('Dashboards')).not.toBeInTheDocument();
     expect(screen.queryByText('Crane Lake legacy')).not.toBeInTheDocument();
   });
@@ -313,7 +310,7 @@ describe('Sidebar — maintenance-only nav', () => {
     const links = hrefs();
     expect(links).toContain('/admin/home');
     expect(links).not.toContain('/admin/dashboard');
-    expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Manage').length).toBeGreaterThan(0);
   });
 });
 
@@ -347,14 +344,16 @@ describe('Sidebar — Admin section', () => {
   it('is seven destinations, in prototype order', () => {
     renderWith(orgUser('admin', ['admin']), { path: '/admin/home' });
     expect(adminSectionHrefs()).toEqual([
-      '/admin/home',
       '/admin/people',
       '/admin/groups',
       '/admin/forms',
       '/admin/reports',
-      '/admin/setup',
-      '/admin/settings',
     ]);
+    const links = hrefs();
+    expect(links[0] === '/' || links.includes('/admin/home')).toBe(true);
+    expect(links).toContain('/admin/setup');
+    expect(links).toContain('/admin/settings');
+    expect(links).toContain('/help');
   });
 
   it('sits after Supervise and carries no legacy links', () => {
@@ -388,12 +387,12 @@ describe('Sidebar — Admin section', () => {
         <Sidebar
           sidebarOpen
           setSidebarOpen={() => {}}
-          navBadges={{ peopleNeverInvited: 5, groupsNeedingAttention: 0 }}
+          navBadges={{ peopleNeverInvited: 5, groupsNeedingAttention: 3 }}
         />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: /People/ })).toHaveTextContent('5');
-    expect(screen.getByRole('link', { name: /Groups/ })).not.toHaveTextContent(/\d/);
+    expect(screen.getByRole('link', { name: 'People' })).not.toHaveTextContent('5');
+    expect(screen.getByRole('link', { name: /Groups/ })).toHaveTextContent('3');
   });
 });
 
@@ -428,8 +427,21 @@ describe('Sidebar — religious-school admin surfaces', () => {
     expect(links).not.toContain('/groups/performance');
     expect(links).not.toContain('/observations');
     expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
-    // Org-wide reflections browsing isn't camp-specific, so it stays.
-    expect(links).toContain('/dashboards/reflections');
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin/home');
+    expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
+    expect(links).not.toContain('/dashboards/reflections');
+    expect(screen.queryByText('My work')).not.toBeInTheDocument();
+  });
+
+  it('opens My work on Reflections when questions are waiting', () => {
+    renderWith(schoolUser('admin', ['admin']), {
+      path: '/admin/home',
+      navBadges: { questionsForYou: 2 },
+    });
+    expect(screen.getByRole('link', { name: 'Reflections' })).toHaveAttribute(
+      'href',
+      '/admin/reflections',
+    );
   });
 
   it('gives a Madrich only their own weekly-reflection surfaces', () => {
@@ -493,5 +505,23 @@ describe('Sidebar — org-aware header (TBE Frontend Readiness)', () => {
     expect(screen.getByRole('img')).toHaveAttribute('src', 'https://cdn.example/tbe/logo.png');
     expect(screen.getByText('BunkLogs')).toBeInTheDocument();
     expect(screen.getByText('Temple Beth-El')).toBeInTheDocument();
+  });
+
+  it('replaces a broken logo with the org name', () => {
+    mockUseOrgBranding.mockReturnValue({
+      slug: 'tbe',
+      displayName: 'Temple Beth-El',
+      productName: 'BunkLogs',
+      isClc: false,
+      logoUrl: 'https://cdn.example/tbe/logo.png',
+      heroUrl: null,
+      loading: false,
+    });
+    renderWith(orgUser('admin', ['admin']));
+
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByTestId('org-logo-fallback')).toHaveTextContent('Temple Beth-El');
+    expect(screen.queryByText('BunkLogs')).not.toBeInTheDocument();
   });
 });

@@ -30,7 +30,7 @@ import Sidebar from '../partials/Sidebar';
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div
         data-testid="app-layout-scroll"

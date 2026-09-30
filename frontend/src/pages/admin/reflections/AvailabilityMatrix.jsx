@@ -5,8 +5,8 @@
  * exportable to CSV. Lives alongside the reflections completion dashboard
  * (Step 4_4) rather than as a standalone route, since both are org-admin
  * TBE tools. Cell status is shown with an icon + text label, never color
- * alone (a11y). The two roles are separate blocks because the summary
- * headcount at the bottom counts Madrichim only.
+ * alone (a11y). Faculty and Madrichim are separate tabs. The summary
+ * under the grid counts only the role on screen.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -56,9 +56,9 @@ function sessionLabel(sessionDate) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-const ROLE_BLOCKS = [
-  { role: 'faculty', heading: 'Faculty' },
-  { role: 'madrich', heading: 'Madrichim' },
+const ROLE_TABS = [
+  { role: 'faculty', heading: 'Faculty', summary: 'Faculty available' },
+  { role: 'madrich', heading: 'Madrichim', summary: 'Madrichim available' },
 ];
 
 // Madrichim were the only role before faculty answered for themselves, so a
@@ -83,10 +83,17 @@ function PersonRows({ rows }) {
   ));
 }
 
+function availableOn(rows, sessionDate) {
+  return rows.filter((row) => (
+    row.cells.some((cell) => cell.session_date === sessionDate && cell.status === 'available')
+  )).length;
+}
+
 export default function AvailabilityMatrix() {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [role, setRole] = useState('madrich');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +133,8 @@ export default function AvailabilityMatrix() {
   const { program, sessions, rows, summary } = payload;
   const exportUrl = exportAdminMadrichAvailabilityUrl();
   const madrichCount = rows.filter((row) => roleOf(row) === 'madrich').length;
+  const activeTab = ROLE_TABS.find((tab) => tab.role === role) || ROLE_TABS[1];
+  const roleRows = rows.filter((row) => roleOf(row) === role);
 
   if (!program || sessions.length === 0) {
     return (
@@ -165,6 +174,31 @@ export default function AvailabilityMatrix() {
         </div>
       </div>
 
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700" role="tablist" aria-label="Role">
+        {ROLE_TABS.map((tab) => {
+          const count = rows.filter((row) => roleOf(row) === tab.role).length;
+          const selected = role === tab.role;
+          return (
+            <button
+              key={tab.role}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setRole(tab.role)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+                selected
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              data-testid={`availability-matrix-tab-${tab.role}`}
+            >
+              {tab.heading}
+              <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700" data-testid="availability-matrix-grid">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800">
@@ -177,47 +211,32 @@ export default function AvailabilityMatrix() {
               ))}
             </tr>
           </thead>
-          {rows.length === 0 ? (
-            <tbody className="bg-white dark:bg-gray-900">
+          <tbody
+            className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700"
+            data-testid={`availability-matrix-block-${role}`}
+          >
+            {roleRows.length === 0 ? (
               <tr>
                 <td colSpan={sessions.length + 1} className="px-3 py-4 text-gray-500 dark:text-gray-400">
-                  Nobody is enrolled on this program yet.
+                  {rows.length === 0
+                    ? 'Nobody is enrolled on this program yet.'
+                    : `No ${activeTab.heading} on this program.`}
                 </td>
               </tr>
-            </tbody>
-          ) : (
-            ROLE_BLOCKS.map(({ role, heading }) => {
-              const roleRows = rows.filter((row) => roleOf(row) === role);
-              if (roleRows.length === 0) return null;
-              return (
-                <tbody
-                  key={role}
-                  className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700"
-                  data-testid={`availability-matrix-block-${role}`}
-                >
-                  <tr className="bg-gray-50 dark:bg-gray-800/60">
-                    <th
-                      colSpan={sessions.length + 1}
-                      scope="colgroup"
-                      className="px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
-                    >
-                      {heading}
-                      <span className="ml-2 font-normal normal-case tracking-normal">{roleRows.length}</span>
-                    </th>
-                  </tr>
-                  <PersonRows rows={roleRows} />
-                </tbody>
-              );
-            })
-          )}
+            ) : (
+              <PersonRows rows={roleRows} />
+            )}
+          </tbody>
           <tfoot className="bg-gray-50 dark:bg-gray-800">
             <tr data-testid="availability-matrix-summary">
               <td className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">
-                Madrichim available
+                {activeTab.summary}
               </td>
               {sessions.map((s) => (
                 <td key={s} className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                  {summary?.available_counts?.[s] ?? 0}
+                  {role === 'madrich'
+                    ? (summary?.available_counts?.[s] ?? 0)
+                    : availableOn(roleRows, s)}
                 </td>
               ))}
             </tr>

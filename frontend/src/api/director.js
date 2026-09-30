@@ -9,48 +9,57 @@ import api from '../api';
 
 const BASE = '/api/v1/admin/reflections';
 
+function withProgram(params, program) {
+  if (program) return { ...params, program };
+  return params;
+}
+
 /** GET /api/v1/admin/reflections/pulse/ */
-export async function fetchDirectorPulse() {
-  const { data } = await api.get(`${BASE}/pulse/`);
+export async function fetchDirectorPulse({ program } = {}) {
+  const { data } = await api.get(`${BASE}/pulse/`, { params: withProgram({}, program) });
   return data;
 }
 
 /** GET /api/v1/admin/reflections/queue/ */
-export async function fetchDirectorQueue({ page = 1, pageSize = 20 } = {}) {
+export async function fetchDirectorQueue({ page = 1, pageSize = 20, program } = {}) {
   const { data } = await api.get(`${BASE}/queue/`, {
-    params: { page, page_size: pageSize },
+    params: withProgram({ page, page_size: pageSize }, program),
   });
   return data;
 }
 
 /** GET /api/v1/admin/reflections/coverage/ */
-export async function fetchDirectorCoverage() {
-  const { data } = await api.get(`${BASE}/coverage/`);
+export async function fetchDirectorCoverage({ program } = {}) {
+  const { data } = await api.get(`${BASE}/coverage/`, { params: withProgram({}, program) });
   return data;
 }
 
 /** GET /api/v1/admin/reflections/coverage/<session_date>/ */
-export async function fetchDirectorCoverageDetail(sessionDate) {
-  const { data } = await api.get(`${BASE}/coverage/${sessionDate}/`);
+export async function fetchDirectorCoverageDetail(sessionDate, { program } = {}) {
+  const { data } = await api.get(`${BASE}/coverage/${sessionDate}/`, {
+    params: withProgram({}, program),
+  });
   return data;
 }
 
 /** GET /api/v1/admin/reflections/faculty-activity/ */
-export async function fetchDirectorFacultyActivity() {
-  const { data } = await api.get(`${BASE}/faculty-activity/`);
+export async function fetchDirectorFacultyActivity({ program } = {}) {
+  const { data } = await api.get(`${BASE}/faculty-activity/`, {
+    params: withProgram({}, program),
+  });
   return data;
 }
 
 /** GET /api/v1/admin/reflections/themes/ */
-export async function fetchDirectorThemes() {
-  const { data } = await api.get(`${BASE}/themes/`);
+export async function fetchDirectorThemes({ program } = {}) {
+  const { data } = await api.get(`${BASE}/themes/`, { params: withProgram({}, program) });
   return data;
 }
 
 /** GET /api/v1/admin/reflections/madrichim/ */
-export async function fetchDirectorMadrichim({ page = 1, pageSize = 25 } = {}) {
+export async function fetchDirectorMadrichim({ page = 1, pageSize = 25, program } = {}) {
   const { data } = await api.get(`${BASE}/madrichim/`, {
-    params: { page, page_size: pageSize },
+    params: withProgram({ page, page_size: pageSize }, program),
   });
   return data;
 }
@@ -62,8 +71,11 @@ export async function fetchDirectorMadrichim({ page = 1, pageSize = 25 } = {}) {
  * `href`: the API is a different origin from the SPA, so a bare anchor would
  * resolve against the SPA host and carry no bearer token.
  */
-export async function downloadMadrichimCsv() {
-  const response = await api.get(`${BASE}/madrichim/export/`, { responseType: 'blob' });
+export async function downloadMadrichimCsv({ program } = {}) {
+  const response = await api.get(`${BASE}/madrichim/export/`, {
+    params: withProgram({}, program),
+    responseType: 'blob',
+  });
   const url = URL.createObjectURL(response.data);
   try {
     const link = document.createElement('a');

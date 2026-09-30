@@ -22,7 +22,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import Program
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
+from bunk_logs.core.time_utils import get_current_period
 
 from .common import viewer_or_403
 
@@ -34,9 +36,30 @@ SUBMISSION_WINDOW_DAYS = 7
 SUBJECT_BEARING_TYPES = frozenset({"bunk", "classroom", "caseload", "cohort"})
 
 
-def submission_window(today):
-    """Trailing week ending today -- the period behind "logs this week"."""
+def submission_window(today, program=None):
+    """The week behind "logs this week".
+
+    With a program, that is the same Monday-start (or ``week_boundary_day``)
+    period the reflection pulse uses. Without one, the historical trailing
+    seven days stay in place so callers that have not opted in do not move.
+    """
+    if program is not None:
+        return get_current_period(
+            "weekly", program.organization, program=program, anchor=today,
+        )
     return today - timedelta(days=SUBMISSION_WINDOW_DAYS - 1), today
+
+
+def _program_for_window(organization, program_id):
+    if not program_id:
+        return None
+    try:
+        pk = int(program_id)
+    except (TypeError, ValueError):
+        return None
+    return Program.all_objects.filter(
+        pk=pk, organization=organization,
+    ).first()
 
 
 def annotated_groups(organization, today, *, program_id=None, group_type=None,
@@ -46,7 +69,8 @@ def annotated_groups(organization, today, *, program_id=None, group_type=None,
     Shared by the Groups list and the dashboard so both agree on what
     "has an author" and "submitted this week" mean.
     """
-    window_start, window_end = submission_window(today)
+    program = _program_for_window(organization, program_id)
+    window_start, window_end = submission_window(today, program)
     qs = AssignmentGroup.all_objects.filter(organization=organization)
     if program_id:
         qs = qs.filter(program_id=program_id)
@@ -108,12 +132,14 @@ class AdminGroupsOverviewView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        window_start, window_end = submission_window(ctx.today)
+        program_id = (request.query_params.get("program") or "").strip() or None
+        program = _program_for_window(ctx.organization, program_id)
+        window_start, window_end = submission_window(ctx.today, program)
 
         groups = annotated_groups(
             ctx.organization,
             ctx.today,
-            program_id=(request.query_params.get("program") or "").strip() or None,
+            program_id=program_id,
             group_type=(request.query_params.get("group_type") or "").strip() or None,
             include_inactive=(
                 (request.query_params.get("include_inactive") or "").lower() == "true"

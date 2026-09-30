@@ -24,12 +24,26 @@ const SECTIONS = [
   { status: 'unset', heading: 'No answer yet' },
 ];
 
-function formatSunday(iso) {
+export function formatSunday(iso) {
   if (!iso) return '';
   const d = new Date(`${iso}T00:00:00`);
   return Number.isNaN(d.getTime())
     ? iso
     : d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function sameId(a, b) {
+  return String(a) === String(b);
+}
+
+function availableCount(rows) {
+  return rows.filter((p) => p.status === 'available').length;
+}
+
+/** "0 of 17 students" — the noun follows the membership role, not the grid. */
+function tally(rows, noun) {
+  if (!rows.length) return null;
+  return `${availableCount(rows)} of ${rows.length} ${noun}`;
 }
 
 function PersonRow({ person, showClassroom }) {
@@ -74,21 +88,29 @@ function PersonRow({ person, showClassroom }) {
   );
 }
 
-export default function CoverageDetailModal({ sessionDate, classroomId, onClose, onClearClassroom }) {
+export default function CoverageDetailModal({
+  sessionDate,
+  classroomId,
+  classroomName = null,
+  program,
+  onClose,
+  onClearClassroom,
+}) {
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState(null);
+  const wantsClassroom = classroomId !== null && classroomId !== undefined && classroomId !== '';
 
   const load = useCallback(async () => {
     setPayload(null);
     setError(null);
     try {
-      setPayload(await fetchDirectorCoverageDetail(sessionDate));
+      setPayload(await fetchDirectorCoverageDetail(sessionDate, { program }));
     } catch (err) {
       setError(err?.response?.status === 403
         ? 'Admin access required.'
         : 'Failed to load this Sunday.');
     }
-  }, [sessionDate]);
+  }, [sessionDate, program]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -99,25 +121,33 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
   }, [onClose]);
 
   const allClassrooms = payload?.classrooms || [];
-  const scoped = classroomId != null
-    ? allClassrooms.filter((room) => room.id === classroomId)
+  const scoped = wantsClassroom
+    ? allClassrooms.filter((room) => sameId(room.id, classroomId))
     : allClassrooms;
+  const classroomMissing = Boolean(payload) && wantsClassroom && scoped.length === 0;
   const people = scoped.flatMap((room) => (
     (room.people || []).map((person) => ({ ...person, classroom_name: room.name }))
   ));
   const byStatus = (status) => people.filter((p) => (p.status || 'unset') === status);
-  // The headline count is about staffing the room, so it counts Madrichim;
-  // faculty get their own tally rather than padding it.
-  const isFaculty = (p) => p.role === 'faculty';
-  const madrichim = people.filter((p) => !isFaculty(p));
-  const faculty = people.filter(isFaculty);
-  const availableIn = (rows) => rows.filter((p) => p.status === 'available').length;
+  const faculty = people.filter((p) => p.role === 'faculty');
+  const madrichim = people.filter((p) => p.role === 'madrich');
+  const students = people.filter((p) => p.role !== 'faculty' && p.role !== 'madrich');
+  const roomName = scoped.length === 1 ? scoped[0].name : classroomName;
+  const summaryParts = [
+    tally(students, students.length === 1 ? 'student' : 'students'),
+    tally(madrichim, madrichim.length === 1 ? 'Madrich' : 'Madrichim'),
+    tally(faculty, 'faculty'),
+  ].filter(Boolean);
+  const heading = roomName && wantsClassroom
+    ? `${roomName} · ${formatSunday(sessionDate)}`
+    : formatSunday(sessionDate);
+  const summary = summaryParts.join(' · ');
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Availability for ${formatSunday(sessionDate)}`}
+      aria-label={summary ? `${heading} — ${summary}` : heading}
       data-testid="coverage-detail-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -125,16 +155,12 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
       <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-xl bg-white dark:bg-gray-900 shadow-lg">
         <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {formatSunday(sessionDate)}
+            <h2
+              className="text-lg font-semibold text-gray-900 dark:text-white"
+              data-testid="coverage-detail-summary"
+            >
+              {payload && summary ? `${heading} — ${summary}` : heading}
             </h2>
-            {payload && (
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5" data-testid="coverage-detail-summary">
-                {availableIn(madrichim)} of {madrichim.length} available
-                {faculty.length > 0 && ` · ${availableIn(faculty)} of ${faculty.length} faculty`}
-                {scoped.length === 1 ? ` · ${scoped[0].name}` : ''}
-              </p>
-            )}
           </div>
           <button
             type="button"
@@ -151,19 +177,25 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
           {error && <ErrorPanel>{error}</ErrorPanel>}
           {!error && !payload && <LoadingState>Loading…</LoadingState>}
 
-          {payload && people.length === 0 && (
+          {classroomMissing && (
+            <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="coverage-detail-empty">
+              This group isn&apos;t on the roster for this Sunday.
+            </p>
+          )}
+
+          {payload && !classroomMissing && people.length === 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="coverage-detail-empty">
               Nobody is rostered for this Sunday.
             </p>
           )}
 
-          {payload && people.length > 0 && SECTIONS.map(({ status, heading }) => {
+          {payload && !classroomMissing && people.length > 0 && SECTIONS.map(({ status, heading: sectionHeading }) => {
             const rows = byStatus(status);
             return (
               <section key={status} data-testid={`coverage-detail-section-${status}`}>
                 <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   <span className={`px-2 py-0.5 rounded-full ${statusMeta(status).pill}`}>
-                    {heading}
+                    {sectionHeading}
                   </span>
                   {rows.length}
                 </h3>
@@ -184,7 +216,7 @@ export default function CoverageDetailModal({ sessionDate, classroomId, onClose,
             );
           })}
 
-          {classroomId != null && allClassrooms.length > 1 && (
+          {wantsClassroom && allClassrooms.length > 1 && (
             <button
               type="button"
               onClick={onClearClassroom}

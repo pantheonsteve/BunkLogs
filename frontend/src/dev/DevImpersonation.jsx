@@ -135,7 +135,7 @@ export default function DevImpersonation() {
       {impersonating && meta ? (
         <div
           data-testid="dev-impersonation-banner"
-          className="fixed top-0 inset-x-0 z-[60] flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 shadow"
+          className="relative z-[60] flex w-full shrink-0 items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 shadow"
         >
           <span>
             Viewing as {meta.name} ({meta.role || 'no role'})

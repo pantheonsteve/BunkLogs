@@ -11,8 +11,8 @@ classrooms gets the union, deduplicated by share id.
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.db.models import Count
-from django.db.models import Q
 from rest_framework import serializers
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -84,11 +84,17 @@ class CohortFeedView(APIView):
             paginator.paginate_queryset(CohortShare.objects.none(), request, view=self)
             return paginator.get_paginated_response([])
 
+        requested = (request.query_params.get("group") or "").strip()
+        if requested.isdigit():
+            chosen = int(requested)
+            if chosen in group_ids:
+                group_ids = [chosen]
+
         qs = CohortShare.objects.filter(assignment_group_id__in=group_ids)
-        # Hidden posts stay visible to admins (so they can un-hide) and to
-        # their own author, but disappear from everyone else's feed.
+        # Hidden posts stay on the director's feed so they can be restored.
+        # Everyone else, including the author, does not see them.
         if not viewer.is_admin:
-            qs = qs.filter(Q(is_hidden=False) | Q(person=viewer.person))
+            qs = qs.filter(is_hidden=False)
         qs = (
             qs.select_related("person")
             .annotate(like_total=Count("reactions", distinct=True))
@@ -132,16 +138,33 @@ class CohortFeedView(APIView):
         ])
 
 
+def _is_test_group(group) -> bool:
+    meta = group.metadata or {}
+    if meta.get("is_test") or meta.get("test"):
+        return True
+    return "test" in (group.name or "").casefold()
+
+
 class CohortMembersView(APIView):
-    """People in the caller's cohort(s): name, grade level, initials."""
+    """Madrichim in the caller's cohort(s): name, grade level, initials.
+
+    Classroom subjects include enrolled students. This roster is the
+    teaching team, so a student membership never qualifies.
+    """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         viewer = viewer_or_403(request)
         group_ids = _visible_group_ids(viewer)
+        if group_ids and not settings.DEBUG:
+            group_ids = [
+                group.id
+                for group in AssignmentGroup.objects.filter(id__in=group_ids)
+                if not _is_test_group(group)
+            ]
         if not group_ids or viewer.program is None:
-            return Response({"results": []})
+            return Response({"results": [], "cohorts": []})
 
         rows = (
             AssignmentGroupMembership.objects.filter(
@@ -150,10 +173,19 @@ class CohortMembersView(APIView):
             .select_related("person", "group")
             .order_by("person__last_name", "person__first_name")
         )
+        madrich_ids = set(
+            Membership.objects.filter(
+                program=viewer.program,
+                role="madrich",
+                is_active=True,
+                person_id__in=[row.person_id for row in rows],
+            ).values_list("person_id", flat=True),
+        )
         grades = dict(
             Membership.all_objects.filter(
                 program=viewer.program,
-                person_id__in=[r.person_id for r in rows],
+                person_id__in=list(madrich_ids),
+                role="madrich",
                 is_active=True,
             )
             .exclude(grade_level__isnull=True)
@@ -162,20 +194,26 @@ class CohortMembersView(APIView):
 
         seen: set[int] = set()
         results = []
+        cohorts = []
+        seen_groups: set[int] = set()
         for row in rows:
-            if row.person_id in seen:
+            if row.person_id not in madrich_ids or row.person_id in seen:
                 continue
             seen.add(row.person_id)
+            cohort = {"id": row.group_id, "name": row.group.name}
+            if row.group_id not in seen_groups:
+                seen_groups.add(row.group_id)
+                cohorts.append(cohort)
             name = display_name(row.person)
             results.append({
                 "id": row.person_id,
                 "display_name": name,
                 "initials": _initials(row.person),
                 "grade_level": grades.get(row.person_id),
-                "cohort": {"id": row.group_id, "name": row.group.name},
+                "cohort": cohort,
                 "is_me": row.person_id == viewer.person.id,
             })
-        return Response({"results": results})
+        return Response({"results": results, "cohorts": cohorts})
 
 
 def _initials(person) -> str:
