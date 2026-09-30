@@ -50,6 +50,7 @@ class ProgramAdminForm(forms.ModelForm):
         fields = (
             "organization",
             "name",
+            "display_alias",
             "slug",
             "program_type",
             "start_date",

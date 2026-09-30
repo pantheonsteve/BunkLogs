@@ -112,7 +112,7 @@ class FacultyClassroomAvailabilityView(APIView):
         rows = build_matrix_rows(program, memberships, session_dates)
 
         return Response({
-            "program": {"id": program.id, "name": program.name, "slug": program.slug},
+            "program": {"id": program.id, "name": program.display_name, "slug": program.slug},
             "group": {"id": group.id, "name": group.name},
             "sessions": [d.isoformat() for d in session_dates],
             "rows": rows,

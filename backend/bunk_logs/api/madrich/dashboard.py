@@ -135,7 +135,7 @@ class MadrichDashboardView(APIView):
                 "name": _display_name(viewer),
                 "role_label": "Madrich",
                 "grade_level": ctx.membership.grade_level,
-                "program_name": ctx.program.name,
+                "program_name": ctx.program.display_name,
                 "preferred_language": viewer.preferred_language or "en",
             },
             "my_reflections": cards,

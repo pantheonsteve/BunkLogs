@@ -49,7 +49,7 @@ class KitchenStaffDashboardView(APIView):
             "header": {
                 "name": _display_name(viewer),
                 "role_label": "Kitchen Staff",
-                "program_name": ctx.program.name,
+                "program_name": ctx.program.display_name,
                 "preferred_language": viewer.preferred_language or "en",
             },
             "my_reflection": {

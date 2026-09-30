@@ -101,8 +101,10 @@ class CoverageDashboardView(APIView):
 
         # Program (session) picker options before per-program visibility scoping.
         program_options = [
-            {"id": pid, "name": name}
-            for pid, name in groups_qs.values_list("program_id", "program__name")
+            {"id": pid, "name": alias or name}
+            for pid, name, alias in groups_qs.values_list(
+                "program_id", "program__name", "program__display_alias",
+            )
             .distinct()
             .order_by("program__name")
         ]
@@ -157,6 +159,7 @@ class CoverageDashboardView(APIView):
         groups = list(
             groups_qs.values(
                 "id", "name", "group_type", "program_id", "program__name",
+                "program__display_alias",
             ).order_by("group_type", "name"),
         )
         if not groups:
@@ -270,7 +273,7 @@ class CoverageDashboardView(APIView):
                 "name": g["name"],
                 "group_type": g["group_type"],
                 "program_id": g["program_id"],
-                "program_name": g["program__name"],
+                "program_name": g["program__display_alias"] or g["program__name"],
                 "days": day_rows,
             })
 

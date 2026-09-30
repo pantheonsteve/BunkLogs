@@ -51,7 +51,7 @@ class MadrichAvailabilityListView(APIView):
         return Response({
             "program": {
                 "id": ctx.program.id,
-                "name": ctx.program.name,
+                "name": ctx.program.display_name,
                 "slug": ctx.program.slug,
             },
             "timezone": str(get_org_timezone(ctx.organization)),

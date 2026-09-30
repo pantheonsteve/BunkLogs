@@ -89,7 +89,7 @@ class SpecialistDashboardView(APIView):
             "header": {
                 "name": _display_name(viewer),
                 "role_label": specialist_label(ctx.membership),
-                "program_name": ctx.program.name,
+                "program_name": ctx.program.display_name,
             },
             "write_camper_note": {
                 "url": "/specialist/observations/new",

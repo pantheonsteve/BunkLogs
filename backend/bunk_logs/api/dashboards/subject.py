@@ -342,7 +342,7 @@ def _subject_profile(subject: Person, organization) -> dict[str, Any]:
     programs = [
         {
             "id": m.program_id,
-            "name": m.program.name if m.program_id else None,
+            "name": m.program.display_name if m.program_id else None,
             "role": m.role,
         }
         for m in memberships

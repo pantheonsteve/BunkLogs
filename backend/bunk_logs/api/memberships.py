@@ -66,7 +66,7 @@ class MembershipSerializer(serializers.ModelSerializer):
     person_name = serializers.CharField(source="person.full_name", read_only=True)
     person_email = serializers.EmailField(source="person.email", read_only=True)
     program_slug = serializers.SlugField(source="program.slug", read_only=True)
-    program_name = serializers.CharField(source="program.name", read_only=True)
+    program_name = serializers.CharField(source="program.display_name", read_only=True)
 
     class Meta:
         model = Membership

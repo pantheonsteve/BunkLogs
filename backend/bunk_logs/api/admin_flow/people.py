@@ -106,7 +106,7 @@ def _serialize_membership(m: Membership) -> dict:
     return {
         "id": m.id,
         "program_id": m.program_id,
-        "program_name": m.program.name if m.program_id else None,
+        "program_name": m.program.display_name if m.program_id else None,
         "role": m.role,
         "capability": m.capability,
         "grade_level": m.grade_level,

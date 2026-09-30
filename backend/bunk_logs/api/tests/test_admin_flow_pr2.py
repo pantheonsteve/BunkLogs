@@ -611,6 +611,25 @@ class TestAdminPrograms:
         slugs = {p["slug"] for p in r2.json()["results"]}
         assert "pr2-brand-new" in slugs
 
+    def test_patch_display_alias(self, api, org, program, admin_user):
+        api.force_authenticate(user=admin_user)
+        url = f"{self.URL}{program.id}/"
+        with organization_context(org):
+            r = api.patch(url, {"display_alias": "  Summer 26 "}, format="json", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        body = r.json()
+        assert body["display_alias"] == "Summer 26"
+        assert body["display_name"] == "Summer 26"
+        assert body["name"] == "PR2 Org Summer"
+        assert AuditEvent.all_objects.filter(
+            content_type="program", content_id=str(program.id),
+        ).exists()
+
+        with organization_context(org):
+            r = api.patch(url, {"display_alias": None}, format="json", **_hdr(org.slug))
+        assert r.status_code == 200, r.content
+        assert r.json()["display_name"] == "PR2 Org Summer"
+
     def test_end_program_runs_in_transaction(
         self, api, org, program, admin_user,
     ):

@@ -74,6 +74,8 @@ def program_display_name(program, organization=None) -> str | None:
     """Session-friendly program label (drops the org name prefix when present)."""
     if program is None:
         return None
+    if (program.display_alias or "").strip():
+        return program.display_alias.strip()
     org_name = ""
     if organization is not None:
         org_name = organization.name

@@ -1,6 +1,6 @@
 Hi {{ person.full_name }},
 
-This is a friendly reminder to submit your {{ template.name }} reflection for {{ program.name }}.
+This is a friendly reminder to submit your {{ template.name }} reflection for {{ program.display_name }}.
 
 Please log in to {{ site_url }} to complete your reflection.
 

@@ -7,7 +7,7 @@ import {
 } from '../../api/admin';
 import Button from '../ui/Button';
 
-function FieldInput({ label, value, onChange, type = 'text', readOnly = false }) {
+function FieldInput({ label, value, onChange, type = 'text', readOnly = false, hint, placeholder, maxLength }) {
   return (
     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
       {label}
@@ -15,10 +15,28 @@ function FieldInput({ label, value, onChange, type = 'text', readOnly = false })
         type={type}
         value={value}
         readOnly={readOnly}
+        placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 text-sm text-gray-900 dark:text-white read-only:bg-gray-50 dark:read-only:bg-gray-900/50"
       />
+      {hint && <span className="mt-1 block font-normal text-gray-500 dark:text-gray-400">{hint}</span>}
     </label>
+  );
+}
+
+const ALIAS_HINT = 'Optional short name shown across the app instead of the full name, e.g. "RLYGRS 2026-2027".';
+
+function AliasInput({ value, onChange }) {
+  return (
+    <FieldInput
+      label="Display alias"
+      value={value}
+      onChange={onChange}
+      hint={ALIAS_HINT}
+      placeholder="Leave blank to use the full name"
+      maxLength={100}
+    />
   );
 }
 
@@ -41,6 +59,7 @@ function ModalShell({ title, onClose, children, testId }) {
 export function AddProgramModal({ onClose, onCreated }) {
   const [draft, setDraft] = useState({
     name: '',
+    display_alias: '',
     slug: '',
     program_type: '',
     start_date: '',
@@ -67,6 +86,7 @@ export function AddProgramModal({ onClose, onCreated }) {
     <ModalShell title="Add program" onClose={onClose} testId="add-program-modal">
       <form onSubmit={submit} className="space-y-2" data-testid="program-add-form">
         <FieldInput label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} />
+        <AliasInput value={draft.display_alias} onChange={(v) => setDraft({ ...draft, display_alias: v })} />
         <FieldInput label="Slug" value={draft.slug} onChange={(v) => setDraft({ ...draft, slug: v })} />
         <FieldInput label="Program type (e.g. summer_camp)" value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
         <FieldInput label="Start date (yyyy-mm-dd)" value={draft.start_date} onChange={(v) => setDraft({ ...draft, start_date: v })} />
@@ -97,6 +117,7 @@ export function EditProgramModal({ programId, onClose, onSaved }) {
         if (cancelled || !program) return;
         setDraft({
           name: program.name || '',
+          display_alias: program.display_alias || '',
           slug: program.slug || '',
           program_type: program.program_type || '',
           start_date: program.start_date || '',
@@ -136,6 +157,7 @@ export function EditProgramModal({ programId, onClose, onSaved }) {
       ) : (
         <form onSubmit={submit} className="space-y-2">
           <FieldInput label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} />
+          <AliasInput value={draft.display_alias} onChange={(v) => setDraft({ ...draft, display_alias: v })} />
           <FieldInput label="Slug" value={draft.slug} onChange={(v) => setDraft({ ...draft, slug: v })} />
           <FieldInput label="Program type" value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
           <FieldInput label="Start date (yyyy-mm-dd)" value={draft.start_date} onChange={(v) => setDraft({ ...draft, start_date: v })} />
@@ -183,6 +205,7 @@ export function ViewProgramModal({ programId, onClose }) {
       ) : (
         <div className="space-y-2 text-sm" data-testid="view-program-details">
           <FieldInput label="Name" value={program.name || ''} onChange={() => {}} readOnly />
+          <FieldInput label="Display alias" value={program.display_alias || '—'} onChange={() => {}} readOnly />
           <FieldInput label="Slug" value={program.slug || ''} onChange={() => {}} readOnly />
           <FieldInput label="Program type" value={program.program_type || ''} onChange={() => {}} readOnly />
           <FieldInput label="Start date" value={program.start_date || '—'} onChange={() => {}} readOnly />
@@ -224,7 +247,7 @@ export function EndProgramModal({ program, onClose, onEnded }) {
   };
 
   return (
-    <ModalShell title={`Delete program: ${program.name}`} onClose={onClose} testId="end-program-modal">
+    <ModalShell title={`Delete program: ${program.display_alias || program.name}`} onClose={onClose} testId="end-program-modal">
       {summary ? (
         <div className="space-y-2 text-sm" data-testid="end-program-summary">
           <p>This action ran in a single transaction.</p>

@@ -328,7 +328,7 @@ def _header_payload(role: str, program, *, member_count: int, period, target_dat
     header: dict[str, Any] = {
         "role": role,
         "role_label": dict(Membership.ROLES).get(role, role.replace("_", " ").title()),
-        "program": {"id": program.id, "name": program.name} if program else None,
+        "program": {"id": program.id, "name": program.display_name} if program else None,
         "member_count": member_count,
         "date": target_date.isoformat(),
     }

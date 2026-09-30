@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
 
 PROGRAM_PATCH_FIELDS = (
     "name",
+    "display_alias",
     "slug",
     "program_type",
     "start_date",
@@ -74,6 +75,8 @@ def _serialize_program(p: Program) -> dict:
     return {
         "id": p.id,
         "name": p.name,
+        "display_alias": p.display_alias,
+        "display_name": p.display_name,
         "slug": p.slug,
         "program_type": p.program_type,
         "start_date": p.start_date.isoformat() if p.start_date else None,
@@ -87,6 +90,7 @@ def _serialize_program(p: Program) -> dict:
 def _program_snapshot(p: Program) -> dict:
     return {
         "name": p.name,
+        "display_alias": p.display_alias,
         "slug": p.slug,
         "program_type": p.program_type,
         "start_date": p.start_date.isoformat() if p.start_date else None,
@@ -132,6 +136,7 @@ class AdminProgramsListCreateView(APIView):
             program = Program(
                 organization=ctx.organization,
                 name=data.get("name") or "",
+                display_alias=data.get("display_alias") or "",
                 slug=data.get("slug") or "",
                 program_type=data.get("program_type") or "",
                 start_date=_coerce_date(data.get("start_date")),
@@ -178,6 +183,8 @@ class AdminProgramDetailView(APIView):
             value = request.data[field]
             if field in ("start_date", "end_date"):
                 value = _coerce_date(value, getattr(program, field, None))
+            elif field == "display_alias":
+                value = (value or "").strip()
             current = getattr(program, field, None)
             if current == value:
                 continue

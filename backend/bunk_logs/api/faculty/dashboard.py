@@ -134,7 +134,7 @@ class FacultyDashboardView(APIView):
             "header": {
                 "name": _display_name(ctx.person),
                 "role_label": "Faculty",
-                "program_name": program.name,
+                "program_name": program.display_name,
                 "preferred_language": ctx.person.preferred_language or "en",
             },
             "classrooms": classrooms,
