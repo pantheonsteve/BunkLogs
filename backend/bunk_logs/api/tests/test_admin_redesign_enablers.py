@@ -567,6 +567,7 @@ class TestActivityDeepLinks:
         AuditEvent.all_objects.create(
             organization=org, event_type=AuditEvent.EventType.DEACTIVATED,
             content_type="membership", content_id=membership.id,
+            actor_membership=Membership.all_objects.get(person__user=admin_user),
         )
 
         api.force_authenticate(user=admin_user)
@@ -584,6 +585,7 @@ class TestActivityDeepLinks:
         AuditEvent.all_objects.create(
             organization=org, event_type=AuditEvent.EventType.CREATED,
             content_type="supervision", content_id=999,
+            actor_membership=Membership.all_objects.get(person__user=admin_user),
         )
 
         api.force_authenticate(user=admin_user)
