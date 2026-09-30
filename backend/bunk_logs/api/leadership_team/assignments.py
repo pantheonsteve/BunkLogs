@@ -94,7 +94,7 @@ def _serialize(
         group_type = assignment.assignment_group.group_type
     program_name = None
     if assignment.program_id and assignment.program:
-        program_name = assignment.program.name
+        program_name = assignment.program.display_name
     template_cadence = None
     if assignment.template_id and assignment.template:
         template_cadence = assignment.template.cadence

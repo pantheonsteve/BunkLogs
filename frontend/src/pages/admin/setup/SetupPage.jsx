@@ -28,6 +28,7 @@ import OverflowMenu, { OverflowMenuItem, OverflowMenuSeparator } from '../../../
 import PageHeader from '../../../components/ui/PageHeader';
 import { useAdminProgram } from '../../../context/AdminProgramContext';
 import { useTerm } from '../../../context/OrgBrandingContext';
+import { programDisplayName } from '../../../lib/programLabel';
 
 const STATUS_FILTERS = [
   { value: 'active', label: 'Active' },
@@ -80,7 +81,12 @@ export default function AdminSetupPage() {
       header: 'Name',
       render: (p) => (
         <div className="min-w-0">
-          <p className="font-semibold text-gray-900 dark:text-white">{p.name}</p>
+          <p className="font-semibold text-gray-900 dark:text-white">{programDisplayName(p)}</p>
+          {p.display_alias && (
+            <p className="text-xs text-gray-500 dark:text-gray-400" data-testid={`program-full-name-${p.id}`}>
+              {p.name}
+            </p>
+          )}
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {p.program_type ? p.program_type.replace(/_/g, ' ') : 'no type set'}
           </p>
@@ -112,7 +118,7 @@ export default function AdminSetupPage() {
       render: (p) => (
         <OverflowMenu
           size="sm"
-          label={`Actions for ${p.name}`}
+          label={`Actions for ${programDisplayName(p)}`}
           triggerTestId={`program-actions-${p.id}`}
         >
           <OverflowMenuItem
@@ -134,7 +140,7 @@ export default function AdminSetupPage() {
             onClick={() => setModal({ kind: 'delete', program: p })}
             data-testid={`program-delete-${p.id}`}
           >
-            {p.is_active ? `Delete ${p.name}…` : 'Already ended'}
+            {p.is_active ? `Delete ${programDisplayName(p)}…` : 'Already ended'}
           </OverflowMenuItem>
         </OverflowMenu>
       ),

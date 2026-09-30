@@ -1,5 +1,5 @@
 Maintenance Digest — {{ window_end|date:"N j, Y" }}
-{{ program.name }}
+{{ program.display_name }}
 
 SUMMARY
 -------

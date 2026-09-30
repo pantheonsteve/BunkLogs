@@ -11,6 +11,7 @@ import Button from '../ui/Button';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import Note from '../ui/Note';
 import { useAdminProgram } from '../../context/AdminProgramContext';
+import { programDisplayName } from '../../lib/programLabel';
 
 /**
  * Supervision, seen from one person rather than from a group.
@@ -176,7 +177,7 @@ export default function PersonSupervisionTab({ person }) {
 
       <div>
         <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-          Supervision by role{program ? ` · ${program.name}` : ''}
+          Supervision by role{program ? ` · ${programDisplayName(program)}` : ''}
         </h4>
         {rows.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">

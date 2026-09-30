@@ -115,7 +115,7 @@ def serialize_group_row(group) -> dict:
         "display_order": group.display_order,
         "is_active": group.is_active,
         "program_id": group.program_id,
-        "program_name": group.program.name if group.program_id else None,
+        "program_name": group.program.display_name if group.program_id else None,
         "parent_id": group.parent_id,
         "parent_name": group.parent.name if group.parent_id else None,
         "subject_count": group.subject_count,

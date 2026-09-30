@@ -134,7 +134,7 @@ class LeadershipTeamTeamDashboardView(APIView):
                 ),
                 "program": {
                     "id": ctx.program.id,
-                    "name": ctx.program.name,
+                    "name": ctx.program.display_name,
                 },
                 "member_count": len(memberships),
                 "supervisors": _supervisors_payload(ctx, supervision, co_supervisors),

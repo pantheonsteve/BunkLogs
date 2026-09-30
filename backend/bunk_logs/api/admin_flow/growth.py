@@ -317,7 +317,7 @@ def _build_growth_payload(request, ctx) -> dict:
             "role_label": dict(Membership.ROLES).get(
                 role, role.replace("_", " ").title(),
             ),
-            "program": {"id": program.id, "name": program.name} if program else None,
+            "program": {"id": program.id, "name": program.display_name} if program else None,
             "template": {"id": template.id, "slug": template.slug} if template else None,
             "period": {"start": start.isoformat(), "end": end.isoformat()},
             "taxonomy_version": TAXONOMY_VERSION,

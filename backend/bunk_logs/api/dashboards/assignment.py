@@ -296,7 +296,7 @@ class AssignmentSelectorView(APIView):
                     "audience_type": audience_type,
                     "status": assignment.status,
                     "program_id": assignment.program_id,
-                    "program_label": assignment.program.name if assignment.program_id else "",
+                    "program_label": assignment.program.display_name if assignment.program_id else "",
                 },
             )
 
@@ -365,7 +365,7 @@ class AssignmentTemplateDashboardView(APIView):
             (
                 {"program_id": pid, "program_label": label}
                 for pid, label in {
-                    (a.program_id, a.program.name if a.program_id else "")
+                    (a.program_id, a.program.display_name if a.program_id else "")
                     for a in in_status
                 }
             ),
@@ -414,7 +414,7 @@ class AssignmentTemplateDashboardView(APIView):
             "label": audience_label,
             "audience_type": audience_type,
             "program_id": assignment.program_id,
-            "program_label": assignment.program.name if assignment.program_id else "",
+            "program_label": assignment.program.display_name if assignment.program_id else "",
         }
 
     @staticmethod

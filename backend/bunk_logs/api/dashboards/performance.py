@@ -44,10 +44,11 @@ def _parse_date(s: str | None, default: date) -> date:
 def _program_options_from_qs(groups_qs) -> list[dict]:
     opts: list[dict] = []
     seen: set[int] = set()
-    for pid, name, start, end, is_active in (
+    for pid, name, alias, start, end, is_active in (
         groups_qs.values_list(
             "program_id",
             "program__name",
+            "program__display_alias",
             "program__start_date",
             "program__end_date",
             "program__is_active",
@@ -60,7 +61,7 @@ def _program_options_from_qs(groups_qs) -> list[dict]:
         seen.add(pid)
         opts.append({
             "id": pid,
-            "name": name,
+            "name": alias or name,
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
             "is_active": is_active,
@@ -280,7 +281,7 @@ class GroupPerformanceDashboardView(APIView):
                 "name": group.name,
                 "group_type": group.group_type,
                 "program_id": group.program_id,
-                "program_name": program.name if program else None,
+                "program_name": program.display_name if program else None,
                 "parent_name": group.parent.name if group.parent_id else None,
                 "author_names": authors.get(group.id, []),
                 "roster": build_group_roster(group=group, program=program),

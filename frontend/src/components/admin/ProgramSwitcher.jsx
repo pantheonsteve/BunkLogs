@@ -2,16 +2,16 @@ import { ChevronDown } from 'lucide-react';
 
 import { useAdminProgram } from '../../context/AdminProgramContext';
 import { useTerm } from '../../context/OrgBrandingContext';
-import { programShortLabel } from '../../lib/programLabel';
+import { programDisplayName, programShortLabel } from '../../lib/programLabel';
 
 /**
  * The single program control for the whole admin, mounted in the topbar.
  * Every admin page inherits it, so the ~90-character program name no
  * longer has to be repeated under each row of a list.
  *
- * The trigger shows the derived short label ("2026-27"); the native
- * dropdown keeps the full names, which is where an admin actually needs
- * to tell two similarly-dated programs apart. The select is laid over the
+ * The trigger shows the short label (the admin-set alias, else "2026-27");
+ * the native dropdown shows the alias or full name, which is where an
+ * admin needs to tell two similarly-dated programs apart. The select is laid over the
  * visible label rather than styled directly, because a native select can
  * only render its selected option's own text.
  *
@@ -48,7 +48,7 @@ export default function ProgramSwitcher() {
       >
         {programs.map((p) => (
           <option key={p.id} value={String(p.id)}>
-            {p.name}
+            {programDisplayName(p)}
             {p.is_active ? '' : ' (Ended)'}
           </option>
         ))}

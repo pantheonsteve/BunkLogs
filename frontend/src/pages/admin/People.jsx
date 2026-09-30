@@ -39,6 +39,7 @@ import Note from '../../components/ui/Note';
 import OverflowMenu, { OverflowMenuItem } from '../../components/ui/OverflowMenu';
 import PageHeader from '../../components/ui/PageHeader';
 import { useAdminProgram } from '../../context/AdminProgramContext';
+import { programDisplayName } from '../../lib/programLabel';
 import { profileLink } from '../../utils/dashboardLinks';
 import AddPersonModal from './people/AddPersonModal';
 import BulkTagModal from './people/BulkTagModal';
@@ -308,7 +309,7 @@ export default function AdminPeople() {
         title="People"
         subtitle={
           program
-            ? `Everyone in ${program.name}`
+            ? `Everyone in ${programDisplayName(program)}`
             : 'Everyone in this organization, across all programs'
         }
         actions={(
@@ -503,7 +504,7 @@ export default function AdminPeople() {
         <BulkTagModal
           people={selectedProfiles}
           programId={programId}
-          programName={program?.name}
+          programName={programDisplayName(program)}
           onClose={() => setTagging(false)}
           onApplied={(updated) => {
             setTagging(false);

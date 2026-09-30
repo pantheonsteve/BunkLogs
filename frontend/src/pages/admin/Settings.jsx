@@ -530,7 +530,7 @@ function EndProgramModal({ program, onClose, onEnded }) {
       onClick={(e) => { if (e.target === e.currentTarget && !submitting) onClose(); }}
     >
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg space-y-3 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-red-800">End program: {program.name}</h2>
+        <h2 className="text-lg font-semibold text-red-800">End program: {program.display_alias || program.name}</h2>
         {summary ? (
           <div className="space-y-2 text-sm" data-testid="end-program-summary">
             <p>This action ran in a single transaction.</p>

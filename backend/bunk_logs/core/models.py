@@ -237,6 +237,8 @@ class Program(models.Model):
         related_name="programs",
     )
     name = models.CharField(max_length=255)
+    # Short label shown in place of ``name`` (which must carry the org prefix).
+    display_alias = models.CharField(max_length=100, blank=True, default="", db_default="")
     slug = models.SlugField(max_length=100)
     program_type = models.CharField(max_length=32, choices=PROGRAM_TYPES)
     start_date = models.DateField()
@@ -267,8 +269,13 @@ class Program(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+    @property
+    def display_name(self) -> str:
+        return (self.display_alias or "").strip() or self.name
+
     def clean(self) -> None:
         super().clean()
+        self.display_alias = (self.display_alias or "").strip()
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValidationError(
                 {"end_date": "End date must be on or after start date."},

@@ -189,7 +189,7 @@ class CounselorDashboardView(APIView):
             "program": {
                 "id": program.id,
                 "slug": program.slug,
-                "name": program.name,
+                "name": program.display_name,
             },
             "all_set": all_set,
             "bunks": bunk_tiles,

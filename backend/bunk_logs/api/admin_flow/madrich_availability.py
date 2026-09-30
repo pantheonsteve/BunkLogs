@@ -92,7 +92,7 @@ def _parse_date_param(raw: str | None, *, label: str) -> date | None:
 def _program_payload(program: Program | None) -> dict | None:
     if program is None:
         return None
-    return {"id": program.id, "name": program.name, "slug": program.slug}
+    return {"id": program.id, "name": program.display_name, "slug": program.slug}
 
 
 class AdminMadrichAvailabilityView(APIView):

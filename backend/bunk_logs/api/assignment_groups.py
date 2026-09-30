@@ -43,7 +43,7 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
     memberships = AssignmentGroupMembershipSerializer(many=True, read_only=True)
     parent_id = serializers.PrimaryKeyRelatedField(source="parent", read_only=True)
     parent_name = serializers.CharField(source="parent.name", read_only=True, allow_null=True)
-    program_name = serializers.CharField(source="program.name", read_only=True)
+    program_name = serializers.CharField(source="program.display_name", read_only=True)
 
     class Meta:
         model = AssignmentGroup
@@ -70,7 +70,7 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
 class AssignmentGroupListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views (no memberships)."""
 
-    program_name = serializers.CharField(source="program.name", read_only=True)
+    program_name = serializers.CharField(source="program.display_name", read_only=True)
     parent_name = serializers.CharField(source="parent.name", read_only=True, allow_null=True)
     parent_id = serializers.PrimaryKeyRelatedField(source="parent", read_only=True, allow_null=True)
 

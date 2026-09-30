@@ -77,7 +77,7 @@ def _serialize_supervision(s: Supervision) -> dict:
         target_name = s.target_bunk.name if s.target_bunk else None
     elif s.target_type == Supervision.TargetType.ROLE_IN_PROGRAM:
         role = s.target_role or ""
-        prog = s.target_program.name if s.target_program_id else ""
+        prog = s.target_program.display_name if s.target_program_id else ""
         target_name = f"{role} in {prog}".strip() if role or prog else None
     return {
         "id": s.id,
@@ -90,7 +90,7 @@ def _serialize_supervision(s: Supervision) -> dict:
         "target_membership_name": _person_name(s.target_membership),
         "target_role": s.target_role or None,
         "target_program_id": s.target_program_id,
-        "target_program_name": s.target_program.name if s.target_program_id else None,
+        "target_program_name": s.target_program.display_name if s.target_program_id else None,
         "target_bunk_id": s.target_bunk_id,
         "target_bunk_name": s.target_bunk.name if s.target_bunk_id else None,
         "target_name": target_name,
@@ -703,7 +703,7 @@ def _supervision_target_name(s: Supervision) -> str | None:
         return s.target_group.name
     if s.target_type == Supervision.TargetType.ROLE_IN_PROGRAM:
         role = s.target_role or ""
-        prog = s.target_program.name if s.target_program_id else ""
+        prog = s.target_program.display_name if s.target_program_id else ""
         return f"{role} in {prog}".strip() or None
     return None
 

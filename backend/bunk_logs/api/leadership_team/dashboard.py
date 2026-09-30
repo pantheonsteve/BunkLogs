@@ -141,7 +141,7 @@ def _build_team_cards(ctx) -> list[dict]:
             "team_role": role,
             "team_role_label": dict(_role_labels()).get(role, role.replace("_", " ").title()),
             "program_id": program.id if program else None,
-            "program_name": program.name if program else None,
+            "program_name": program.display_name if program else None,
             "member_count": member_count,
             "completion": completion,
             "co_supervisors": [

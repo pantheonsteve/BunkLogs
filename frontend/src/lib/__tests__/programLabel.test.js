@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { programShortLabel } from '../programLabel';
+import { programDisplayName, programShortLabel } from '../programLabel';
 
 describe('programShortLabel', () => {
   it('spans two calendar years for a school year', () => {
@@ -27,5 +27,22 @@ describe('programShortLabel', () => {
   it('falls back to the full name when there are no usable dates', () => {
     expect(programShortLabel({ name: 'Pilot', start_date: null })).toBe('Pilot');
     expect(programShortLabel(null)).toBe('');
+  });
+
+  it('prefers an admin-set display alias', () => {
+    expect(programShortLabel({
+      name: 'The Rabbi Leslie Yale Gutterman Religious School (RLYGRS) at Temple Beth-El Religious School 2026-27',
+      display_alias: ' RLYGRS 2026-2027 ',
+      start_date: '2026-09-13',
+      end_date: '2027-05-16',
+    })).toBe('RLYGRS 2026-2027');
+  });
+});
+
+describe('programDisplayName', () => {
+  it('uses the alias when set, else the full name', () => {
+    expect(programDisplayName({ name: 'Long name', display_alias: 'Short' })).toBe('Short');
+    expect(programDisplayName({ name: 'Long name', display_alias: '' })).toBe('Long name');
+    expect(programDisplayName(null)).toBe('');
   });
 });
