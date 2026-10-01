@@ -63,17 +63,18 @@ function ProfileTabs({ person, programs, onPersonChanged }) {
         onChange={setTab}
       />
       {tab === 'identity' && (
-        <IdentityTab person={person} onSaved={onPersonChanged} />
+        <IdentityTab key={person.id} person={person} onSaved={onPersonChanged} />
       )}
       {tab === 'memberships' && (
         <MembershipsTab
+          key={person.id}
           person={person}
           programs={programs}
           onChanged={onPersonChanged}
         />
       )}
-      {tab === 'supervision' && <PersonSupervisionTab person={person} />}
-      {tab === 'activity' && <ActivityTab person={person} />}
+      {tab === 'supervision' && <PersonSupervisionTab key={person.id} person={person} />}
+      {tab === 'activity' && <ActivityTab key={person.id} person={person} />}
     </div>
   );
 }
@@ -179,7 +180,36 @@ function MembershipsTab({ person, programs, onChanged }) {
           }}
         />
       )}
+      <PersonGroupsSection groups={person.group_memberships || []} />
     </div>
+  );
+}
+
+function PersonGroupsSection({ groups }) {
+  return (
+    <section className="pt-2 space-y-2" data-testid="person-groups">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        Groups
+      </h4>
+      <ul className="divide-y border rounded-md bg-white dark:bg-gray-900">
+        {groups.length === 0 && (
+          <li className="p-3 text-sm italic text-gray-500">Not in any groups.</li>
+        )}
+        {groups.map((g) => (
+          <li key={g.id} className="p-3 flex items-center justify-between gap-2 text-sm">
+            <Link
+              to={`/admin/groups/${g.group_id}`}
+              className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+            >
+              {g.group_name}
+            </Link>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {g.group_type} · {g.role_in_group}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
