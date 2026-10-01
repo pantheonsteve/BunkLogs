@@ -22,10 +22,7 @@ import {
 import BulkImportModal from '../../components/admin/BulkImportModal';
 import DedupePeopleModal from '../../components/admin/DedupePeopleModal';
 import DeletePersonModal from '../../components/admin/DeletePersonModal';
-import PersonProfilePanel, {
-  MEMBERSHIP_ROLE_OPTIONS,
-  PeopleListPagination,
-} from '../../components/admin/PersonProfilePanel';
+import PersonProfilePanel, { PeopleListPagination } from '../../components/admin/PersonProfilePanel';
 import Badge from '../../components/ui/Badge';
 import BulkActionBar from '../../components/ui/BulkActionBar';
 import Button from '../../components/ui/Button';
@@ -76,6 +73,9 @@ export default function AdminPeople() {
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [availableRoles, setAvailableRoles] = useState([]);
+  const [groupFilter, setGroupFilter] = useState('');
+  const [availableGroups, setAvailableGroups] = useState([]);
   const [statusFilter, setStatusFilter] = useState('active');
   const inviteFilter = searchParams.get('invite_status') || '';
   const [offset, setOffset] = useState(0);
@@ -121,6 +121,7 @@ export default function AdminPeople() {
         const params = buildAdminPeopleListParams({
           search,
           role: roleFilter,
+          group: groupFilter,
           status: statusFilter,
           invite_status: inviteFilter,
           program: programId,
@@ -134,6 +135,8 @@ export default function AdminPeople() {
         if (cancelled) return;
         setPeople(list.results || []);
         setTotalCount(list.count ?? 0);
+        setAvailableRoles(list.available_roles || []);
+        setAvailableGroups(list.available_groups || []);
         setPrograms(progList.results || []);
       } catch (err) {
         if (cancelled || err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
@@ -148,7 +151,13 @@ export default function AdminPeople() {
       cancelled = true;
       controller.abort();
     };
-  }, [search, roleFilter, statusFilter, inviteFilter, programId, offset, pageSize, reloadToken]);
+  }, [
+    search, roleFilter, groupFilter, statusFilter, inviteFilter, programId, offset, pageSize,
+    reloadToken,
+  ]);
+
+  // A group belongs to one program, so switching programs drops the filter.
+  useEffect(() => { setGroupFilter(''); }, [programId]);
 
   // Bulk actions act on whole records (memberships to tag, users to merge),
   // so a selection needs the full profile, not the list row.
@@ -235,6 +244,12 @@ export default function AdminPeople() {
     }
   };
 
+  // Keep the active filter selectable even if it no longer matches anyone.
+  const roleFilterOptions = useMemo(() => {
+    if (!roleFilter || availableRoles.includes(roleFilter)) return availableRoles;
+    return [...availableRoles, roleFilter];
+  }, [availableRoles, roleFilter]);
+
   const selectedCount = selectedIds.size;
   const selectedProfiles = useMemo(
     () => Array.from(selectedIds).map((id) => selectedPeople.get(id)).filter(Boolean),
@@ -269,15 +284,6 @@ export default function AdminPeople() {
               {p.roles.map((r) => <Badge key={r} tone="info">{r.replace(/_/g, ' ')}</Badge>)}
             </div>
           )
-      ),
-    },
-    {
-      key: 'groups',
-      header: 'Groups',
-      render: (p) => (
-        (p.groups || []).length === 0
-          ? <span className="text-gray-400">—</span>
-          : <span className="text-xs">{p.groups.join(' · ')}</span>
       ),
     },
     {
@@ -341,7 +347,16 @@ export default function AdminPeople() {
           data-testid="people-role-filter"
           options={[
             { value: '', label: 'Any role' },
-            ...MEMBERSHIP_ROLE_OPTIONS.map((r) => ({ value: r, label: r.replace(/_/g, ' ') })),
+            ...roleFilterOptions.map((r) => ({ value: r, label: r.replace(/_/g, ' ') })),
+          ]}
+        />
+        <FilterSelect
+          value={groupFilter}
+          onChange={(v) => { setGroupFilter(v); setOffset(0); }}
+          data-testid="people-group-filter"
+          options={[
+            { value: '', label: 'Any group' },
+            ...availableGroups.map((g) => ({ value: String(g.id), label: g.name })),
           ]}
         />
         <FilterSelect

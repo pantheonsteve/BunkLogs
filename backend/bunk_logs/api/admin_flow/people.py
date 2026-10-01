@@ -43,6 +43,8 @@ from bunk_logs.core import audit as audit_module
 from bunk_logs.core.campminder_user_link import UserLinkAction
 from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
 from bunk_logs.core.models import SUBJECT_ROLES
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
@@ -168,6 +170,21 @@ def _serialize_person(
             .select_related("program")
             .order_by("-is_active", "-created_at")
         ]
+        payload["group_memberships"] = [
+            {
+                "id": gm.id,
+                "group_id": gm.group_id,
+                "group_name": gm.group.name,
+                "group_type": gm.group.group_type,
+                "role_in_group": gm.role_in_group,
+                "program_id": gm.group.program_id,
+            }
+            for gm in AssignmentGroupMembership.all_objects.filter(
+                person=person, is_active=True, group__is_active=True,
+            )
+            .select_related("group")
+            .order_by("group__group_type", "group__display_order", "group__name")
+        ]
     return payload
 
 
@@ -251,6 +268,13 @@ class AdminPeopleListCreateView(APIView):
         if program_id:
             qs = qs.filter(memberships__program_id=program_id).distinct()
 
+        group_id = (request.query_params.get("group") or "").strip()
+        if group_id.isdigit():
+            qs = qs.filter(
+                assignment_group_memberships__group_id=group_id,
+                assignment_group_memberships__is_active=True,
+            ).distinct()
+
         tag = (request.query_params.get("tag") or "").strip().lower()
         if tag:
             qs = qs.filter(memberships__tags__contains=[tag]).distinct()
@@ -294,10 +318,34 @@ class AdminPeopleListCreateView(APIView):
             offset = 0
         total = qs.count()
         items = list(qs[offset : offset + page_size])
+
+        role_qs = Membership.all_objects.filter(
+            program__organization=ctx.organization, is_active=True,
+        )
+        if program_id:
+            role_qs = role_qs.filter(program_id=program_id)
+        available_roles = sorted(set(role_qs.values_list("role", flat=True)))
+
+        group_qs = AssignmentGroup.all_objects.filter(
+            organization=ctx.organization,
+            is_active=True,
+            memberships__is_active=True,
+        )
+        if program_id:
+            group_qs = group_qs.filter(program_id=program_id)
+        available_groups = [
+            {"id": gid, "name": name}
+            for gid, name in group_qs.distinct()
+            .order_by("group_type", "display_order", "name")
+            .values_list("id", "name")
+        ]
+
         return Response({
             "count": total,
             "offset": offset,
             "page_size": page_size,
+            "available_roles": available_roles,
+            "available_groups": available_groups,
             "results": [_serialize_person(p, include_summary=True) for p in items],
         })
 

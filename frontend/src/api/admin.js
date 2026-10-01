@@ -61,6 +61,7 @@ export async function listAdminPeople(params = {}, config = {}) {
 export function buildAdminPeopleListParams({
   search = '',
   role = '',
+  group = '',
   status = '',
   invite_status = '',
   program = '',
@@ -72,6 +73,7 @@ export function buildAdminPeopleListParams({
   const trimmedSearch = search.trim();
   if (trimmedSearch) params.search = trimmedSearch;
   if (role) params.role = role;
+  if (group) params.group = String(group);
   if (status) params.status = status;
   if (invite_status) params.invite_status = invite_status;
   if (program) params.program = String(program);

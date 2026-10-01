@@ -153,6 +153,60 @@ class TestAdminPeople:
         body = r.json()
         assert body["existing_person"]["id"] == existing_person.id
 
+    def test_list_available_roles_scoped_to_program_and_active(
+        self, api, org, program, admin_user,
+    ):
+        other_program = Program.all_objects.create(
+            organization=org, name="PR2 Org Winter", slug="pr2-other-program",
+            program_type="summer_camp",
+            start_date=SEASON_START, end_date=SEASON_END,
+        )
+        person = Person.all_objects.create(organization=org, first_name="Ro", last_name="Les")
+        Membership.all_objects.create(
+            program=program, person=person, role="faculty", is_active=True,
+        )
+        Membership.all_objects.create(
+            program=program, person=person, role="kitchen_staff", is_active=False,
+        )
+        Membership.all_objects.create(
+            program=other_program, person=person, role="madrich", is_active=True,
+        )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(self.URL, {"program": program.id}, **_hdr(org.slug))
+            r_all = api.get(self.URL, **_hdr(org.slug))
+        assert r.json()["available_roles"] == ["admin", "faculty"]
+        assert r_all.json()["available_roles"] == ["admin", "faculty", "madrich"]
+
+    def test_group_filter_available_groups_and_detail(
+        self, api, org, program, admin_user,
+    ):
+        staffed = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Cabin 1", slug="cabin-1",
+            group_type="bunk",
+        )
+        AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Empty Cabin", slug="empty-cabin",
+            group_type="bunk",
+        )
+        member = Person.all_objects.create(organization=org, first_name="In", last_name="Group")
+        Membership.all_objects.create(
+            program=program, person=member, role="counselor", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=staffed, person=member, role_in_group="author",
+        )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            r = api.get(
+                self.URL, {"program": program.id, "group": staffed.id}, **_hdr(org.slug),
+            )
+            detail = api.get(f"{self.URL}{member.id}/", **_hdr(org.slug))
+        body = r.json()
+        assert [p["id"] for p in body["results"]] == [member.id]
+        assert body["available_groups"] == [{"id": staffed.id, "name": "Cabin 1"}]
+        assert detail.json()["group_memberships"][0]["group_id"] == staffed.id
+
     def test_list_pagination_and_last_name_initial(
         self, api, org, program, admin_user,
     ):

@@ -139,11 +139,10 @@ function renderPeople(entry = '/admin/people') {
 }
 
 describe('AdminPeople', () => {
-  it('shows role, groups and invite status in the row', async () => {
+  it('shows role and invite status in the row', async () => {
     renderPeople();
     const alice = await screen.findByTestId('person-row-1');
     expect(within(alice).getByText('counselor')).toBeInTheDocument();
-    expect(within(alice).getByText('Bunk Maple')).toBeInTheDocument();
     expect(within(alice).getByText('Signed in')).toBeInTheDocument();
     expect(within(screen.getByTestId('person-row-2')).getByText('Not invited')).toBeInTheDocument();
   });
