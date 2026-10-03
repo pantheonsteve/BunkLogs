@@ -161,7 +161,6 @@ backend/
 ├── dev.sh                  # Development helper commands
 ├── github-actions-key.json # Service account key (don't commit!)
 ├── deploy-cloudrun-fixed.sh # Enhanced Cloud Run deployment script
-├── deploy-cloudrun-simple.sh # Simple Cloud Run deployment script
 ├── test_orders_api.py      # API testing script
 ├── bunk_logs/              # Main Django app
 │   ├── api/                # REST API endpoints and serializers
@@ -620,13 +619,7 @@ Features:
 - Traffic management
 - Comprehensive error handling
 
-### 3. Simple Manual Deployment
-```bash
-./deploy-cloudrun-simple.sh
-```
-Basic deployment without advanced features.
-
-### 4. Custom Deployment
+### 3. Custom Deployment
 ```bash
 # Build image
 gcloud builds submit --config cloudbuild.yaml .
