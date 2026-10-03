@@ -36,7 +36,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.511.0",
     "quill": "^2.0.3",
-    "react": "^19.0.0",
+    "react": "^19.3.0",
     "react-day-picker": "^9.5.1",
     "react-dom": "^19.1.0",
     "react-i18next": "^15.7.4",
