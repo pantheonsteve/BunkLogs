@@ -1,90 +1,104 @@
 /**
- * Counselor home dashboard at `/counselor`.
+ * Counselor home at `/counselor`, phone first (2027 refresh, 8_4).
  *
- * Renders viewer context, a date picker (defaults to org "today"), bunk
- * tiles for groups the counselor authors (with form-assignment progress),
- * quick actions (requests + observations) at the top, bunk tiles,
- * self-reflection status, and the all-set banner when work is complete.
+ * Day stepper, a hero card + camper list per bunk, the self-reflection
+ * card, quick actions and recent requests; two columns from md up and a
+ * bottom tab bar below lg. Per-camper status comes from the camper
+ * reflection roster plus local drafts / the offline queue, so "Continue
+ * logging" always names the first camper in roster order not yet done.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
+  ArrowRight,
+  Check,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
-  ClipboardCheck,
+  Flag,
+  HeartHandshake,
   Home,
-  MessageSquarePlus,
+  MessageSquare,
+  PenLine,
+  User,
   Users,
   Wrench,
-  HeartHandshake,
 } from 'lucide-react';
-import { fetchCounselorDashboard } from '../../api/counselor';
+import api from '../../api';
+import { fetchCamperReflections, fetchCounselorDashboard } from '../../api/counselor';
 import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+import InitialsAvatar from '../../components/ui/InitialsAvatar';
+import ProgressBar from '../../components/ui/ProgressBar';
 import { SUBMISSION_KIND } from '../../lib/submissionQueue/queue';
 import { useSubmissionQueue } from '../../lib/submissionQueue/useSubmissionQueue';
 import {
+  camperReflectionDraftKey,
   loadCounselorDraft,
   selfReflectionDraftKey,
 } from '../../utils/counselor/counselorDraftStorage';
 
 const REFRESH_INTERVAL_MS = 60_000;
+const ROSTER_PATH = '/counselor/camper-reflections';
 
-const STATE_BADGE = {
-  complete: {
-    label: 'Done',
-    className:
-      'border border-green-200 dark:border-green-900 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  },
-  in_progress: {
-    label: 'In progress',
-    className:
-      'border border-amber-200 dark:border-amber-900 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  },
-  syncing: {
-    label: 'Syncing',
-    className:
-      'border border-blue-200 dark:border-blue-900 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
-  },
-  draft_saved: {
-    label: 'Draft saved',
-    className:
-      'border border-violet-200 dark:border-violet-900 bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200',
-  },
-  none: {
-    label: 'Not started',
-    className:
-      'border border-gray-200 dark:border-gray-700 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+const CAMPER_STATUS = {
+  complete: { label: 'Done', tone: 'ok', icon: true },
+  syncing: { label: 'Syncing', tone: 'info' },
+  draft_saved: { label: 'Draft saved', tone: 'warn' },
+  none: { label: 'Not started', tone: 'neutral' },
+  off_camp: {
+    label: 'Off camp',
+    colors: 'bg-transparent border border-line text-muted',
   },
 };
 
-function formatDisplayDate(iso) {
-  if (!iso) return '';
+const REQUEST_STATUS_TONE = {
+  new: 'info',
+  in_progress: 'warn',
+  fulfilled: 'ok',
+  unable_to_fulfill: 'neutral',
+};
+
+const SECTION_HEADING = 'text-[13px] font-bold uppercase tracking-wider text-ink-2';
+
+function parseIso(iso) {
   const parsed = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function titleCaseRole(role) {
-  if (!role) return '';
-  return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+function shiftIso(iso, days) {
+  const d = parseIso(iso);
+  if (!d) return iso;
+  d.setDate(d.getDate() + days);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function formatStepperDate(iso) {
+  const d = iso ? parseIso(iso) : null;
+  if (!d) return iso || '';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function relativeDayLabel(selectedIso, todayIso) {
+  if (!selectedIso || !todayIso || selectedIso === todayIso) return 'Today';
+  if (shiftIso(todayIso, -1) === selectedIso) return 'Yesterday';
+  return 'Past day · read-only';
 }
 
 function formatRelative(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMin = Math.round((now - d) / 60000);
+  const diffMin = Math.round((Date.now() - new Date(iso)) / 60000);
   if (diffMin < 1) return 'just now';
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffH = Math.round(diffMin / 60);
   if (diffH < 24) return `${diffH}h ago`;
-  return `${Math.round(diffH / 24)}d ago`;
+  const diffD = Math.round(diffH / 24);
+  return diffD === 1 ? 'yesterday' : `${diffD}d ago`;
 }
 
 function requestDetailPath(request) {
@@ -94,376 +108,481 @@ function requestDetailPath(request) {
   return `/counselor/requests/maintenance/${request.id}?from=counselor`;
 }
 
-const REQUEST_STATUS_BADGE = {
-  new: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
-  in_progress: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  fulfilled: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
-  unable_to_fulfill: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
-};
-
-// Categorical, not semantic: the colour separates a care request from a
-// maintenance one, so these pass `colors` rather than a tone.
-const REQUEST_TYPE_COLORS = {
-  camper_care: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
-  maintenance: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
-};
-
-function RequestTypeBadge({ type }) {
-  const isCare = type === 'camper_care';
-  return (
-    <Badge
-      size="xs"
-      colors={isCare ? REQUEST_TYPE_COLORS.camper_care : REQUEST_TYPE_COLORS.maintenance}
-    >
-      {isCare ? 'Care' : 'Maint.'}
-    </Badge>
-  );
-}
-
-function RequestRowLink({ request }) {
-  return (
-    <Link
-      to={requestDetailPath(request)}
-      data-testid={`counselor-request-${request.type}-${request.id}`}
-      className="block rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2.5 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <RequestTypeBadge type={request.type} />
-            <Badge
-              size="xs"
-              colors={REQUEST_STATUS_BADGE[request.status] || REQUEST_STATUS_BADGE.unable_to_fulfill}
-              className="font-semibold"
-            >
-              {request.status_label || request.status}
-            </Badge>
-          </div>
-          <p className="text-sm font-medium text-gray-900 dark:text-white mt-1 truncate">
-            {request.title}
-          </p>
-          {request.subtitle ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-              {request.subtitle}
-            </p>
-          ) : null}
-        </div>
-        {request.submitted_at ? (
-          <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
-            {formatRelative(request.submitted_at)}
-          </span>
-        ) : null}
-      </div>
-    </Link>
-  );
-}
-
-function MyRequestsWidget({ viewerRequests = [], openCount }) {
-  const groups = new Map();
-  for (const request of viewerRequests) {
-    const key = request.bunk_name || 'Camp-wide';
-    if (!groups.has(key)) {
-      groups.set(key, []);
-    }
-    groups.get(key).push(request);
+function camperStatus(camper, { pendingIds, date }) {
+  if (pendingIds.has(String(camper.id))) return 'syncing';
+  if (camper.submitted) return 'complete';
+  if (date && loadCounselorDraft(camperReflectionDraftKey(camper.id, date))?.answers) {
+    return 'draft_saved';
   }
-
-  const totalRequests = viewerRequests.length;
-
-  return (
-    <section
-      data-testid="counselor-requests-widget"
-      className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden flex flex-col"
-    >
-      <div className="h-1.5 bg-gradient-to-r from-purple-500 via-orange-400 to-amber-500" aria-hidden="true" />
-      <div className="p-5 flex flex-col gap-4 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My requests</h2>
-          {openCount > 0 ? (
-            <Badge
-              colors="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
-              className="shrink-0 font-bold"
-            >
-              {openCount} open
-            </Badge>
-          ) : null}
-        </div>
-
-        {totalRequests === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            No open requests. Use Camper care or Maintenance above to file one.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {[...groups.entries()].map(([groupName, requests]) => (
-              <div
-                key={groupName}
-                data-testid={`counselor-requests-group-${groupName.replace(/\s+/g, '-').toLowerCase()}`}
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                  {groupName}
-                </p>
-                <div className="space-y-2">
-                  {requests.map((request) => (
-                    <RequestRowLink key={`${request.type}-${request.id}`} request={request} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
+  return 'none';
 }
 
-function AssignmentRow({ assignment }) {
-  const badge = STATE_BADGE[assignment.state] || STATE_BADGE.none;
+function camperFormPath(camper, { status, bunkId, editable, date }) {
+  if (status === 'complete' && camper.editable && camper.reflection_id) {
+    return `${ROSTER_PATH}/${camper.reflection_id}/edit`;
+  }
+  if (editable && status !== 'complete' && status !== 'syncing') {
+    return `${ROSTER_PATH}/new?subject=${camper.id}&bunk=${bunkId}&name=${encodeURIComponent(camper.name || '')}`;
+  }
+  return editable ? ROSTER_PATH : `${ROSTER_PATH}/${date}`;
+}
+
+function shortName(camper) {
+  const first = camper.preferred_name || camper.first_name;
+  if (!first) return camper.name;
+  return camper.last_initial ? `${first} ${camper.last_initial}.` : first;
+}
+
+/** Camper rows for one bunk, in roster order, with derived status + link. */
+function buildCamperRows(rosterBunk, { pendingIds, date, editable }) {
+  if (!rosterBunk) return null;
+  const rows = (rosterBunk.campers || []).map((camper) => {
+    const status = camperStatus(camper, { pendingIds, date });
+    return {
+      camper,
+      status,
+      to: camperFormPath(camper, { status, bunkId: rosterBunk.id, editable, date }),
+    };
+  });
+  const offCamp = (rosterBunk.off_camp || []).map((camper) => ({
+    camper,
+    status: 'off_camp',
+    to: null,
+  }));
+  return [...rows, ...offCamp];
+}
+
+function DayStepper({ selectedIso, todayIso, onChange, refreshing }) {
+  const atToday = !selectedIso || !todayIso || selectedIso >= todayIso;
+  const stepBtn =
+    'w-11 h-11 shrink-0 rounded-[10px] flex items-center justify-center bg-line-soft text-ink hover:bg-line disabled:bg-transparent disabled:text-muted/50 disabled:cursor-not-allowed transition-colors';
   return (
-    <div
-      className="rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2.5"
-      data-testid={`bunk-assignment-${assignment.template_id}`}
-      data-state={assignment.state}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-            {assignment.template_name}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {assignment.due_label}
-            {assignment.total > 0 && assignment.cadence === 'daily' ? (
-              <span className="text-gray-400 dark:text-gray-500">
-                {' '}
-                · {assignment.covered}/{assignment.total}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <Badge size="xs" colors={badge.className} className="shrink-0 font-semibold">
-          {badge.label}
-        </Badge>
-      </div>
-      {assignment.action_path ? (
-        <Link
-          to={assignment.action_path}
-          className="mt-2 inline-flex items-center justify-center min-h-[36px] px-3 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
-          data-testid={`bunk-assignment-action-${assignment.template_id}`}
-        >
-          {assignment.state === 'complete' ? 'Review' : 'Complete assignment'}
-        </Link>
-      ) : null}
+    <div className="flex items-center gap-1.5" data-testid="counselor-day-stepper">
+      <button
+        type="button"
+        aria-label="Previous day"
+        className={stepBtn}
+        onClick={() => onChange(shiftIso(selectedIso, -1))}
+        data-testid="counselor-day-prev"
+      >
+        <ChevronLeft className="w-[18px] h-[18px]" aria-hidden="true" />
+      </button>
+      <label className="relative flex-1 text-center min-h-11 flex flex-col justify-center cursor-pointer">
+        <span className="text-[17px] font-bold text-ink">{formatStepperDate(selectedIso)}</span>
+        <span className="text-xs text-muted">
+          {refreshing ? 'Refreshing…' : relativeDayLabel(selectedIso, todayIso)}
+        </span>
+        <input
+          type="date"
+          aria-label="Pick a date"
+          value={selectedIso}
+          max={todayIso}
+          onChange={(e) => e.target.value && onChange(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          data-testid="counselor-date-picker"
+        />
+      </label>
+      <button
+        type="button"
+        aria-label="Next day"
+        className={stepBtn}
+        disabled={atToday}
+        onClick={() => onChange(shiftIso(selectedIso, 1))}
+        data-testid="counselor-day-next"
+      >
+        <ChevronRight className="w-[18px] h-[18px]" aria-hidden="true" />
+      </button>
     </div>
   );
 }
 
-function BunkTile({ bunk }) {
-  const complete =
-    bunk.assignments?.length > 0
-    && bunk.assignments.every((a) => a.state === 'complete');
+function BunkHeroCard({ bunk, rows, editable, rosterCovered, rosterTotal }) {
+  const otherAssignments = (bunk.assignments || []).filter(
+    (a) => a.action_path && !a.action_path.startsWith(ROSTER_PATH),
+  );
+  const rosterTile = (bunk.assignments || []).find(
+    (a) => a.action_path?.startsWith(ROSTER_PATH),
+  );
+  const logged = rosterCovered ?? rosterTile?.covered ?? 0;
+  const expected = rosterTotal ?? rosterTile?.total ?? 0;
+  const next = rows?.find((r) => r.status !== 'complete' && r.status !== 'syncing' && r.to);
+  const allDone = expected > 0 && rows ? !next : expected > 0 && logged >= expected;
+
+  const subtitle = [
+    bunk.co_counselor_names?.length ? `With ${bunk.co_counselor_names.join(', ')}` : null,
+    `${bunk.camper_count} camper${bunk.camper_count === 1 ? '' : 's'}`,
+    bunk.off_camp_count > 0 ? `${bunk.off_camp_count} off camp` : null,
+  ].filter(Boolean).join(' · ');
 
   return (
-    <article
+    <Card
+      as="section"
+      className="rounded-2xl p-4 flex flex-col gap-3"
       data-testid={`counselor-bunk-tile-${bunk.id}`}
-      className={[
-        'flex flex-col rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md',
-        complete
-          ? 'border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-gray-900'
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900',
-      ].join(' ')}
+      aria-labelledby={`bunk-${bunk.id}-name`}
     >
-      <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-blue-500 to-indigo-500" aria-hidden="true" />
-      <div className="p-5 flex flex-col gap-4 flex-1">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 w-10 h-10 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center">
-            <Home className="w-5 h-5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-              {bunk.name}
-            </h2>
-            {bunk.unit_name ? (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{bunk.unit_name}</p>
-            ) : null}
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-              <Users className="w-3 h-3" aria-hidden="true" />
-              {bunk.camper_count} camper{bunk.camper_count === 1 ? '' : 's'}
-              {bunk.off_camp_count > 0 ? (
-                <span> · {bunk.off_camp_count} off-camp</span>
-              ) : null}
-            </p>
-            {bunk.co_counselor_names?.length > 0 ? (
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">
-                Co-counselor{bunk.co_counselor_names.length === 1 ? '' : 's'}:{' '}
-                {bunk.co_counselor_names.join(', ')}
-              </p>
-            ) : null}
-          </div>
-          {complete ? (
-            <Badge
-              size="xs"
-              colors="bg-emerald-100/90 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-              className="shrink-0 py-1 font-bold uppercase tracking-wide"
-            >
-              Complete
-            </Badge>
-          ) : null}
-        </div>
-
-        {bunk.assignments?.length > 0 ? (
-          <div className="space-y-2">
-            {bunk.assignments.map((assignment) => (
-              <AssignmentRow key={assignment.template_id} assignment={assignment} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No form assignments for this bunk on the selected date.
-          </p>
-        )}
-
-        <div className="mt-auto pt-1">
-          <Link
-            to={bunk.dashboard_path}
-            className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"
-            data-testid={`counselor-bunk-dashboard-${bunk.id}`}
-          >
-            Open bunk dashboard →
-          </Link>
-        </div>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id={`bunk-${bunk.id}-name`} className="text-xl font-bold text-ink truncate">
+          {bunk.name}
+        </h2>
+        {bunk.unit_name ? (
+          <span className="text-[13px] text-muted shrink-0">{bunk.unit_name}</span>
+        ) : null}
       </div>
-    </article>
+      <p className="text-[13px] text-ink-2">{subtitle}</p>
+
+      {expected > 0 ? (
+        <div className="flex items-center gap-2.5">
+          <ProgressBar
+            value={logged}
+            total={expected}
+            className="h-2.5 flex-1"
+            aria-label={`${logged} of ${expected} campers logged`}
+          />
+          <span className="text-sm font-bold text-ink tabular-nums">
+            {logged} of {expected}
+          </span>
+        </div>
+      ) : null}
+
+      {allDone ? (
+        <div
+          className="flex items-start gap-3 rounded-xl bg-ok-soft px-4 py-3"
+          data-testid={`counselor-bunk-done-${bunk.id}`}
+          role="status"
+        >
+          <CheckCircle className="w-5 h-5 shrink-0 text-ok-ink mt-0.5" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold text-ok-ink">All campers logged</p>
+            <p className="text-xs text-ok-ink/80 mt-0.5">
+              Edits stay open until the day rolls over.
+            </p>
+          </div>
+        </div>
+      ) : next && editable ? (
+        <Button
+          as={Link}
+          to={next.to}
+          size="lg"
+          className="w-full"
+          data-testid={`counselor-continue-logging-${bunk.id}`}
+        >
+          Continue logging · {shortName(next.camper)}
+          <ArrowRight className="w-[18px] h-[18px]" aria-hidden="true" />
+        </Button>
+      ) : null}
+
+      {otherAssignments.length > 0 ? (
+        <ul className="flex flex-col gap-1 border-t border-line-soft pt-2">
+          {otherAssignments.map((a) => (
+            <li key={a.template_id}>
+              <Link
+                to={a.action_path}
+                data-testid={`bunk-assignment-action-${a.template_id}`}
+                className="flex items-center justify-between gap-3 min-h-11 text-sm text-ink hover:text-brand"
+              >
+                <span className="font-medium truncate">{a.template_name}</span>
+                <span className="text-xs text-muted shrink-0">{a.due_label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <Link
+        to={bunk.dashboard_path}
+        className="text-[13px] font-semibold text-brand hover:text-brand-hover self-start"
+        data-testid={`counselor-bunk-dashboard-${bunk.id}`}
+      >
+        Open bunk dashboard
+      </Link>
+    </Card>
   );
 }
 
-function SelfReflectionCard({
-  section,
-  isToday,
-  selectedDateLabel,
-  hasDraft,
-  hasPendingSync,
-}) {
-  const { state, submitted, is_day_off: isDayOff, template, reflection_id: reflectionId } =
-    section || {};
-  let badgeKey = state === 'complete' ? 'complete' : 'none';
-  if (hasPendingSync && state !== 'complete') badgeKey = 'syncing';
-  else if (hasDraft && state !== 'complete') badgeKey = 'draft_saved';
-  const badge = STATE_BADGE[badgeKey] || STATE_BADGE.none;
+function CamperStatusChip({ status }) {
+  const cfg = CAMPER_STATUS[status] || CAMPER_STATUS.none;
+  return (
+    <Badge
+      tone={cfg.tone}
+      colors={cfg.colors}
+      className="font-semibold px-2.5 py-1"
+      data-testid="camper-status-chip"
+      data-status={status}
+    >
+      {cfg.icon ? <Check className="w-3 h-3" strokeWidth={3} aria-hidden="true" /> : null}
+      {cfg.label}
+    </Badge>
+  );
+}
 
-  let summary;
-  let actionLabel;
-  let actionTo;
+function CamperList({ bunk, rows, showBunkName }) {
+  if (!rows?.length) return null;
+  const rowCls = 'flex items-center gap-3 min-h-[52px] border-t border-line-soft text-ink';
+  return (
+    <Card
+      as="section"
+      className="rounded-2xl px-4 py-1.5"
+      data-testid={`counselor-camper-list-${bunk.id}`}
+      aria-label={`${bunk.name} campers`}
+    >
+      <h2 className={`${SECTION_HEADING} pt-2.5 pb-1`}>
+        {showBunkName ? `${bunk.name} campers` : 'Campers'}
+      </h2>
+      <ul>
+        {rows.map(({ camper, status, to }) => {
+          const content = (
+            <>
+              <InitialsAvatar name={camper.name} size="sm" tone="neutral" aria-hidden="true" />
+              <span className="flex-1 min-w-0 truncate text-[15px] font-medium">{camper.name}</span>
+              <CamperStatusChip status={status} />
+            </>
+          );
+          return (
+            <li key={camper.id} data-testid={`counselor-camper-row-${camper.id}`}>
+              {to ? (
+                <Link to={to} className={`${rowCls} hover:text-brand`}>
+                  {content}
+                </Link>
+              ) : (
+                <div className={`${rowCls} text-muted`}>{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+function SelfReflectionCard({ section, hasDraft, hasPendingSync, streak, cadence }) {
+  const { state, is_day_off: isDayOff, template, reflection_id: reflectionId } = section || {};
+  const done = state === 'complete';
+
+  let subtitle = 'Your reflection';
   if (template === null) {
-    summary = (
-      <p className="text-gray-600 dark:text-gray-400">
-        No self-reflection template is configured for your role.
-      </p>
-    );
-  } else if (state === 'complete') {
-    summary = isDayOff ? (
-      <p>Day off recorded for {isToday ? 'today' : selectedDateLabel}.</p>
-    ) : (
-      <p>
-        Your self-reflection is in for {isToday ? 'today' : selectedDateLabel}.
-      </p>
-    );
-    actionLabel = 'Edit reflection';
-    actionTo = reflectionId
-      ? `/counselor/self-reflection/${reflectionId}/edit`
-      : '/counselor/self-reflection';
-  } else if (hasPendingSync) {
-    summary = (
-      <p>
-        Your self-reflection is saved on this device and will sync when connected.
-      </p>
-    );
-    actionLabel = 'Open self-reflection';
-    actionTo = '/counselor/self-reflection';
-  } else if (hasDraft) {
-    summary = (
-      <p>
-        Draft saved for {isToday ? 'today' : selectedDateLabel}. You can finish and submit when ready.
-      </p>
-    );
-    actionLabel = 'Resume self-reflection';
-    actionTo = '/counselor/self-reflection';
-  } else {
-    summary = (
-      <p>
-        You haven&apos;t submitted your self-reflection for{' '}
-        {isToday ? 'today' : selectedDateLabel} yet.
-      </p>
-    );
-    actionLabel = 'Open self-reflection';
-    actionTo = '/counselor/self-reflection';
+    subtitle = 'No self-reflection template is configured for your role.';
+  } else if (done && isDayOff) {
+    subtitle = 'Day off recorded';
+  } else if (hasPendingSync && !done) {
+    subtitle = 'Saved on this device · will sync when connected';
+  } else if (hasDraft && !done) {
+    subtitle = 'Draft saved';
+  }
+  if (template !== null && streak > 0) {
+    const unit = cadence === 'weekly' ? 'week' : cadence === 'daily' || !cadence ? 'day' : 'period';
+    subtitle = `${subtitle} · ${streak}-${unit} streak`;
+  }
+
+  let action = null;
+  if (template !== null) {
+    if (done) {
+      action = {
+        label: 'Done',
+        to: reflectionId ? `/counselor/self-reflection/${reflectionId}/edit` : '/counselor/self-reflection',
+      };
+    } else if (hasDraft || hasPendingSync) {
+      action = { label: 'Continue', to: '/counselor/self-reflection' };
+    } else {
+      action = { label: 'Start', to: '/counselor/self-reflection' };
+    }
   }
 
   return (
-    <section
+    <Card
+      as="section"
+      className="rounded-2xl p-4 flex items-center gap-3.5"
       data-testid="counselor-section-self"
       data-state={state}
-      className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden flex flex-col h-full"
+      aria-labelledby="counselor-self-heading"
     >
-      <div className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-400 to-violet-500" aria-hidden="true" />
-      <div className="p-5 flex flex-col flex-1">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          My self-reflection
+      <span className="w-[42px] h-[42px] rounded-xl bg-brand-soft text-brand flex items-center justify-center shrink-0">
+        <PenLine className="w-5 h-5" aria-hidden="true" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <h2 id="counselor-self-heading" className="text-[15px] font-bold text-ink">
+          How was your day?
         </h2>
-        {template !== null ? (
-          <Badge
-            colors={badge.className}
-            className="shrink-0 font-semibold"
-            data-testid="counselor-section-self-state"
-          >
-            {badge.label}
-          </Badge>
-        ) : null}
+        <p className="text-[13px] text-muted" data-testid="counselor-section-self-subtitle">
+          {subtitle}
+        </p>
       </div>
-      <div className="text-sm text-gray-700 dark:text-gray-300 flex-1">{summary}</div>
-      {actionTo && template !== null ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Link
-            to={actionTo}
-            data-testid="counselor-section-self-action"
-            className="inline-flex items-center justify-center min-h-[44px] px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            {actionLabel}
-          </Link>
-          <Link
-            to="/counselor/self-reflection/history"
-            className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline"
-          >
-            View history
-          </Link>
-        </div>
+      {action ? (
+        <Link
+          to={action.to}
+          data-testid="counselor-section-self-action"
+          className={
+            done
+              ? 'inline-flex items-center gap-1.5 min-h-11 px-3.5 rounded-[10px] bg-ok-soft text-ok-ink text-sm font-semibold shrink-0'
+              : 'inline-flex items-center min-h-11 px-3.5 rounded-[10px] border border-line text-brand text-sm font-semibold hover:bg-line-soft shrink-0'
+          }
+        >
+          {done ? <Check className="w-4 h-4" strokeWidth={3} aria-hidden="true" /> : null}
+          {action.label}
+        </Link>
       ) : null}
+    </Card>
+  );
+}
+
+const QUICK_ACTIONS = [
+  {
+    to: '/counselor/requests/camper-care/new',
+    icon: HeartHandshake,
+    label: 'Camper care request',
+    iconCls: 'text-danger-ink',
+    testid: 'counselor-action-camper-care',
+  },
+  {
+    to: '/counselor/requests/maintenance/new',
+    icon: Wrench,
+    label: 'Maintenance ticket',
+    iconCls: 'text-warn-ink',
+    testid: 'counselor-action-maintenance',
+  },
+  {
+    to: '/observations',
+    icon: MessageSquare,
+    label: 'Note about a camper',
+    iconCls: 'text-brand',
+    testid: 'counselor-action-observation',
+  },
+  {
+    to: '/help',
+    icon: Flag,
+    label: 'Report an issue',
+    iconCls: 'text-ink-2',
+    testid: 'counselor-action-report-issue',
+  },
+];
+
+function QuickActions() {
+  return (
+    <section
+      data-testid="counselor-quick-actions"
+      aria-labelledby="counselor-quick-heading"
+      className="flex flex-col gap-2"
+    >
+      <h2 id="counselor-quick-heading" className={SECTION_HEADING}>Quick actions</h2>
+      <div className="grid grid-cols-2 gap-2">
+        {QUICK_ACTIONS.map(({ to, icon: Icon, label, iconCls, testid }) => (
+          <Link
+            key={testid}
+            to={to}
+            data-testid={testid}
+            className="flex flex-col gap-2 p-3.5 min-h-[84px] rounded-[14px] bg-white dark:bg-gray-900 border border-line text-ink hover:border-brand/40 transition-colors"
+          >
+            <Icon className={`w-5 h-5 ${iconCls}`} aria-hidden="true" />
+            <span className="text-sm font-semibold">{label}</span>
+          </Link>
+        ))}
       </div>
     </section>
   );
 }
 
-function QuickActionButton({ to, icon: Icon, label, sublabel, testid, badge }) {
+function MyRequests({ viewerRequests }) {
+  const recent = [...viewerRequests]
+    .sort((a, b) => String(b.submitted_at || '').localeCompare(String(a.submitted_at || '')))
+    .slice(0, 2);
   return (
-    <Link
-      to={to}
-      data-testid={testid}
-      className="relative flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all min-h-[108px] text-center"
+    <Card
+      as="section"
+      className="rounded-2xl px-4 py-1.5"
+      data-testid="counselor-requests-widget"
+      aria-labelledby="counselor-requests-heading"
     >
-      {badge ? (
-        <Badge
-          colors="bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
-          className="absolute top-2 right-2 font-bold"
+      <div className="flex items-center justify-between pt-2.5 pb-1">
+        <h2 id="counselor-requests-heading" className={SECTION_HEADING}>My requests</h2>
+        <Link
+          to="/counselor/requests"
+          className="text-[13px] font-semibold text-brand hover:text-brand-hover min-h-11 inline-flex items-center"
+          data-testid="counselor-requests-all"
         >
-          {badge}
-        </Badge>
-      ) : null}
-      <Icon className="w-6 h-6 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-      <span className="text-sm font-semibold text-gray-900 dark:text-white">{label}</span>
-      {sublabel ? (
-        <span className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">{sublabel}</span>
-      ) : null}
-    </Link>
+          All
+        </Link>
+      </div>
+      {recent.length === 0 ? (
+        <p className="border-t border-line-soft py-4 text-sm text-muted">
+          No open requests. Use a quick action to file one.
+        </p>
+      ) : (
+        <ul>
+          {recent.map((request) => (
+            <li key={`${request.type}-${request.id}`}>
+              <Link
+                to={requestDetailPath(request)}
+                data-testid={`counselor-request-${request.type}-${request.id}`}
+                className="flex items-center gap-3 min-h-[52px] py-1.5 border-t border-line-soft text-ink hover:text-brand"
+              >
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold truncate">{request.title}</span>
+                  <span className="block text-xs text-muted truncate">
+                    {[
+                      request.type === 'camper_care' ? 'Camper care' : 'Maintenance',
+                      request.subtitle,
+                      formatRelative(request.submitted_at),
+                    ].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
+                <Badge
+                  tone={REQUEST_STATUS_TONE[request.status] || 'neutral'}
+                  className="font-semibold px-2.5 py-1"
+                >
+                  {request.status_label || request.status}
+                </Badge>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function MoreLinks() {
+  const cls = 'flex-1 flex items-center justify-center gap-2 min-h-11 rounded-[14px] border border-line bg-white dark:bg-gray-900 text-sm font-semibold text-ink hover:border-brand/40';
+  return (
+    <div className="flex gap-2" data-testid="counselor-work-links">
+      <Link to="/tasks" className={cls} data-testid="counselor-action-tasks">
+        <ClipboardList className="w-4 h-4 text-brand" aria-hidden="true" />
+        My tasks
+      </Link>
+      <Link to="/my-reflections" className={cls} data-testid="counselor-action-my-reflections">
+        <PenLine className="w-4 h-4 text-ok-ink" aria-hidden="true" />
+        My reflections
+      </Link>
+    </div>
+  );
+}
+
+function BottomTabBar({ campersPath }) {
+  const tabs = [
+    { label: 'Today', to: '/counselor', icon: Home, active: true },
+    { label: 'Campers', to: campersPath, icon: Users },
+    { label: 'Requests', to: '/counselor/requests', icon: ClipboardList },
+    { label: 'Me', to: '/counselor/self-reflection/history', icon: User },
+  ];
+  return (
+    <nav
+      aria-label="Counselor"
+      data-testid="counselor-tab-bar"
+      className="lg:hidden fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 bg-white dark:bg-gray-900 border-t border-line px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+    >
+      {tabs.map(({ label, to, icon: Icon, active }) => (
+        <Link
+          key={label}
+          to={to}
+          aria-current={active ? 'page' : undefined}
+          className={`flex flex-col items-center justify-center gap-0.5 min-h-12 text-[11px] font-semibold ${
+            active ? 'text-brand' : 'text-muted hover:text-ink'
+          }`}
+        >
+          <Icon className="w-[22px] h-[22px]" aria-hidden="true" />
+          {label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 
@@ -474,6 +593,8 @@ export default function CounselorMobileDashboard() {
   const { pending } = useSubmissionQueue();
 
   const [data, setData] = useState(null);
+  const [roster, setRoster] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -486,12 +607,21 @@ export default function CounselorMobileDashboard() {
         setLoading(true);
       }
       setError('');
+      const date = dateParam || undefined;
+      // Roster and streak are enhancements; the page still renders without them.
+      const rosterReq = fetchCamperReflections({ date }).catch(() => null);
+      const summaryReq = api
+        .get('/api/v1/reflections/my-summary/')
+        .then((r) => r.data)
+        .catch(() => null);
       try {
         const payload = await fetchCounselorDashboard({
           noCache: background || skipCache,
-          date: dateParam || undefined,
+          date,
         });
         setData(payload);
+        setRoster(await rosterReq);
+        setSummary(await summaryReq);
       } catch (err) {
         const detail = err?.response?.data?.detail;
         const status = err?.response?.status;
@@ -526,36 +656,44 @@ export default function CounselorMobileDashboard() {
   }, [data, isToday, load]);
 
   const selectedDateIso = data?.selected_date || dateParam || data?.today || '';
-  const selectedDateLabel = useMemo(
-    () => formatDisplayDate(selectedDateIso),
-    [selectedDateIso],
+  const rosterDate = roster?.date || selectedDateIso;
+
+  const pendingCamperIds = useMemo(
+    () => new Set(
+      pending
+        .filter(
+          (entry) =>
+            entry.kind === SUBMISSION_KIND.CAMPER_REFLECTION
+            && entry.metadata?.date === rosterDate,
+        )
+        .map((entry) => String(entry.metadata?.subjectId)),
+    ),
+    [pending, rosterDate],
   );
 
   const handleDateChange = (next) => {
     const params = new URLSearchParams(searchParams);
-    if (next) params.set('date', next);
+    if (next && next !== data?.today) params.set('date', next);
     else params.delete('date');
     setSearchParams(params, { replace: true });
   };
 
-  const maxDate = data?.today || '';
-
   if (loading) {
     return (
       <div
-        className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto"
+        className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto"
         data-testid="counselor-dashboard-loading"
       >
-        <p className="text-gray-600 dark:text-gray-400">Loading your dashboard…</p>
+        <p className="text-muted">Loading your dashboard…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
         <div
-          className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+          className="rounded-lg border border-warn-ink/20 bg-warn-soft px-4 py-3 text-sm text-warn-ink"
           role="alert"
           data-testid="counselor-dashboard-error"
         >
@@ -567,171 +705,97 @@ export default function CounselorMobileDashboard() {
 
   if (!data) return null;
 
-  const { viewer, all_set: allSet, sections, program, bunks = [], viewer_requests: viewerRequests = [] } = data;
-  const selfSection = sections?.self_reflection;
-  const requestsSection = sections?.requests;
-  const openCount = requestsSection?.open_count ?? 0;
-  const selfDraftDate = selectedDateIso || data?.today || '';
+  const { all_set: allSet, sections, program, bunks = [], viewer_requests: viewerRequests = [] } = data;
+  const rosterEditable = roster?.editable ?? isToday;
+  const rosterBunks = new Map((roster?.bunks || []).map((b) => [b.id, b]));
   const hasSelfDraft = !!(
-    selfDraftDate
-    && loadCounselorDraft(selfReflectionDraftKey(selfDraftDate))?.answers
+    selectedDateIso
+    && loadCounselorDraft(selfReflectionDraftKey(selectedDateIso))?.answers
   );
   const hasSelfPendingSync = pending.some(
     (entry) =>
       entry.kind === SUBMISSION_KIND.SELF_REFLECTION
-      && entry.metadata?.date === selfDraftDate,
+      && entry.metadata?.date === selectedDateIso,
   );
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 pb-24 w-full max-w-[80rem] mx-auto space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {program?.name || 'Counselor home'}
-          </p>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mt-0.5">
-            {viewer?.full_name || viewer?.name || 'Welcome'}
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-            {titleCaseRole(viewer?.role)}
-            {selectedDateLabel ? (
-              <>
-                {' '}
-                · {isToday ? 'Today' : 'Viewing'}: {selectedDateLabel}
-              </>
-            ) : null}
-          </p>
-          {refreshing ? (
-            <p
-              className="text-xs text-gray-400 dark:text-gray-500 mt-1"
-              data-testid="counselor-dashboard-refreshing"
-            >
-              Refreshing…
-            </p>
-          ) : null}
-        </div>
-        <label className="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300 shrink-0">
-          <span className="font-medium">Date</span>
-          <input
-            type="date"
-            value={selectedDateIso}
-            max={maxDate}
-            onChange={(e) => handleDateChange(e.target.value)}
-            className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm min-w-[11rem]"
-            data-testid="counselor-date-picker"
-          />
-        </label>
+    <div className="px-4 sm:px-6 lg:px-8 pt-4 pb-28 lg:py-8 w-full max-w-6xl mx-auto flex flex-col gap-4">
+      <header className="flex flex-col gap-3">
+        {program?.name ? (
+          <p className="text-[13px] text-ink-2">{program.name}</p>
+        ) : null}
+        <DayStepper
+          selectedIso={selectedDateIso}
+          todayIso={data.today}
+          onChange={handleDateChange}
+          refreshing={refreshing}
+        />
       </header>
-
-      <section data-testid="counselor-quick-actions">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-          Requests & observations
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <QuickActionButton
-            to="/counselor/requests/camper-care/new"
-            icon={HeartHandshake}
-            label="Camper care"
-            sublabel="Submit a request"
-            testid="counselor-action-camper-care"
-          />
-          <QuickActionButton
-            to="/counselor/requests/maintenance/new"
-            icon={Wrench}
-            label="Maintenance"
-            sublabel="Report an issue"
-            testid="counselor-action-maintenance"
-          />
-          <QuickActionButton
-            to="/observations"
-            icon={MessageSquarePlus}
-            label="Observation"
-            sublabel="Note about a camper"
-            testid="counselor-action-observation"
-          />
-        </div>
-      </section>
 
       {allSet && isToday ? (
         <div
-          className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/40 dark:border-green-800 px-4 py-3"
+          className="flex items-start gap-3 rounded-2xl bg-ok-soft px-4 py-3"
           data-testid="counselor-all-set"
           role="status"
         >
-          <CheckCircle
-            className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400 mt-0.5"
-            aria-hidden="true"
-          />
+          <CheckCircle className="h-5 w-5 shrink-0 text-ok-ink mt-0.5" aria-hidden="true" />
           <div>
-            <p className="text-sm font-medium text-green-900 dark:text-green-100">
+            <p className="text-sm font-semibold text-ok-ink">
               You&apos;re all set for today — nice work.
             </p>
-            <p className="text-xs text-green-800 dark:text-green-200 mt-1">
+            <p className="text-xs text-ok-ink/80 mt-0.5">
               Edits stay open until the day rolls over.
             </p>
           </div>
         </div>
       ) : null}
 
-      <section data-testid="counselor-work-links" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Link
-          to="/tasks"
-          data-testid="counselor-action-tasks"
-          className="flex items-center gap-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-r from-indigo-50/80 to-white dark:from-indigo-950/40 dark:to-gray-900 px-5 py-4 shadow-sm hover:shadow-md transition-all"
-        >
-          <ClipboardList className="w-8 h-8 text-indigo-600 dark:text-indigo-400 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="text-base font-semibold text-gray-900 dark:text-white">My Tasks</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Today&apos;s reflection assignments</p>
-          </div>
-        </Link>
-        <Link
-          to="/my-reflections"
-          data-testid="counselor-action-my-reflections"
-          className="flex items-center gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-5 py-4 shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all"
-        >
-          <ClipboardCheck className="w-8 h-8 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="text-base font-semibold text-gray-900 dark:text-white">My Reflections</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">History and streaks</p>
-          </div>
-        </Link>
-      </section>
-
-      <section data-testid="counselor-bunks-section">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My bunks</h2>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {bunks.length} bunk{bunks.length === 1 ? '' : 's'}
-          </span>
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4 items-start">
+        <div className="flex flex-col gap-4" data-testid="counselor-bunks-section">
+          {bunks.length === 0 ? (
+            <p className="text-sm text-muted rounded-2xl border border-dashed border-line px-4 py-6 text-center">
+              You&apos;re not assigned as an author on any bunk yet. Once your camp
+              assigns you to a group, it will appear here.
+            </p>
+          ) : (
+            bunks.map((bunk) => {
+              const rosterBunk = rosterBunks.get(bunk.id);
+              const rows = buildCamperRows(rosterBunk, {
+                pendingIds: pendingCamperIds,
+                date: rosterDate,
+                editable: rosterEditable,
+              });
+              return (
+                <div key={bunk.id} className="flex flex-col gap-4">
+                  <BunkHeroCard
+                    bunk={bunk}
+                    rows={rows}
+                    editable={rosterEditable}
+                    rosterCovered={rosterBunk?.covered}
+                    rosterTotal={rosterBunk?.total}
+                  />
+                  <CamperList bunk={bunk} rows={rows} showBunkName={bunks.length > 1} />
+                </div>
+              );
+            })
+          )}
         </div>
-        {bunks.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 px-4 py-6 text-center">
-            You&apos;re not assigned as an author on any bunk yet. Once your camp
-            assigns you to a group, it will appear here.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-            {bunks.map((bunk) => (
-              <BunkTile key={bunk.id} bunk={bunk} />
-            ))}
-          </div>
-        )}
-      </section>
 
-      <div
-        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-stretch"
-        data-testid="counselor-requests-self-row"
-      >
-        <MyRequestsWidget viewerRequests={viewerRequests} openCount={openCount} />
-        <SelfReflectionCard
-          section={selfSection}
-          isToday={isToday}
-          selectedDateLabel={selectedDateLabel}
-          hasDraft={hasSelfDraft}
-          hasPendingSync={hasSelfPendingSync}
-        />
+        <div className="flex flex-col gap-4">
+          <SelfReflectionCard
+            section={sections?.self_reflection}
+            hasDraft={hasSelfDraft}
+            hasPendingSync={hasSelfPendingSync}
+            streak={summary?.streak ?? 0}
+            cadence={summary?.template?.cadence}
+          />
+          <QuickActions />
+          <MyRequests viewerRequests={viewerRequests} />
+          <MoreLinks />
+        </div>
       </div>
+
+      <BottomTabBar campersPath={bunks[0]?.dashboard_path || ROSTER_PATH} />
     </div>
   );
 }

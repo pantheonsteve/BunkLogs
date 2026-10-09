@@ -14,6 +14,9 @@ import { twMerge } from 'tailwind-merge';
  *
  * Dark brand is violet-400, which fails 4.5:1 under white text, so the
  * primary label flips to near-black in dark mode.
+ *
+ * `as` renders a different element (e.g. react-router `Link`) with the
+ * same styling; `type` is only applied to real buttons.
  */
 
 const VARIANT_CLASSES = {
@@ -33,6 +36,7 @@ const SIZE_CLASSES = {
 
 const Button = forwardRef(function Button(
   {
+    as: Component = 'button',
     variant = 'primary',
     size = 'md',
     type = 'button',
@@ -45,14 +49,14 @@ const Button = forwardRef(function Button(
   const variantCls = VARIANT_CLASSES[variant] || VARIANT_CLASSES.primary;
   const sizeCls = SIZE_CLASSES[size] || SIZE_CLASSES.md;
   return (
-    <button
+    <Component
       ref={ref}
-      type={type}
+      type={Component === 'button' ? type : undefined}
       className={twMerge('inline-flex items-center justify-center gap-2', variantCls, sizeCls, className)}
       {...rest}
     >
       {children}
-    </button>
+    </Component>
   );
 });
 
