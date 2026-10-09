@@ -2,8 +2,11 @@
  * Panel primitive — the white bordered box most content sits in.
  *
  * `Card` is the shell, `CardHeader` the title strip with an optional
- * right-hand action slot, `CardBody` the padded content area.
+ * right-hand action slot, `CardBody` the padded content area. `as` swaps
+ * the shell element (e.g. `section`) without changing its styling.
  */
+
+import { twMerge } from 'tailwind-merge';
 
 export function CardHeader({ title, subtitle, action, className = '', children, ...rest }) {
   return (
@@ -35,13 +38,13 @@ export function CardBody({ className = '', children, ...rest }) {
   );
 }
 
-export default function Card({ className = '', children, ...rest }) {
+export default function Card({ as: Component = 'div', className = '', children, ...rest }) {
   return (
-    <div
-      className={`bg-white dark:bg-gray-900 border border-line rounded-[14px] ${className}`.trim()}
+    <Component
+      className={twMerge('bg-white dark:bg-gray-900 border border-line rounded-[14px]', className)}
       {...rest}
     >
       {children}
-    </div>
+    </Component>
   );
 }

@@ -115,6 +115,7 @@ const CamperReflectionListPage = lazy(() => import('../pages/counselor/CamperRef
 const CamperReflectionFormPage = lazy(() => import('../pages/counselor/CamperReflectionFormPage'));
 const CounselorSelfReflectionPage = lazy(() => import('../pages/counselor/CounselorSelfReflectionPage'));
 const CounselorSelfReflectionHistoryPage = lazy(() => import('../pages/counselor/CounselorSelfReflectionHistoryPage'));
+const CounselorRequestsListPage = lazy(() => import('../pages/counselor/CounselorRequestsListPage'));
 const CounselorCamperCareRequestDetailPage = lazy(() => import('../pages/counselor/CounselorCamperCareRequestDetailPage'));
 const CamperCareRequestFormPage = lazy(() => import('../pages/counselor/CamperCareRequestFormPage'));
 const MaintenanceTicketFormPage = lazy(() => import('../pages/counselor/MaintenanceTicketFormPage'));
@@ -175,7 +176,7 @@ export const routeConfig = [
       { path: '/counselor/self-reflection', element: <CounselorSelfReflectionPage /> },
       { path: '/counselor/self-reflection/history', element: <CounselorSelfReflectionHistoryPage /> },
       { path: '/counselor/self-reflection/:reflectionId/edit', element: <CounselorSelfReflectionPage /> },
-      { path: '/counselor/requests', element: <Navigate to="/counselor" replace /> },
+      { path: '/counselor/requests', element: <CounselorRequestsListPage /> },
       { path: '/counselor/requests/camper-care/new', element: <CamperCareRequestFormPage /> },
       { path: '/counselor/requests/camper-care/:orderId/edit', element: <CamperCareRequestFormPage /> },
       { path: '/counselor/requests/camper-care/:orderId', element: <CounselorCamperCareRequestDetailPage /> },

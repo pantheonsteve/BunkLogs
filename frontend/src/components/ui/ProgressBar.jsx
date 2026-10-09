@@ -1,3 +1,4 @@
+import { twMerge } from 'tailwind-merge';
 import { COVERAGE_TIERS, coverageTier } from '../../dashboards/colors';
 
 /**
@@ -24,7 +25,7 @@ export default function ProgressBar({ value, total, className = '', ...rest }) {
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={total}
-      className={`h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden ${className}`.trim()}
+      className={twMerge('h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden', className)}
       {...rest}
     >
       <div
