@@ -44,7 +44,7 @@ export function FilterChips({ value, onChange, options, testIdPrefix, className 
           data-testid={testIdPrefix ? `${testIdPrefix}${opt.value}` : undefined}
           className={`px-3 py-1.5 text-xs font-semibold transition-colors border-r last:border-r-0 border-gray-300 dark:border-gray-600 ${
             value === opt.value
-              ? 'bg-blue-600 text-white'
+              ? 'bg-brand text-white dark:text-gray-950'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
           }`}
         >

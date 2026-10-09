@@ -1,27 +1,24 @@
 /**
- * Panel primitive for admin surfaces — the white bordered box that most
- * admin content sits in.
+ * Panel primitive — the white bordered box most content sits in.
  *
  * `Card` is the shell, `CardHeader` the title strip with an optional
- * right-hand action slot, `CardBody` the padded content area. A card
- * built from all three matches the `bg-white … rounded-xl border` blob
- * that GroupList, GroupDetail and FieldKey were each repeating inline.
+ * right-hand action slot, `CardBody` the padded content area.
  */
 
 export function CardHeader({ title, subtitle, action, className = '', children, ...rest }) {
   return (
     <div
-      className={`flex items-start gap-3 px-[18px] py-4 border-b border-gray-100 dark:border-gray-800 ${className}`.trim()}
+      className={`flex items-start gap-3 px-[18px] py-4 border-b border-line-soft ${className}`.trim()}
       {...rest}
     >
       <div className="min-w-0 flex-1">
         {title && (
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+          <h2 className="text-base font-bold text-ink truncate">
             {title}
           </h2>
         )}
         {subtitle && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>
+          <p className="text-[13px] text-muted mt-0.5">{subtitle}</p>
         )}
         {children}
       </div>
@@ -41,7 +38,7 @@ export function CardBody({ className = '', children, ...rest }) {
 export default function Card({ className = '', children, ...rest }) {
   return (
     <div
-      className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm ${className}`.trim()}
+      className={`bg-white dark:bg-gray-900 border border-line rounded-[14px] ${className}`.trim()}
       {...rest}
     >
       {children}

@@ -19,7 +19,10 @@ describe('Badge', () => {
 
   it('maps tone to a colour treatment', () => {
     render(<Badge tone="danger" data-testid="b">Urgent</Badge>);
-    expect(screen.getByTestId('b').className).toContain('bg-red-100');
+    const { className } = screen.getByTestId('b');
+    expect(className).toContain('bg-danger-soft');
+    expect(className).toContain('text-danger-ink');
+    expect(className).toContain('text-xs');
   });
 
   it('lets colors replace the tone classes outright', () => {
@@ -30,7 +33,7 @@ describe('Badge', () => {
     );
     const { className } = screen.getByTestId('b');
     expect(className).toContain('bg-purple-100');
-    expect(className).not.toContain('bg-red-100');
+    expect(className).not.toContain('bg-danger-soft');
   });
 
   // The gap between a pill and the word before it is the whole reason this

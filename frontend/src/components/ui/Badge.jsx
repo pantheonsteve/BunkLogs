@@ -24,11 +24,11 @@
 import { twMerge } from 'tailwind-merge';
 
 const TONE_CLASSES = {
-  ok: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
-  warn: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  danger: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+  ok: 'bg-ok-soft text-ok-ink',
+  warn: 'bg-warn-soft text-warn-ink',
+  danger: 'bg-danger-soft text-danger-ink',
   neutral: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  info: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  info: 'bg-brand-soft text-violet-800 dark:text-violet-200',
 };
 
 // The hand-rolled pills these replaced used px-1.5 and px-2 interchangeably at

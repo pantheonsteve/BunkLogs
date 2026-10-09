@@ -17,19 +17,28 @@ describe('Button (3.31)', () => {
     expect(screen.getByRole('button')).toHaveAttribute('type', 'button');
   });
 
-  it('renders the primary variant by default with the standard blue class', () => {
+  it('renders the primary variant by default in brand violet', () => {
     render(<Button>Primary</Button>);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('bg-blue-600');
+    expect(btn.className).toContain('bg-brand');
     expect(btn.className).toContain('text-white');
-    expect(btn.className).toContain('hover:bg-blue-700');
+    expect(btn.className).toContain('hover:bg-brand-hover');
+    expect(btn.className).toContain('min-h-10');
   });
 
-  it('renders the secondary variant with the gray outline', () => {
+  it('renders the secondary variant with the line outline', () => {
     render(<Button variant="secondary">Cancel</Button>);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('border-gray-300');
+    expect(btn.className).toContain('border-line');
     expect(btn.className).toContain('bg-white');
+  });
+
+  it('applies the 52px phone CTA size when size="lg"', () => {
+    render(<Button size="lg">Start</Button>);
+    const { className } = screen.getByRole('button');
+    expect(className).toContain('min-h-[52px]');
+    expect(className).toContain('rounded-xl');
+    expect(className).not.toContain('rounded-lg');
   });
 
   it('renders the danger variant with red text', () => {

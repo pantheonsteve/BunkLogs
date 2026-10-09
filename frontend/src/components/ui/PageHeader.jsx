@@ -30,11 +30,11 @@ export default function PageHeader({
       )}
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-[27px] tracking-tight font-bold text-gray-900 dark:text-white">
+          <h1 className="text-[28px] tracking-tight font-bold text-ink">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
+            <p className="text-[15px] text-ink-2 mt-1.5">{subtitle}</p>
           )}
         </div>
         {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
