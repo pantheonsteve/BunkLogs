@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { fetchAdminNavBadges } from '../api/admin';
-import AdminTopBar from '../components/admin/AdminTopBar';
 import { AdminProgramProvider, useAdminProgram } from '../context/AdminProgramContext';
+import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
 
 /**
- * Shared layout for /admin/* routes. Renders Sidebar + AdminTopBar + a
+ * Shared layout for /admin/* routes. Renders Sidebar + Header + a
  * scrollable main, and slots the matched child route into `<Outlet/>`.
  *
  * Child routes provide their own `<main>` (or content wrapper) so each
@@ -39,14 +39,13 @@ function AdminShell() {
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
-        variant="v2"
         navBadges={navBadges}
       />
       <div
         data-testid="admin-layout-scroll"
         className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-ground"
       >
-        <AdminTopBar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <Outlet />
       </div>
     </div>

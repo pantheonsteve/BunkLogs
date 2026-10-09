@@ -396,6 +396,39 @@ describe('Sidebar — Admin section', () => {
   });
 });
 
+describe('Sidebar — 8_3 shell styling', () => {
+  function headingTexts() {
+    return screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+  }
+
+  it('admin: Home sits in an unheaded first group and the active row is brand-soft', () => {
+    renderWith(orgUser('admin', ['admin']), { path: '/admin/home' });
+    expect(headingTexts()).toEqual(['My work', 'Supervise', 'Manage']);
+    const home = screen.getByRole('link', { name: 'Home' });
+    expect(home.closest('ul').previousElementSibling).toBeNull();
+    expect(home).toHaveClass('bg-brand-soft', 'font-semibold');
+    expect(screen.getByRole('link', { name: 'People' })).not.toHaveClass('bg-brand-soft');
+  });
+
+  it('counselor: Home leaves My work for the unheaded group; My tasks is active on /tasks', () => {
+    renderWith(orgUser('participant', ['counselor']), { path: '/tasks' });
+    expect(headingTexts()).toEqual(['My work']);
+    const myWork = screen.getByRole('heading', { name: 'My work' }).parentElement;
+    expect(within(myWork).queryByRole('link', { name: 'Home' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My tasks' })).toHaveClass('bg-brand-soft');
+    expect(screen.getByRole('link', { name: 'Home' })).not.toHaveClass('bg-brand-soft');
+  });
+
+  it('renders count badges in the danger tone', () => {
+    renderWith(orgUser('admin', ['admin']), {
+      path: '/admin/home',
+      navBadges: { groupsNeedingAttention: 3 },
+    });
+    const groups = screen.getByRole('link', { name: /Groups/ });
+    expect(within(groups).getByText('3')).toHaveClass('bg-danger-soft', 'text-danger-ink');
+  });
+});
+
 describe('Sidebar — unauthenticated chrome (3.32)', () => {
   it('renders the logo but no link sections when user is null', () => {
     renderWith(null);

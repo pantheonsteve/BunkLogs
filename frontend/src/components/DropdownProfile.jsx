@@ -12,7 +12,13 @@ function roleLabel(user) {
     .join(', ');
 }
 
-import UserAvatar from '../images/user-avatar-32.png';
+import InitialsAvatar from './ui/InitialsAvatar';
+
+function displayNameFor(profile) {
+  return profile?.first_name
+    ? `${profile.first_name} ${profile.last_name || ''}`.trim()
+    : profile?.email || 'User';
+}
 
 function DropdownProfile({
   align
@@ -20,6 +26,7 @@ function DropdownProfile({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { logout, userProfile } = useAuth();
   const navigate = useNavigate();
+  const name = displayNameFor(userProfile);
 
   const trigger = useRef(null);
   const dropdown = useRef(null);
@@ -49,20 +56,16 @@ function DropdownProfile({
     <div className="relative inline-flex">
       <button
         ref={trigger}
-        className="inline-flex justify-center items-center group"
+        className="inline-flex justify-center items-center gap-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         aria-haspopup="true"
+        aria-label={`Account menu for ${name}`}
         onClick={() => setDropdownOpen(!dropdownOpen)}
         aria-expanded={dropdownOpen}
       >
-        <img className="w-8 h-8 rounded-full" src={UserAvatar} width="32" height="32" alt="User" />
-        <div className="flex items-center truncate">
-          <span className="truncate ml-2 text-sm font-medium text-gray-600 dark:text-gray-100 group-hover:text-gray-800 dark:group-hover:text-white">
-            {userProfile?.first_name ? `${userProfile.first_name} ${userProfile.last_name || ''}` : userProfile?.email || 'User'}
-          </span>
-          <svg className="w-3 h-3 shrink-0 ml-1 fill-current text-gray-400 dark:text-gray-500" viewBox="0 0 12 12">
-            <path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z" />
-          </svg>
-        </div>
+        <InitialsAvatar name={name} size="md" aria-hidden="true" />
+        <svg className="w-3 h-3 shrink-0 fill-current text-muted" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z" />
+        </svg>
       </button>
 
       <Transition
@@ -82,7 +85,7 @@ function DropdownProfile({
         >
           <div className="pt-0.5 pb-2 px-3 mb-1 border-b border-gray-200 dark:border-gray-700/60">
             <div className="font-medium text-gray-800 dark:text-gray-100">
-              {userProfile?.first_name ? `${userProfile.first_name} ${userProfile.last_name || ''}` : userProfile?.email || 'User'}
+              {name}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 italic">{roleLabel(userProfile)}</div>
           </div>

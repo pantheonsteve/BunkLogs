@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 vi.mock('../../partials/Sidebar', () => ({
   default: () => <aside data-testid="mock-sidebar" />,
 }));
-vi.mock('../../components/admin/AdminTopBar', () => ({
+vi.mock('../../partials/Header', () => ({
   default: () => <header data-testid="mock-topbar" />,
 }));
 vi.mock('../../api/admin', () => ({
