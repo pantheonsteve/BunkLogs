@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReflectionField from '../ReflectionField';
+import { RATING_TIER_CLASSES } from '../../../dashboards/colors';
 
 function renderField(field, answer, onChange = vi.fn(), opts = {}) {
   return render(
@@ -170,7 +171,7 @@ describe('ReflectionField', () => {
     );
     const buttons = screen.getAllByRole('button');
     expect(buttons.length).toBe(5);
-    expect(buttons[2].className).toContain('bg-[#e5e825]');
+    expect(buttons[2].className).toContain(RATING_TIER_CLASSES[3]);
     expect(buttons[2].className).toContain('flex-1');
     expect(screen.getByText('Poor')).toBeInTheDocument();
     expect(screen.getByText('Excellent')).toBeInTheDocument();

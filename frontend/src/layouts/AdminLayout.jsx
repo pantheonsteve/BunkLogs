@@ -44,7 +44,7 @@ function AdminShell() {
       />
       <div
         data-testid="admin-layout-scroll"
-        className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-gray-950"
+        className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-ground"
       >
         <AdminTopBar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <Outlet />

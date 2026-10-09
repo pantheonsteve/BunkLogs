@@ -6,6 +6,7 @@
 import { memo } from 'react';
 import Wysiwyg from '../form/Wysiwyg';
 import InfoTooltip from '../common/InfoTooltip';
+import { ratingTierClass } from '../../dashboards/colors';
 
 function getPromptText(field, language) {
   if (!field.prompts || typeof field.prompts !== 'object') return field.key || '';
@@ -66,18 +67,12 @@ function isFiveOneScale(scale) {
   return Array.isArray(scale) && scale.length === 5 && scale[0] === 1 && scale[4] === 5;
 }
 
-// Bunk Log "traffic-light" styling for 1–5 score buttons. Mirrors
-// frontend/src/components/form/BunkLogForm.jsx so reflection forms feel
-// identical to the daily Bunk Log scoring UI.
+// Traffic-light styling for 1–5 score buttons, using the shared rating palette.
 function scoreButtonClassName(score, selected, readonly) {
   const base =
     'flex-1 py-3 px-4 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1';
   if (selected) {
-    if (score === 1) return `${base} bg-[#e86946] text-white border-[#e86946] shadow-md`;
-    if (score === 2) return `${base} bg-[#de8d6f] text-white border-[#de8d6f] shadow-md`;
-    if (score === 3) return `${base} bg-[#e5e825] text-gray-800 border-[#e5e825] shadow-md`;
-    if (score === 4) return `${base} bg-[#90d258] text-gray-800 border-[#90d258] shadow-md`;
-    return `${base} bg-[#18d128] text-white border-[#18d128] shadow-md`;
+    return `${base} ${ratingTierClass(score, 5)} border-transparent shadow-md`;
   }
   if (readonly) {
     return `${base} bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed`;

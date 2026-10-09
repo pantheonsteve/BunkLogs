@@ -34,7 +34,7 @@ export default function AppLayout() {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div
         data-testid="app-layout-scroll"
-        className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-gray-950"
+        className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-ground"
       >
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <Outlet />

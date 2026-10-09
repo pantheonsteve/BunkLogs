@@ -25,8 +25,7 @@
  */
 
 import { Link } from 'react-router-dom';
-import { NO_DATA_FILL, ratingLegend } from '../dashboards/colors';
-import { ratingTierClass } from '../dashboards/subject/responseTable/schema';
+import { NO_DATA_FILL, ratingLegend, ratingTierClass } from '../dashboards/colors';
 import RichText from './ui/RichText';
 
 const SCORED_FIELD_TYPES = new Set(['single_rating', 'rating_group']);
