@@ -1,9 +1,11 @@
+import { COVERAGE_TIERS, coverageTier } from '../../dashboards/colors';
+
 /**
  * Completion bar for submission counts.
  *
- * The colour is derived from the ratio rather than passed in, so "how
- * far behind is this group" reads the same on the dashboard as it does
- * in a group list: green at 80%+, amber from 40%, red below.
+ * The fill uses the coverage heatmap tiers so "how far behind is this
+ * group" reads the same on a bar as it does in the coverage grid.
+ * `completionTone` stays exported for callers that color text by ratio.
  */
 export function completionTone(value, total) {
   if (!total) return 'empty';
@@ -13,16 +15,9 @@ export function completionTone(value, total) {
   return 'danger';
 }
 
-const FILL_CLASSES = {
-  ok: 'bg-green-500',
-  warn: 'bg-amber-500',
-  danger: 'bg-red-500',
-  empty: 'bg-gray-300 dark:bg-gray-600',
-};
-
 export default function ProgressBar({ value, total, className = '', ...rest }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  const tone = completionTone(value, total);
+  const fill = total > 0 ? COVERAGE_TIERS[coverageTier(pct)].fill : undefined;
   return (
     <div
       role="progressbar"
@@ -33,8 +28,9 @@ export default function ProgressBar({ value, total, className = '', ...rest }) {
       {...rest}
     >
       <div
-        className={`h-full rounded-full transition-all ${FILL_CLASSES[tone]}`}
-        style={{ width: `${pct}%` }}
+        data-testid="progress-fill"
+        className={`h-full rounded-full transition-all ${fill ? '' : 'bg-gray-300 dark:bg-gray-600'}`.trim()}
+        style={{ width: `${pct}%`, backgroundColor: fill }}
       />
     </div>
   );

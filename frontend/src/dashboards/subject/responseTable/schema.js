@@ -194,25 +194,7 @@ export function seriesDisplayLabel(seriesLabel, ratingCols) {
   return short || col.label;
 }
 
-/**
- * FA4 rating palette (decisions.md). Inline hex matches the per-row
- * implementation in ``components/bunklogs/AdminBunkLogItem.jsx`` so the
- * LT responses page reads consistently with the legacy bunk-log view.
- *
- * Non-5-point scales are normalised onto the 5-tier palette by ratio
- * (e.g. value 2 on a 4-point scale -> tier 3 / yellow) so a colour-blind
- * user can compare across templates with different scale lengths.
- */
-export function ratingTierClass(value, scaleMax = 5) {
-  if (value == null || !Number.isFinite(Number(value))) return 'bg-gray-100 text-gray-600';
-  const ratio = Number(value) / (scaleMax || 5);
-  const tier = Math.max(1, Math.min(5, Math.round(ratio * 5)));
-  if (tier === 1) return 'bg-[#e86946] text-white';
-  if (tier === 2) return 'bg-[#de8d6f] text-white';
-  if (tier === 3) return 'bg-[#e5e825] text-black';
-  if (tier === 4) return 'bg-[#90d258] text-white';
-  return 'bg-[#18d128] text-white';
-}
+export { ratingTierClass } from '../../colors';
 
 export function getInitials(name) {
   if (!name) return '?';
