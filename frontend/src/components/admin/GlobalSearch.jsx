@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { searchAdmin } from '../../api/admin';
 
 const GROUP_LABELS = {
@@ -68,22 +69,25 @@ export default function GlobalSearch() {
     : 0;
 
   return (
-    <div ref={containerRef} className="relative" data-testid="global-search">
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
-        placeholder="Search people by name…"
-        className="w-80 rounded-md border border-gray-300 bg-white p-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        aria-label="Admin global search"
-      />
+    <div ref={containerRef} className="relative w-full" data-testid="global-search">
+      <label className="flex items-center gap-2 min-h-10 px-3 rounded-lg bg-line-soft text-muted focus-within:ring-2 focus-within:ring-brand">
+        <Search size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+          placeholder="Search people, reflections, forms…"
+          className="flex-1 min-w-0 border-0 bg-transparent p-0 text-sm text-ink placeholder:text-muted focus:ring-0 focus:outline-none"
+          aria-label="Admin global search"
+        />
+      </label>
       {open && query.trim().length >= MIN_LEN && (
         <div
           role="listbox"
           data-testid="global-search-results"
-          className="absolute right-0 mt-1 w-[28rem] max-h-[60vh] overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl z-50 dark:bg-gray-900 dark:border-gray-700"
+          className="absolute left-0 mt-1 w-full sm:w-[28rem] max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto rounded-lg border border-line bg-white shadow-xl z-50 dark:bg-gray-900"
         >
           {loading && <p className="p-3 text-sm text-gray-500">Searching…</p>}
           {error && <p className="p-3 text-sm text-red-700">Search failed.</p>}

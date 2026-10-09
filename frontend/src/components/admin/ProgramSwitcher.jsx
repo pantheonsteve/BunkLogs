@@ -26,19 +26,27 @@ export default function ProgramSwitcher() {
   if (!ready || programs.length === 0) return null;
 
   const short = programShortLabel(program) || label;
+  // `is_active` stays true until an admin ends the program, so the date
+  // check keeps a finished season from reading as live.
+  const today = new Date().toLocaleDateString('en-CA');
+  const live = Boolean(program?.is_active) && (!program.end_date || program.end_date >= today);
 
   return (
     <div
-      className="relative inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+      className="relative inline-flex items-center gap-2 min-h-10 max-w-[14rem] px-3.5 rounded-lg border border-[#d9d6e4] dark:border-gray-600 bg-white dark:bg-gray-900 hover:border-violet-300 dark:hover:border-violet-700 focus-within:ring-2 focus-within:ring-brand transition-colors"
       data-testid="admin-program-switcher"
     >
-      <span className="text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+      <span
+        className={`w-2 h-2 rounded-full shrink-0 ${live ? 'bg-ok-ink' : 'bg-muted'}`}
+        aria-hidden="true"
+      />
+      <span className="text-sm font-semibold text-ink truncate">
         {short}
       </span>
       {program && !program.is_active && (
-        <span className="text-xs text-gray-500 dark:text-gray-400">(Ended)</span>
+        <span className="text-xs text-muted whitespace-nowrap">(Ended)</span>
       )}
-      <ChevronDown size={14} className="text-gray-400" aria-hidden="true" />
+      <ChevronDown size={16} className="text-ink-2 shrink-0" aria-hidden="true" />
       <select
         value={programId}
         onChange={(e) => setProgramId(e.target.value)}
