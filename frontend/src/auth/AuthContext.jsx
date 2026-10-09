@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import api from '../api';
+import { logout as allauthLogout } from '../lib/allauth';
 import {
   setDatadogUser,
   clearDatadogUser,
@@ -241,15 +242,11 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      // Try to call the logout endpoint if it exists
-      // This will fail silently if the endpoint doesn't exist or there's no token
+      // Google sign-in also creates a Django session; if it outlives the JWT,
+      // SessionAuthentication keeps the user logged in server-side (and
+      // CSRF-fails public POSTs like signup).
       try {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          await api.post('/api/logout/', {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          }).catch(e => console.log('Logout API call failed, proceeding with local logout'));
-        }
+        await allauthLogout();
       } catch (apiError) {
         // Continue with local logout even if API call fails
         console.log('API logout attempt failed:', apiError);
