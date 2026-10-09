@@ -9,9 +9,8 @@
  *   title: headline string, rendered as an h2 and used as the section's
  *          accessible name
  *   subtitle: optional line under the title
- *   accent: optional colour name from `components/ui/accents` — adds a top
- *           rule so a grid of cards reads as distinct sections rather than
- *           one undifferentiated wall of white
+ *   accent: optional colour name from `components/ui/accents` — tints the
+ *           icon chip
  *   icon: optional lucide component rendered in an accent-tinted badge
  *   badge: optional node rendered right-aligned in the header (status pill,
  *          UnreadDot, count)
@@ -37,9 +36,7 @@ export default function HomeCard({
   return (
     <section
       aria-label={title}
-      className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm ${
-        tone ? `border-t-4 ${tone.bar}` : ''
-      } ${className}`}
+      className={`rounded-[14px] border border-line bg-white dark:bg-gray-800 p-4 ${className}`}
       {...rest}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -54,11 +51,11 @@ export default function HomeCard({
             </span>
           )}
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-base font-bold text-ink">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
+              <p className="text-sm text-ink-2 mt-0.5">
                 {subtitle}
               </p>
             )}

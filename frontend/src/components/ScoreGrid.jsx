@@ -1,8 +1,8 @@
 /**
  * Score Grid — Step 7_7, Story 12.
  *
- * Compact table of camper × scored-dimension cells colored by the
- * shared `ratingColor` palette. Used inside `BunkDashboard` (Story
+ * Compact table of camper × scored-dimension cells, each drawn by the
+ * shared `RatingCell` primitive. Used inside `BunkDashboard` (Story
  * 11) and reusable by future role flows.
  *
  * Story 12 conformance points:
@@ -25,7 +25,8 @@
  */
 
 import { Link } from 'react-router-dom';
-import { NO_DATA_FILL, ratingLegend, ratingTierClass } from '../dashboards/colors';
+import { NO_DATA_FILL, ratingLegend } from '../dashboards/colors';
+import RatingCell from './ui/RatingCell';
 import RichText from './ui/RichText';
 
 const SCORED_FIELD_TYPES = new Set(['single_rating', 'rating_group']);
@@ -51,17 +52,14 @@ function columnHeader(col) {
 }
 
 function ScoreCell({ value, scaleMax }) {
-  const tone = ratingTierClass(value, scaleMax);
   return (
     <td
       data-testid={value == null ? 'score-cell-empty' : 'score-cell'}
       data-value={value ?? undefined}
-      className={`px-3 py-3 whitespace-nowrap text-center border border-gray-100 dark:border-gray-800 ${tone}`}
+      className="px-1 py-1 whitespace-nowrap text-center border border-gray-100 dark:border-gray-800"
       aria-label={value != null ? `Score ${value} of ${scaleMax}` : 'No score'}
     >
-      <div className="text-base font-semibold tabular-nums">
-        {value != null ? (Number.isInteger(value) ? value : value.toFixed(1)) : '—'}
-      </div>
+      <RatingCell value={value} scaleMax={scaleMax} size="lg" />
     </td>
   );
 }

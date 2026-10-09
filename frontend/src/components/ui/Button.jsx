@@ -1,34 +1,34 @@
 import React, { forwardRef } from 'react';
+import { twMerge } from 'tailwind-merge';
 
 /**
- * Canonical button primitive for admin surfaces.
+ * Canonical button primitive.
  *
- * Variants codify the most common tailwind blobs we were repeating
- * across the new admin pages -- they don't introduce new visuals.
- *
- *   variant: 'primary'   — filled blue (the "New X" / "Save" CTA)
- *            'secondary' — gray outline / ghost (Cancel, back-out)
+ *   variant: 'primary'   — filled brand violet (the "New X" / "Save" CTA)
+ *            'secondary' — white with a line border (Cancel, back-out)
  *            'danger'    — red text on hover (Delete actions)
  *
- *   size:    'sm' — px-3 py-1.5 text-xs/sm (table-row and toolbar usage)
- *            'md' — px-4 py-2 text-sm (page-level actions)
+ *   size:    'sm' — table-row and toolbar usage
+ *            'md' — page-level actions, 40px tall
+ *            'lg' — 52px phone CTA
  *
- * Renders a regular <button> with className composed from variant +
- * size + caller-provided className.
+ * Dark brand is violet-400, which fails 4.5:1 under white text, so the
+ * primary label flips to near-black in dark mode.
  */
 
 const VARIANT_CLASSES = {
   primary:
-    'bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+    'bg-brand text-white dark:text-gray-950 font-semibold rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
   secondary:
-    'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+    'bg-white dark:bg-gray-900 border border-line text-ink font-semibold rounded-lg hover:bg-line-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
   danger:
     'text-red-600 dark:text-red-400 font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
 };
 
 const SIZE_CLASSES = {
   sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
+  md: 'min-h-10 px-4 py-2 text-sm',
+  lg: 'min-h-[52px] px-5 py-3 text-base rounded-xl',
 };
 
 const Button = forwardRef(function Button(
@@ -48,7 +48,7 @@ const Button = forwardRef(function Button(
     <button
       ref={ref}
       type={type}
-      className={`inline-flex items-center justify-center gap-2 ${variantCls} ${sizeCls} ${className}`.trim()}
+      className={twMerge('inline-flex items-center justify-center gap-2', variantCls, sizeCls, className)}
       {...rest}
     >
       {children}
