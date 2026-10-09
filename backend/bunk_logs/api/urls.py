@@ -355,14 +355,14 @@ urlpatterns = [
         rich_text_images.RichTextImageUploadView.as_view(),
         name="rich-text-image-upload",
     ),
+    # Public registration. Must precede the router, whose users/<pk>/ route
+    # would otherwise capture "create" as a pk.
+    path("users/create/", views.UserCreate.as_view(), name="user-create"),
     path("", include(router.urls)),
 
     # Step 7_13 — Admin Flow namespace (mounted under /api/v1/admin/).
     # See bunk_logs/api/admin_flow/__init__.py for the package layout.
     path("admin/", include("bunk_logs.api.admin_flow.urls")),
-
-    # User registration (public)
-    path("users/create/", views.UserCreate.as_view(), name="user-create"),
 
     # Current tenant's public branding (TBE Frontend Readiness) -- unauthenticated,
     # read by sign-in/sign-up pages before login.

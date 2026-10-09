@@ -47,7 +47,7 @@ CORS allows the `x-organization-slug` header from browser clients (see `CORS_ALL
 
 ## Session and CSRF cookies across subdomains
 
-Production (`config.settings.production` and `config.settings.render`) sets:
+Production (`config.settings.production`) sets:
 
 - `SESSION_COOKIE_DOMAIN = ".bunklogs.net"`
 - `CSRF_COOKIE_DOMAIN = ".bunklogs.net"`
