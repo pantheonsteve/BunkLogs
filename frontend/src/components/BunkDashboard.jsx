@@ -562,7 +562,7 @@ export default function BunkDashboard({
   return (
     <div
       data-testid="bunk-dashboard"
-      className={`px-4 sm:px-6 lg:px-8 pt-6 ${showOrders || showNotes ? 'pb-8' : 'pb-0'} w-full max-w-[1240px] mx-auto space-y-6`}
+      className={`px-4 sm:px-6 lg:px-8 pt-6 ${showOrders || showNotes ? 'pb-8' : 'pb-0'} w-full max-w-[80rem] mx-auto space-y-6`}
     >
       <header className="space-y-5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
