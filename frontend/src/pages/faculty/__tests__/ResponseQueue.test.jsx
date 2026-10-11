@@ -5,7 +5,7 @@
  * to miss, so the ordering and the age escalation are what these assert.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FacultyDashboard from '../Dashboard';
 
@@ -111,23 +111,24 @@ function renderDashboard() {
 describe('Faculty homepage — response queue and roster', () => {
   it('lists routed questions oldest first with an age escalation label', async () => {
     renderDashboard();
-    await waitFor(() => screen.getByTestId('fac-queue-list'));
+    await waitFor(() => screen.getByTestId('fac-queue-card'));
 
-    const rows = screen.getAllByTestId(/^fac-queue-row-/);
-    expect(rows.map((r) => r.dataset.testid)).toEqual([
-      'fac-queue-row-1', 'fac-queue-row-2', 'fac-queue-row-3',
+    const card = screen.getByTestId('fac-queue-card');
+    expect(card).toHaveAttribute('data-count', '9');
+    const links = within(card).getAllByRole('link').filter((a) => a.getAttribute('href').startsWith('/faculty/threads/'));
+    expect(links.map((a) => a.textContent)).toEqual([
+      expect.stringMatching(/Old Ari.*Two weeks waiting/),
+      expect.stringMatching(/Mid Ben.*A week waiting/),
+      expect.stringMatching(/New Cara.*This week/),
     ]);
-    expect(screen.getByTestId('fac-queue-escalation-1')).toHaveTextContent('Two weeks waiting');
-    expect(screen.getByTestId('fac-queue-escalation-2')).toHaveTextContent('A week waiting');
-    expect(screen.getByTestId('fac-queue-escalation-3')).toHaveTextContent('This week');
-    expect(screen.getByTestId('fac-queue-overdue')).toHaveTextContent('1 overdue');
   });
 
   it('links to the full queue when the card is showing a preview', async () => {
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-queue-link'));
     expect(screen.getByTestId('fac-queue-link')).toHaveAttribute('href', '/faculty/queue');
-    expect(screen.getByTestId('fac-queue-row-1')).toHaveAttribute('href', '/faculty/threads/1');
+    expect(within(screen.getByTestId('fac-queue-card')).getByRole('link', { name: /Old Ari/ }))
+      .toHaveAttribute('href', '/faculty/threads/1');
   });
 
   it('says nothing is waiting rather than showing an empty list', async () => {

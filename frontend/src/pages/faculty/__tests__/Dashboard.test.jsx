@@ -19,6 +19,18 @@ vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => ({ orgSlug: 'tbe', user: { id: 42 } }),
 }));
 
+// TBE's terminology (setup_tbe): labels below must come from these, not literals.
+vi.mock('../../../context/OrgBrandingContext', async (importOriginal) => {
+  const actual = await importOriginal();
+  const { normalizeTerminology, resolveTerm } = await import('../../../utils/terminology');
+  const terms = normalizeTerminology({
+    camper: { one: 'student', other: 'students' },
+    bunk: { one: 'class', other: 'classes' },
+    counselor: { one: 'faculty', other: 'faculty' },
+  });
+  return { ...actual, useTerm: () => (key, opts) => resolveTerm(terms, key, opts) };
+});
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal();
@@ -100,7 +112,7 @@ beforeEach(() => {
 });
 
 describe('FacultyDashboard', () => {
-  it('renders a card per classroom with its three signals', async () => {
+  it('renders the classroom grid and selected detail with terminology-driven labels', async () => {
     mockApi();
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-classroom-12'));
@@ -112,17 +124,21 @@ describe('FacultyDashboard', () => {
       }),
     );
 
+    expect(screen.getByText('1 class · 6 students')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'My classes' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Class challenges' })).toBeInTheDocument();
+    expect(screen.getByTestId('fac-reflections-progress')).toHaveTextContent('4 / 6');
+
     const card = screen.getByTestId('fac-classroom-12');
+    expect(card).toHaveAttribute('data-selected', 'true');
     expect(card).toHaveTextContent('Tzedakah 101');
-    expect(card).toHaveTextContent('6 Madrichim');
-    expect(screen.getByTestId('fac-classroom-12-reflections')).toHaveTextContent('4 of 6');
-    expect(screen.getByTestId('fac-classroom-12-availability')).toHaveTextContent('3 available');
-    expect(screen.getByTestId('fac-classroom-12-challenges')).toHaveTextContent('2 open challenges');
+    expect(card).toHaveTextContent('6 students');
+    expect(card).toHaveTextContent('3 in Sep 13');
+    expect(card).toHaveTextContent('4/6');
+    expect(screen.getByLabelText('2 flagged')).toBeInTheDocument();
+    expect(screen.getByTestId('fac-roster-card')).toHaveTextContent('Tzedakah 101 · Students');
     expect(screen.getByTestId('fac-classroom-12-cta')).toHaveAttribute(
       'href', '/dashboards/group/12',
-    );
-    expect(screen.getByTestId('fac-challenges-section')).toHaveTextContent(
-      '2 open across your classrooms',
     );
   });
 
@@ -141,13 +157,10 @@ describe('FacultyDashboard', () => {
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-classroom-12'));
 
-    expect(screen.getByTestId('fac-classroom-12-reflections')).toHaveTextContent(
-      'No weekly form assigned yet',
-    );
-    expect(screen.getByTestId('fac-classroom-12-availability')).toHaveTextContent(
-      'No upcoming sessions scheduled',
-    );
-    expect(screen.queryByTestId('fac-classroom-12-challenges')).toBeNull();
+    const card = screen.getByTestId('fac-classroom-12');
+    expect(card).toHaveTextContent('No weekly form assigned yet');
+    expect(card).not.toHaveTextContent(/\d+ in /);
+    expect(screen.queryByLabelText(/flagged/)).toBeNull();
   });
 
   it('shows an empty state for faculty without a classroom', async () => {
