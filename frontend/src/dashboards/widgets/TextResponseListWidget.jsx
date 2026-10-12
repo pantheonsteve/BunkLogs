@@ -12,7 +12,7 @@ export default function TextResponseListWidget({ field, label }) {
   const [expanded, setExpanded] = useState(null);
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-5">
+    <div className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-5">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
           {label ?? field?.key}

@@ -36,7 +36,7 @@ export default function HomeCard({
   return (
     <section
       aria-label={title}
-      className={`rounded-[14px] border border-line bg-white dark:bg-gray-800 p-4 ${className}`}
+      className={`rounded-[14px] shadow-card border border-line bg-white dark:bg-gray-800 p-4 ${className}`}
       {...rest}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">

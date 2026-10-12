@@ -53,8 +53,7 @@ import {
   pickPrimaryBlock,
 } from './profileStats';
 
-const ELEVATION = 'shadow-[0_1px_3px_rgba(29,27,44,0.08),0_1px_2px_rgba(29,27,44,0.04)] dark:shadow-none';
-const CARD = `rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-5 ${ELEVATION}`;
+const CARD = 'rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-5 shadow-card';
 
 const SERIES_COLORS = {
   social: 'var(--color-series-social)',
@@ -114,7 +113,7 @@ function ProfileRail({ backGroup, backDate, groupPayload, personId }) {
   return (
     <nav
       aria-label="Group"
-      className="mb-4 lg:mb-0 flex flex-col gap-0.5 lg:self-start lg:sticky lg:top-20 lg:rounded-[14px] lg:border lg:border-line lg:bg-white lg:dark:bg-gray-900 lg:p-2 lg:shadow-[0_1px_3px_rgba(29,27,44,0.08),0_1px_2px_rgba(29,27,44,0.04)] lg:dark:shadow-none"
+      className="mb-4 lg:mb-0 flex flex-col gap-0.5 lg:self-start lg:sticky lg:top-20 lg:rounded-[14px] lg:border lg:border-line lg:bg-white lg:dark:bg-gray-900 lg:p-2 lg:shadow-card"
     >
       <Link
         to={to}
@@ -183,7 +182,7 @@ export function ProfileHeader({
 
   return (
     <section
-      className={`rounded-2xl border border-line bg-white dark:bg-gray-900 px-6 py-5 ${ELEVATION} flex flex-wrap items-center gap-x-5 gap-y-4`}
+      className={`rounded-2xl border border-line bg-white dark:bg-gray-900 px-6 py-5 shadow-card flex flex-wrap items-center gap-x-5 gap-y-4`}
       data-testid="subject-profile-header"
     >
       <InitialsAvatar name={displayName} size="xl" aria-hidden="true" />
@@ -310,7 +309,6 @@ function KpiGrid({ cols, reflections, priorReflections, end, priorLabel }) {
         return (
           <KpiTile
             key={colKey(col)}
-            className={ELEVATION}
             data-testid={`subject-kpi-${colKey(col)}`}
             label={(
               <span className="inline-flex items-center gap-2">

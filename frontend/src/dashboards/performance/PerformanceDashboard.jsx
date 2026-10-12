@@ -385,7 +385,7 @@ export default function PerformanceDashboard({ embedded = false }) {
           )}
 
           {groups.length > 0 && (
-            <div className="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-4 py-3">
+            <div className="mb-6 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-4 py-3">
               <p className="text-sm font-medium text-gray-900 dark:text-white">
                 {completeCount === groups.length
                   ? 'All groups complete!'

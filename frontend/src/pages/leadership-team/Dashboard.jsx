@@ -97,7 +97,7 @@ function SelfReflectionCard({ self }) {
     return (
       <section
         aria-label="My reflection"
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
         data-testid="lt-self-card"
       >
         <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
@@ -121,7 +121,7 @@ function SelfReflectionCard({ self }) {
   return (
     <section
       aria-label="My reflection"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="lt-self-card"
     >
       <div className="flex items-center justify-between mb-3">
@@ -151,7 +151,7 @@ function BunksUnitsCard({ summary }) {
   return (
     <section
       aria-label="Bunks and units"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="lt-bunks-units-card"
     >
       <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">

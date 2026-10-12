@@ -214,7 +214,7 @@ export default function LeadershipTeamTemplateLibrary() {
       ) : (
         <>
         <section
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 flex flex-wrap gap-3"
+          className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 flex flex-wrap gap-3"
           aria-label="Filters"
         >
           <label className="text-sm text-gray-700 dark:text-gray-300">
@@ -276,7 +276,7 @@ export default function LeadershipTeamTemplateLibrary() {
             {templates.map((tpl) => (
               <li
                 key={tpl.id}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3"
+                className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3"
                 data-testid={`lt-tpl-row-${tpl.id}`}
               >
                 <div className="flex items-start justify-between gap-3">
