@@ -197,55 +197,19 @@ describe('SubjectDetail', () => {
     expect(bunkLink).toHaveAttribute('href', '/dashboards/group/36');
   });
 
-  it('renders KPI tiles for total reflections and yes/no flag counts', () => {
+  it('renders one daily-log row per reflection, newest first, with rating cells, note, and flag badge', () => {
     renderDetail();
-    const kpis = screen.getByTestId('subject-kpis-16');
-    expect(within(kpis).getByText('Total reflections')).toBeInTheDocument();
-    expect(within(kpis).getByText('3')).toBeInTheDocument();
-    // request_camper_care_help: 1 yes / 3 total
-    expect(within(kpis).getByText('1 / 3')).toBeInTheDocument();
-    // not_on_camp + unit head help: 0 yes / 3 total each
-    expect(within(kpis).getAllByText('0 / 3').length).toBeGreaterThanOrEqual(2);
-  });
+    const rows = within(screen.getByTestId('subject-table-16')).getAllByTestId(/^subject-row-/);
+    expect(rows.map((r) => r.dataset.testid)).toEqual(['subject-row-228', 'subject-row-234']);
 
-  it('renders one form-response row per reflection with colour-coded ratings + flag chip', () => {
-    renderDetail();
-    const row228 = screen.getByTestId('subject-row-228');
-    const row234 = screen.getByTestId('subject-row-234');
+    const [row228, row234] = rows;
+    expect(within(row228).getByLabelText('Behavior 5 of 5')).toBeInTheDocument();
+    expect(within(row234).getByLabelText('Behavior 4 of 5')).toBeInTheDocument();
+    expect(within(row228).getByText('Solid day overall.')).toBeInTheDocument();
+    expect(within(row228).getByText('BulkCounselor #9')).toBeInTheDocument();
 
-    // Rating cells expose value via aria-label "<label>: <n> of <scaleMax>".
-    expect(within(row228).getByLabelText('Behavior: 5 of 5')).toBeInTheDocument();
-    expect(within(row234).getByLabelText('Behavior: 4 of 5')).toBeInTheDocument();
-
-    // Yes-flag chip rendered only on row 228 (camper_care_help=yes).
     expect(within(row228).getByTestId('subject-flag-16-request_camper_care_help')).toBeInTheDocument();
     expect(within(row234).queryByTestId('subject-flag-16-request_camper_care_help')).not.toBeInTheDocument();
-
-    // Group dashboard link for the reflection's assignment group on that date.
-    expect(within(row228).getByRole('link', { name: /RBAC Bulk Bunk 5/ })).toHaveAttribute(
-      'href', '/dashboards/group/36?date=2026-05-23',
-    );
-  });
-
-  it('renders a mobile response card per reflection with heading, score boxes, and narrative', () => {
-    renderDetail();
-    const card = screen.getByTestId('subject-card-228');
-
-    // No Subject column on the profile page, so the card header shows the date.
-    expect(within(card).getByText('May 23, 2026')).toBeInTheDocument();
-
-    // Colored score boxes expose value via aria-label, same as the table cells.
-    expect(within(card).getByLabelText('Behavior: 5 of 5')).toBeInTheDocument();
-    expect(within(card).getByLabelText('Participation: 4 of 5')).toBeInTheDocument();
-    expect(within(card).getByLabelText('Social: 5 of 5')).toBeInTheDocument();
-
-    // Narrative body: description text + reporting author.
-    expect(within(card).getByText('Solid day overall.')).toBeInTheDocument();
-    expect(within(card).getByText('Reporting Author:')).toBeInTheDocument();
-    expect(within(card).getByText('BulkCounselor #9')).toBeInTheDocument();
-
-    // Note + control on the card when personId is set.
-    expect(within(card).getByTestId('subject-card-add-observation-228')).toHaveTextContent('Note +');
   });
 
   it('shows help request badges when help was requested in the period', () => {
@@ -294,20 +258,21 @@ describe('SubjectDetail', () => {
     expect(screen.getByTestId('observation-subject-chips')).toHaveTextContent('BulkCamper5 #1');
   });
 
-  it('calls onRangeChange when custom start/end dates are selected', () => {
-    const onRangeChange = vi.fn();
-    renderDetail({}, { onRangeChange });
-
-    fireEvent.change(screen.getByTestId('subject-period-start'), {
-      target: { value: '2026-05-01' },
-    });
-    expect(onRangeChange).toHaveBeenCalledWith('2026-05-01', '2026-05-23');
-
-    onRangeChange.mockClear();
-    fireEvent.change(screen.getByTestId('subject-period-end'), {
-      target: { value: '2026-05-31' },
-    });
-    expect(onRangeChange).toHaveBeenCalledWith('2026-05-21', '2026-05-31');
+  it('drives the start/end range from the period toggle', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 4, 23, 12));
+    try {
+      const onRangeChange = vi.fn();
+      renderDetail({}, { onRangeChange });
+      fireEvent.click(screen.getByTestId('subject-period-week'));
+      expect(onRangeChange).toHaveBeenCalledWith('2026-05-17', '2026-05-23');
+      fireEvent.click(screen.getByTestId('subject-period-4weeks'));
+      expect(onRangeChange).toHaveBeenCalledWith('2026-04-26', '2026-05-23');
+      // No session dates on the profile, so "Full session" isn't offered.
+      expect(screen.queryByTestId('subject-period-session')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows observations empty state when none in the selected period', () => {
@@ -336,6 +301,80 @@ describe('SubjectDetail', () => {
     const when = within(panel).getByTestId('observation-when-42');
     expect(when).toHaveAttribute('dateTime', '2026-05-23T15:00:00Z');
     expect(when.textContent).toBeTruthy();
+  });
+
+  it('shows "This week" KPIs vs the prior period and hides sensitive notes behind the placeholder', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 6, 13, 12));
+    try {
+      const social = [4, 4, 5, 4, 4, 5, 4, 4, 3, 4, 3, 3, 2];
+      const behavior = [4, 4, 4, 5, 4, 4, 4, 3, 3, 3, 2, 3, 2];
+      const reflections = social.map((s, i) => ({
+        id: 500 + i,
+        date: `2026-07-${String(i + 1).padStart(2, '0')}`,
+        author_name: 'Maya Levin',
+        team_visibility: 'team',
+        answers: {
+          camper_scores: { social: s, behavior: behavior[i], participation: 4 },
+          request_unit_head_help: i === 10 || i === 12 ? 'yes' : 'no',
+        },
+      }));
+      const block = (rows) => ({ ...payload.templates[0], reflections: rows });
+      render(
+        <MemoryRouter>
+          <SubjectDetail
+            payload={{
+              ...payload,
+              period: { start: '2026-07-07', end: '2026-07-13' },
+              templates: [block(reflections.slice(6))],
+              observations: [{ id: 1, body: '<p>Visible note</p>', sensitivity: 'normal', author: { id: 2, name: 'Jess' }, observed_at: '2026-07-12T15:00:00Z' }],
+              hidden_observations: [{ sensitivity: 'domain', count: 1, gating_role: 'Leadership Team and above' }],
+            }}
+            priorTemplates={[block(reflections.slice(0, 6))]}
+            groupPayload={{
+              roster: [
+                { person_id: 9, name: 'Maya Levin', role_in_group: 'author' },
+                { person_id: 221, name: 'BulkCamper5 #1', role_in_group: 'subject' },
+                { person_id: 222, name: 'Ilan Gross', role_in_group: 'subject' },
+              ],
+              help_requested: [{ id: 222 }],
+            }}
+            rangeStart="2026-07-07"
+            rangeEnd="2026-07-13"
+            personId={221}
+          />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByTestId('subject-period-week')).toHaveAttribute('aria-pressed', 'true');
+
+      // Social: this week 23/7 = 3.29; prior 26/6 = 4.33.
+      const socialKpi = screen.getByTestId('subject-kpi-camper_scores__social');
+      expect(within(socialKpi).getByText('3.3')).toBeInTheDocument();
+      expect(within(socialKpi).getByTestId('kpi-delta')).toHaveTextContent('down 1.0');
+      expect(within(socialKpi).getByText('vs prior week')).toBeInTheDocument();
+      // Behavior: 20/7 = 2.86; prior 25/6 = 4.17.
+      const behaviorKpi = screen.getByTestId('subject-kpi-camper_scores__behavior');
+      expect(within(behaviorKpi).getByText('2.9')).toBeInTheDocument();
+      expect(within(behaviorKpi).getByTestId('kpi-delta')).toHaveTextContent('down 1.3');
+      expect(within(socialKpi).getAllByRole('img')).toHaveLength(7);
+
+      expect(screen.getByTestId('subject-help-request_unit_head_help')).toHaveTextContent('2 of last 7 days');
+      expect(screen.getAllByTestId('trend-help-band')).toHaveLength(2);
+
+      const panel = screen.getByTestId('observations-panel');
+      expect(within(panel).getByText('Visible note')).toBeInTheDocument();
+      expect(within(panel).getByTestId('sensitive-note-placeholder')).toHaveTextContent(
+        '1 sensitive note (Leadership Team and above)',
+      );
+
+      expect(screen.getByTestId('subject-staff-line')).toHaveTextContent('Counselor: Maya Levin');
+      const rail = screen.getByTestId('profile-rail-roster');
+      expect(within(rail).getByRole('link', { name: 'BulkCamper5 #1' })).toHaveAttribute('aria-current', 'page');
+      expect(within(rail).getByTestId('rail-help-dot-222')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('pre-fills observation date from panel when viewing a single day', async () => {

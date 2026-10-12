@@ -8,10 +8,8 @@ import {
   flattenSubjectEntries,
   downloadSubjectEntriesExport,
 } from '../../dashboards/subject/flattenSubjectEntries';
-import {
-  ProfileHeader,
-  PeriodStepper,
-} from '../../dashboards/subject/SubjectDetail';
+import { ProfileHeader } from '../../dashboards/subject/SubjectDetail';
+import PeriodStepper from '../../dashboards/subject/PeriodStepper';
 
 /**
  * Consolidated chronological view of a subject's reflections and observations.
@@ -125,7 +123,9 @@ export default function SubjectEntriesPage() {
               >
                 Back to profile
               </Link>
-              <ProfileHeader subject={payload.subject} profile={payload.subject_profile} />
+              <div className="mb-6">
+                <ProfileHeader subject={payload.subject} profile={payload.subject_profile} />
+              </div>
               <PeriodStepper
                 period={payload.period}
                 rangeStart={rangeStart}

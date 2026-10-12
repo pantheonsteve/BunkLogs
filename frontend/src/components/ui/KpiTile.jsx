@@ -25,6 +25,7 @@ export default function KpiTile({
   deltaDirection = null,
   tone = 'neutral',
   className = '',
+  children,
   ...rest
 }) {
   const dir = DIRECTION[deltaDirection];
@@ -59,6 +60,7 @@ export default function KpiTile({
           {sub && <span className="text-muted">{sub}</span>}
         </div>
       )}
+      {children}
     </div>
   );
 }
