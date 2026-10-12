@@ -147,6 +147,19 @@ describe('GroupDashboardPage', () => {
     expect(backLink).toHaveAttribute('href', expectedHref);
   });
 
+  it('links admins (only) to the group admin screen', async () => {
+    getMock.mockResolvedValueOnce({ data: classroomPayload('admin') });
+    const { unmount } = renderAt('/dashboards/group/41');
+    expect(await screen.findByTestId('group-dashboard-admin-link'))
+      .toHaveAttribute('href', '/admin/groups/41');
+    unmount();
+
+    getMock.mockResolvedValueOnce({ data: bunkPayload('unit_head') });
+    renderAt('/dashboards/group/11');
+    await screen.findByTestId('group-dashboard-bunk');
+    expect(screen.queryByTestId('group-dashboard-admin-link')).not.toBeInTheDocument();
+  });
+
   it('routes faculty classroom authors back to /faculty', async () => {
     useAuthMock.mockReturnValue({ user: { membership_roles: ['faculty'] } });
     getMock.mockResolvedValueOnce({ data: classroomPayload('classroom_author') });

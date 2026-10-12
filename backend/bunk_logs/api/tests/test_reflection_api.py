@@ -150,6 +150,11 @@ def test_person_can_submit(api, org_a, program_a, counselor_template, counselor_
     assert resp.status_code == 201, resp.content
     assert resp.json()["answers"] == {"note": "did well"}
 
+    detail = api.get(f"/api/v1/reflections/{resp.json()['id']}/", **_hdr_org(org_a.slug))
+    assert detail.status_code == 200
+    assert detail.json()["author_name"] == _person.full_name
+    assert detail.json()["subject_name"] == _person.full_name
+
 
 @pytest.mark.django_db
 def test_team_visibility_defaults_to_team(

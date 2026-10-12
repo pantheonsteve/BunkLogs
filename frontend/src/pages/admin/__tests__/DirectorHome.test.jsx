@@ -262,6 +262,7 @@ describe('Director homepage inside AdminHome', () => {
   it('scopes the drill-down to one classroom when a cell is clicked', async () => {
     renderHome();
     await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    expect(screen.getByTestId('dir-coverage-room-12')).toHaveAttribute('href', '/dashboards/group/12');
     fireEvent.click(screen.getByTestId('dir-coverage-12-2026-09-27'));
 
     await waitFor(() => screen.getByTestId('coverage-detail-summary'));

@@ -7,6 +7,7 @@
 import { Link } from 'react-router-dom';
 import { getInitials, ratingTierClass, isTruthyFlag } from './schema';
 import RichText from '../../../components/ui/RichText';
+import PersonAvatar from '../../../components/ui/PersonAvatar';
 
 /** Secondary styling for staff placement labels under the subject name. */
 const assignmentLabelClass =
@@ -37,11 +38,15 @@ export function SubjectCell({
   return (
     <td className="px-3 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
       <div className="flex items-center">
-        <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-3">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {getInitials(name)}
-          </span>
-        </div>
+        {row.subject?.name ? (
+          <PersonAvatar id={row.subject.id} name={name} size="md" className="mr-3" />
+        ) : (
+          <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full mr-3">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {getInitials(name)}
+            </span>
+          </div>
+        )}
         <div>
           <div>{nameNode}</div>
           {groupsUnderName && groups.length > 0 ? (

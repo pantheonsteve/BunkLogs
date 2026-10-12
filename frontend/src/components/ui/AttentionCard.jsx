@@ -7,6 +7,7 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import InitialsAvatar from './InitialsAvatar';
+import PersonAvatar from './PersonAvatar';
 
 const TONE_CHIP = {
   warn: 'bg-warn-soft text-warn-ink',
@@ -22,10 +23,14 @@ const AGE_TEXT = {
 
 const ROW_CLS = 'flex items-center gap-2.5 min-h-10 border-t border-line-soft text-ink';
 
-function RowContent({ row }) {
+function RowContent({ row, personAvatars }) {
   return (
     <>
-      <InitialsAvatar name={row.name} initials={row.initials} size="sm" tone="neutral" aria-hidden="true" />
+      {personAvatars ? (
+        <PersonAvatar id={row.id} name={row.name} size="sm" />
+      ) : (
+        <InitialsAvatar name={row.name} initials={row.initials} size="sm" tone="neutral" aria-hidden="true" />
+      )}
       <span className="flex-1 min-w-0 truncate text-[13px]">
         <span className="font-semibold">{row.name}</span>
         {row.where && <span className="text-muted"> · {row.where}</span>}
@@ -49,6 +54,7 @@ export default function AttentionCard({
   action,
   moreTo,
   maxRows = 3,
+  personAvatars = false,
   className = '',
   ...rest
 }) {
@@ -88,11 +94,11 @@ export default function AttentionCard({
             <li key={row.id}>
               {row.to ? (
                 <Link to={row.to} className={`${ROW_CLS} hover:bg-line-soft rounded-md`}>
-                  <RowContent row={row} />
+                  <RowContent row={row} personAvatars={personAvatars} />
                 </Link>
               ) : (
                 <div className={ROW_CLS}>
-                  <RowContent row={row} />
+                  <RowContent row={row} personAvatars={personAvatars} />
                 </div>
               )}
             </li>

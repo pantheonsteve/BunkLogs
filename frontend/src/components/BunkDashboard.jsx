@@ -24,6 +24,8 @@ import AttentionCard from './ui/AttentionCard';
 import Badge from './ui/Badge';
 import Card from './ui/Card';
 import DayStepper from './ui/DayStepper';
+import AdminGroupLink from './AdminGroupLink';
+import GroupLeaders from './GroupLeaders';
 import ScoreGrid from './ScoreGrid';
 import SupervisorHeading from './supervisor/SupervisorHeading';
 import CounselorSelfReflectionsList, { counselorSelfReflectionSummary } from './CounselorSelfReflectionsList';
@@ -71,6 +73,7 @@ function SummaryCard({ title, icon, tone, people, bunkLabel, toProfile, testid }
       icon={icon}
       tone={tone}
       maxRows={Math.max(people.length, 3)}
+      personAvatars
       rows={people.map((p) => ({ ...p, where: bunkLabel, to: toProfile(p.id) }))}
     />
   );
@@ -529,6 +532,7 @@ export default function BunkDashboard({
   const bunkConcerns = data?.bunk_concerns || [];
   const orders = data?.orders;
   const scoreGrid = useMemo(() => data?.score_grid || { columns: [], rows: [] }, [data]);
+  const hasRosterLeaders = (data?.roster || []).some((m) => m.role_in_group === 'author');
 
   const gridColumns = useMemo(
     () => (scoreGrid.columns || []).filter((c) => GRID_COLUMN_TYPES.has(c.field_type)),
@@ -579,13 +583,14 @@ export default function BunkDashboard({
           <Badge size="md" className="sm:ml-auto font-semibold border border-line bg-white dark:bg-gray-900 text-ink-2">
             View only
           </Badge>
+          <AdminGroupLink data={data} />
         </div>
         <SupervisorHeading
           eyebrow={data?.header?.bunk?.unit_name}
           title={data?.header?.bunk?.name}
           summary={[
             resolvedProgramName,
-            data?.header?.counselor_names?.length > 0
+            !hasRosterLeaders && data?.header?.counselor_names?.length > 0
               ? `Counselors ${data.header.counselor_names.join(' · ')}`
               : null,
           ].filter(Boolean).join(' · ')}
@@ -594,7 +599,9 @@ export default function BunkDashboard({
           total={completion.expected}
           progressText={`${completion.submitted} of ${completion.expected} reflections submitted`}
           progressTestId="bunk-completion"
-        />
+        >
+          <GroupLeaders roster={data?.roster} className="mt-4" />
+        </SupervisorHeading>
       </header>
 
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">

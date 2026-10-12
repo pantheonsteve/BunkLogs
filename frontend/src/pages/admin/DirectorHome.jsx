@@ -37,6 +37,7 @@ import HomeCard from '../../components/ui/HomeCard';
 import UnreadDot from '../../components/ui/UnreadDot';
 import { useAdminProgram } from '../../context/AdminProgramContext';
 import { statusMeta } from '../../utils/availabilityStatus';
+import { groupDashboardLink } from '../../utils/dashboardLinks';
 
 /** Fetch-once-on-mount helper. `null` means still loading, `false` means failed. */
 function useCardData(fetcher, ready = true) {
@@ -344,7 +345,13 @@ export function CoverageCard({ nextOnly = false }) {
                     scope="row"
                     className="text-left font-semibold text-gray-900 dark:text-white py-2 pl-3 pr-3 whitespace-nowrap"
                   >
-                    {room.name}
+                    <Link
+                      to={groupDashboardLink(room.id)}
+                      className="hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline"
+                      data-testid={`dir-coverage-room-${room.id}`}
+                    >
+                      {room.name}
+                    </Link>
                     {room.roster_size > 0 && (
                       <span className="font-normal text-gray-600 dark:text-gray-300"> ({room.roster_size})</span>
                     )}
