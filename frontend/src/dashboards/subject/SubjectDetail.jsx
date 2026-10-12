@@ -53,7 +53,8 @@ import {
   pickPrimaryBlock,
 } from './profileStats';
 
-const CARD = 'rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-5';
+const ELEVATION = 'shadow-[0_1px_3px_rgba(29,27,44,0.08),0_1px_2px_rgba(29,27,44,0.04)] dark:shadow-none';
+const CARD = `rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-5 ${ELEVATION}`;
 
 const SERIES_COLORS = {
   social: 'var(--color-series-social)',
@@ -111,7 +112,10 @@ function ProfileRail({ backGroup, backDate, groupPayload, personId }) {
   ]);
   if (!to) return <div />;
   return (
-    <nav aria-label="Group" className="mb-4 lg:mb-0 flex flex-col gap-0.5">
+    <nav
+      aria-label="Group"
+      className="mb-4 lg:mb-0 flex flex-col gap-0.5 lg:self-start lg:sticky lg:top-20 lg:rounded-[14px] lg:border lg:border-line lg:bg-white lg:dark:bg-gray-900 lg:p-2 lg:shadow-[0_1px_3px_rgba(29,27,44,0.08),0_1px_2px_rgba(29,27,44,0.04)] lg:dark:shadow-none"
+    >
       <Link
         to={to}
         className="inline-flex items-center min-h-10 px-2.5 rounded-lg text-[13px] font-semibold text-ink-2 hover:bg-line-soft"
@@ -121,7 +125,7 @@ function ProfileRail({ backGroup, backDate, groupPayload, personId }) {
       </Link>
       {subjects.length > 0 && (
         <div className="hidden lg:flex flex-col gap-0.5" data-testid="profile-rail-roster">
-          <div className="px-2.5 pt-3.5 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-muted">
+          <div className="mt-1 border-t border-line-soft px-2.5 pt-3 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-muted">
             {backGroup.name ?? groupPayload?.header?.bunk?.name ?? groupPayload?.header?.group?.name} · {subjects.length} {term('camper', { plural: subjects.length !== 1 })}
           </div>
           {subjects.map((m) => {
@@ -179,7 +183,7 @@ export function ProfileHeader({
 
   return (
     <section
-      className="rounded-2xl border border-line bg-white dark:bg-gray-900 px-6 py-5 flex flex-wrap items-center gap-x-5 gap-y-4"
+      className={`rounded-2xl border border-line bg-white dark:bg-gray-900 px-6 py-5 ${ELEVATION} flex flex-wrap items-center gap-x-5 gap-y-4`}
       data-testid="subject-profile-header"
     >
       <InitialsAvatar name={displayName} size="xl" aria-hidden="true" />
@@ -306,6 +310,7 @@ function KpiGrid({ cols, reflections, priorReflections, end, priorLabel }) {
         return (
           <KpiTile
             key={colKey(col)}
+            className={ELEVATION}
             data-testid={`subject-kpi-${colKey(col)}`}
             label={(
               <span className="inline-flex items-center gap-2">
