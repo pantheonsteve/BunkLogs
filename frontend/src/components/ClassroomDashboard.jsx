@@ -19,7 +19,10 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import AdminGroupLink from './AdminGroupLink';
+import GroupLeaders from './GroupLeaders';
 import ObservationComposer from './observations/ObservationComposer';
+import PersonAvatar from './ui/PersonAvatar';
 import { observationThreadLink, profileLink } from '../utils/dashboardLinks';
 
 const STATUS_STYLES = {
@@ -157,7 +160,10 @@ function CompletionSection({ completion, returnTo }) {
               data-testid={`classroom-completion-${s.person_id}`}
               className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
             >
-              <span className="truncate text-gray-900 dark:text-white">{s.name}</span>
+              <span className="flex items-center gap-2 min-w-0">
+                <PersonAvatar id={s.person_id} name={s.name} />
+                <span className="truncate text-gray-900 dark:text-white">{s.name}</span>
+              </span>
               <span className="flex items-center gap-2 shrink-0">
                 <span
                   className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -265,7 +271,6 @@ export default function ClassroomDashboard({
   data, selectedDate, onDateChange, backTo = '/dashboards',
 }) {
   const group = data?.header?.group || {};
-  const summary = data?.summary || {};
   const subjects = data?.subjects || [];
   const authors = data?.authors || [];
   const challenges = data?.challenges || null;
@@ -276,8 +281,22 @@ export default function ClassroomDashboard({
     ?? (data ? 'completion' in data : false);
   // Anyone on the roster who isn't a Madrich is a student: the TBE importer
   // files stray roles as subjects too, and they shouldn't vanish off the page.
-  const madrichim = subjects.filter((s) => s.membership_role === 'madrich');
   const students = subjects.filter((s) => s.membership_role !== 'madrich');
+  // Madrichim can be filed as either subjects or authors; authors carry
+  // no role, so look it up on the roster.
+  const authorRoleById = new Map(
+    (data?.roster || [])
+      .filter((r) => r.role_in_group === 'author')
+      .map((r) => [r.person_id, r.membership_role]),
+  );
+  const madrichAuthors = authors.filter((a) => authorRoleById.get(a.id) === 'madrich');
+  const faculty = authors.filter((a) => authorRoleById.get(a.id) !== 'madrich');
+  const subjectMadrichim = subjects.filter((s) => s.membership_role === 'madrich');
+  const subjectMadrichIds = new Set(subjectMadrichim.map((m) => m.id));
+  const madrichim = [
+    ...subjectMadrichim.map((m) => ({ id: m.id, name: personName(m) })),
+    ...madrichAuthors.filter((a) => !subjectMadrichIds.has(a.id)),
+  ].sort((a, b) => a.name.localeCompare(b.name));
   const navigate = useNavigate();
   const [composeSubject, setComposeSubject] = useState(null);
   const returnTo = group.id ? `/dashboards/group/${group.id}` : null;
@@ -288,19 +307,22 @@ export default function ClassroomDashboard({
       className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4"
     >
       <header className="space-y-2">
-        <Link
-          to={backTo}
-          className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
-        >
-          ← Back
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to={backTo}
+            className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
+          >
+            ← Back
+          </Link>
+          <AdminGroupLink data={data} />
+        </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
               {group.name || 'Classroom'}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Classroom dashboard · {students.length} students · {madrichim.length} madrichim · {summary.author_count || 0} staff
+              Classroom dashboard · {students.length} students · {madrichim.length} madrichim · {faculty.length} faculty
             </p>
           </div>
           <label className="text-sm text-gray-700 dark:text-gray-200">
@@ -313,6 +335,7 @@ export default function ClassroomDashboard({
             />
           </label>
         </div>
+        <GroupLeaders roster={data?.roster} className="pt-2" />
       </header>
 
       {isFacultyView ? (
@@ -354,13 +377,16 @@ export default function ClassroomDashboard({
                 data-testid={`classroom-subject-${s.id}`}
                 className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800"
               >
-                <Link
-                  to={profileLink(s.id, { groupId: group.id, date: selectedDate })}
-                  className="truncate text-blue-700 dark:text-blue-300 hover:underline"
-                  data-testid={`classroom-subject-link-${s.id}`}
-                >
-                  {personName(s)}
-                </Link>
+                <span className="flex items-center gap-2 min-w-0">
+                  <PersonAvatar id={s.id} name={personName(s)} />
+                  <Link
+                    to={profileLink(s.id, { groupId: group.id, date: selectedDate })}
+                    className="truncate text-blue-700 dark:text-blue-300 hover:underline"
+                    data-testid={`classroom-subject-link-${s.id}`}
+                  >
+                    {personName(s)}
+                  </Link>
+                </span>
                 <button
                   type="button"
                   onClick={() => setComposeSubject({ id: s.id, full_name: personName(s) })}
@@ -400,7 +426,7 @@ export default function ClassroomDashboard({
                     to={profileLink(m.id, { groupId: group.id, date: selectedDate })}
                     className="text-blue-700 dark:text-blue-300 hover:underline"
                   >
-                    {personName(m)}
+                    {m.name}
                   </Link>
                 </li>
               ))}
@@ -415,16 +441,16 @@ export default function ClassroomDashboard({
           className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm"
         >
           <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-            Faculty & Madrich{' '}
+            Faculty{' '}
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-              ({authors.length})
+              ({faculty.length})
             </span>
           </h2>
-          {authors.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">no staff assigned yet.</p>
+          {faculty.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">no faculty assigned yet.</p>
           ) : (
             <ul className="text-sm space-y-1">
-              {authors.map((a) => (
+              {faculty.map((a) => (
                 <li key={a.id} data-testid={`classroom-author-${a.id}`}>
                   {a.name}
                 </li>

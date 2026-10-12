@@ -126,7 +126,7 @@ export default function ObservationThread() {
           )}
         </nav>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">

@@ -122,7 +122,7 @@ function MilestoneCard({ milestone }) {
 
   return (
     <div
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
       data-testid={`admin-growth-milestone-${milestone.metric_key}`}
     >
       <p className="text-sm font-medium text-gray-900 dark:text-white">{milestone.label}</p>
@@ -180,7 +180,7 @@ function CoverageBanner({ coverage }) {
 function ExamplesPanel({ theme, items, loading, onClose }) {
   return (
     <div
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
       data-testid="admin-growth-examples"
     >
       <div className="flex items-start justify-between gap-3">
@@ -453,7 +453,7 @@ export default function AdminGrowthDashboard() {
           {complexity && (
             <section
               aria-label="Concern sophistication"
-              className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+              className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
               data-testid="admin-growth-headline"
             >
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -478,7 +478,7 @@ export default function AdminGrowthDashboard() {
             <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
               Concern themes by grade
             </h2>
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+            <div className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
               <ThemesByGradeChart grades={grades} taxonomy={taxonomy} />
             </div>
           </section>
@@ -509,7 +509,7 @@ export default function AdminGrowthDashboard() {
                 No concerns have been categorized in this window yet.
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <div className="overflow-x-auto rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
                     <tr>

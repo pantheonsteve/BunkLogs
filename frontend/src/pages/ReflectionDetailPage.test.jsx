@@ -109,6 +109,70 @@ describe('ReflectionDetailPage', () => {
     expect(screen.queryByTestId('privacy-chip')).toBeNull();
   });
 
+  it('renders subject header, rating cells, raised flags, and choice chips', async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        ...FULL_REFLECTION,
+        subject: 5,
+        subject_name: 'Ari Adler',
+        author_name: 'Dov Roth',
+        group_name: 'Bunk 24',
+        localized_schema: {
+          fields: [
+            {
+              key: 'scores', type: 'rating_group', prompts: { en: 'Today' }, scale: [1, 5],
+              categories: [{ key: 'social', labels: { en: 'Social' } }],
+            },
+            {
+              key: 'uh_help', type: 'single_choice', prompts: { en: 'Unit Head help' },
+              options: [{ value: 'yes', labels: { en: 'Yes' } }, { value: 'no', labels: { en: 'No' } }],
+            },
+            {
+              key: 'mood', type: 'single_choice', prompts: { en: 'Mood' },
+              options: [{ value: 'happy', labels: { en: 'Happy' } }, { value: 'sad', labels: { en: 'Sad' } }],
+            },
+          ],
+        },
+        answers: { scores: { social: 4 }, uh_help: 'yes', mood: 'happy' },
+      },
+    });
+    renderAt('/reflections/91');
+
+    expect(await screen.findByRole('heading', { name: 'Ari Adler' })).toBeInTheDocument();
+    expect(screen.getByTestId('reflection-subject-link').getAttribute('href')).toMatch(/^\/profile\/5/);
+    expect(screen.getByText('Bunk 24')).toBeInTheDocument();
+    expect(screen.getByText('Written by Dov Roth')).toBeInTheDocument();
+    expect(screen.getByTestId('reflection-score-scores-social')).toHaveTextContent('4');
+    expect(screen.getByTestId('reflection-flag-uh_help')).toHaveTextContent('Unit Head help');
+    expect(screen.getByText('Happy')).toBeInTheDocument();
+  });
+
+  it('renders text_list answers as bullets ahead of trailing self-ratings', async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        ...FULL_REFLECTION,
+        localized_schema: {
+          fields: [
+            { key: 'wins', type: 'text_list', prompts: { en: 'Three wins from this week' } },
+            {
+              key: 'ratings', type: 'rating_group', prompts: { en: 'Rate yourself' }, scale: [1, 4],
+              categories: [{ key: 'initiative', labels: { en: 'Initiative' } }],
+            },
+          ],
+        },
+        answers: { wins: ['Learned names', 'Led a game'], ratings: { initiative: 3 } },
+      },
+    });
+    renderAt('/reflections/91');
+
+    expect(await screen.findByText('Learned names')).toBeInTheDocument();
+    expect(screen.getByText('Led a game')).toBeInTheDocument();
+    const responses = screen.getByTestId('reflection-text-answers');
+    const scores = screen.getByTestId('reflection-scores');
+    expect(responses.compareDocumentPosition(scores) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId('reflection-other-answers')).toBeNull();
+  });
+
   it('renders textarea answers as formatted HTML, not raw tags', async () => {
     getMock.mockResolvedValueOnce({
       data: {

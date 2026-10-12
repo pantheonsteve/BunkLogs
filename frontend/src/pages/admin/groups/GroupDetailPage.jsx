@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, LayoutDashboard } from 'lucide-react';
 
 import api from '../../../api';
 import { getAdminAssignmentFacets } from '../../../api/admin';
@@ -20,6 +20,7 @@ import LoadingState from '../../../components/ui/LoadingState';
 import PageHeader from '../../../components/ui/PageHeader';
 import Toast, { useToast } from '../../../components/ui/Toast';
 import { useTerm } from '../../../context/OrgBrandingContext';
+import { groupDashboardLink } from '../../../utils/dashboardLinks';
 import GroupRosterTab from './GroupRosterTab';
 import GroupSettingsTab from './GroupSettingsTab';
 import GroupSupervisionTab from './GroupSupervisionTab';
@@ -122,6 +123,14 @@ export default function GroupDetailPage() {
         actions={(
           <>
             {!group.is_active && <Badge tone="neutral">Archived</Badge>}
+            <Button
+              variant="secondary"
+              onClick={() => navigate(groupDashboardLink(id))}
+              data-testid="group-dashboard-link"
+            >
+              <LayoutDashboard size={14} aria-hidden="true" />
+              Dashboard
+            </Button>
             <Button
               variant="secondary"
               onClick={() => navigate(`/dashboards/subject-trends/${id}`)}

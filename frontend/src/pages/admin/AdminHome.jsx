@@ -35,6 +35,7 @@ import {
 } from '../../lib/adminDates';
 import { programShortLabel } from '../../lib/programLabel';
 import { orgSurfaces } from '../../utils/auth/orgProfile';
+import { groupDashboardLink } from '../../utils/dashboardLinks';
 import DashboardTabs from '../../components/admin/DashboardTabs';
 import { directorSections } from './DirectorHome';
 
@@ -337,7 +338,7 @@ export default function AdminHome() {
               {logs.behind.map((g) => (
                 <li key={g.id} className="flex items-center gap-3">
                   <Link
-                    to={`/admin/groups/${g.id}`}
+                    to={groupDashboardLink(g.id)}
                     className="w-36 shrink-0 text-sm font-semibold text-gray-900 dark:text-white hover:text-indigo-700 dark:hover:text-indigo-300 truncate"
                   >
                     {g.name}
@@ -351,7 +352,7 @@ export default function AdminHome() {
                     {g.submitted}/{g.expected}
                   </span>
                   <Link
-                    to={`/admin/groups/${g.id}`}
+                    to={groupDashboardLink(g.id)}
                     className="shrink-0 px-2 py-1 rounded-md text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:underline"
                   >
                     Open

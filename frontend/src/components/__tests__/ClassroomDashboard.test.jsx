@@ -153,6 +153,22 @@ describe('ClassroomDashboard roster', () => {
     expect(screen.getByTestId('classroom-madrich-42')).toHaveTextContent('Mira Madrich');
   });
 
+  it('files Madrich authors under Madrichim and keeps only faculty in Faculty', () => {
+    renderDashboard({
+      ...basePayload,
+      authors: [{ id: 50, name: 'Fay Faculty' }, { id: 51, name: 'Max Madrich' }],
+      roster: [
+        { person_id: 50, name: 'Fay Faculty', role_in_group: 'author', membership_role: 'faculty' },
+        { person_id: 51, name: 'Max Madrich', role_in_group: 'author', membership_role: 'madrich' },
+      ],
+      viewer: { is_faculty_author: true },
+    });
+
+    expect(screen.getByTestId('classroom-madrich-51')).toHaveTextContent('Max Madrich');
+    expect(screen.getByTestId('section-authors')).toHaveTextContent('Fay Faculty');
+    expect(screen.getByTestId('section-authors')).not.toHaveTextContent('Max Madrich');
+  });
+
   it('opens the composer prefilled with the student that was clicked', async () => {
     const user = userEvent.setup();
     renderDashboard({

@@ -10,6 +10,9 @@
 
 import { Link } from 'react-router-dom';
 import { groupDashboardLink } from '../utils/dashboardLinks';
+import AdminGroupLink from './AdminGroupLink';
+import GroupLeaders from './GroupLeaders';
+import PersonAvatar from './ui/PersonAvatar';
 
 const BADGE_LABEL = Object.freeze({
   help_requested: 'help requested',
@@ -36,8 +39,9 @@ function CamperBrief({ camper }) {
   return (
     <li
       data-testid={`group-camper-${camper.id}`}
-      className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm mr-2 mb-2"
+      className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm mr-2 mb-2"
     >
+      <PersonAvatar id={camper.id} name={name} size="xs" />
       {name}
     </li>
   );
@@ -77,12 +81,15 @@ export default function UnitDashboard({ data, selectedDate, onDateChange, backTo
       className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4"
     >
       <header className="space-y-2">
-        <Link
-          to={backTo}
-          className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
-        >
-          ← Back
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to={backTo}
+            className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
+          >
+            ← Back
+          </Link>
+          <AdminGroupLink data={data} />
+        </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
@@ -102,6 +109,7 @@ export default function UnitDashboard({ data, selectedDate, onDateChange, backTo
             />
           </label>
         </div>
+        <GroupLeaders roster={data?.roster} className="pt-2" />
       </header>
 
       <section

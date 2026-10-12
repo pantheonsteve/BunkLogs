@@ -10,6 +10,8 @@
 
 import { Link } from 'react-router-dom';
 import { groupDashboardLink } from '../utils/dashboardLinks';
+import AdminGroupLink from './AdminGroupLink';
+import GroupLeaders from './GroupLeaders';
 
 export default function DivisionDashboard({
   data, selectedDate, onDateChange, backTo = '/dashboards',
@@ -24,12 +26,15 @@ export default function DivisionDashboard({
       className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4"
     >
       <header className="space-y-2">
-        <Link
-          to={backTo}
-          className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
-        >
-          ← Back
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to={backTo}
+            className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
+          >
+            ← Back
+          </Link>
+          <AdminGroupLink data={data} />
+        </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
@@ -49,6 +54,7 @@ export default function DivisionDashboard({
             />
           </label>
         </div>
+        <GroupLeaders roster={data?.roster} className="pt-2" />
       </header>
 
       <section

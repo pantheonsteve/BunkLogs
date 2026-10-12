@@ -34,7 +34,7 @@ export default function KpiTile({
 
   return (
     <div
-      className={`flex flex-col gap-1.5 rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-[18px] ${className}`.trim()}
+      className={`flex flex-col gap-1.5 rounded-[14px] shadow-card border border-line bg-white dark:bg-gray-900 px-5 py-[18px] ${className}`.trim()}
       {...rest}
     >
       <div className="text-[13px] font-semibold text-ink-2">{label}</div>

@@ -707,6 +707,19 @@ class ReflectionSerializer(serializers.ModelSerializer):
     program_slug = serializers.SlugField(write_only=True, required=False)
     answers = serializers.JSONField()
     translation = serializers.SerializerMethodField()
+    subject_name = serializers.SerializerMethodField()
+    author_name = serializers.SerializerMethodField()
+    group_name = serializers.SerializerMethodField()
+
+    def get_subject_name(self, obj):
+        return obj.subject.full_name if obj.subject_id and obj.subject else None
+
+    def get_author_name(self, obj):
+        return obj.author.full_name if obj.author_id and obj.author else None
+
+    def get_group_name(self, obj):
+        group = obj.assignment_group or obj.subject_group
+        return group.name if group else None
 
     def get_translation(self, obj):
         """Embed the latest TranslationRecord state for non-English reflections.
@@ -796,6 +809,9 @@ class ReflectionSerializer(serializers.ModelSerializer):
             "updated_at",
             "is_complete",
             "translation",
+            "subject_name",
+            "author_name",
+            "group_name",
         ]
         read_only_fields = [
             "id",

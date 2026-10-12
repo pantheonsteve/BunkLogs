@@ -111,7 +111,7 @@ export default function ActivelyAssignedTab({ orgSlug, templates, refreshKey = 0
         return (
           <section
             key={templateId}
-            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-3"
+            className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-3"
             data-testid={`lt-tpl-assigned-group-${templateId}`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">

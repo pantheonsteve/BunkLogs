@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import PersonAvatar from './ui/PersonAvatar';
 
 const ROLE_IN_GROUP_LABELS = {
   author: 'Author',
@@ -37,7 +38,12 @@ function RosterTable({ members }) {
           {members.map((m) => (
             <tr key={`${m.person_id}-${m.role_in_group}`}>
               <td className="py-1.5 pr-4 text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                {m.name}
+                <span className="flex items-center gap-2">
+                  {m.role_in_group === 'subject'
+                    ? <PersonAvatar id={m.person_id} name={m.name} size="xs" />
+                    : <span className="w-6 shrink-0" aria-hidden="true" />}
+                  {m.name}
+                </span>
               </td>
               <td className="py-1.5 pr-4 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                 {prettyRole(m.membership_role)}
@@ -93,7 +99,10 @@ function RosterBody({ roster, compact }) {
             <ul className="space-y-1">
               {subjects.map((m) => (
                 <li key={`${m.person_id}-subject`} className="flex items-center justify-between gap-2">
-                  <span className="text-gray-900 dark:text-gray-100">{m.name}</span>
+                  <span className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                    <PersonAvatar id={m.person_id} name={m.name} size="xs" />
+                    {m.name}
+                  </span>
                   <span className="text-xs text-gray-500">{prettyRole(m.membership_role)}</span>
                 </li>
               ))}
@@ -118,7 +127,7 @@ export default function GroupRoster({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const sectionClass = [
-    'rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40',
+    'rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40',
     compact ? 'px-3 py-2' : 'px-4 py-4 mb-6',
     className,
   ].filter(Boolean).join(' ');

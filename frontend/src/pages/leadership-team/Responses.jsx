@@ -720,7 +720,7 @@ function AggregateRatingCard({ dim, ratingCols }) {
 
   return (
     <div
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex flex-col items-center text-center"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex flex-col items-center text-center"
       data-testid={`lt-responses-dim-${dim.key}`}
     >
       <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
@@ -767,7 +767,7 @@ function AggregateTab({ payload, dateStr, ratingCols, onSelectDate, loading = fa
         </p>
       )}
       <div
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
         data-testid="lt-responses-summary"
       >
         <p className="text-sm text-gray-700 dark:text-gray-300">
@@ -781,7 +781,7 @@ function AggregateTab({ payload, dateStr, ratingCols, onSelectDate, loading = fa
 
       {dims.length === 0 ? (
         <div
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6"
+          className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6"
           data-testid="lt-responses-avg"
         >
           <p className="text-sm text-gray-500 dark:text-gray-400">No scored fields on this template.</p>
@@ -801,7 +801,7 @@ function AggregateTab({ payload, dateStr, ratingCols, onSelectDate, loading = fa
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+      <div className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
           Average score over time
         </h3>

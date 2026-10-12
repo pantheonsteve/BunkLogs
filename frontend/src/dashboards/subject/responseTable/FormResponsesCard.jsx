@@ -19,12 +19,12 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, FileText, Users } from 'lucide-react';
 import PrivacyChip from '../../../components/reflection/PrivacyChip';
+import PersonAvatar from '../../../components/ui/PersonAvatar';
 import ScorePieChart from '../../performance/ScorePieChart';
 import { ratingColor } from '../../colors';
 import {
   deriveSchemaSections,
   formatShortDate,
-  getInitials,
   seriesDisplayLabel,
 } from './schema';
 import {
@@ -417,11 +417,7 @@ export default function FormResponsesCard({
                   >
                     <div className="sticky top-16 z-20 flex items-center gap-2 rounded-t-lg border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/60 px-3 py-2">
                       {showSubject && (
-                        <div className="w-9 h-9 shrink-0 flex items-center justify-center bg-gray-200 dark:bg-gray-600 rounded-full">
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                            {getInitials(subjectName)}
-                          </span>
-                        </div>
+                        <PersonAvatar id={r.subject?.id} name={subjectName} size="md" />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">

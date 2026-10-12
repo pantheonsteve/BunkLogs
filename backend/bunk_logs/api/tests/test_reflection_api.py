@@ -10,6 +10,7 @@ from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
+from bunk_logs.core.time_utils import get_today
 from bunk_logs.testing import SEASON_END
 from bunk_logs.testing import SEASON_START
 
@@ -149,6 +150,11 @@ def test_person_can_submit(api, org_a, program_a, counselor_template, counselor_
     )
     assert resp.status_code == 201, resp.content
     assert resp.json()["answers"] == {"note": "did well"}
+
+    detail = api.get(f"/api/v1/reflections/{resp.json()['id']}/", **_hdr_org(org_a.slug))
+    assert detail.status_code == 200
+    assert detail.json()["author_name"] == _person.full_name
+    assert detail.json()["subject_name"] == _person.full_name
 
 
 @pytest.mark.django_db
@@ -667,7 +673,7 @@ def test_my_summary_history_exposes_team_visibility(
     counselor_template.supports_privacy = True
     counselor_template.save(update_fields=["supports_privacy"])
     user, person = counselor_user
-    today = date.today()
+    today = get_today(org_a)
     Reflection.all_objects.create(
         organization=org_a, program=program_a,
         subject=person, author=person, template=counselor_template,

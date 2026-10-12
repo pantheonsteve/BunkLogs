@@ -24,7 +24,7 @@ function ReflectionStatusCard({ myReflection, t }) {
     return (
       <section
         aria-label={t('dashboard.myReflection')}
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
         data-testid="ks-reflection-card"
       >
         <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
@@ -51,7 +51,7 @@ function ReflectionStatusCard({ myReflection, t }) {
   return (
     <section
       aria-label={t('dashboard.myReflection')}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="ks-reflection-card"
     >
       <div className="flex items-center justify-between mb-3">
@@ -140,7 +140,7 @@ export default function KitchenStaffDashboard() {
 
       <section
         aria-label={t('dashboard.myReflections')}
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
         data-testid="ks-history-section"
       >
         <div className="flex items-center justify-between">

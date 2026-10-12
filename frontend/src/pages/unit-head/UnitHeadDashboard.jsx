@@ -2,14 +2,15 @@
  * Unit Head home (2027 refresh, 8_5).
  *
  * Header with day stepper + my-reflection state, three attention cards,
- * a bunk card grid, the selected bunk's camper scores, and staff
+ * a bunk card grid linking to each full dashboard, every bunk's camper
+ * scores, and staff
  * reflections. Bunk list and my-reflection state come from the UH
  * dashboard (today only, polled); everything date-dependent comes from
  * each supervised bunk's existing group dashboard payload plus the staff
  * reflections endpoint, fetched for the selected date.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Hand, HeartHandshake, LogOut } from 'lucide-react';
 import AttentionCard from '../../components/ui/AttentionCard';
@@ -91,8 +92,6 @@ export default function UnitHeadDashboard() {
   const [bunkData, setBunkData] = useState({});
   const [bunksLoading, setBunksLoading] = useState(false);
   const [staff, setStaff] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const detailRef = useRef(null);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -233,7 +232,6 @@ export default function UnitHeadDashboard() {
   const self = SELF_STATE[selfState] || SELF_STATE.missing;
   const isToday = !urlDate || urlDate === today;
 
-  const selected = cards.find((c) => c.bunk.id === selectedId) || cards[0];
   const categories = cards.find((c) => c.stats?.averages.length)?.stats.averages.map((a) => a.label) || [];
 
   const staffEntries = (staff?.bunks || []).flatMap((b) => (
@@ -244,11 +242,6 @@ export default function UnitHeadDashboard() {
     return acc;
   }, {});
   const staffLink = withDateParam('/unit-head/staff-reflections', urlDate);
-
-  const selectBunk = (id) => {
-    setSelectedId(id);
-    detailRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  };
 
   return (
     <div data-testid="uh-dashboard" className="w-full">
@@ -343,32 +336,31 @@ export default function UnitHeadDashboard() {
                     total={total}
                     averages={stats?.averages}
                     flags={stats?.flags || 0}
-                    selected={selected?.bunk.id === bunk.id}
-                    onSelect={() => selectBunk(bunk.id)}
+                    href={groupDashboardLink(bunk.id, { date: urlDate || undefined })}
                   />
                 ))}
               </div>
             </section>
 
-            {selected && (
+            {cards.map((card) => (
               <Card
+                key={card.bunk.id}
                 as="section"
-                ref={detailRef}
-                aria-labelledby="uh-detail"
-                className="px-[22px] py-5 flex flex-col gap-3.5 scroll-mt-4"
-                data-testid="uh-detail"
+                aria-labelledby={`uh-detail-${card.bunk.id}`}
+                className="px-[22px] py-5 flex flex-col gap-3.5"
+                data-testid={`uh-detail-${card.bunk.id}`}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
-                    <h2 id="uh-detail" className="text-base font-bold text-ink">
-                      {selected.bunk.name} · {titleCase(term('camper'))} daily scores
+                    <h2 id={`uh-detail-${card.bunk.id}`} className="text-base font-bold text-ink">
+                      {card.bunk.name} · {titleCase(term('camper'))} daily scores
                     </h2>
                     <p className="text-[13px] text-muted mt-0.5">
                       {[
-                        selected.bunk.counselor_names?.length
-                          ? `${titleCase(term('counselor', { plural: selected.bunk.counselor_names.length !== 1 }))} ${selected.bunk.counselor_names.join(' and ')}`
+                        card.bunk.counselor_names?.length
+                          ? `${titleCase(term('counselor', { plural: card.bunk.counselor_names.length !== 1 }))} ${card.bunk.counselor_names.join(' and ')}`
                           : null,
-                        `${selected.done} of ${selected.total} logged`,
+                        `${card.done} of ${card.total} logged`,
                       ].filter(Boolean).join(' · ')}
                     </p>
                   </div>
@@ -377,17 +369,17 @@ export default function UnitHeadDashboard() {
                     variant="secondary"
                     size="sm"
                     className="min-h-9 text-[13px]"
-                    to={groupDashboardLink(selected.bunk.id, { date: urlDate || undefined })}
-                    data-testid="uh-detail-open"
+                    to={groupDashboardLink(card.bunk.id, { date: urlDate || undefined })}
+                    data-testid={`uh-detail-open-${card.bunk.id}`}
                   >
                     Open full dashboard
                   </Button>
                 </div>
-                {selected.payload ? (
+                {card.payload ? (
                   <CamperScoresTable
-                    payload={selected.payload}
+                    payload={card.payload}
                     camperLabel={titleCase(term('camper'))}
-                    linkFor={toProfile(selected.bunk.id)}
+                    linkFor={toProfile(card.bunk.id)}
                     uhLabel={`${roleTitle} help`}
                   />
                 ) : (
@@ -396,7 +388,7 @@ export default function UnitHeadDashboard() {
                   </p>
                 )}
               </Card>
-            )}
+            ))}
 
             <Card as="section" aria-labelledby="uh-staff" className="px-[22px] py-5 flex flex-col gap-2.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
