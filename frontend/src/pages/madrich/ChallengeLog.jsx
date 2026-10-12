@@ -46,7 +46,7 @@ function ChallengeCard({ challenge }) {
     <li>
       <Link
         to={`/madrich/challenges/${challenge.id}`}
-        className="block rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
+        className="block rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
         data-testid={`md-challenge-card-${challenge.id}`}
       >
         <div className="flex items-center justify-between gap-3 mb-1">

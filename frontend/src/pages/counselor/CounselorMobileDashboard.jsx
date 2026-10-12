@@ -399,7 +399,7 @@ function QuickActions() {
             key={testid}
             to={to}
             data-testid={testid}
-            className="flex flex-col gap-2 p-3.5 min-h-[84px] rounded-[14px] bg-white dark:bg-gray-900 border border-line text-ink hover:border-brand/40 transition-colors"
+            className="flex flex-col gap-2 p-3.5 min-h-[84px] rounded-[14px] shadow-card bg-white dark:bg-gray-900 border border-line text-ink hover:border-brand/40 transition-colors"
           >
             <Icon className={`w-5 h-5 ${iconCls}`} aria-hidden="true" />
             <span className="text-sm font-semibold">{label}</span>
@@ -470,7 +470,7 @@ function MyRequests({ viewerRequests }) {
 }
 
 function MoreLinks() {
-  const cls = 'flex-1 flex items-center justify-center gap-2 min-h-11 rounded-[14px] border border-line bg-white dark:bg-gray-900 text-sm font-semibold text-ink hover:border-brand/40';
+  const cls = 'flex-1 flex items-center justify-center gap-2 min-h-11 rounded-[14px] shadow-card border border-line bg-white dark:bg-gray-900 text-sm font-semibold text-ink hover:border-brand/40';
   return (
     <div className="flex gap-2" data-testid="counselor-work-links">
       <Link to="/tasks" className={cls} data-testid="counselor-action-tasks">

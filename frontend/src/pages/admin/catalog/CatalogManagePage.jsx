@@ -316,7 +316,7 @@ function ImportPanel({ onDone, showToast }) {
   return (
     <section
       data-testid="catalog-import-panel"
-      className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5"
+      className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-card p-5"
     >
       <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Bulk CSV import</h2>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import UnitHeadDashboard from '../UnitHeadDashboard';
 
@@ -98,7 +98,7 @@ beforeEach(() => {
 });
 
 describe('UnitHeadDashboard', () => {
-  it('rolls up attention cards across bunks and shows the selected bunk detail', async () => {
+  it('rolls up attention cards across bunks and shows a detail card per bunk', async () => {
     mockApi();
     renderDashboard();
 
@@ -113,10 +113,9 @@ describe('UnitHeadDashboard', () => {
     expect(screen.getByText('2 bunks · 4 campers · 3 counselors')).toBeInTheDocument();
     expect(screen.getByTestId('uh-logs-progress')).toHaveTextContent('2 / 3');
 
-    // First bunk is selected by default; its logged camper shows scores + flags + note,
-    // the unlogged one gets the dashed placeholder.
-    expect(screen.getByTestId('uh-bunk-card-11')).toHaveAttribute('data-selected', 'true');
-    const detail = screen.getByTestId('uh-detail');
+    // Tiles link to the full dashboard; every bunk gets its own scores card.
+    expect(screen.getByTestId('uh-bunk-card-11').getAttribute('href')).toMatch(/^\/dashboards\/group\/11/);
+    const detail = screen.getByTestId('uh-detail-11');
     expect(detail).toHaveTextContent('Bunk 24 · Camper daily scores');
     const theo = within(detail).getByTestId('uh-detail-row-1');
     expect(theo).toHaveTextContent('Unit Head help');
@@ -124,9 +123,9 @@ describe('UnitHeadDashboard', () => {
     expect(theo).toHaveTextContent('Refused evening program.');
     expect(within(detail).getByTestId('uh-detail-row-2')).toHaveTextContent('Not started');
 
-    fireEvent.click(within(screen.getByTestId('uh-bunk-card-12')).getByRole('button'));
-    expect(screen.getByTestId('uh-detail')).toHaveTextContent('Bunk 21 · Camper daily scores');
-    expect(screen.getByTestId('uh-detail-row-4')).toHaveTextContent('Not on camp');
+    const second = screen.getByTestId('uh-detail-12');
+    expect(second).toHaveTextContent('Bunk 21 · Camper daily scores');
+    expect(within(second).getByTestId('uh-detail-row-4')).toHaveTextContent('Not on camp');
 
     expect(screen.getByTestId('uh-staff-70')).toHaveTextContent('Support');
     expect(screen.getByTestId('uh-staff-71')).toHaveTextContent('Day off');

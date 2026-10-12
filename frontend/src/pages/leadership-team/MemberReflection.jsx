@@ -198,7 +198,7 @@ export default function LeadershipTeamMemberReflection() {
       </div>
         {!metadata ? (
           <section
-            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+            className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
             data-testid="lt-member-empty"
           >
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -208,7 +208,7 @@ export default function LeadershipTeamMemberReflection() {
         ) : (
           <>
             <section
-              className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+              className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
               data-testid="lt-member-metadata"
             >
               <div className="flex items-start justify-between gap-3">
@@ -302,7 +302,7 @@ export default function LeadershipTeamMemberReflection() {
             )}
 
             <section
-              className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4"
+              className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4"
               data-testid="lt-member-content"
             >
               {content?.fields?.map((f) => <FieldRow key={f.key} field={f} />)}
@@ -311,7 +311,7 @@ export default function LeadershipTeamMemberReflection() {
         )}
 
         <section
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+          className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
           data-testid="lt-member-trend"
         >
           <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">

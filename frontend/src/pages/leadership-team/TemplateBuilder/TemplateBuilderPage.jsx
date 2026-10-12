@@ -879,7 +879,7 @@ export default function TemplateBuilderPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <section className="xl:col-span-3 min-w-0 space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+        <section className="xl:col-span-3 min-w-0 space-y-3 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">Settings</h2>
           <label className="block text-sm text-gray-700 dark:text-gray-300">
             Role
@@ -1027,7 +1027,7 @@ export default function TemplateBuilderPage() {
         </section>
 
         <section className="xl:col-span-5 min-w-0 space-y-3" aria-label="Fields">
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 min-w-0 overflow-hidden">
+          <div className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 min-w-0 overflow-hidden">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
               Fields
             </h2>
@@ -1141,7 +1141,7 @@ export default function TemplateBuilderPage() {
         </section>
 
         <section
-          className="xl:col-span-4 min-w-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 xl:sticky xl:top-24 xl:self-start xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto"
+          className="xl:col-span-4 min-w-0 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 xl:sticky xl:top-24 xl:self-start xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto"
           aria-label="Preview"
           data-testid="lt-builder-preview"
         >

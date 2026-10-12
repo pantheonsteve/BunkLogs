@@ -63,7 +63,7 @@ function controlClass() {
 
 function StatCard({ icon: Icon, label, value, iconClass, testId }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-4">
+    <div className="flex items-center gap-3 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-4">
       <span className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${iconClass}`}>
         <Icon size={20} aria-hidden="true" />
       </span>
@@ -214,7 +214,7 @@ export default function PlanningDashboard() {
         </Button>
       </div>
 
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 mb-6">
+      <div className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1">Range</span>
           {DATE_PRESETS.map((p) => (
@@ -305,14 +305,14 @@ export default function PlanningDashboard() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-            <div className="xl:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+            <div className="xl:col-span-2 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                 Top {Math.min(rows.length, 20)} by quantity
               </h2>
               <PlanningChart rows={rows} />
             </div>
 
-            <div className="xl:col-span-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="xl:col-span-3 bg-white dark:bg-gray-900 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" data-testid="planning-table">
                   <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">

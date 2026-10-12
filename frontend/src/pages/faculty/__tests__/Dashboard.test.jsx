@@ -112,7 +112,7 @@ beforeEach(() => {
 });
 
 describe('FacultyDashboard', () => {
-  it('renders the classroom grid and selected detail with terminology-driven labels', async () => {
+  it('renders linked classroom tiles and a roster per classroom with terminology-driven labels', async () => {
     mockApi();
     renderDashboard();
     await waitFor(() => screen.getByTestId('fac-classroom-12'));
@@ -130,13 +130,13 @@ describe('FacultyDashboard', () => {
     expect(screen.getByTestId('fac-reflections-progress')).toHaveTextContent('4 / 6');
 
     const card = screen.getByTestId('fac-classroom-12');
-    expect(card).toHaveAttribute('data-selected', 'true');
+    expect(card).toHaveAttribute('href', '/dashboards/group/12');
     expect(card).toHaveTextContent('Tzedakah 101');
     expect(card).toHaveTextContent('6 students');
     expect(card).toHaveTextContent('3 in Sep 13');
     expect(card).toHaveTextContent('4/6');
     expect(screen.getByLabelText('2 flagged')).toBeInTheDocument();
-    expect(screen.getByTestId('fac-roster-card')).toHaveTextContent('Tzedakah 101 · Students');
+    expect(screen.getByTestId('fac-roster-card-12')).toHaveTextContent('Tzedakah 101 · Students');
     expect(screen.getByTestId('fac-classroom-12-cta')).toHaveAttribute(
       'href', '/dashboards/group/12',
     );

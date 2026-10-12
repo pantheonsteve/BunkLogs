@@ -4,13 +4,14 @@
  *
  * Own tasks first, then three attention cards (questions routed to me, open
  * classroom challenges aged by session date, who is out next session), a
- * classroom card grid, and the selected classroom's roster. Nouns come from
+ * classroom card grid linking to each full dashboard, and a roster per
+ * classroom. Nouns come from
  * org terminology. `reflections` is null when no weekly template is
  * assigned and `availability` is null off-season; both render as copy, not
  * a misleading zero.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flag, LogOut, MessageCircleQuestion } from 'lucide-react';
 import { fetchFacultyDashboard, fetchFacultyRoster } from '../../api/faculty';
@@ -106,20 +107,19 @@ export function QueueRow({ item }) {
   );
 }
 
-function ClassroomDetail({ classroom, rows, roster, forwardRef }) {
+function ClassroomDetail({ classroom, rows, roster }) {
   const term = useTerm();
   const subjectsTitle = titleCase(term('camper', { plural: true }));
   return (
     <Card
       as="section"
-      ref={forwardRef}
-      aria-labelledby="fac-detail"
-      className="px-[22px] py-5 flex flex-col gap-3.5 scroll-mt-4"
-      data-testid="fac-roster-card"
+      aria-labelledby={`fac-detail-${classroom.id}`}
+      className="px-[22px] py-5 flex flex-col gap-3.5"
+      data-testid={`fac-roster-card-${classroom.id}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 id="fac-detail" className="text-base font-bold text-ink">
+          <h2 id={`fac-detail-${classroom.id}`} className="text-base font-bold text-ink">
             {classroom.name} · {subjectsTitle}
           </h2>
           <p className="text-[13px] text-muted mt-0.5">
@@ -286,8 +286,6 @@ export default function FacultyDashboard() {
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const detailRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -383,12 +381,6 @@ export default function FacultyDashboard() {
       to: `/faculty/roster/${r.person_id}`,
     }));
 
-  const selected = rooms.find((r) => r.id === selectedId) || rooms[0];
-  const selectRoom = (id) => {
-    setSelectedId(id);
-    detailRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
     <div className="px-4 sm:px-6 lg:px-8 pt-7 pb-12 w-full max-w-[1240px] flex flex-col gap-6">
       <SupervisorHeading
@@ -465,21 +457,20 @@ export default function FacultyDashboard() {
                   total={room.reflections?.expected ?? 0}
                   noTotalText="No weekly form assigned yet"
                   flags={room.open_challenge_count || 0}
-                  selected={selected?.id === room.id}
-                  onSelect={() => selectRoom(room.id)}
+                  href={room.url || `/dashboards/group/${room.id}`}
                 />
               ))}
             </div>
           </section>
 
-          {selected && (
+          {rooms.map((room) => (
             <ClassroomDetail
-              classroom={selected}
-              rows={rosterRows.filter((r) => r.classroom_id === selected.id)}
+              key={room.id}
+              classroom={room}
+              rows={rosterRows.filter((r) => r.classroom_id === room.id)}
               roster={roster}
-              forwardRef={detailRef}
             />
-          )}
+          ))}
         </>
       )}
 

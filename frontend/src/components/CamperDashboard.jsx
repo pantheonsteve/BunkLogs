@@ -157,7 +157,7 @@ function TrendGrid({ trend }) {
           );
         })}
       </div>
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="overflow-x-auto rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <table className="min-w-full border-collapse text-sm">
           <thead>
             <tr>

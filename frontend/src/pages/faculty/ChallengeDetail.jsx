@@ -200,7 +200,7 @@ export default function FacultyChallengeDetail() {
             {challenge.responses.map((r) => (
               <li
                 key={r.id}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+                className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
                 data-testid={`faculty-challenge-response-${r.id}`}
               >
                 <p className="text-sm font-medium text-gray-900 dark:text-white">

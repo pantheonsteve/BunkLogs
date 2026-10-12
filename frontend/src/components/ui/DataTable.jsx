@@ -31,7 +31,7 @@ export default function DataTable({
   if (rows.length === 0 && empty) {
     return (
       <div
-        className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl ${className}`.trim()}
+        className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-card ${className}`.trim()}
         {...rest}
       >
         {empty}
@@ -41,7 +41,7 @@ export default function DataTable({
 
   return (
     <div
-      className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden ${className}`.trim()}
+      className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-card overflow-hidden ${className}`.trim()}
       {...rest}
     >
       <div className="overflow-x-auto">
