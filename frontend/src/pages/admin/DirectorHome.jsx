@@ -11,7 +11,6 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import ProgressBar from '../../components/ui/ProgressBar';
 import {
   CalendarDays,
   ChevronRight,
@@ -19,22 +18,16 @@ import {
   MessageCircleQuestion,
   MessagesSquare,
   Tags,
-  TrendingUp,
-  Users,
 } from 'lucide-react';
 import {
-  downloadMadrichimCsv,
   fetchDirectorCoverage,
   fetchDirectorFacultyActivity,
-  fetchDirectorMadrichim,
-  fetchDirectorPulse,
   fetchDirectorQueue,
   fetchDirectorThemes,
 } from '../../api/director';
 import CoverageDetailModal, { formatSunday } from '../../components/admin/CoverageDetailModal';
 import CardSkeleton from '../../components/ui/CardSkeleton';
 import HomeCard from '../../components/ui/HomeCard';
-import UnreadDot from '../../components/ui/UnreadDot';
 import { useAdminProgram } from '../../context/AdminProgramContext';
 import { statusMeta } from '../../utils/availabilityStatus';
 import { groupDashboardLink } from '../../utils/dashboardLinks';
@@ -66,10 +59,6 @@ function formatDate(iso) {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function percent(rate) {
-  return rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)}%`;
-}
-
 /**
  * Color one roster on its own. Red is a real gap: everyone answered and
  * nobody is available. Tentative is yellow. Gray is "someone has not
@@ -88,92 +77,6 @@ function coverageTone(counts) {
 
 function isMadrichimGroup(name) {
   return (name || '').toLowerCase().includes('madrich');
-}
-
-export function PulseCard() {
-  const { program, ready } = useDirectorProgram();
-  const pulse = useCardData(
-    useCallback(() => fetchDirectorPulse({ program }), [program]),
-    ready,
-  );
-  if (pulse === null) return <CardSkeleton rows={3} data-testid="dir-pulse-loading" />;
-  if (pulse === false) return null;
-
-  if (!pulse.available) {
-    return (
-      <HomeCard
-        title="Reflection pulse"
-        subtitle="No weekly reflection template is assigned yet."
-        icon={TrendingUp}
-        data-testid="dir-pulse-card"
-      />
-    );
-  }
-
-  const current = pulse.current || {};
-  const periods = pulse.periods || [];
-
-  return (
-    <HomeCard
-      title="Reflection pulse"
-      subtitle={`${pulse.active_madrichim} active Madrichim · ${pulse.template_name}`}
-      icon={TrendingUp}
-      badge={pulse.open_question_count > 0 && (
-        <UnreadDot
-          count={pulse.open_question_count}
-          label={`${pulse.open_question_count} questions for you`}
-        />
-      )}
-      data-testid="dir-pulse-card"
-    >
-      <p className="text-3xl font-bold text-indigo-700 dark:text-indigo-300" data-testid="dir-pulse-rate">
-        {current.submitted ?? 0} of {current.expected ?? 0}
-        <span className="ml-2 text-sm font-normal text-gray-700 dark:text-gray-300">
-          reflected this week
-        </span>
-      </p>
-      {(current.expected || 0) > 0 && (
-        <ProgressBar
-          value={current.submitted ?? 0}
-          total={current.expected}
-          className="mt-3"
-          data-testid="dir-pulse-progress"
-        />
-      )}
-      {(current.expected || 0) > 0 && (current.submitted || 0) === 0 && (
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300" data-testid="dir-pulse-empty">
-          Reflections open Sunday.
-          {' '}
-          <Link to="/admin/reflections" className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline">
-            Remind Madrichim
-          </Link>
-        </p>
-      )}
-      {(current.submitted || 0) > 0 && (current.submitted || 0) < (current.expected || 0) && (
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          {current.expected - current.submitted} Madrichim haven&apos;t reflected
-        </p>
-      )}
-      <ul className="mt-3 flex items-end gap-1" data-testid="dir-pulse-sparkline">
-        {periods.map((p) => (
-          <li
-            key={p.period_start}
-            className="flex-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-sm relative"
-            style={{ height: '2.5rem' }}
-            title={`Week of ${formatDate(p.period_start)}: ${percent(p.rate)}`}
-          >
-            <span
-              className="absolute bottom-0 left-0 right-0 bg-indigo-600 dark:bg-indigo-400 rounded-sm"
-              style={{ height: `${Math.round((p.rate || 0) * 100)}%` }}
-            />
-            <span className="sr-only">
-              Week of {formatDate(p.period_start)}: {percent(p.rate)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </HomeCard>
-  );
 }
 
 export function QuestionQueueCard({ onCount }) {
@@ -549,114 +452,6 @@ function RosterRow({ to, testId, primary, secondary, trailing }) {
   );
 }
 
-function RosterCard() {
-  const { program, ready } = useDirectorProgram();
-  const roster = useCardData(
-    useCallback(() => fetchDirectorMadrichim({ pageSize: 10, program }), [program]),
-    ready,
-  );
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
-  const [showAll, setShowAll] = useState(false);
-
-  async function handleExport() {
-    setExporting(true);
-    setExportError(null);
-    try {
-      await downloadMadrichimCsv({ program });
-    } catch {
-      setExportError('Could not download the CSV.');
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  if (roster === null) return <CardSkeleton rows={4} data-testid="dir-roster-loading" />;
-  if (roster === false) return null;
-
-  const rows = roster.results || [];
-  const behind = rows.filter((row) => row.reflection_state !== 'complete');
-  const shown = showAll ? rows : (behind.length ? behind : rows).slice(0, 5);
-  const showingFullList = showAll || shown.length === rows.length;
-
-  return (
-    <HomeCard
-      title="Madrichim"
-      subtitle={
-        behind.length
-          ? `${behind.length} haven't reflected this week`
-          : `${roster.count ?? rows.length} in the program, all reflected`
-      }
-      icon={Users}
-      action={showingFullList && (
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting}
-          data-testid="dir-roster-export"
-          className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-        >
-          {exporting ? 'Preparing…' : 'Export CSV'}
-        </button>
-      )}
-      footer={!showAll && rows.length > shown.length && (
-        <button
-          type="button"
-          onClick={() => setShowAll(true)}
-          className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
-          data-testid="dir-roster-view-all"
-        >
-          View all →
-        </button>
-      )}
-      data-testid="dir-roster-card"
-    >
-      {exportError && (
-        <p className="text-xs text-red-600 dark:text-red-400 mb-2" role="alert">{exportError}</p>
-      )}
-      <ul className="space-y-1.5">
-        {shown.map((row) => (
-          <li key={row.person_id}>
-            <RosterRow
-              to={
-                row.membership_id
-                  ? `/admin/reflections/madrich/members/${row.membership_id}`
-                  : null
-              }
-              testId={`dir-roster-row-${row.person_id}`}
-              primary={row.display_name}
-              secondary={[
-                typeof row.grade_level === 'number' ? `Grade ${row.grade_level}` : null,
-                row.classroom,
-              ].filter(Boolean).join(' · ')}
-              trailing={(
-                <span className="flex items-center gap-2">
-                  {row.reflection_state && (
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        row.reflection_state === 'complete'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
-                          : 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200'
-                      }`}
-                    >
-                      {row.reflection_state === 'complete' ? 'Submitted' : 'Not yet'}
-                    </span>
-                  )}
-                  {row.open_thread_count > 0 && (
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {row.open_thread_count} open
-                    </span>
-                  )}
-                </span>
-              )}
-            />
-          </li>
-        ))}
-      </ul>
-    </HomeCard>
-  );
-}
-
 function ThemesCard() {
   const { program, ready } = useDirectorProgram();
   const themes = useCardData(
@@ -740,22 +535,13 @@ function CohortCard() {
  * The religious-school cards, sorted into the admin home's fixed sections.
  * `onQueueCount` and `onFacultyWaiting` feed the Follow-ups tab badge.
  */
-export function directorSections({ logs = null, onQueueCount, onFacultyWaiting } = {}) {
+export function directorSections({ onQueueCount, onFacultyWaiting } = {}) {
   return {
     staffing: <CoverageCard nextOnly />,
     followUps: (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         <QuestionQueueCard onCount={onQueueCount} />
         <FacultyActivityCard onWaiting={onFacultyWaiting} />
-      </div>
-    ),
-    progress: (
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-          {logs}
-          <PulseCard />
-        </div>
-        <RosterCard />
       </div>
     ),
     insights: (

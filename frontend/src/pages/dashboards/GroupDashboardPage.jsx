@@ -38,7 +38,7 @@ const BACK_TO_BY_ROLE = Object.freeze({
   leadership_team: '/leadership-team',
 });
 
-const ADMIN_BACK_TO = '/groups/performance';
+const ADMIN_BACK_TO = '/admin/home';
 
 function classroomAuthorHome(user) {
   const roles = membershipRolesForUser(user);
@@ -53,7 +53,9 @@ function backToFor(role, { date, urlDate, program, tab, groupType, user } = {}) 
     if (date) params.set('date', date);
     if (program) params.set('program', program);
     if (groupType) params.set('group_type', groupType);
-    if (tab === 'past') params.set('tab', 'past');
+    // Home's performance view keeps Current/Past on `period`; `tab` is the
+    // admin section, and Performance is already the default.
+    if (tab === 'past') params.set('period', 'past');
     const query = params.toString();
     return query ? `${ADMIN_BACK_TO}?${query}` : ADMIN_BACK_TO;
   }

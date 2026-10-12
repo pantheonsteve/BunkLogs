@@ -14,6 +14,10 @@ vi.mock('../../../api', () => ({
   default: { get: (...args) => getMock(...args) },
 }));
 
+vi.mock('../../../dashboards/performance/PerformanceDashboard', () => ({
+  default: () => <div data-testid="performance-dashboard-embedded" />,
+}));
+
 const mockUseAuth = vi.fn();
 vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
@@ -180,14 +184,6 @@ describe('Director homepage inside AdminHome', () => {
     expect(screen.getByRole('status', { name: '2 waiting on a reply' })).toBeInTheDocument();
   });
 
-  it('reports this week\'s completion rate and the open question count', async () => {
-    renderHome();
-    await waitFor(() => screen.getByTestId('dir-pulse-card'));
-    expect(screen.getByTestId('dir-pulse-rate')).toHaveTextContent('8 of 10');
-    expect(screen.getByTestId('dir-pulse-card')).toHaveTextContent('10 active Madrichim');
-    expect(screen.getByTestId('dir-pulse-sparkline').children).toHaveLength(2);
-  });
-
   it('flags a Sunday where anyone is tentative or has not answered', async () => {
     renderHome();
     await waitFor(() => screen.getByTestId('dir-coverage-card'));
@@ -220,6 +216,7 @@ describe('Director homepage inside AdminHome', () => {
   it('hides the classroom pill when only students are rostered', async () => {
     renderHome();
     await waitFor(() => screen.getByTestId('dir-coverage-card'));
+    fireEvent.click(screen.getByTestId('dashboard-tab-staffing'));
     expect(screen.queryByTestId('dir-coverage-13-2026-09-27')).not.toBeInTheDocument();
     expect(screen.getByRole('rowheader', { name: 'Grade 1' })).toBeInTheDocument();
     const faculty = screen.getByTestId('dir-coverage-faculty-13-2026-09-27');
@@ -287,40 +284,12 @@ describe('Director homepage inside AdminHome', () => {
     expect(screen.getByTestId('dir-activity-row-9')).toHaveTextContent('oldest 12d');
   });
 
-  it('offers a roster export button rather than a bare link', async () => {
+  it('opens a faculty row on their own response page', async () => {
     renderHome();
-    await waitFor(() => screen.getByTestId('dir-roster-export'));
-    // A plain href would resolve against the SPA origin and carry no token.
-    expect(screen.getByTestId('dir-roster-export').tagName).toBe('BUTTON');
-    expect(screen.getByTestId('dir-roster-row-10')).toHaveTextContent('Ari Rich');
-  });
-
-  it('opens a Madrich or faculty row on their own response page', async () => {
-    renderHome();
-    await waitFor(() => screen.getByTestId('dir-roster-row-10'));
-    expect(screen.getByTestId('dir-roster-row-10')).toHaveAttribute(
-      'href', '/admin/reflections/madrich/members/3189',
-    );
+    await waitFor(() => screen.getByTestId('dir-activity-row-9'));
     expect(screen.getByTestId('dir-activity-row-9')).toHaveAttribute(
       'href', '/admin/reflections/faculty/members/909',
     );
-  });
-
-  it('leaves a row unlinked when the payload has no membership to open', async () => {
-    getMock.mockImplementation((url) => {
-      if (url.includes('/madrichim/')) {
-        return Promise.resolve({ data: {
-          count: 1,
-          results: [{ ...RESPONSES['/madrichim/'].results[0], membership_id: undefined }],
-        } });
-      }
-      const match = Object.keys(RESPONSES).find((suffix) => url.includes(suffix));
-      return Promise.resolve({ data: RESPONSES[match] });
-    });
-    renderHome();
-    await waitFor(() => screen.getByTestId('dir-roster-row-10'));
-    expect(screen.getByTestId('dir-roster-row-10')).not.toHaveAttribute('href');
-    expect(screen.getByTestId('dir-roster-row-10')).toHaveTextContent('Ari Rich');
   });
 
   it('hides a card whose endpoint fails instead of breaking the page', async () => {
@@ -330,7 +299,7 @@ describe('Director homepage inside AdminHome', () => {
         : Promise.resolve({ data: RESPONSES[Object.keys(RESPONSES).find((s) => url.includes(s))] })
     ));
     renderHome();
-    await waitFor(() => screen.getByTestId('dir-pulse-card'));
+    await waitFor(() => screen.getByTestId('dir-coverage-card'));
     await waitFor(() => expect(screen.queryByTestId('dir-themes-loading')).toBeNull());
     expect(screen.queryByTestId('dir-themes-card')).toBeNull();
   });

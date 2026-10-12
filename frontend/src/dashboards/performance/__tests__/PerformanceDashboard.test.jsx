@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom';
 import PerformanceDashboard from '../PerformanceDashboard';
 
 vi.mock('../../../api', () => ({
@@ -202,6 +202,81 @@ describe('PerformanceDashboard', () => {
       expect(screen.getByText('Grade 1')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('performance-no-current-program')).not.toBeInTheDocument();
+  });
+
+  it('keeps classroom groups when an earlier empty response resolves later', async () => {
+    const classroom = { ...groups[0], id: 192, name: 'Grade 1', group_type: 'classroom' };
+    const pending = [];
+    vi.mocked(api.get).mockImplementation((_url, config) => new Promise((resolve) => {
+      pending.push({ groupType: config?.params?.group_type, resolve });
+    }));
+
+    renderDashboard('/groups/performance?program=1');
+
+    await waitFor(() => expect(pending.length).toBeGreaterThan(0));
+    const firstWave = pending.splice(0, pending.length);
+    const current = firstWave[firstWave.length - 1];
+    const stale = firstWave.slice(0, -1);
+    current.resolve({
+      data: {
+        ...payloadWithCurrent,
+        group_types: ['classroom'],
+        groups: [classroom],
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText('Grade 1')).toBeInTheDocument());
+    await waitFor(() => expect(pending.some((call) => call.groupType === 'classroom')).toBe(true));
+
+    const classroomCall = pending.find((call) => call.groupType === 'classroom');
+    await act(async () => {
+      classroomCall.resolve({
+        data: {
+          ...payloadWithCurrent,
+          group_types: ['classroom'],
+          groups: [classroom],
+        },
+      });
+      stale.forEach((call) => call.resolve({
+        data: { ...payloadWithCurrent, group_types: ['classroom'], groups: [] },
+      }));
+    });
+
+    expect(screen.getByText('Grade 1')).toBeInTheDocument();
+    expect(screen.queryByText(/No groups visible/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps Current and Past off the tab query when embedded', async () => {
+    const user = userEvent.setup();
+    function SearchProbe() {
+      const [params] = useSearchParams();
+      return <div data-testid="search">{params.toString()}</div>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/admin/home?tab=performance&date=2026-07-10&group_type=bunk&program=1']}>
+        <Routes>
+          <Route
+            path="/admin/home"
+            element={(
+              <>
+                <PerformanceDashboard embedded />
+                <SearchProbe />
+              </>
+            )}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Bunk Maple')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('performance-tab-past'));
+
+    const search = screen.getByTestId('search').textContent;
+    expect(search).toContain('period=past');
+    expect(search).toContain('tab=performance');
+    expect(search).not.toContain('tab=past');
   });
 
   it('hides the standalone page title when embedded', async () => {

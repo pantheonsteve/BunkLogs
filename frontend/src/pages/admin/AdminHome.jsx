@@ -8,10 +8,11 @@
  * reporting a number. Navigation went back to the sidebar, where it can
  * be reached from every page rather than only this one.
  *
- * The page is fixed full-width sections -- Staffing, Follow-ups, Progress,
- * Insights, and the program itself (needs attention, setup, counts,
- * activity) -- whatever the org type. Which cards fill a section
- * depends on the org.
+ * The page is fixed full-width sections -- Performance, Staffing,
+ * Follow-ups, Insights, and the program itself (needs attention, setup,
+ * counts, activity) -- whatever the org type. Which cards fill a section
+ * depends on the org. Performance is the group performance view and opens
+ * first.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,19 +25,17 @@ import { useTerm } from '../../context/OrgBrandingContext';
 import Card, { CardBody, CardHeader } from '../../components/ui/Card';
 import ErrorPanel from '../../components/ui/ErrorPanel';
 import LoadingState from '../../components/ui/LoadingState';
-import Note from '../../components/ui/Note';
 import ProgressBar from '../../components/ui/ProgressBar';
 import {
   daysBetween,
-  formatMonthDay,
   formatWeekdayMonthDay,
   greetingFor,
   relativeTime,
 } from '../../lib/adminDates';
 import { programShortLabel } from '../../lib/programLabel';
 import { orgSurfaces } from '../../utils/auth/orgProfile';
-import { groupDashboardLink } from '../../utils/dashboardLinks';
 import DashboardTabs from '../../components/admin/DashboardTabs';
+import PerformanceDashboard from '../../dashboards/performance/PerformanceDashboard';
 import { directorSections } from './DirectorHome';
 
 /**
@@ -301,71 +300,6 @@ export default function AdminHome() {
   const toProgramEnd = daysBetween(data?.today, program?.end_date);
   const showNextProgram = toProgramEnd !== null && toProgramEnd <= 21;
 
-  const logsCard = (
-    <Card data-testid="admin-home-logs">
-      <CardHeader
-        title="Logs this week"
-        subtitle={
-          logs
-            ? `Week of ${formatMonthDay(logs.window_start)} · ${logs.submitted} of ${logs.expected} expected`
-            : undefined
-        }
-        action={(
-          <Link
-            to="/admin/reports"
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            All reports
-          </Link>
-        )}
-      />
-      <CardBody>
-        {!logs || logs.expected === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No {subjectsLo} are enrolled in this {programLo} yet, so
-            there is nothing to submit.
-          </p>
-        ) : logs.behind.length === 0 ? (
-          <Note tone="ok" data-testid="logs-all-in">
-            Everything is in. Nice week.
-          </Note>
-        ) : (
-          <>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              {behindCount} {behindCount === 1 ? groupLo : groupsLo} behind, most behind first:
-            </p>
-            <ul className="space-y-2.5">
-              {logs.behind.map((g) => (
-                <li key={g.id} className="flex items-center gap-3">
-                  <Link
-                    to={groupDashboardLink(g.id)}
-                    className="w-36 shrink-0 text-sm font-semibold text-gray-900 dark:text-white hover:text-indigo-700 dark:hover:text-indigo-300 truncate"
-                  >
-                    {g.name}
-                  </Link>
-                  <ProgressBar
-                    value={g.submitted}
-                    total={g.expected}
-                    className="flex-1"
-                  />
-                  <span className="w-14 text-right text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                    {g.submitted}/{g.expected}
-                  </span>
-                  <Link
-                    to={groupDashboardLink(g.id)}
-                    className="shrink-0 px-2 py-1 rounded-md text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:underline"
-                  >
-                    Open
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </CardBody>
-    </Card>
-  );
-
   const programPanel = (
     <div className="space-y-5">
       <section data-testid="admin-home-attention" aria-label="Needs attention">
@@ -474,13 +408,17 @@ export default function AdminHome() {
 
   const director = surfaces.gradeReflections
     ? directorSections({
-      logs: logsCard,
       onQueueCount: setQueueCount,
       onFacultyWaiting: setFacultyWaiting,
     })
     : null;
   const followUpCount = queueCount + facultyWaiting;
   const sectionTabs = [
+    {
+      id: 'performance',
+      label: 'Performance',
+      content: <PerformanceDashboard embedded programId={programId} />,
+    },
     { id: 'staffing', label: 'Staffing', content: director?.staffing },
     {
       id: 'follow-ups',
@@ -489,7 +427,6 @@ export default function AdminHome() {
       badge: followUpCount,
       badgeLabel: `${followUpCount} waiting on a reply`,
     },
-    { id: 'progress', label: 'Progress', content: director ? director.progress : logsCard },
     { id: 'insights', label: 'Insights', content: director?.insights },
     {
       id: 'program',
@@ -524,7 +461,7 @@ export default function AdminHome() {
       {loading ? (
         <LoadingState>Loading dashboard…</LoadingState>
       ) : (
-        <DashboardTabs tabs={sectionTabs} defaultTab="staffing" data-testid="admin-home-tabs" />
+        <DashboardTabs tabs={sectionTabs} defaultTab="performance" data-testid="admin-home-tabs" />
       )}
     </main>
   );

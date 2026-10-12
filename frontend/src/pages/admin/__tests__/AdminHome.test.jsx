@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 const mockUseAuth = vi.fn();
@@ -23,12 +23,15 @@ vi.mock('../../../api/admin', () => ({
 // DirectorHome fires seven independent requests of its own; this page's
 // behaviour is what's under test.
 vi.mock('../DirectorHome', () => ({
-  directorSections: ({ logs }) => ({
+  directorSections: () => ({
     staffing: <div data-testid="director-staffing" />,
     followUps: <div data-testid="director-follow-ups" />,
-    progress: <div>{logs}</div>,
     insights: <div data-testid="director-insights" />,
   }),
+}));
+
+vi.mock('../../../dashboards/performance/PerformanceDashboard', () => ({
+  default: () => <div data-testid="performance-dashboard-embedded" />,
 }));
 
 import AdminHome from '../AdminHome';
@@ -132,17 +135,6 @@ describe('AdminHome dashboard', () => {
     expect(row).toHaveTextContent(/every group either has campers or is confirmed staff-only/i);
   });
 
-  it('lists the groups behind on logs, most behind first', async () => {
-    renderHome();
-
-    const logs = await screen.findByTestId('admin-home-logs');
-    expect(logs).toHaveTextContent('9 of 20 expected');
-    const names = Array.from(logs.querySelectorAll('li a'))
-      .map((a) => a.textContent)
-      .filter((text) => text !== 'Open');
-    expect(names).toEqual(['Grade 5', 'Grade 3']);
-  });
-
   it('opens with a greeting and the date rather than the word Dashboard', async () => {
     renderHome();
 
@@ -168,13 +160,6 @@ describe('AdminHome dashboard', () => {
     );
   });
 
-  it('says which week the logs card is reporting on', async () => {
-    renderHome();
-    expect(await screen.findByTestId('admin-home-logs')).toHaveTextContent(
-      'Week of Aug 24 · 9 of 20 expected',
-    );
-  });
-
   it('gives each activity row a time and a link to what changed', async () => {
     renderHome();
 
@@ -196,28 +181,31 @@ describe('AdminHome dashboard', () => {
     expect(screen.queryByTestId('admin-home-links')).not.toBeInTheDocument();
   });
 
-  it('sorts a religious school into the five sections, opening on Staffing', async () => {
+  it('opens a religious school on Performance, ahead of the other sections', async () => {
     renderHome(adminIn(['religious_school']));
 
-    const tabs = await screen.findAllByRole('tab');
+    const tablist = await screen.findByRole('tablist', { name: 'Dashboard sections' });
+    const tabs = within(tablist).getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Staffing', 'Follow-ups', 'Progress', 'Insights', 'Program1',
+      'Performance', 'Staffing', 'Follow-ups', 'Insights', 'Program1',
     ]);
-    expect(screen.getByTestId('dashboard-tab-staffing')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('director-staffing')).toBeVisible();
-    expect(screen.getByTestId('admin-home-logs')).not.toBeVisible();
+    expect(screen.getByTestId('dashboard-tab-performance')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('performance-dashboard-embedded')).toBeVisible();
+    expect(screen.getByTestId('director-staffing')).not.toBeVisible();
     expect(screen.getByTestId('admin-home-setup')).not.toBeVisible();
 
-    fireEvent.click(screen.getByTestId('dashboard-tab-progress'));
-    expect(screen.getByTestId('admin-home-logs')).toBeVisible();
+    fireEvent.click(screen.getByTestId('dashboard-tab-staffing'));
+    expect(screen.getByTestId('director-staffing')).toBeVisible();
+    expect(screen.getByTestId('performance-dashboard-embedded')).not.toBeVisible();
   });
 
   it('keeps attention, setup, counts, and activity together on the Program tab', async () => {
     renderHome();
-    const tabs = await screen.findAllByRole('tab');
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['Progress', 'Program1']);
+    const tablist = await screen.findByRole('tablist', { name: 'Dashboard sections' });
+    const tabs = within(tablist).getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Performance', 'Program1']);
     expect(screen.getByRole('status', { name: '1 item needs attention' })).toBeInTheDocument();
-    expect(screen.getByTestId('admin-home-logs')).toBeVisible();
+    expect(screen.getByTestId('performance-dashboard-embedded')).toBeVisible();
     expect(screen.getByTestId('admin-home-attention')).not.toBeVisible();
     expect(screen.getByTestId('stat-staff')).not.toBeVisible();
 
@@ -226,7 +214,7 @@ describe('AdminHome dashboard', () => {
     expect(screen.getByTestId('admin-home-setup')).toBeVisible();
     expect(screen.getByTestId('stat-staff')).toBeVisible();
     expect(screen.getByTestId('admin-home-activity')).toBeVisible();
-    expect(screen.getByTestId('admin-home-logs')).not.toBeVisible();
+    expect(screen.getByTestId('performance-dashboard-embedded')).not.toBeVisible();
   });
 
   it('surfaces a load failure instead of rendering an empty dashboard', async () => {
