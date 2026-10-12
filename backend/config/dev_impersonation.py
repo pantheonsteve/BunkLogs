@@ -6,6 +6,8 @@ Refuses to run when DEBUG is False or the database host is not local.
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -16,7 +18,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from bunk_logs.core.identity import active_membership_roles
+from bunk_logs.core.models import Membership
 from config.auth_api import build_user_auth_payload
 
 User = get_user_model()
@@ -47,14 +49,26 @@ def _build_token_payload(user) -> dict:
     }
 
 
-def _user_summary(user) -> dict:
+def _roles_by_user(user_ids) -> dict:
+    """Active roles per user in one query; the picker only needs a hint."""
+    roles = defaultdict(set)
+    rows = Membership.all_objects.filter(
+        person__user_id__in=user_ids,
+        is_active=True,
+    ).values_list("person__user_id", "role")
+    for user_id, role in rows:
+        roles[user_id].add(role)
+    return roles
+
+
+def _user_summary(user, roles) -> dict:
     name = f"{user.first_name} {user.last_name}".strip()
     return {
         "id": str(user.id),
         "email": user.email,
         "name": name or user.email,
         "is_active": user.is_active,
-        "membership_roles": active_membership_roles(user),
+        "membership_roles": sorted(roles),
     }
 
 
@@ -81,8 +95,10 @@ def dev_impersonation_users(request):
             | Q(last_name__icontains=query),
         )
 
+    page = list(users[:50])
+    roles = _roles_by_user([user.pk for user in page])
     return Response({
-        "results": [_user_summary(user) for user in users[:50]],
+        "results": [_user_summary(user, roles[user.pk]) for user in page],
     })
 
 
