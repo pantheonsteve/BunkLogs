@@ -1,56 +1,159 @@
 /**
- * Per-subject landing page (Step 7_21 follow-up; design ref:
- * docs/design/form_orchestration_reframe.md §4.1).
+ * Staff view of one camper / student (`/profile/:personId`, 2027 refresh).
  *
- * Top-to-bottom sections: profile header, period stepper,
- * concerning-pattern alert, per-template form-response widgets
- * (KPI tiles + bunk-log style table + trend sparklines), and the
- * recent text-response list.
- *
- * The schema-aware table and KPI cells reuse helpers from
- * `responseTable/` so the visual treatment matches the LT Responses
- * page exactly. Data shape: see `GET /api/v1/dashboards/subject/<id>/`.
+ * Header, period toolbar, then per-category KPIs, a daily score chart, and
+ * a daily logs table for the primary rating template; other templates keep
+ * the shared `FormResponsesCard`. Observations sit in the right column with
+ * a count-only placeholder for tiers the viewer can't read. Visibility is
+ * server-side: this view renders only what the payload contains.
+ * Data shape: see `GET /api/v1/dashboards/subject/<id>/`.
  */
 
 import { useMemo, useState } from 'react';
-import RichText from '../../components/ui/RichText';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquarePlus } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import RichText from '../../components/ui/RichText';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import InitialsAvatar from '../../components/ui/InitialsAvatar';
+import KpiTile from '../../components/ui/KpiTile';
+import RatingCell from '../../components/ui/RatingCell';
+import SegmentedControl from '../../components/ui/SegmentedControl';
+import SensitiveNotePlaceholder from '../../components/SensitiveNotePlaceholder';
+import PrivacyChip from '../../components/reflection/PrivacyChip';
+import ObservationComposer, { dateOnlyToLocalDatetime } from '../../components/observations/ObservationComposer';
+import { sensitivityAudience } from '../../api/observations';
+import { useTerm } from '../../context/OrgBrandingContext';
 import {
   groupDashboardLink,
   observationThreadLink,
   profileBackLabel,
+  profileLink,
   resolveProfileBackGroup,
 } from '../../utils/dashboardLinks';
-import { subjectEntriesPageLink } from './flattenSubjectEntries';
-import { sensitivityAudience } from '../../api/observations';
-import ObservationComposer, { dateOnlyToLocalDatetime } from '../../components/observations/ObservationComposer';
-import PrivacyChip from '../../components/reflection/PrivacyChip';
-import {
-  formatShortDate,
-  getInitials,
-  isTruthyFlag,
-  pickLabel,
-} from './responseTable/schema';
-import { FlagChip } from './responseTable/cells';
+import { downloadSubjectEntriesExport, subjectEntriesPageLink } from './flattenSubjectEntries';
+import { deriveSchemaSections, isTruthyFlag } from './responseTable/schema';
 import { SubjectCell } from './responseTable/cells';
 import FormResponsesCard from './responseTable/FormResponsesCard';
+import ScoreTrendChart from './ScoreTrendChart';
+import {
+  PERIOD_OPTIONS,
+  activePeriod,
+  addDays,
+  computeKpi,
+  dailyValues,
+  dayCount,
+  dayRange,
+  formatDay,
+  helpRequestDays,
+  isCamperCareHelpField,
+  isUnitHeadHelpField,
+  localToday,
+  periodRange,
+  pickPrimaryBlock,
+} from './profileStats';
+
+const ELEVATION = 'shadow-[0_1px_3px_rgba(29,27,44,0.08),0_1px_2px_rgba(29,27,44,0.04)] dark:shadow-none';
+const CARD = `rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-5 ${ELEVATION}`;
+
+const SERIES_COLORS = {
+  social: 'var(--color-series-social)',
+  behavior: 'var(--color-series-behavior)',
+  participation: 'var(--color-series-participation)',
+};
+const FALLBACK_COLORS = [
+  SERIES_COLORS.social,
+  SERIES_COLORS.behavior,
+  SERIES_COLORS.participation,
+  'var(--color-ink-2)',
+];
+
+const PRIOR_LABEL = { week: 'prior week', '4weeks': 'prior 4 weeks' };
+
+function colKey(col) {
+  return col.subKey ? `${col.key}__${col.subKey}` : col.key;
+}
+
+function seriesColor(col, index) {
+  return SERIES_COLORS[col.subKey ?? col.key] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+}
+
+function titleCase(s) {
+  return String(s || '').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function languageName(code) {
+  if (!code) return null;
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+function formatObservationWhen(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+}
 
 // ---------------------------------------------------------------------------
-// Small UI primitives
+// Left rail
 // ---------------------------------------------------------------------------
 
-function Chip({ children, tone = 'neutral' }) {
-  const palette = {
-    neutral: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600',
-    role: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-800',
-    program: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800',
-    bunk: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-800',
-  }[tone] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+function ProfileRail({ backGroup, backDate, groupPayload, personId }) {
+  const term = useTerm();
+  const to = backGroup ? groupDashboardLink(backGroup.id, { date: backDate }) : null;
+  const label = profileBackLabel(backGroup);
+  const subjects = (groupPayload?.roster ?? []).filter((m) => m.role_in_group === 'subject');
+  const helpIds = new Set([
+    ...(groupPayload?.help_requested ?? []).map((c) => c.id),
+    ...(groupPayload?.camper_care_help_requested ?? []).map((c) => c.id),
+  ]);
+  if (!to) return <div />;
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full border ${palette}`}>
-      {children}
-    </span>
+    <nav
+      aria-label="Group"
+      className="mb-4 lg:mb-0 flex flex-col gap-0.5 lg:self-start lg:sticky lg:top-20 lg:rounded-[14px] lg:border lg:border-line lg:bg-white lg:dark:bg-gray-900 lg:p-2 lg:shadow-[0_1px_3px_rgba(29,27,44,0.08),0_1px_2px_rgba(29,27,44,0.04)] lg:dark:shadow-none"
+    >
+      <Link
+        to={to}
+        className="inline-flex items-center min-h-10 px-2.5 rounded-lg text-[13px] font-semibold text-ink-2 hover:bg-line-soft"
+        data-testid="profile-back-to-group"
+      >
+        {label}
+      </Link>
+      {subjects.length > 0 && (
+        <div className="hidden lg:flex flex-col gap-0.5" data-testid="profile-rail-roster">
+          <div className="mt-1 border-t border-line-soft px-2.5 pt-3 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-muted">
+            {backGroup.name ?? groupPayload?.header?.bunk?.name ?? groupPayload?.header?.group?.name} · {subjects.length} {term('camper', { plural: subjects.length !== 1 })}
+          </div>
+          {subjects.map((m) => {
+            const current = String(m.person_id) === String(personId);
+            return (
+              <Link
+                key={m.person_id}
+                to={profileLink(m.person_id, { groupId: backGroup.id, date: backDate })}
+                aria-current={current ? 'page' : undefined}
+                className={`flex items-center gap-2.5 min-h-[38px] px-2.5 rounded-lg text-sm ${
+                  current ? 'font-semibold bg-brand-soft text-brand' : 'font-medium text-ink-2 hover:bg-line-soft'
+                }`}
+              >
+                <span className="flex-1 truncate">{m.name}</span>
+                {helpIds.has(m.person_id) && (
+                  <span
+                    role="img"
+                    aria-label="Help requested"
+                    className="w-2 h-2 rounded-full bg-[#d97a2a]"
+                    data-testid={`rail-help-dot-${m.person_id}`}
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </nav>
   );
 }
 
@@ -58,26 +161,15 @@ function Chip({ children, tone = 'neutral' }) {
 // Header
 // ---------------------------------------------------------------------------
 
-function ProfileBackLink({ groupIdParam, backDate, profile }) {
-  const group = resolveProfileBackGroup(
-    groupIdParam,
-    profile?.assignment_groups,
-  );
-  const to = group ? groupDashboardLink(group.id, { date: backDate }) : null;
-  const label = profileBackLabel(group);
-  if (!to || !label) return null;
-  return (
-    <Link
-      to={to}
-      className="text-sm font-semibold text-blue-700 dark:text-blue-300 hover:underline mb-4 inline-block"
-      data-testid="profile-back-to-group"
-    >
-      {label}
-    </Link>
-  );
-}
-
-export function ProfileHeader({ subject, profile }) {
+export function ProfileHeader({
+  subject,
+  profile,
+  help = { unitHead: 0, camperCare: 0 },
+  helpWindow = 7,
+  staff = [],
+  staffLabel = 'Staff',
+}) {
+  const term = useTerm();
   const displayName = subject?.name ?? profile?.full_name ?? 'Unknown';
   const preferred = profile?.preferred_name && profile.preferred_name !== displayName
     ? ` (${profile.preferred_name})`
@@ -85,228 +177,325 @@ export function ProfileHeader({ subject, profile }) {
   const role = profile?.primary_role;
   const programs = profile?.programs ?? [];
   const groups = profile?.assignment_groups ?? [];
-  const language = profile?.preferred_language;
+  const language = languageName(profile?.preferred_language);
+  const windowLabel = `of last ${helpWindow} day${helpWindow === 1 ? '' : 's'}`;
+  const hasHelp = help.unitHead > 0 || help.camperCare > 0;
+
   return (
-    <header
-      className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 border border-gray-200 dark:border-gray-700 mb-6"
+    <section
+      className={`rounded-2xl border border-line bg-white dark:bg-gray-900 px-6 py-5 ${ELEVATION} flex flex-wrap items-center gap-x-5 gap-y-4`}
       data-testid="subject-profile-header"
     >
-      <div className="flex items-start gap-4">
-        <div className="w-14 h-14 shrink-0 rounded-full bg-gradient-to-br from-indigo-200 to-indigo-400 dark:from-indigo-700 dark:to-indigo-900 flex items-center justify-center text-lg font-semibold text-white">
-          {getInitials(displayName)}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-            {displayName}<span className="text-gray-500 dark:text-gray-400 font-normal">{preferred}</span>
-          </h1>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {role && <Chip tone="role">{role.replace(/_/g, ' ')}</Chip>}
-            {programs.map((p) => (
-              <Chip key={`prog-${p.id}`} tone="program">{p.name}</Chip>
-            ))}
-            {groups.map((g) => (
-              <Link key={`grp-${g.id}`} to={`/dashboards/group/${g.id}`}>
-                <Chip tone="bunk">{g.group_type}: {g.name}</Chip>
-              </Link>
-            ))}
-            {language && <Chip>lang: {language}</Chip>}
-          </div>
+      <InitialsAvatar name={displayName} size="xl" aria-hidden="true" />
+      <div className="flex-1 min-w-[240px] flex flex-col gap-2">
+        <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink">
+          {displayName}<span className="font-normal text-muted">{preferred}</span>
+        </h1>
+        <div className="flex flex-wrap gap-1.5">
+          {role && <Badge size="md" className="font-semibold capitalize">{role.replace(/_/g, ' ')}</Badge>}
+          {programs.map((p) => (
+            <Badge key={`prog-${p.id}`} size="md" className="font-semibold">{p.name}</Badge>
+          ))}
+          {groups.map((g) => (
+            <Link key={`grp-${g.id}`} to={groupDashboardLink(g.id)} className="hover:opacity-80">
+              <Badge tone="info" size="md" className="font-semibold">
+                {titleCase(g.group_type)}: {g.name}
+              </Badge>
+            </Link>
+          ))}
+          {language && <Badge size="md" className="font-semibold">{language}</Badge>}
         </div>
       </div>
-    </header>
+      {(hasHelp || staff.length > 0) && (
+        <div className="flex flex-col items-start gap-1.5">
+          {hasHelp && (
+            <div className="flex flex-wrap gap-1.5" data-testid="subject-help-badges">
+              {help.unitHead > 0 && (
+                <Badge tone="warn" size="md" className="font-semibold" data-testid="subject-help-request_unit_head_help">
+                  {titleCase(term('unit_head'))} help · {help.unitHead} {windowLabel}
+                </Badge>
+              )}
+              {help.camperCare > 0 && (
+                <Badge tone="danger" size="md" className="font-semibold" data-testid="subject-help-request_camper_care_help">
+                  {term('camper_care')} help · {help.camperCare} {windowLabel}
+                </Badge>
+              )}
+            </div>
+          )}
+          {staff.length > 0 && (
+            <span className="text-xs text-muted pl-1" data-testid="subject-staff-line">
+              {staffLabel}: {staff.join(', ')}
+            </span>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
-function isUnitHeadHelpField(field) {
-  if (!field) return false;
-  if (field.key === 'request_unit_head_help') return true;
-  return field.dashboard_role === 'help_request_unit_head';
-}
+// ---------------------------------------------------------------------------
+// Toolbar
+// ---------------------------------------------------------------------------
 
-function isCamperCareHelpField(field) {
-  if (!field) return false;
-  if (field.key === 'request_camper_care_help') return true;
-  return field.dashboard_role === 'help_request_camper_care';
-}
+function Toolbar({
+  start, end, logCount, periodCtx, onRangeChange, refreshing, personId, subjectName,
+}) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const options = PERIOD_OPTIONS.filter((o) => periodRange(o.value, periodCtx));
+  const active = activePeriod(start, end, periodCtx);
 
-function collectHelpRequests(templates) {
-  const unitHead = [];
-  const camperCare = [];
-  for (const block of templates ?? []) {
-    for (const r of block.reflections ?? []) {
-      const answers = r.answers ?? {};
-      for (const field of block.schema_fields ?? []) {
-        const key = field?.key;
-        if (!key || !isTruthyFlag(answers[key])) continue;
-        const entry = { date: r.date, reflectionId: r.id, group: r.assignment_group };
-        if (isUnitHeadHelpField(field)) unitHead.push(entry);
-        else if (isCamperCareHelpField(field)) camperCare.push(entry);
-      }
+  const pick = (value) => {
+    const r = periodRange(value, periodCtx);
+    if (r && onRangeChange) onRangeChange(r.start, r.end);
+  };
+
+  const runExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await downloadSubjectEntriesExport(personId, { start, end, subjectName });
+    } catch (e) {
+      setExportError(e.response?.data?.detail || e.message || 'Export failed');
+    } finally {
+      setExporting(false);
     }
-  }
-  return { unitHead, camperCare };
-}
-
-function HelpRequestBadges({ templates, language = 'en' }) {
-  const { unitHead, camperCare } = useMemo(
-    () => collectHelpRequests(templates),
-    [templates],
-  );
-  if (unitHead.length === 0 && camperCare.length === 0) return null;
-
-  const uhLabel = pickLabel(
-    { en: 'Unit Head Help Requested' },
-    language,
-    'Unit Head Help Requested',
-  );
-  const ccLabel = pickLabel(
-    { en: 'Camper Care Help Requested' },
-    language,
-    'Camper Care Help Requested',
-  );
+  };
 
   return (
-    <div
-      className="mb-6 flex flex-wrap items-center gap-2"
-      data-testid="subject-help-badges"
-    >
-      {unitHead.length > 0 && (
-        <FlagChip
-          field={{
-            key: 'request_unit_head_help',
-            label: `${uhLabel} · ${unitHead.length} day${unitHead.length === 1 ? '' : 's'}`,
-          }}
-          testidPrefix="subject-help"
-        />
-      )}
-      {camperCare.length > 0 && (
-        <FlagChip
-          field={{
-            key: 'request_camper_care_help',
-            label: `${ccLabel} · ${camperCare.length} day${camperCare.length === 1 ? '' : 's'}`,
-          }}
-          testidPrefix="subject-help"
-        />
+    <div className="flex flex-wrap items-center gap-3" data-testid="subject-period-toolbar">
+      <SegmentedControl
+        options={options}
+        value={active}
+        onChange={pick}
+        ariaLabel="Period"
+        testIdPrefix="subject-period-"
+      />
+      <span className="text-[13px] text-ink-2" data-testid="subject-period-label">
+        {formatDay(start)} – {formatDay(end)} · {logCount} daily log{logCount === 1 ? '' : 's'}
+        {refreshing && <span className="ml-2 text-muted">Updating…</span>}
+      </span>
+      {personId && (
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button
+            as={Link}
+            variant="secondary"
+            to={subjectEntriesPageLink(personId, { start, end })}
+            data-testid="subject-all-entries-link"
+          >
+            All entries →
+          </Button>
+          <Button variant="secondary" onClick={runExport} disabled={exporting} data-testid="subject-export-btn">
+            {exporting ? 'Exporting…' : 'Export'}
+          </Button>
+          {exportError && <span className="text-xs text-danger-ink">{exportError}</span>}
+        </div>
       )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Period stepper
+// Primary template: KPIs, chart, daily logs
 // ---------------------------------------------------------------------------
 
-const PRESET_DAYS = [7, 30, 90];
-
-export function PeriodStepper({ period, rangeStart, rangeEnd, onRangeChange, refreshing }) {
-  if (!period) return null;
-
-  const inputStart = rangeStart || period.start;
-  const inputEnd = rangeEnd || period.end;
-
-  const setPreset = (days) => {
-    if (!onRangeChange) return;
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - (days - 1));
-    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    onRangeChange(fmt(start), fmt(end));
-  };
-
-  const applyRange = (nextStart, nextEnd) => {
-    if (!onRangeChange || !nextStart || !nextEnd) return;
-    if (nextStart > nextEnd) {
-      onRangeChange(nextEnd, nextStart);
-    } else {
-      onRangeChange(nextStart, nextEnd);
-    }
-  };
-
+function KpiGrid({ cols, reflections, priorReflections, end, priorLabel }) {
   return (
-    <section
-      className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-6 flex flex-wrap items-center gap-3"
-      data-testid="subject-period-stepper"
-    >
-      <div>
-        <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Period</p>
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
-          {formatShortDate(inputStart)} — {formatShortDate(inputEnd)}
-          {refreshing && (
-            <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">Updating…</span>
-          )}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 ml-auto">
-        {PRESET_DAYS.map((days) => (
-          <button
-            key={days}
-            type="button"
-            onClick={() => setPreset(days)}
-            className="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-            data-testid={`subject-period-preset-${days}`}
+    <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]" data-testid="subject-kpis">
+      {cols.map((col, i) => {
+        const { avg, delta, last7 } = computeKpi(col, { reflections, priorReflections, rangeEnd: end });
+        const abs = delta == null ? null : Math.abs(delta).toFixed(1);
+        let direction = null;
+        if (abs != null && abs !== '0.0') direction = delta > 0 ? 'up' : 'down';
+        return (
+          <KpiTile
+            key={colKey(col)}
+            className={ELEVATION}
+            data-testid={`subject-kpi-${colKey(col)}`}
+            label={(
+              <span className="inline-flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: seriesColor(col, i) }} aria-hidden="true" />
+                {col.label}
+              </span>
+            )}
+            value={avg == null ? '—' : avg.toFixed(1)}
+            delta={abs ?? undefined}
+            deltaDirection={direction}
+            sub={delta == null ? 'No prior data' : `vs ${priorLabel}`}
           >
-            Last {days} days
-          </button>
-        ))}
-        <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
-          <span className="sr-only">Start date</span>
-          <span aria-hidden="true">From</span>
-          <input
-            type="date"
-            value={inputStart}
-            onChange={(e) => applyRange(e.target.value, inputEnd)}
-            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-xs"
-            data-testid="subject-period-start"
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
-          <span className="sr-only">End date</span>
-          <span aria-hidden="true">To</span>
-          <input
-            type="date"
-            value={inputEnd}
-            onChange={(e) => applyRange(inputStart, e.target.value)}
-            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-xs"
-            data-testid="subject-period-end"
-          />
-        </label>
-      </div>
+            <div className="flex gap-[3px] mt-1" role="group" aria-label="Last 7 days">
+              {last7.map((d) => (
+                <RatingCell
+                  key={d.date}
+                  size="sm"
+                  className="flex-1"
+                  value={d.value == null ? null : Math.round(d.value * 10) / 10}
+                  scaleMax={col.scaleMax}
+                  label={`${col.label} ${formatDay(d.date)}`}
+                />
+              ))}
+            </div>
+          </KpiTile>
+        );
+      })}
+    </div>
+  );
+}
+
+function DailyLogs({ block, cols, flagFields, descTextFields, uhLabel, ccLabel, onAddObservation }) {
+  const tplId = block.template?.id;
+  const rows = [...(block.reflections ?? [])].sort(
+    (a, b) => b.date.localeCompare(a.date) || (b.id ?? 0) - (a.id ?? 0),
+  );
+  return (
+    <section className={CARD} aria-labelledby="subject-daily-logs-title" data-testid="subject-daily-logs">
+      <h2 id="subject-daily-logs-title" className="text-base font-bold text-ink mb-3">Daily logs</h2>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted">No logs in this period.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm" data-testid={`subject-table-${tplId}`}>
+            <thead>
+              <tr className="text-left text-xs text-muted">
+                <th scope="col" className="font-semibold py-1.5 pr-2">Date</th>
+                {cols.map((c) => (
+                  <th key={colKey(c)} scope="col" className="font-semibold py-1.5 px-1 text-center w-16">{c.label}</th>
+                ))}
+                <th scope="col" className="font-semibold py-1.5 pl-3">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const notes = descTextFields
+                  .map((f) => r.answers?.[f.key])
+                  .filter((v) => typeof v === 'string' && v.trim());
+                const flags = flagFields.filter((f) => isTruthyFlag(r.answers?.[f.key]));
+                return (
+                  <tr key={r.id} data-testid={`subject-row-${r.id}`}>
+                    <td className="py-2.5 pr-2 border-t border-line-soft align-top whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 font-semibold text-ink">
+                        {formatDay(r.date)}
+                        <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
+                      </div>
+                      {onAddObservation && (
+                        <button
+                          type="button"
+                          onClick={() => onAddObservation(r.date)}
+                          className="mt-1 text-[11px] font-semibold text-brand hover:underline"
+                          data-testid={`subject-add-observation-${r.id}`}
+                        >
+                          Note +
+                        </button>
+                      )}
+                    </td>
+                    {cols.map((c) => (
+                      <td key={colKey(c)} className="py-2 px-[3px] border-t border-line-soft align-top">
+                        <RatingCell
+                          value={r.answers ? (c.subKey ? r.answers[c.key]?.[c.subKey] : r.answers[c.key]) : null}
+                          scaleMax={c.scaleMax}
+                          label={c.label}
+                        />
+                      </td>
+                    ))}
+                    <td className="py-2.5 pl-3 border-t border-line-soft align-top">
+                      {notes.map((html, i) => (
+                        <RichText key={i} html={html} className="text-[13px] leading-normal text-ink break-words" />
+                      ))}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {r.author_name && <span className="text-xs text-muted">{r.author_name}</span>}
+                        {flags.map((f) => {
+                          let tone = 'neutral';
+                          let text = f.label;
+                          if (isUnitHeadHelpField(f)) { tone = 'warn'; text = uhLabel; }
+                          else if (isCamperCareHelpField(f)) { tone = 'danger'; text = ccLabel; }
+                          return (
+                            <Badge
+                              key={f.key}
+                              tone={tone}
+                              size="xs"
+                              className="font-bold"
+                              data-testid={`subject-flag-${tplId}-${f.key}`}
+                            >
+                              {text}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Recent text responses
+// Observations
 // ---------------------------------------------------------------------------
 
-function RecentTexts({ texts }) {
-  if (!texts || texts.length === 0) return null;
+function ObservationsPanel({ observations = [], hidden = [], onCompose, profileReturnTo = null }) {
+  const sorted = useMemo(
+    () => [...observations].sort((a, b) => {
+      const ta = Date.parse(a.observed_at || a.created_at || '') || 0;
+      const tb = Date.parse(b.observed_at || b.created_at || '') || 0;
+      return tb - ta;
+    }),
+    [observations],
+  );
+
   return (
-    <section className="mb-6" data-testid="subject-recent-texts">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-        Recent text responses
-      </h2>
-      <ul className="space-y-2">
-        {texts.map((t, i) => (
-          <li
-            key={`${t.reflection_id}-${t.field_key}-${i}`}
-            className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3"
+    <section className={`${CARD} flex flex-col gap-3`} aria-labelledby="subject-obs-title" data-testid="observations-panel">
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="subject-obs-title" className="text-base font-bold text-ink">Observations</h2>
+        {onCompose && (
+          <Button size="sm" onClick={() => onCompose()} data-testid="observation-add-btn">
+            + Add observation
+          </Button>
+        )}
+      </div>
+      {sorted.length === 0 && (
+        <p className="text-sm text-muted" data-testid="observations-empty">
+          No observations in this period.
+        </p>
+      )}
+      {sorted.map((o) => {
+        const whenIso = o.observed_at || o.created_at;
+        const whenLabel = formatObservationWhen(whenIso);
+        return (
+          <Link
+            key={o.id}
+            to={observationThreadLink(o.id, profileReturnTo)}
+            className="block border-t border-line-soft pt-3 -mx-2 px-2 rounded-md hover:bg-line-soft/60"
           >
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex flex-wrap items-center gap-2">
-              <span>
-                {t.template_name} · {t.field_key} · {formatShortDate(t.date)}
-                {t.author_name ? ` · ${t.author_name}` : ''}
-              </span>
-              <PrivacyChip teamVisibility={t.team_visibility} />
-            </p>
             <RichText
-              html={t.text}
-              className="text-sm text-gray-800 dark:text-gray-200"
+              html={o.body}
+              className="text-[13px] leading-normal text-ink break-words [&_p]:mb-1 last:[&_p]:mb-0"
             />
-      
-          </li>
-        ))}
-      </ul>
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1 text-xs text-muted">
+              {o.author && <span>{o.author.name}</span>}
+              {whenLabel && (
+                <time dateTime={whenIso} data-testid={`observation-when-${o.id}`}>{whenLabel}</time>
+              )}
+              {o.sensitivity && o.sensitivity !== 'normal' && (
+                <Badge tone="warn" size="xs">{sensitivityAudience(o.sensitivity)}</Badge>
+              )}
+            </div>
+          </Link>
+        );
+      })}
+      {hidden.map((h) => (
+        <div
+          key={h.sensitivity}
+          className="flex items-center gap-2.5 rounded-[10px] bg-ground px-3 py-2.5 text-ink-2"
+        >
+          <Lock className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <SensitiveNotePlaceholder count={h.count} gatingRole={h.gating_role} />
+        </div>
+      ))}
     </section>
   );
 }
@@ -315,119 +504,10 @@ function RecentTexts({ texts }) {
 // Root
 // ---------------------------------------------------------------------------
 
-function formatObservationWhen(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
-}
-
-function ObservationsPanel({ observations = [], onCompose, profileReturnTo = null }) {
-  const [open, setOpen] = useState(true);
-
-  const sorted = useMemo(
-    () => [...observations].sort((a, b) => {
-      const ta = (a.observed_at || a.created_at)
-        ? new Date(a.observed_at || a.created_at).getTime()
-        : 0;
-      const tb = (b.observed_at || b.created_at)
-        ? new Date(b.observed_at || b.created_at).getTime()
-        : 0;
-      return tb - ta;
-    }),
-    [observations],
-  );
-
-  return (
-    <section
-      className="mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-      data-testid="observations-panel"
-    >
-      <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <MessageSquarePlus className="w-5 h-5 text-indigo-500" />
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Observations</h2>
-          {observations.length > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-              {observations.length}
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2 items-center">
-          {onCompose && (
-            <button
-              type="button"
-              onClick={() => onCompose()}
-              className="text-xs font-medium px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-              data-testid="observation-add-btn"
-            >
-              + Add observation
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="text-xs font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            {open ? 'Collapse' : 'Expand'}
-          </button>
-        </div>
-      </header>
-
-      {open && (
-        <div className="p-4">
-          {sorted.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic" data-testid="observations-empty">
-              No observations in this period.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {sorted.map((o) => {
-                const whenIso = o.observed_at || o.created_at;
-                const whenLabel = formatObservationWhen(whenIso);
-                return (
-                  <li key={o.id}>
-                    <Link
-                      to={observationThreadLink(o.id, profileReturnTo)}
-                      className="block rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/40"
-                    >
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-amber-800 dark:text-amber-200">
-                          {sensitivityAudience(o.sensitivity)}
-                        </span>
-                        {o.context && (
-                          <span className="text-xs text-gray-400">{o.context}</span>
-                        )}
-                        <div className="ml-auto flex items-center gap-2 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                          {whenLabel && (
-                            <time
-                              dateTime={whenIso}
-                              data-testid={`observation-when-${o.id}`}
-                            >
-                              {whenLabel}
-                            </time>
-                          )}
-                          {o.author && <span>{o.author.name}</span>}
-                        </div>
-                      </div>
-                      <RichText
-                        html={o.body}
-                        className="text-sm text-gray-800 dark:text-gray-200 break-words [&_p]:mb-1 last:[&_p]:mb-0"
-                      />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
-
-    </section>
-  );
-}
-
 export default function SubjectDetail({
   payload,
+  priorTemplates = null,
+  groupPayload = null,
   rangeStart,
   rangeEnd,
   onRangeChange,
@@ -438,80 +518,158 @@ export default function SubjectDetail({
   backDate = '',
   profileReturnTo = null,
 }) {
+  const navigate = useNavigate();
+  const term = useTerm();
+  const [composeObservation, setComposeObservation] = useState(null);
   if (!payload) return null;
+
   const {
     subject,
     subject_profile: profile,
     period,
-    templates,
-    recent_texts: recentTexts,
+    templates = [],
     observations,
+    hidden_observations: hiddenObservations,
   } = payload;
   const language = profile?.preferred_language ?? 'en';
-  const navigate = useNavigate();
-  const [composeObservation, setComposeObservation] = useState(null);
+  const start = rangeStart || period?.start || '';
+  const end = rangeEnd || period?.end || '';
+  const periodCtx = { today: localToday(), programs: profile?.programs };
+  const active = activePeriod(start, end, periodCtx);
+
+  const primary = pickPrimaryBlock(templates, language);
+  const others = templates.filter((t) => t !== primary);
+  const sections = primary
+    ? deriveSchemaSections({ fields: primary.schema_fields ?? [] }, language)
+    : null;
+  const cols = sections?.ratingCols ?? [];
+  const priorBlock = primary
+    ? (priorTemplates ?? []).find((t) => t.template?.id === primary.template?.id)
+    : null;
+
+  const helpDays = helpRequestDays(templates);
+  const helpWindow = end ? Math.min(7, start ? dayCount(start, end) : 7) : 7;
+  const windowStart = end ? addDays(end, -(helpWindow - 1)) : '';
+  const inWindow = (d) => !end || (d >= windowStart && d <= end);
+  const help = {
+    unitHead: [...helpDays.unitHead].filter(inWindow).length,
+    camperCare: [...helpDays.camperCare].filter(inWindow).length,
+  };
+
+  const backGroup = resolveProfileBackGroup(backGroupId, profile?.assignment_groups);
+  const staff = (groupPayload?.roster ?? [])
+    .filter((m) => m.role_in_group === 'author')
+    .map((m) => m.name);
+  const staffLabel = backGroup?.group_type === 'bunk'
+    ? titleCase(term('counselor', { plural: staff.length !== 1 }))
+    : 'Staff';
+
+  const uhLabel = `${titleCase(term('unit_head'))} help`;
+  const ccLabel = `${term('camper_care')} help`;
+  const logCount = primary
+    ? primary.reflections?.length ?? 0
+    : templates.reduce((n, t) => n + (t.reflections?.length ?? 0), 0);
 
   const openCompose = (date) => {
     setComposeObservation({
       observedAtLocal: date ? dateOnlyToLocalDatetime(date) : null,
     });
   };
-
   const composeFromPanel = () => {
-    const singleDay = rangeStart && rangeStart === rangeEnd ? rangeEnd : null;
-    openCompose(singleDay);
+    openCompose(start && start === end ? end : null);
   };
+  const onAddObservation = personId ? openCompose : null;
 
   return (
-    <div>
-      <ProfileBackLink
-        groupIdParam={backGroupId}
+    <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
+      <ProfileRail
+        backGroup={backGroup}
         backDate={backDate}
-        profile={profile}
+        groupPayload={groupPayload}
+        personId={personId}
       />
-      <ProfileHeader subject={subject} profile={profile} />
-      <HelpRequestBadges templates={templates} language={language} />
-      <PeriodStepper
-        period={period}
-        rangeStart={rangeStart}
-        rangeEnd={rangeEnd}
-        onRangeChange={onRangeChange}
-        refreshing={refreshing}
-      />
-      {personId && (
-        <div className="mb-6 flex justify-end">
-          <Link
-            to={subjectEntriesPageLink(personId, { start: rangeStart, end: rangeEnd })}
-            className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
-            data-testid="subject-all-entries-link"
-          >
-            All entries →
-          </Link>
-        </div>
-      )}
-
-      {(!templates || templates.length === 0) ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="subject-empty">
-          No reflections about this person in the selected window (or you don&apos;t have permission to view them).
-        </p>
-      ) : (
-        templates.map((t) => (
-          <FormResponsesCard
-            key={t.template?.id ?? t.template?.slug}
-            block={t}
-            language={language}
-            personId={personId}
-            onAddObservation={personId ? openCompose : null}
+      <div className="flex flex-col gap-5 min-w-0">
+        <ProfileHeader
+          subject={subject}
+          profile={profile}
+          help={help}
+          helpWindow={helpWindow}
+          staff={staff}
+          staffLabel={staffLabel}
+        />
+        <Toolbar
+          start={start}
+          end={end}
+          logCount={logCount}
+          periodCtx={periodCtx}
+          onRangeChange={onRangeChange}
+          refreshing={refreshing}
+          personId={personId}
+          subjectName={subject?.name}
+        />
+        {primary && (
+          <KpiGrid
+            cols={cols}
+            reflections={primary.reflections}
+            priorReflections={priorBlock?.reflections}
+            end={end}
+            priorLabel={PRIOR_LABEL[active] ?? 'prior period'}
           />
-        ))
-      )}
-
-      {/*<RecentTexts texts={recentTexts} />*/}
-      <ObservationsPanel
-        observations={observations ?? []}
-        onCompose={personId ? composeFromPanel : null}
-        profileReturnTo={profileReturnTo}
-      />
+        )}
+        <div className="flex flex-col gap-5 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_340px] 2xl:items-start">
+          <div className="flex flex-col gap-5 min-w-0">
+            {primary && (
+              <>
+                <section className={CARD} aria-labelledby="subject-trend-title">
+                  <h2 id="subject-trend-title" className="text-base font-bold text-ink mb-3">Daily scores</h2>
+                  <ScoreTrendChart
+                    days={dayRange(start, end)}
+                    series={cols.map((col, i) => ({
+                      key: colKey(col),
+                      label: col.label,
+                      color: seriesColor(col, i),
+                      values: dailyValues(primary.reflections, col),
+                    }))}
+                    helpDates={new Set([...helpDays.unitHead, ...helpDays.camperCare])}
+                    scaleMax={cols[0]?.scaleMax ?? 5}
+                  />
+                </section>
+                <DailyLogs
+                  block={primary}
+                  cols={cols}
+                  flagFields={sections.flagFields}
+                  descTextFields={sections.descTextFields}
+                  uhLabel={uhLabel}
+                  ccLabel={ccLabel}
+                  onAddObservation={onAddObservation}
+                />
+              </>
+            )}
+            {templates.length === 0 && (
+              <p className="text-sm text-muted" data-testid="subject-empty">
+                No reflections about this person in the selected window (or you don&apos;t have permission to view them).
+              </p>
+            )}
+            {others.map((t) => (
+              <FormResponsesCard
+                key={t.template?.id ?? t.template?.slug}
+                block={t}
+                language={language}
+                personId={personId}
+                onAddObservation={onAddObservation}
+              />
+            ))}
+          </div>
+          <aside className="flex flex-col gap-5 min-w-0">
+            <ObservationsPanel
+              observations={observations ?? []}
+              hidden={hiddenObservations ?? []}
+              onCompose={personId ? composeFromPanel : null}
+              profileReturnTo={profileReturnTo}
+            />
+          </aside>
+        </div>
+      </div>
       {composeObservation && (
         <ObservationComposer
           initialSubjects={subject ? [{ id: Number(personId), full_name: subject.name }] : []}
@@ -524,7 +682,6 @@ export default function SubjectDetail({
           }}
         />
       )}
-      {/* TODO(7_23): legacy SubjectNote panel removed in 7_24 */}
     </div>
   );
 }

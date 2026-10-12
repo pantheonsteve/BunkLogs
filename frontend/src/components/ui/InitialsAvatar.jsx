@@ -9,6 +9,7 @@ const SIZE_CLASSES = {
   sm: 'w-7 h-7 text-[11px]',
   md: 'w-9 h-9 text-[13px]',
   lg: 'w-11 h-11 text-base',
+  xl: 'w-16 h-16 text-[22px]',
 };
 
 const TONE_CLASSES = {

@@ -618,6 +618,40 @@ def test_subject_dashboard_observations_bucketed_by_observed_at_date(
     assert obs_today.id not in yest_ids
 
 
+def test_subject_dashboard_counts_hidden_sensitive_observations(
+    api_client, org, program, setup,
+):
+    _, camper, counselor_user, _ = setup
+    Membership.all_objects.create(
+        program=program, person=camper, role="camper", is_active=True,
+    )
+    leader = _person(org, "Lead", "Er")
+    Membership.all_objects.create(
+        program=program, person=leader, role="leadership_team", is_active=True,
+    )
+    noon = datetime.combine(get_today(org), time(12, 0), tzinfo=get_org_timezone(org))
+    for sensitivity, body in (("normal", "Plain note"), ("domain", "Secret note")):
+        obs = Observation.all_objects.create(
+            organization=org, program=program, author=leader,
+            author_role_at_write="leadership_team", body=body,
+            sensitivity=sensitivity, observed_at=noon,
+        )
+        ObservationSubject.objects.create(observation=obs, subject=camper)
+
+    api_client.force_authenticate(user=counselor_user)
+    r = api_client.get(f"/api/v1/dashboards/subject/{camper.id}/", **_hdr(org.slug))
+    assert r.status_code == 200, r.content
+    body = r.json()
+    assert body["hidden_observations"] == [
+        {"sensitivity": "domain", "count": 1, "gating_role": "Leadership Team and above"},
+    ]
+    assert "Secret note" not in r.content.decode()
+    prog = body["subject_profile"]["programs"][0]
+    assert (prog["start_date"], prog["end_date"]) == (
+        SEASON_START.isoformat(), SEASON_END.isoformat(),
+    )
+
+
 def test_subject_entries_export_csv(api_client, org, program, setup):
     _, camper, counselor_user, counselor = setup
     pulse = _bunk_pulse_template(org)

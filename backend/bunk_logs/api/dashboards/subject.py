@@ -24,6 +24,7 @@ from datetime import time
 from datetime import timedelta
 from typing import Any
 
+from django.db.models import Count
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -39,6 +40,8 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.permissions.observation_read import SENSITIVITY_AUDIENCE_LABELS
+from bunk_logs.core.permissions.observation_read import SENSITIVITY_TIERS
 from bunk_logs.core.permissions.observation_read import filter_observations_readable
 from bunk_logs.core.permissions.subject_dashboard import can_view_subject_dashboard
 from bunk_logs.core.time_utils import get_org_timezone
@@ -344,6 +347,8 @@ def _subject_profile(subject: Person, organization) -> dict[str, Any]:
             "id": m.program_id,
             "name": m.program.display_name if m.program_id else None,
             "role": m.role,
+            "start_date": m.program.start_date.isoformat() if m.program_id else None,
+            "end_date": m.program.end_date.isoformat() if m.program_id else None,
         }
         for m in memberships
         if m.program_id is None or m.program.organization_id == organization.id
@@ -389,6 +394,52 @@ def _is_yes_no_field(field: dict) -> bool:
     return values == {"yes", "no"}
 
 
+def _observations_in_range(subject: Person, org, *, start: date, end: date):
+    tz = get_org_timezone(org)
+    range_start = datetime.combine(start, time.min, tzinfo=tz)
+    range_end = datetime.combine(end, time.min, tzinfo=tz) + timedelta(days=1)
+    return Observation.all_objects.filter(
+        organization=org,
+        subject_links__subject=subject,
+        observed_at__gte=range_start,
+        observed_at__lt=range_end,
+    )
+
+
+def _hidden_sensitive_observations(
+    viewer_person: Person | None,
+    subject: Person,
+    org,
+    user,
+    *,
+    start: date,
+    end: date,
+) -> list[dict[str, Any]]:
+    """Counts of above-``normal`` observations the viewer can't read, per tier.
+
+    Feeds SensitiveNotePlaceholder: only counts and the audience label leave
+    the server, never bodies or authors.
+    """
+    base = _observations_in_range(subject, org, start=start, end=end)
+    readable = filter_observations_readable(base, viewer_person, org, user)
+    rows = (
+        base.exclude(sensitivity="normal")
+        .exclude(pk__in=readable.values("pk"))
+        .values("sensitivity")
+        .annotate(count=Count("pk", distinct=True))
+    )
+    counts = {row["sensitivity"]: row["count"] for row in rows}
+    return [
+        {
+            "sensitivity": tier,
+            "count": counts[tier],
+            "gating_role": SENSITIVITY_AUDIENCE_LABELS.get(tier, tier),
+        }
+        for tier in SENSITIVITY_TIERS
+        if counts.get(tier)
+    ]
+
+
 def _observations_for_viewer(
     viewer_person: Person | None,
     subject: Person,
@@ -404,16 +455,8 @@ def _observations_for_viewer(
     Step 7_23 Profile feed: every observation the viewer may read about this
     person within ``start``..``end`` (org-TZ day buckets on ``observed_at``).
     """
-    tz = get_org_timezone(org)
-    range_start = datetime.combine(start, time.min, tzinfo=tz)
-    range_end = datetime.combine(end, time.min, tzinfo=tz) + timedelta(days=1)
     base = (
-        Observation.all_objects.filter(
-            organization=org,
-            subject_links__subject=subject,
-            observed_at__gte=range_start,
-            observed_at__lt=range_end,
-        )
+        _observations_in_range(subject, org, start=start, end=end)
         .select_related("author")
         .prefetch_related("subject_links__subject")
     )
@@ -627,6 +670,10 @@ class SubjectDetailView(APIView):
             viewer_person, subject, org, request.user,
             start=cur_start, end=cur_end,
         )
+        hidden_observations = _hidden_sensitive_observations(
+            viewer_person, subject, org, request.user,
+            start=cur_start, end=cur_end,
+        )
 
         return Response({
             "subject": {
@@ -641,6 +688,7 @@ class SubjectDetailView(APIView):
             "concerning_patterns": concerns,
             # TODO(7_23): legacy "notes" key removed; observations is the Profile feed.
             "observations": observations,
+            "hidden_observations": hidden_observations,
         })
 
 

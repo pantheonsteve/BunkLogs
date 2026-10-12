@@ -101,6 +101,9 @@
   --color-danger-ink: #a3271b;
   --color-ok-soft: #e7f5ec;
   --color-ok-ink: #1b6e3f;
+  --color-series-social: #5d47de;
+  --color-series-behavior: #c05f12;
+  --color-series-participation: #127a7a;
 
   --font-inter: "Inter", "sans-serif";
 
@@ -170,6 +173,9 @@
     --color-danger-ink: var(--color-red-200);
     --color-ok-soft: var(--color-green-950);
     --color-ok-ink: var(--color-green-200);
+    --color-series-social: var(--color-violet-400);
+    --color-series-behavior: #fb923c;
+    --color-series-participation: #2dd4bf;
   }
 }
 
