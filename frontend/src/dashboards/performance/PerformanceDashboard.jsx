@@ -75,6 +75,7 @@ export default function PerformanceDashboard({ embedded = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') || 'current';
   const dateParam = searchParams.get('date') || '';
+  const groupTypeExplicit = searchParams.has('group_type');
   const groupTypeParam = searchParams.get('group_type') ?? 'bunk';
   const programParam = searchParams.get('program') || '';
 
@@ -141,11 +142,19 @@ export default function PerformanceDashboard({ embedded = false }) {
   }, [load]);
 
   useEffect(() => {
-    if (!payload || tab !== 'current' || program) return;
-    if (payload.current_program?.id) {
-      syncParams({ program: String(payload.current_program.id) });
+    if (!payload) return;
+    const next = {};
+    if (tab === 'current' && !program && payload.current_program?.id) {
+      next.program = String(payload.current_program.id);
     }
-  }, [payload, tab, program, syncParams]);
+    // Orgs without bunks (e.g. TBE classrooms) fall back to a type they have.
+    const available = payload.group_types ?? [];
+    if (!groupTypeExplicit && available.length > 0 && !available.includes(groupType)) {
+      const fallback = GROUP_TYPES.find((g) => g.value && available.includes(g.value));
+      if (fallback) next.group_type = fallback.value;
+    }
+    if (Object.keys(next).length > 0) syncParams(next);
+  }, [payload, tab, program, groupType, groupTypeExplicit, syncParams]);
 
   const orgToday = payload?.today ?? null;
   const effectiveDate = dateParam || payload?.date || orgToday || '';

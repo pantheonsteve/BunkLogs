@@ -47,11 +47,12 @@ function classroomAuthorHome(user) {
   return FALLBACK_BACK_TO;
 }
 
-function backToFor(role, { date, urlDate, program, tab, user } = {}) {
+function backToFor(role, { date, urlDate, program, tab, groupType, user } = {}) {
   if (role === 'admin') {
     const params = new URLSearchParams();
     if (date) params.set('date', date);
     if (program) params.set('program', program);
+    if (groupType) params.set('group_type', groupType);
     if (tab === 'past') params.set('tab', 'past');
     const query = params.toString();
     return query ? `${ADMIN_BACK_TO}?${query}` : ADMIN_BACK_TO;
@@ -184,6 +185,7 @@ export default function GroupDashboardPage() {
     urlDate: dateParam,
     program: searchParams.get('program') || '',
     tab: searchParams.get('tab') || '',
+    groupType,
     user,
   });
 

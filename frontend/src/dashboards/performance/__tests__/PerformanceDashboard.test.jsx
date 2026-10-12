@@ -186,6 +186,24 @@ describe('PerformanceDashboard', () => {
     expect(screen.getByText(/No program is active today/i)).toBeInTheDocument();
   });
 
+  it('falls back to a group type the program has when it has no bunks', async () => {
+    const classroom = { ...groups[0], id: 192, name: 'Grade 1', group_type: 'classroom' };
+    vi.mocked(api.get).mockImplementation(async (_url, config) => ({
+      data: {
+        ...payloadWithCurrent,
+        group_types: ['classroom'],
+        groups: config?.params?.group_type === 'classroom' ? [classroom] : [],
+      },
+    }));
+
+    renderDashboard('/groups/performance');
+
+    await waitFor(() => {
+      expect(screen.getByText('Grade 1')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('performance-no-current-program')).not.toBeInTheDocument();
+  });
+
   it('hides the standalone page title when embedded', async () => {
     render(
       <MemoryRouter initialEntries={['/unit-head?date=2026-07-10&group_type=bunk&program=1']}>

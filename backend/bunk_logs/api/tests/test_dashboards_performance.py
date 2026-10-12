@@ -289,6 +289,31 @@ def test_no_current_program_returns_empty_groups(
     assert len(data["programs"]) == 1
 
 
+def test_current_program_resolves_when_org_has_no_groups_of_requested_type(
+    api_client, org, program,
+):
+    """A classroom-only org (TBE) still gets its current program on ?group_type=bunk."""
+    today = get_today(org)
+    program.start_date = today - timedelta(days=5)
+    program.end_date = today + timedelta(days=10)
+    program.save(update_fields=["start_date", "end_date"])
+    AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Grade 1",
+        slug="grade-1", group_type="classroom",
+    )
+    _setup_admin(api_client, org, program)
+
+    resp = api_client.get(URL, {"group_type": "bunk"}, **_hdr(org.slug))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_program"]["id"] == program.id
+    assert data["group_types"] == ["classroom"]
+    assert data["groups"] == []
+
+    resp = api_client.get(URL, {"group_type": "classroom"}, **_hdr(org.slug))
+    assert {g["name"] for g in resp.json()["groups"]} == {"Grade 1"}
+
+
 def test_uh_supervision_only_sees_bunk_and_parent_unit(
     api_client, org, program, unit_and_bunks,
 ):
