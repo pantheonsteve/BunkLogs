@@ -139,7 +139,7 @@ describe('GroupDashboardPage', () => {
     ['unit_head', '/unit-head'],
     ['counselor', '/counselor'],
     ['leadership_team', '/leadership-team'],
-    ['admin', '/groups/performance?date=2026-07-04'],
+    ['admin', '/admin/home?date=2026-07-04&group_type=bunk'],
   ])('routes the back link to %s home when role_context.role is %s', async (role, expectedHref) => {
     getMock.mockResolvedValueOnce({ data: bunkPayload(role) });
     renderAt('/dashboards/group/11');
@@ -183,20 +183,20 @@ describe('GroupDashboardPage', () => {
     expect(backLink).toHaveAttribute('href', '/camper-care?date=2026-06-30');
   });
 
-  it('routes admin back link to performance dashboard preserving date', async () => {
-    getMock.mockResolvedValueOnce({ data: bunkPayload('admin') });
-    renderAt('/dashboards/group/11?date=2026-06-03');
+  it('routes admin back link to home preserving date and group type', async () => {
+    getMock.mockResolvedValueOnce({ data: classroomPayload('admin') });
+    renderAt('/dashboards/group/192?date=2026-06-03');
     const backLink = await screen.findByRole('link', { name: /back/i });
-    expect(backLink).toHaveAttribute('href', '/groups/performance?date=2026-06-03');
+    expect(backLink).toHaveAttribute('href', '/admin/home?date=2026-06-03&group_type=classroom');
   });
 
-  it('routes admin back link preserving program and past tab', async () => {
+  it('routes admin back link preserving program and past period', async () => {
     getMock.mockResolvedValueOnce({ data: bunkPayload('admin') });
     renderAt('/dashboards/group/11?date=2026-06-03&program=2&tab=past');
     const backLink = await screen.findByRole('link', { name: /back/i });
     expect(backLink).toHaveAttribute(
       'href',
-      '/groups/performance?date=2026-06-03&program=2&tab=past',
+      '/admin/home?date=2026-06-03&program=2&group_type=bunk&period=past',
     );
   });
 

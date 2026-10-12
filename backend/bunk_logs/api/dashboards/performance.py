@@ -90,6 +90,7 @@ def _performance_response(
     program_options: list[dict],
     selected_program: dict | None,
     groups: list[dict],
+    group_types: list[str] | None = None,
 ) -> dict:
     return {
         "date": target_date.isoformat(),
@@ -97,6 +98,7 @@ def _performance_response(
         "current_program": _current_program(program_options, today),
         "program": selected_program,
         "programs": program_options,
+        "group_types": group_types or [],
         "groups": groups,
     }
 
@@ -160,20 +162,16 @@ class GroupPerformanceDashboardView(APIView):
         today = get_today(org)
         target_date = _parse_date(request.query_params.get("date"), today)
 
-        groups_qs = AssignmentGroup.objects.filter(
+        org_groups_qs = AssignmentGroup.objects.filter(
             organization=org,
             is_active=True,
         ).select_related("parent", "program")
 
-        group_type = (request.query_params.get("group_type") or "").strip()
-        if group_type:
-            groups_qs = groups_qs.filter(group_type=group_type)
-
         program_filter = (request.query_params.get("program") or "").strip()
 
-        # Resolve program before visibility scoping (visibility is program-scoped).
-        all_program_groups_qs = groups_qs
-        program_options = _program_options_from_qs(all_program_groups_qs)
+        # Program options ignore the group_type filter so an org without the
+        # requested type (e.g. TBE has no bunks) still resolves its current program.
+        program_options = _program_options_from_qs(org_groups_qs)
 
         selected_program = None
         target_program_id = None
@@ -201,7 +199,13 @@ class GroupPerformanceDashboardView(APIView):
             target_program_id = current["id"]
             selected_program = current
 
-        groups_qs = groups_qs.filter(program_id=target_program_id)
+        program_groups_qs = org_groups_qs.filter(program_id=target_program_id)
+        group_types = sorted(set(program_groups_qs.values_list("group_type", flat=True)))
+
+        groups_qs = program_groups_qs
+        group_type = (request.query_params.get("group_type") or "").strip()
+        if group_type:
+            groups_qs = groups_qs.filter(group_type=group_type)
 
         if not is_org_admin(request.user):
             if viewer is None:
@@ -211,6 +215,7 @@ class GroupPerformanceDashboardView(APIView):
                     program_options=program_options,
                     selected_program=selected_program,
                     groups=[],
+                    group_types=group_types,
                 ))
             program_obj = Program.objects.filter(id=target_program_id).first()
             if program_obj is None:
@@ -230,6 +235,9 @@ class GroupPerformanceDashboardView(APIView):
                     selected_program=selected_program,
                     groups=[],
                 ))
+            group_types = sorted(set(
+                program_groups_qs.filter(id__in=visible_ids).values_list("group_type", flat=True),
+            ))
             groups_qs = groups_qs.filter(id__in=visible_ids)
 
         groups = list(groups_qs.order_by("group_type", "name"))
@@ -240,6 +248,7 @@ class GroupPerformanceDashboardView(APIView):
                 program_options=program_options,
                 selected_program=selected_program,
                 groups=[],
+                group_types=group_types,
             ))
 
         group_ids = [g.id for g in groups]
@@ -300,4 +309,5 @@ class GroupPerformanceDashboardView(APIView):
             program_options=program_options,
             selected_program=selected_program,
             groups=result_groups,
+            group_types=group_types,
         ))

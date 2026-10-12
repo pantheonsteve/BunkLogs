@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import GroupPerformanceCard from './GroupPerformanceCard';
@@ -71,10 +71,14 @@ function defaultDateForPastProgram(program, today) {
   return program.end_date < today ? program.end_date : today;
 }
 
-export default function PerformanceDashboard({ embedded = false }) {
+export default function PerformanceDashboard({ embedded = false, programId = '' }) {
+  // Admin home already uses `?tab=` for its section tabs. Embedded mode
+  // keeps Current/Past on `period` so the two don't overwrite each other.
+  const periodKey = embedded ? 'period' : 'tab';
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab') || 'current';
+  const tabParam = searchParams.get(periodKey) || 'current';
   const dateParam = searchParams.get('date') || '';
+  const groupTypeExplicit = searchParams.has('group_type');
   const groupTypeParam = searchParams.get('group_type') ?? 'bunk';
   const programParam = searchParams.get('program') || '';
 
@@ -83,18 +87,23 @@ export default function PerformanceDashboard({ embedded = false }) {
   // "today" (rollover-aware). Browser ``todayIso()`` can be ahead of
   // that before the 04:00 camp rollover and breaks group-dashboard links.
   const groupType = groupTypeParam;
-  const program = programParam;
+  // On the admin home the program is chosen before it lands in the URL.
+  // Use that id for the current view so the first request is not unscoped.
+  // Past mode still honors an explicit empty program so the picker can show.
+  const program = programParam || (embedded && tab === 'current' ? programId : '');
 
   const [programOptions, setProgramOptions] = useState([]);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const requestSeq = useRef(0);
+  const programOptionsRef = useRef([]);
 
   const syncParams = useCallback((next) => {
     const params = new URLSearchParams(searchParams);
     if (next.tab !== undefined) {
-      if (next.tab === 'past') params.set('tab', 'past');
-      else params.delete('tab');
+      if (next.tab === 'past') params.set(periodKey, 'past');
+      else params.delete(periodKey);
     }
     if (next.date) params.set('date', next.date);
     else if (next.date === '') params.delete('date');
@@ -107,45 +116,65 @@ export default function PerformanceDashboard({ embedded = false }) {
       else params.delete('program');
     }
     setSearchParams(params, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, periodKey]);
 
   const shouldFetchGroups = tab === 'current' || (tab === 'past' && program);
 
   const load = useCallback(async () => {
-    if (!shouldFetchGroups && programOptions.length > 0) return;
+    if (!shouldFetchGroups && programOptionsRef.current.length > 0) return;
 
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     try {
       const { data } = await api.get('/api/v1/dashboards/groups/performance/', {
         params: {
-          group_type: groupType || undefined,
+          // "bunk" is only the select's placeholder. Sending it before the
+          // org's types are known returns an empty list and a slower copy
+          // of that response can wipe the real groups.
+          group_type: groupTypeExplicit ? (groupType || undefined) : undefined,
           program: program || undefined,
           date: dateParam || undefined,
         },
       });
+      if (seq !== requestSeq.current) return;
       setPayload(data);
-      if (Array.isArray(data.programs)) setProgramOptions(data.programs);
+      if (Array.isArray(data.programs)) {
+        programOptionsRef.current = data.programs;
+        setProgramOptions(data.programs);
+      }
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       const status = e.response?.status;
       if (status === 403) setError('access');
       else setError(e.response?.data?.detail || e.message || 'Failed to load performance data');
       setPayload(null);
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
-  }, [groupType, program, dateParam, shouldFetchGroups, programOptions.length]);
+  }, [groupType, groupTypeExplicit, program, dateParam, shouldFetchGroups]);
 
   useEffect(() => {
     load();
+    return () => {
+      requestSeq.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
-    if (!payload || tab !== 'current' || program) return;
-    if (payload.current_program?.id) {
-      syncParams({ program: String(payload.current_program.id) });
+    if (!payload) return;
+    const next = {};
+    if (tab === 'current' && !program && payload.current_program?.id) {
+      next.program = String(payload.current_program.id);
     }
-  }, [payload, tab, program, syncParams]);
+    // Orgs without bunks (e.g. TBE classrooms) fall back to a type they have.
+    const available = payload.group_types ?? [];
+    if (!groupTypeExplicit && available.length > 0 && !available.includes(groupType)) {
+      const fallback = GROUP_TYPES.find((g) => g.value && available.includes(g.value));
+      if (fallback) next.group_type = fallback.value;
+    }
+    if (Object.keys(next).length > 0) syncParams(next);
+  }, [payload, tab, program, groupType, groupTypeExplicit, syncParams]);
 
   const orgToday = payload?.today ?? null;
   const effectiveDate = dateParam || payload?.date || orgToday || '';
@@ -300,7 +329,7 @@ export default function PerformanceDashboard({ embedded = false }) {
         </div>
       </header>
 
-      {loading && <p className="text-gray-500 dark:text-gray-400 text-sm">Loading…</p>}
+      {loading && !payload && <p className="text-gray-500 dark:text-gray-400 text-sm">Loading…</p>}
 
       {!loading && error === 'access' && (
         <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-4 text-amber-900 dark:text-amber-100 text-sm">
@@ -371,7 +400,7 @@ export default function PerformanceDashboard({ embedded = false }) {
         </>
       )}
 
-      {!loading && payload && showGroups && (
+      {payload && showGroups && (
         <>
           {tab === 'past' && program && (
             <button
