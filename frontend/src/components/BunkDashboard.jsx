@@ -7,9 +7,9 @@
  * here via `GroupDashboardPage`, which resolves the caller's role from
  * `role_context` and feeds the right `backTo` / camper-dashboard paths.
  *
- * Layout mirrors the production bunk page: header (name, date, counselors,
- * completion, view-only) → three attention summary cards (Not on Camp /
- * Unit Head Help / Camper Care Help) → Camper Daily Scores grid → Orders &
+ * Layout matches the Unit Head home (8_5): header (day stepper, name,
+ * counselors, logs progress, view-only) → three attention cards (Unit Head
+ * help / Camper Care help / Not on camp) → Camper Daily Scores grid → Orders &
  * Tickets → Notes (single chronological stream). On the unified group
  * dashboard page the score grid is omitted and orders/notes render after
  * template responses instead (see ``GroupDashboardPage``).
@@ -17,10 +17,15 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Hand, HeartHandshake, LogOut } from 'lucide-react';
 import { groupDashboardLink, observationThreadLink, profileLink } from '../utils/dashboardLinks';
 import { sensitivityAudience } from '../api/observations';
+import AttentionCard from './ui/AttentionCard';
 import Badge from './ui/Badge';
+import Card from './ui/Card';
+import DayStepper from './ui/DayStepper';
 import ScoreGrid from './ScoreGrid';
+import SupervisorHeading from './supervisor/SupervisorHeading';
 import CounselorSelfReflectionsList, { counselorSelfReflectionSummary } from './CounselorSelfReflectionsList';
 
 // Field types kept as grid columns. Triage single_choice/yes-no fields
@@ -41,74 +46,33 @@ function camperDisplayName(c) {
 
 function SectionCard({ title, count, action, children, testid, state = 'populated' }) {
   return (
-    <section
-      data-testid={testid}
-      data-state={state}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
-    >
-      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 pt-4 pb-3">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+    <Card as="section" data-testid={testid} data-state={state}>
+      <div className="flex items-center justify-between gap-2 px-5 pt-5 pb-3">
+        <h2 className="text-base font-bold text-ink">
           {title}
           {(typeof count === 'number' || typeof count === 'string') && (
-            <span className="ml-2.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span className="ml-2.5 text-[13px] font-medium text-muted">
               {count}
             </span>
           )}
         </h2>
         {action}
       </div>
-      <div className="px-4 sm:px-5 pb-5">{children}</div>
-    </section>
+      <div className="px-5 pb-5">{children}</div>
+    </Card>
   );
 }
 
-const SUMMARY_TONES = {
-  slate: { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
-  amber: { dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
-  rose: { dot: 'bg-rose-500', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
-};
-
-// Sits on a light card, so it keeps bg-green-50 rather than the bg-green-100
-// the semantic `ok` tone uses.
-const COMPLETION_PILL = 'border border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/30 dark:text-green-300';
-
-function SummaryCard({ title, tone, people, bunkLabel, toProfile, testid }) {
-  const t = SUMMARY_TONES[tone] || SUMMARY_TONES.slate;
+function SummaryCard({ title, icon, tone, people, bunkLabel, toProfile, testid }) {
   return (
-    <div
+    <AttentionCard
       data-testid={testid}
-      data-count={people.length}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4"
-    >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-          <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} aria-hidden="true" />
-          {title}
-        </span>
-        <Badge colors={t.badge} className="font-bold">
-          {people.length}
-        </Badge>
-      </div>
-      {people.length === 0 ? (
-        <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">None today.</p>
-      ) : (
-        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-          {people.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-              <Link
-                to={toProfile(p.id)}
-                className="font-medium text-gray-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
-              >
-                {p.name}
-              </Link>
-              {bunkLabel && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{bunkLabel}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      title={title}
+      icon={icon}
+      tone={tone}
+      maxRows={Math.max(people.length, 3)}
+      rows={people.map((p) => ({ ...p, where: bunkLabel, to: toProfile(p.id) }))}
+    />
   );
 }
 
@@ -598,88 +562,68 @@ export default function BunkDashboard({
   return (
     <div
       data-testid="bunk-dashboard"
-      className={`px-4 sm:px-6 lg:px-8 pt-8 ${showOrders || showNotes ? 'pb-8' : 'pb-0'} w-full max-w-[80rem] mx-auto space-y-5`}
+      className={`px-4 sm:px-6 lg:px-8 pt-6 ${showOrders || showNotes ? 'pb-8' : 'pb-0'} w-full max-w-[80rem] mx-auto space-y-6`}
     >
-      <header className="space-y-3">
-        <Link to={backTo} className="text-sm font-semibold text-blue-700 dark:text-blue-300 hover:underline">
-          ← Back
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {data?.header?.bunk?.name}
-            </h1>
-            {resolvedProgramName && (
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {resolvedProgramName}
-              </p>
-            )}
-            {data?.header?.bunk?.unit_name && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {data.header.bunk.unit_name}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {completion.expected > 0 && (
-              <Badge
-                data-testid="bunk-completion"
-                size="md"
-                colors={COMPLETION_PILL}
-                className="font-semibold"
-              >
-                {completion.submitted} of {completion.expected} reflections submitted
-              </Badge>
-            )}
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300">
-              View only
-            </span>
-          </div>
+      <header className="space-y-5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <Link to={backTo} className="text-sm font-semibold text-brand hover:text-brand-hover">
+            ← Back
+          </Link>
+          <DayStepper
+            selectedIso={selectedDate || date || ''}
+            todayIso={today}
+            onChange={(iso) => onDateChange?.(iso)}
+            testIdPrefix="bunk-dashboard"
+            className="w-full sm:w-auto sm:min-w-[320px]"
+          />
+          <Badge size="md" className="sm:ml-auto font-semibold border border-line bg-white dark:bg-gray-900 text-ink-2">
+            View only
+          </Badge>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <label className="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-2">
-            <span>Date:</span>
-            <input
-              type="date"
-              value={selectedDate || date || ''}
-              max={today}
-              onChange={(e) => onDateChange?.(e.target.value)}
-              data-testid="bunk-dashboard-date"
-              className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-sm"
-            />
-          </label>
-          {data?.header?.counselor_names?.length > 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Counselors: {data.header.counselor_names.join(' · ')}
-            </p>
-          )}
-        </div>
+        <SupervisorHeading
+          eyebrow={data?.header?.bunk?.unit_name}
+          title={data?.header?.bunk?.name}
+          summary={[
+            resolvedProgramName,
+            data?.header?.counselor_names?.length > 0
+              ? `Counselors ${data.header.counselor_names.join(' · ')}`
+              : null,
+          ].filter(Boolean).join(' · ')}
+          progressLabel={!selectedDate || selectedDate === today ? 'Logs today' : 'Logs'}
+          done={completion.submitted}
+          total={completion.expected}
+          progressText={`${completion.submitted} of ${completion.expected} reflections submitted`}
+          progressTestId="bunk-completion"
+        />
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
         <SummaryCard
-          title="Not on Camp"
-          tone="slate"
-          people={notOnCamp}
-          bunkLabel={data?.header?.bunk?.name}
-          toProfile={toProfile}
-          testid="card-not-on-camp"
-        />
-        <SummaryCard
-          title="Unit Head Help Requested"
-          tone="amber"
+          title="Unit Head help requested"
+          icon={Hand}
+          tone="warn"
           people={uhHelp}
           bunkLabel={data?.header?.bunk?.name}
           toProfile={toProfile}
           testid="card-uh-help"
         />
         <SummaryCard
-          title="Camper Care Help"
-          tone="rose"
+          title="Camper Care help requested"
+          icon={HeartHandshake}
+          tone="danger"
           people={camperCareHelp}
           bunkLabel={data?.header?.bunk?.name}
           toProfile={toProfile}
           testid="card-cc-help"
+        />
+        <SummaryCard
+          title="Not on camp"
+          icon={LogOut}
+          tone="neutral"
+          people={notOnCamp}
+          bunkLabel={data?.header?.bunk?.name}
+          toProfile={toProfile}
+          testid="card-not-on-camp"
         />
       </div>
 

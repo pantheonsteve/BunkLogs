@@ -14,8 +14,6 @@ import {
   ArrowRight,
   Check,
   CheckCircle,
-  ChevronLeft,
-  ChevronRight,
   ClipboardList,
   Flag,
   HeartHandshake,
@@ -31,6 +29,7 @@ import { fetchCamperReflections, fetchCounselorDashboard } from '../../api/couns
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import DayStepper from '../../components/ui/DayStepper';
 import InitialsAvatar from '../../components/ui/InitialsAvatar';
 import ProgressBar from '../../components/ui/ProgressBar';
 import { SUBMISSION_KIND } from '../../lib/submissionQueue/queue';
@@ -63,32 +62,6 @@ const REQUEST_STATUS_TONE = {
 };
 
 const SECTION_HEADING = 'text-[13px] font-bold uppercase tracking-wider text-ink-2';
-
-function parseIso(iso) {
-  const parsed = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function shiftIso(iso, days) {
-  const d = parseIso(iso);
-  if (!d) return iso;
-  d.setDate(d.getDate() + days);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
-function formatStepperDate(iso) {
-  const d = iso ? parseIso(iso) : null;
-  if (!d) return iso || '';
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-}
-
-function relativeDayLabel(selectedIso, todayIso) {
-  if (!selectedIso || !todayIso || selectedIso === todayIso) return 'Today';
-  if (shiftIso(todayIso, -1) === selectedIso) return 'Yesterday';
-  return 'Past day · read-only';
-}
 
 function formatRelative(iso) {
   if (!iso) return '';
@@ -150,50 +123,6 @@ function buildCamperRows(rosterBunk, { pendingIds, date, editable }) {
     to: null,
   }));
   return [...rows, ...offCamp];
-}
-
-function DayStepper({ selectedIso, todayIso, onChange, refreshing }) {
-  const atToday = !selectedIso || !todayIso || selectedIso >= todayIso;
-  const stepBtn =
-    'w-11 h-11 shrink-0 rounded-[10px] flex items-center justify-center bg-line-soft text-ink hover:bg-line disabled:bg-transparent disabled:text-muted/50 disabled:cursor-not-allowed transition-colors';
-  return (
-    <div className="flex items-center gap-1.5" data-testid="counselor-day-stepper">
-      <button
-        type="button"
-        aria-label="Previous day"
-        className={stepBtn}
-        onClick={() => onChange(shiftIso(selectedIso, -1))}
-        data-testid="counselor-day-prev"
-      >
-        <ChevronLeft className="w-[18px] h-[18px]" aria-hidden="true" />
-      </button>
-      <label className="relative flex-1 text-center min-h-11 flex flex-col justify-center cursor-pointer">
-        <span className="text-[17px] font-bold text-ink">{formatStepperDate(selectedIso)}</span>
-        <span className="text-xs text-muted">
-          {refreshing ? 'Refreshing…' : relativeDayLabel(selectedIso, todayIso)}
-        </span>
-        <input
-          type="date"
-          aria-label="Pick a date"
-          value={selectedIso}
-          max={todayIso}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer"
-          data-testid="counselor-date-picker"
-        />
-      </label>
-      <button
-        type="button"
-        aria-label="Next day"
-        className={stepBtn}
-        disabled={atToday}
-        onClick={() => onChange(shiftIso(selectedIso, 1))}
-        data-testid="counselor-day-next"
-      >
-        <ChevronRight className="w-[18px] h-[18px]" aria-hidden="true" />
-      </button>
-    </div>
-  );
 }
 
 function BunkHeroCard({ bunk, rows, editable, rosterCovered, rosterTotal }) {
@@ -729,6 +658,7 @@ export default function CounselorMobileDashboard() {
           todayIso={data.today}
           onChange={handleDateChange}
           refreshing={refreshing}
+          testIdPrefix="counselor"
         />
       </header>
 

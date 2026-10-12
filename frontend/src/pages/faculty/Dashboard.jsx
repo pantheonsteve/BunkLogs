@@ -1,29 +1,35 @@
 /**
- * Faculty (TBE) home — Step 7_24.
+ * Faculty (TBE) home (2027 refresh, 8_5) — the school version of the Unit
+ * Head home.
  *
- * One card per classroom this faculty member authors, each showing the
- * three signals they act on: weekly 3-2-1 completion, the next Sunday's
- * availability, and open challenges. Cards link to the classroom's full
- * dashboard at /dashboards/group/:id.
- *
- * `reflections` is null when the Director hasn't assigned a weekly
- * template yet, and `availability` is null off-season — both are
- * rendered as explanatory copy rather than a misleading zero.
- *
- * Above the supervision cards sits the faculty member's own work, fed by
- * the shared tasks panel — everything below it is about other people.
+ * Own tasks first, then three attention cards (questions routed to me, open
+ * classroom challenges aged by session date, who is out next session), a
+ * classroom card grid, and the selected classroom's roster. Nouns come from
+ * org terminology. `reflections` is null when no weekly template is
+ * assigned and `availability` is null off-season; both render as copy, not
+ * a misleading zero.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Flag, LogOut, MessageCircleQuestion } from 'lucide-react';
 import { fetchFacultyDashboard, fetchFacultyRoster } from '../../api/faculty';
+import { fetchFacultyChallenges } from '../../api/facultyChallenges';
 import { useAuth } from '../../auth/AuthContext';
 import { useTerm } from '../../context/OrgBrandingContext';
-import CardSkeleton from '../../components/ui/CardSkeleton';
+import AttentionCard from '../../components/ui/AttentionCard';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 import HomeCard from '../../components/ui/HomeCard';
 import UnreadDot from '../../components/ui/UnreadDot';
+import GroupCard from '../../components/supervisor/GroupCard';
+import SupervisorHeading from '../../components/supervisor/SupervisorHeading';
 import ReflectionTasksPanel from '../../partials/tasks/ReflectionTasksPanel';
 import { statusMeta } from '../../utils/availabilityStatus';
+
+const AGING_AFTER_DAYS = 7;
+const OVERDUE_AFTER_DAYS = 14;
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -33,117 +39,41 @@ function formatDate(iso) {
   });
 }
 
-function Stat({ label, value, hint, testId }) {
-  return (
-    <div data-testid={testId}>
-      <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        {label}
-      </p>
-      <p className="text-lg font-semibold text-gray-900 dark:text-white">{value}</p>
-      {hint && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p>
-      )}
-    </div>
-  );
-}
-
-function ClassroomCard({ classroom }) {
-  const {
-    id, name, url, subject_count: subjectCount,
-    reflections, availability, open_challenge_count: openChallenges,
-  } = classroom;
-
-  return (
-    <section
-      aria-label={name}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-      data-testid={`fac-classroom-${id}`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            {name}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {subjectCount} {subjectCount === 1 ? 'Madrich' : 'Madrichim'}
-          </p>
-        </div>
-        {openChallenges > 0 && (
-          <span
-            className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
-            data-testid={`fac-classroom-${id}-challenges`}
-          >
-            {openChallenges} open {openChallenges === 1 ? 'challenge' : 'challenges'}
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        {reflections ? (
-          <Stat
-            label="This week's reflections"
-            value={`${reflections.submitted} of ${reflections.expected}`}
-            hint={reflections.template_name}
-            testId={`fac-classroom-${id}-reflections`}
-          />
-        ) : (
-          <Stat
-            label="This week's reflections"
-            value="—"
-            hint="No weekly form assigned yet"
-            testId={`fac-classroom-${id}-reflections`}
-          />
-        )}
-        {availability ? (
-          <Stat
-            label={`Next session (${formatDate(availability.date)})`}
-            value={`${availability.available} available`}
-            hint={
-              availability.unset > 0
-                ? `${availability.unset} haven't answered`
-                : 'Everyone has answered'
-            }
-            testId={`fac-classroom-${id}-availability`}
-          />
-        ) : (
-          <Stat
-            label="Next session"
-            value="—"
-            hint="No upcoming sessions scheduled"
-            testId={`fac-classroom-${id}-availability`}
-          />
-        )}
-      </div>
-
-      <Link
-        to={url || `/dashboards/group/${id}`}
-        className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors"
-        data-testid={`fac-classroom-${id}-cta`}
-      >
-        Open classroom
-      </Link>
-    </section>
-  );
+function titleCase(s) {
+  return String(s || '').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const ESCALATION = {
   overdue: {
     label: 'Two weeks waiting',
+    tone: 'danger',
     pill: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
   },
   aging: {
     label: 'A week waiting',
+    tone: 'warn',
     pill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   },
   fresh: {
     label: 'This week',
+    tone: 'neutral',
     pill: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
   },
 };
 
+function escalationForDate(sessionIso, todayIso) {
+  if (!sessionIso || !todayIso) return 'fresh';
+  const days = Math.round(
+    (new Date(`${todayIso}T00:00:00`) - new Date(`${sessionIso}T00:00:00`)) / 86_400_000,
+  );
+  if (days >= OVERDUE_AFTER_DAYS) return 'overdue';
+  if (days >= AGING_AFTER_DAYS) return 'aging';
+  return 'fresh';
+}
+
 /**
  * A routed question is escalated by age, not recency (§5.1). The failure this
- * card exists to prevent is a question sitting unanswered for three weeks, so
+ * row exists to prevent is a question sitting unanswered for three weeks, so
  * the oldest one is always on top and its age is stated in words.
  */
 export function QueueRow({ item }) {
@@ -176,157 +106,120 @@ export function QueueRow({ item }) {
   );
 }
 
-function ResponseQueueCard({ queue }) {
-  const items = queue?.items || [];
-  const total = queue?.total ?? 0;
-  const overdue = queue?.overdue_count ?? 0;
-
+function ClassroomDetail({ classroom, rows, roster, forwardRef }) {
+  const term = useTerm();
+  const subjectsTitle = titleCase(term('camper', { plural: true }));
   return (
-    <HomeCard
-      title="Waiting on you"
-      subtitle={
-        total === 0
-          ? 'No questions are waiting for a reply.'
-          : `${total} question${total === 1 ? '' : 's'} routed to you, oldest first`
-      }
-      badge={overdue > 0 && (
-        <span
-          className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
-          data-testid="fac-queue-overdue"
-        >
-          {overdue} overdue
-        </span>
-      )}
-      action={total > items.length && (
-        <Link
-          to={queue?.url || '/faculty/queue'}
-          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          data-testid="fac-queue-link"
-        >
-          View all →
-        </Link>
-      )}
-      data-testid="fac-queue-card"
-    >
-      {items.length > 0 && (
-        <ul className="space-y-2" data-testid="fac-queue-list">
-          {items.map((item) => <QueueRow key={item.id} item={item} />)}
-        </ul>
-      )}
-    </HomeCard>
-  );
-}
-
-function RosterCard() {
-  const { orgSlug } = useAuth();
-  const [roster, setRoster] = useState(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetchFacultyRoster(orgSlug)
-      .then((data) => { if (active) setRoster(data); })
-      .catch(() => { if (active) setFailed(true); });
-    return () => { active = false; };
-  }, [orgSlug]);
-
-  if (failed) return null;
-  if (!roster) return <CardSkeleton rows={4} data-testid="fac-roster-loading" />;
-
-  const rows = roster.results || [];
-  if (rows.length === 0) return null;
-
-  return (
-    <HomeCard
-      title="My Madrichim"
-      subtitle={
-        roster.period
-          ? `Week of ${roster.period.start} – ${roster.period.end}`
-          : `${rows.length} in your classrooms`
-      }
+    <Card
+      as="section"
+      ref={forwardRef}
+      aria-labelledby="fac-detail"
+      className="px-[22px] py-5 flex flex-col gap-3.5 scroll-mt-4"
       data-testid="fac-roster-card"
     >
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            <th className="font-normal pb-2 pr-3">Madrich</th>
-            <th className="font-normal pb-2 px-2">Reflection</th>
-            <th className="font-normal pb-2 px-2" data-testid="fac-roster-availability-header">
-              Availability
-              {roster.next_session && (
-                <span className="block normal-case tracking-normal text-gray-400 dark:text-gray-500">
-                  {formatDate(roster.next_session)}
-                </span>
-              )}
-            </th>
-            <th className="font-normal pb-2 pl-2 w-16">
-              <span className="sr-only">Open reflection</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const meta = statusMeta(row.next_session_availability || 'unset');
-            return (
-              <tr
-                key={row.person_id}
-                className="align-middle border-t border-gray-200 dark:border-gray-600 odd:bg-gray-50 dark:odd:bg-gray-700/40"
-              >
-                <td className="py-3 pr-3 first:pl-2">
-                  <span className="inline-flex items-center gap-2">
-                    <Link
-                      to={`/faculty/roster/${row.person_id}`}
-                      className="text-sm text-gray-900 dark:text-white hover:underline"
-                      data-testid={`fac-roster-row-${row.person_id}`}
-                    >
-                      {row.display_name}
-                      {typeof row.grade_level === 'number' && (
-                        <span className="text-gray-500 dark:text-gray-400"> · Grade {row.grade_level}</span>
-                      )}
-                    </Link>
-                    <UnreadDot
-                      count={row.unread_thread_count}
-                      label={`${row.unread_thread_count} unread`}
-                    />
-                  </span>
-                </td>
-                <td className="py-3 px-2">
-                  {row.reflection_state && (
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        row.reflection_state === 'complete'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
-                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
-                      }`}
-                      data-testid={`fac-roster-state-${row.person_id}`}
-                    >
-                      {row.reflection_state === 'complete' ? 'Submitted' : 'Not yet'}
-                    </span>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 id="fac-detail" className="text-base font-bold text-ink">
+            {classroom.name} · {subjectsTitle}
+          </h2>
+          <p className="text-[13px] text-muted mt-0.5">
+            {roster?.period
+              ? `Week of ${roster.period.start} – ${roster.period.end}`
+              : `${rows.length} in this ${term('bunk')}`}
+            {classroom.reflections
+              ? ` · ${classroom.reflections.submitted} of ${classroom.reflections.expected} reflections in`
+              : ''}
+          </p>
+        </div>
+        <Button
+          as={Link}
+          variant="secondary"
+          size="sm"
+          className="min-h-9 text-[13px]"
+          to={classroom.url || `/dashboards/group/${classroom.id}`}
+          data-testid={`fac-classroom-${classroom.id}-cta`}
+        >
+          Open full dashboard
+        </Button>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-[13px] text-muted">{`No ${term('camper', { plural: true })} on this roster yet.`}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted">
+                <th scope="col" className="font-semibold py-1 pr-3">{titleCase(term('camper'))}</th>
+                <th scope="col" className="font-semibold py-1 px-2">Reflection</th>
+                <th scope="col" className="font-semibold py-1 px-2" data-testid="fac-roster-availability-header">
+                  Availability
+                  {roster?.next_session && (
+                    <span className="block font-normal text-muted">{formatDate(roster.next_session)}</span>
                   )}
-                </td>
-                <td className="py-3 px-2">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.pill}`}>
-                    {meta.label}
-                  </span>
-                </td>
-                <td className="py-3 pl-2">
-                  {row.reflection_id && (
-                    <Link
-                      to={`/reflections/${row.reflection_id}?returnTo=${encodeURIComponent('/faculty')}`}
-                      className="inline-flex items-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-2.5 py-1 transition-colors"
-                      data-testid={`fac-roster-open-${row.person_id}`}
-                      aria-label={`Open ${row.display_name}'s reflection`}
-                    >
-                      Open
-                    </Link>
-                  )}
-                </td>
+                </th>
+                <th scope="col" className="font-semibold py-1 px-2">Challenges</th>
+                <th scope="col" className="py-1 pl-2 w-16"><span className="sr-only">Open reflection</span></th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </HomeCard>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const meta = statusMeta(row.next_session_availability || 'unset');
+                return (
+                  <tr key={row.person_id} className="border-t border-line-soft align-middle">
+                    <td className="py-2.5 pr-3">
+                      <span className="inline-flex items-center gap-2">
+                        <Link
+                          to={`/faculty/roster/${row.person_id}`}
+                          className="font-semibold text-ink hover:underline"
+                          data-testid={`fac-roster-row-${row.person_id}`}
+                        >
+                          {row.display_name}
+                          {typeof row.grade_level === 'number' && (
+                            <span className="font-normal text-muted"> · Grade {row.grade_level}</span>
+                          )}
+                        </Link>
+                        <UnreadDot count={row.unread_thread_count} label={`${row.unread_thread_count} unread`} />
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      {row.reflection_state && (
+                        <Badge
+                          tone={row.reflection_state === 'complete' ? 'ok' : 'warn'}
+                          data-testid={`fac-roster-state-${row.person_id}`}
+                        >
+                          {row.reflection_state === 'complete' ? 'Submitted' : 'Not yet'}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <Badge colors={meta.pill}>{meta.label}</Badge>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      {row.open_challenge_count > 0
+                        ? <Badge tone="danger">{row.open_challenge_count} open</Badge>
+                        : <span className="text-muted">—</span>}
+                    </td>
+                    <td className="py-2.5 pl-2">
+                      {row.reflection_id && (
+                        <Button
+                          as={Link}
+                          size="sm"
+                          to={`/reflections/${row.reflection_id}?returnTo=${encodeURIComponent('/faculty')}`}
+                          data-testid={`fac-roster-open-${row.person_id}`}
+                          aria-label={`Open ${row.display_name}'s reflection`}
+                        >
+                          Open
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -375,27 +268,26 @@ function UpcomingSessionsCard({ classrooms }) {
 function NoClassroomsCard() {
   const term = useTerm();
   return (
-    <section
-      aria-label="My classrooms"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-      data-testid="fac-no-classrooms"
-    >
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-        No classrooms yet
-      </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        {`You aren't assigned to a classroom yet. The ${term('director')} `
+    <Card as="section" aria-label={`My ${term('bunk', { plural: true })}`} className="p-5" data-testid="fac-no-classrooms">
+      <h2 className="text-base font-bold text-ink mb-1">{`No ${term('bunk', { plural: true })} yet`}</h2>
+      <p className="text-sm text-muted">
+        {`You aren't assigned to a ${term('bunk')} yet. The ${term('director')} `
           + 'sets this up when the roster is imported.'}
       </p>
-    </section>
+    </Card>
   );
 }
 
 export default function FacultyDashboard() {
   const { orgSlug } = useAuth();
+  const term = useTerm();
   const [dashboard, setDashboard] = useState(null);
+  const [roster, setRoster] = useState(null);
+  const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const detailRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -415,22 +307,32 @@ export default function FacultyDashboard() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    fetchFacultyRoster(orgSlug)
+      .then((data) => { if (active) setRoster(data); })
+      .catch(() => { if (active) setRoster(null); });
+    fetchFacultyChallenges(orgSlug, { status: 'open' })
+      .then((data) => { if (active) setChallenges(data?.results || []); })
+      .catch(() => { if (active) setChallenges([]); });
+    return () => { active = false; };
+  }, [orgSlug]);
+
+  const rosterRows = useMemo(() => roster?.results || [], [roster]);
+
   if (loading) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="fac-loading">
-        <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[1240px] mx-auto" data-testid="fac-loading">
+        <p className="text-muted">Loading…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="fac-error">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
-        <button
-          onClick={load}
-          className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 underline"
-        >
+      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[1240px] mx-auto" data-testid="fac-error">
+        <p className="text-danger-ink">{error}</p>
+        <button onClick={load} className="mt-3 text-sm text-brand underline">
           Retry
         </button>
       </div>
@@ -439,60 +341,149 @@ export default function FacultyDashboard() {
 
   const {
     header, classrooms, challenges_url: challengesUrl,
-    response_queue: responseQueue,
+    response_queue: queue, today,
   } = dashboard;
   const rooms = Array.isArray(classrooms) ? classrooms : [];
-  const totalOpen = rooms.reduce((n, c) => n + (c.open_challenge_count || 0), 0);
+  const roomName = Object.fromEntries(rooms.map((r) => [r.id, r.name]));
+  const subjectTotal = rooms.reduce((n, c) => n + (c.subject_count || 0), 0);
+  const reflDone = rooms.reduce((n, c) => n + (c.reflections?.submitted || 0), 0);
+  const reflTotal = rooms.reduce((n, c) => n + (c.reflections?.expected || 0), 0);
+  const groupWord = (n) => term('bunk', { plural: n !== 1 });
+  const subjectWord = (n) => term('camper', { plural: n !== 1 });
+
+  const queueItems = queue?.items || [];
+  const queueRows = queueItems.map((item) => {
+    const tier = ESCALATION[item.escalation] || ESCALATION.fresh;
+    return {
+      id: item.id,
+      name: item.subject_person?.display_name || 'Unknown',
+      where: item.field_label,
+      age: tier.label,
+      ageTone: tier.tone,
+      to: `/faculty/threads/${item.id}`,
+    };
+  });
+  const challengeRows = challenges.map((c) => {
+    const tier = ESCALATION[escalationForDate(c.session_date, today)];
+    return {
+      id: c.id,
+      name: c.author?.display_name || c.author?.display || 'Unknown',
+      where: c.category_label || c.assignment_group?.name,
+      age: tier.label,
+      ageTone: tier.tone,
+      to: `/faculty/challenges/${c.id}`,
+    };
+  });
+  const outRows = rosterRows
+    .filter((r) => r.next_session_availability === 'unavailable')
+    .map((r) => ({
+      id: r.person_id,
+      name: r.display_name,
+      where: roomName[r.classroom_id],
+      to: `/faculty/roster/${r.person_id}`,
+    }));
+
+  const selected = rooms.find((r) => r.id === selectedId) || rooms[0];
+  const selectRoom = (id) => {
+    setSelectedId(id);
+    detailRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
-      <div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{header?.program_name}</p>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">{header?.name}</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Faculty</p>
-      </div>
+    <div className="px-4 sm:px-6 lg:px-8 pt-7 pb-12 w-full max-w-[1240px] flex flex-col gap-6">
+      <SupervisorHeading
+        eyebrow={[header?.role_label || 'Faculty', header?.name].filter(Boolean).join(' · ')}
+        title={header?.program_name || `My ${term('bunk', { plural: true })}`}
+        summary={`${rooms.length} ${groupWord(rooms.length)} · ${subjectTotal} ${subjectWord(subjectTotal)}`}
+        progressLabel="Reflections this week"
+        done={reflDone}
+        total={reflTotal}
+        progressTestId="fac-reflections-progress"
+      />
 
       <ReflectionTasksPanel variant="embedded" testId="fac-tasks-card" />
 
-      {responseQueue && <ResponseQueueCard queue={responseQueue} />}
+      <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
+        <AttentionCard
+          title="Help from you"
+          icon={MessageCircleQuestion}
+          tone="warn"
+          count={queue?.total ?? queueRows.length}
+          rows={queueRows}
+          emptyText="No questions are waiting for a reply."
+          action={(queue?.total ?? 0) > queueRows.length && (
+            <Link
+              to={queue?.url || '/faculty/queue'}
+              className="text-[13px] font-semibold text-brand hover:text-brand-hover"
+              data-testid="fac-queue-link"
+            >
+              View all →
+            </Link>
+          )}
+          data-testid="fac-queue-card"
+        />
+        <AttentionCard
+          title={`${titleCase(term('bunk'))} challenges`}
+          icon={Flag}
+          tone="danger"
+          rows={challengeRows}
+          emptyText="Nothing needs your attention right now."
+          moreTo={challengesUrl || '/faculty/challenges'}
+          data-testid="fac-challenges-section"
+        />
+        <AttentionCard
+          title={roster?.next_session ? `Out ${formatDate(roster.next_session)}` : 'Out next session'}
+          icon={LogOut}
+          tone="neutral"
+          rows={outRows}
+          emptyText="No one has marked themselves out."
+          data-testid="fac-out-card"
+        />
+      </div>
 
       {rooms.length === 0 ? (
         <NoClassroomsCard />
       ) : (
-        rooms.map((classroom) => (
-          <ClassroomCard key={classroom.id} classroom={classroom} />
-        ))
+        <>
+          <section aria-labelledby="fac-groups" className="flex flex-col gap-3">
+            <h2 id="fac-groups" className="text-base font-bold text-ink">
+              My {term('bunk', { plural: true })}
+            </h2>
+            <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+              {rooms.map((room) => (
+                <GroupCard
+                  key={room.id}
+                  testId={`fac-classroom-${room.id}`}
+                  name={room.name}
+                  staff={[
+                    `${room.subject_count} ${subjectWord(room.subject_count)}`,
+                    room.availability
+                      ? `${room.availability.available} in ${formatDate(room.availability.date)}`
+                      : null,
+                  ].filter(Boolean).join(' · ')}
+                  done={room.reflections?.submitted ?? 0}
+                  total={room.reflections?.expected ?? 0}
+                  noTotalText="No weekly form assigned yet"
+                  flags={room.open_challenge_count || 0}
+                  selected={selected?.id === room.id}
+                  onSelect={() => selectRoom(room.id)}
+                />
+              ))}
+            </div>
+          </section>
+
+          {selected && (
+            <ClassroomDetail
+              classroom={selected}
+              rows={rosterRows.filter((r) => r.classroom_id === selected.id)}
+              roster={roster}
+              forwardRef={detailRef}
+            />
+          )}
+        </>
       )}
 
-      <RosterCard />
-
       <UpcomingSessionsCard classrooms={rooms} />
-
-      <section
-        aria-label="Challenges"
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
-        data-testid="fac-challenges-section"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Challenges
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {totalOpen > 0
-                ? `${totalOpen} open across your classrooms`
-                : 'Nothing needs your attention right now.'}
-            </p>
-          </div>
-          <Link
-            to={challengesUrl || '/faculty/challenges'}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
-            data-testid="fac-challenges-link"
-          >
-            View inbox →
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }
