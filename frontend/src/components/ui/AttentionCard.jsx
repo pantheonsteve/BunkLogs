@@ -61,7 +61,7 @@ export default function AttentionCard({
     <section
       aria-labelledby={headingId}
       data-count={total}
-      className={`flex flex-col gap-2 rounded-[14px] border border-line bg-white dark:bg-gray-900 px-5 py-[18px] ${className}`.trim()}
+      className={`flex flex-col gap-2 rounded-[14px] shadow-card border border-line bg-white dark:bg-gray-900 px-5 py-[18px] ${className}`.trim()}
       {...rest}
     >
       <div className="flex items-center gap-2.5">

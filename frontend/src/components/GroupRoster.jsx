@@ -118,7 +118,7 @@ export default function GroupRoster({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const sectionClass = [
-    'rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40',
+    'rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40',
     compact ? 'px-3 py-2' : 'px-4 py-4 mb-6',
     className,
   ].filter(Boolean).join(' ');

@@ -180,7 +180,7 @@ export default function LeadershipTeamTeamDashboard() {
       </div>
         <section
           aria-label="Submission status"
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+          className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
           data-testid="lt-team-status"
         >
           <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
@@ -272,7 +272,7 @@ export default function LeadershipTeamTeamDashboard() {
               {filteredMembers.map((m) => (
                 <li
                   key={m.membership_id}
-                  className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                   data-testid={`lt-member-row-${m.membership_id}`}
                 >
                   <Link

@@ -24,7 +24,7 @@ function SelfReflectionCard({ selfReflection }) {
     return (
       <section
         aria-label="My reflection"
-        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+        className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
         data-testid="sp-self-reflection-card"
       >
         <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">My reflection</h2>
@@ -41,7 +41,7 @@ function SelfReflectionCard({ selfReflection }) {
   return (
     <section
       aria-label="My reflection"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="sp-self-reflection-card"
     >
       <div className="flex items-center justify-between mb-1">

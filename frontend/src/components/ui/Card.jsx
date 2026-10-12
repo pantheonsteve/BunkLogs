@@ -41,7 +41,7 @@ export function CardBody({ className = '', children, ...rest }) {
 export default function Card({ as: Component = 'div', className = '', children, ...rest }) {
   return (
     <Component
-      className={twMerge('bg-white dark:bg-gray-900 border border-line rounded-[14px]', className)}
+      className={twMerge('bg-white dark:bg-gray-900 border border-line rounded-[14px] shadow-card', className)}
       {...rest}
     >
       {children}

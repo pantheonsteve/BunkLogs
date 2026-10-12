@@ -27,7 +27,7 @@ export default function SupervisorHeading({
       </div>
       {showProgress && (
         <div
-          className="flex items-center gap-3 rounded-xl border border-line bg-white dark:bg-gray-900 px-4 py-2.5"
+          className="flex items-center gap-3 rounded-xl shadow-card border border-line bg-white dark:bg-gray-900 px-4 py-2.5"
           data-testid={progressTestId}
         >
           <span className="text-[13px] text-ink-2">{progressLabel}</span>

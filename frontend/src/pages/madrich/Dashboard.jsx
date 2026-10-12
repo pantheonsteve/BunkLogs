@@ -114,7 +114,7 @@ function AvailabilityCard({ availability }) {
   return (
     <section
       aria-label="My availability"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="md-availability-card"
     >
       <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
@@ -143,7 +143,7 @@ function ReportChallengeCard() {
   return (
     <section
       aria-label="Report a challenge"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="md-challenge-card"
     >
       <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
@@ -168,7 +168,7 @@ function NoAssignmentsCard() {
   return (
     <section
       aria-label="My reflections"
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="md-reflection-card"
     >
       <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
@@ -204,7 +204,7 @@ function ReflectionStatusCard({ card }) {
   return (
     <section
       aria-label={title}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+      className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
       data-testid="md-reflection-card"
     >
       <div className="flex items-center justify-between gap-3 mb-1">
@@ -552,7 +552,7 @@ export default function MadrichDashboard() {
 
         <section
           aria-label="My reflections"
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+          className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
           data-testid="md-history-section"
         >
           <div className="flex items-center justify-between">

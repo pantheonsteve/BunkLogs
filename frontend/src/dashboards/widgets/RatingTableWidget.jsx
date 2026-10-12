@@ -6,7 +6,7 @@ export default function RatingTableWidget({ field, label }) {
   const categories = field?.data?.categories ?? [];
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-5">
+    <div className="rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-5">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">
         {label ?? field?.key}
       </p>

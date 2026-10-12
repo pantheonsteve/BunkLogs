@@ -50,7 +50,7 @@ function ChallengeRow({ challenge }) {
     <li>
       <Link
         to={`/faculty/challenges/${challenge.id}`}
-        className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
+        className="flex items-center justify-between gap-3 rounded-xl shadow-card border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
         data-testid={`faculty-challenge-row-${challenge.id}`}
       >
         <div className="min-w-0">
