@@ -24,6 +24,7 @@ from bunk_logs.api.dashboards.group_dashboard_common import groups_visible_to_vi
 from bunk_logs.api.dashboards.group_roster import build_group_roster
 from bunk_logs.core.assignment_resolution import assignment_cadence
 from bunk_logs.core.assignment_resolution import resolve_members
+from bunk_logs.core.group_audience import group_audience
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -208,6 +209,14 @@ def _date_effective_group_assignments(group_ids: list[int], target_date: date):
 
 
 def _subject_ids_for_template(group, template) -> set[int]:
+    """People a group submission is about.
+
+    Saved group_types uses ``group_audience``. Otherwise the subject
+    seat, narrowed by ``subject_role_filter`` when that filter is set.
+    """
+    audience = group_audience(group.organization, group, template)
+    if audience is not None:
+        return set(audience.subjects)
     subject_ids = set(
         AssignmentGroupMembership.all_objects.filter(
             group=group, role_in_group="subject", is_active=True,
@@ -242,8 +251,9 @@ def _reflections_in_period(group, template, period_start: date, period_end: date
 def _completion_for_assignment(group, assignment, target_date: date):
     """Expected vs submitted for one group assignment in the date's period.
 
-    Self templates: the people ``resolve_members`` says should file
-    (authors and subjects whose membership role matches the template).
+    Self templates: the people ``resolve_members`` says should file.
+    With saved group_types those are the writers; otherwise authors and
+    subjects whose membership role matches the template.
     A submission counts even when it was filed through a role assignment
     and has no group stamped on it.
 

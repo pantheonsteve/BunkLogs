@@ -35,6 +35,7 @@ from django.db.models import IntegerField
 from django.db.models import Q
 from django.db.models import When
 
+from bunk_logs.core.group_audience import group_audience
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -110,11 +111,13 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
       so a deactivated member silently drops.
     * ``tag_group``: dynamic — Memberships whose ``tags`` JSON contains
       the given tag.
-    * ``assignment_group``: dynamic — Memberships whose role is in
-      ``template.author_role_filter`` (or ``template.role`` when that
-      filter is empty) AND who hold an active roster row in the group.
-      Self-reflection templates accept either ``author`` or ``subject``
-      roster rows; roster templates require ``author``.
+    * ``assignment_group``: when the org has saved ``group_types``, the
+      writers from ``group_audience`` (self templates included — each
+      writer is their own subject). Otherwise Memberships whose role is
+      in ``template.author_role_filter`` (or ``template.role`` when that
+      filter is empty) AND who hold an active roster row. Self templates
+      on that legacy path accept ``author`` or ``subject`` rows; other
+      templates require ``author``.
     """
     payload = assignment.target_payload or {}
     base = Membership.all_objects.filter(
@@ -135,16 +138,24 @@ def resolve_members(assignment: TemplateAssignment, as_of: date):
             return base.none()
         return base.filter(tags__contains=[tag])
     if target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
-        group_id = assignment.assignment_group_id
-        if not group_id:
+        group = assignment.assignment_group
+        if group is None:
             return base.none()
         tpl = assignment.template
+        audience = group_audience(assignment.organization, group, tpl)
+        if audience is not None:
+            if not audience.writers or not audience.writer_roles:
+                return base.none()
+            return base.filter(
+                person_id__in=audience.writers,
+                role__in=audience.writer_roles,
+            )
         author_roles = _effective_author_roles(tpl)
         if not author_roles:
             return base.none()
         roster_roles = _assignment_group_membership_roles(tpl)
         member_person_ids = AssignmentGroupMembership.all_objects.filter(
-            group_id=group_id,
+            group_id=group.id,
             role_in_group__in=roster_roles,
             is_active=True,
         ).values_list("person_id", flat=True)
@@ -238,16 +249,19 @@ def _viewer_in_audience(
             tags__contains=[tag],
         ).exists()
     if target_type == TemplateAssignment.TargetType.ASSIGNMENT_GROUP:
-        group_id = assignment.assignment_group_id
-        if not group_id:
+        group = assignment.assignment_group
+        if group is None:
             return False
         tpl = assignment.template
+        audience = group_audience(assignment.organization, group, tpl)
+        if audience is not None:
+            return viewer.id in audience.writers
         author_roles = _effective_author_roles(tpl)
         if not author_roles:
             return False
         roster_roles = _assignment_group_membership_roles(tpl)
         return AssignmentGroupMembership.all_objects.filter(
-            group_id=group_id,
+            group_id=group.id,
             person=viewer,
             role_in_group__in=roster_roles,
             is_active=True,

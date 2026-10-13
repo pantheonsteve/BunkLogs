@@ -137,15 +137,27 @@ def role_allowed(org, role: str) -> bool:
     return role in chosen
 
 
-def group_type_config(org) -> dict[str, dict[str, Any]]:
-    """Resolved group-type map. A saved dict replaces the defaults entirely."""
+def saved_group_type_config(org) -> dict[str, dict[str, Any]] | None:
+    """The saved group-type map, or None when the org has not chosen one.
+
+    None keeps today's placement rules. A saved dict replaces the defaults
+    for every group type, including types the dict leaves out.
+    """
     raw = (getattr(org, "settings", None) or {}).get("group_types")
     if not isinstance(raw, dict) or not raw:
-        return copy.deepcopy(DEFAULT_GROUP_TYPE_CONFIG)
+        return None
     normalized = _normalize_group_types(raw)
     if not normalized:
-        return copy.deepcopy(DEFAULT_GROUP_TYPE_CONFIG)
+        return None
     return normalized
+
+
+def group_type_config(org) -> dict[str, dict[str, Any]]:
+    """Resolved group-type map. A saved dict replaces the defaults entirely."""
+    saved = saved_group_type_config(org)
+    if saved is None:
+        return copy.deepcopy(DEFAULT_GROUP_TYPE_CONFIG)
+    return saved
 
 
 def author_roles_for(org, group_type: str) -> frozenset[str]:

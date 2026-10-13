@@ -25,6 +25,7 @@ from bunk_logs.api.faculty.availability_self import CALENDAR_URL as FACULTY_CALE
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.assignment_resolution import assignment_cadence
 from bunk_logs.core.assignment_resolution import list_required_assignments_for
+from bunk_logs.core.group_audience import group_audience
 from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
@@ -394,6 +395,7 @@ def _roster_subjects_data(
 
 
 def _subjects_by_group(group_ids: list[int]) -> dict[int, list[Person]]:
+    """Subject-seat roster used when the org has not saved group_types."""
     subject_agms = list(
         AssignmentGroupMembership.objects.filter(
             group_id__in=group_ids,
@@ -405,6 +407,35 @@ def _subjects_by_group(group_ids: list[int]) -> dict[int, list[Person]]:
     for sagm in subject_agms:
         subjects_by_group.setdefault(sagm.group_id, []).append(sagm.person)
     return subjects_by_group
+
+
+def _subjects_for_submission(groups, template, organization) -> dict[int, list[Person]]:
+    """People a submission about others is about.
+
+    A saved group_types config uses ``group_audience``. Otherwise the
+    subject seat, same as the Members tab.
+    """
+    if not groups:
+        return {}
+    first = group_audience(organization, groups[0], template)
+    if first is None:
+        return _subjects_by_group([group.id for group in groups])
+
+    ids_by_group = {groups[0].id: set(first.subjects)}
+    wanted = set(first.subjects)
+    for group in groups[1:]:
+        audience = group_audience(organization, group, template)
+        ids = set() if audience is None else set(audience.subjects)
+        ids_by_group[group.id] = ids
+        wanted.update(ids)
+    people = {
+        person.id: person
+        for person in Person.all_objects.filter(pk__in=wanted)
+    }
+    return {
+        group_id: [people[pid] for pid in ids if pid in people]
+        for group_id, ids in ids_by_group.items()
+    }
 
 
 def _tasks_from_required_assignments(
@@ -497,7 +528,7 @@ def _tasks_from_required_assignments(
                 groups = _eligible_groups_for_assignment(assignment, author_agms)
                 if not groups:
                     continue
-                subjects_by_group = _subjects_by_group([g.id for g in groups])
+                subjects_by_group = _subjects_for_submission(groups, tpl, organization)
                 for group in groups:
                     subject_persons = subjects_by_group.get(group.id, [])
                     if not subject_persons:
@@ -1407,18 +1438,24 @@ class ReflectionViewSet(viewsets.ModelViewSet):
                 period_start, period_end = _current_period(today, tpl.cadence)
 
                 if tpl.subject_mode in ("single_subject", "multi_subject"):
-                    total = AssignmentGroupMembership.all_objects.filter(
-                        group=group,
-                        role_in_group="subject",
-                        is_active=True,
-                    ).count()
+                    audience = group_audience(org, group, tpl)
+                    covered_qs = Reflection.all_objects.filter(
+                        template=tpl,
+                        assignment_group=group,
+                        period_start=period_start,
+                        period_end=period_end,
+                    )
+                    if audience is None:
+                        total = AssignmentGroupMembership.all_objects.filter(
+                            group=group,
+                            role_in_group="subject",
+                            is_active=True,
+                        ).count()
+                    else:
+                        total = len(audience.subjects)
+                        covered_qs = covered_qs.filter(subject_id__in=audience.subjects)
                     covered = (
-                        Reflection.all_objects.filter(
-                            template=tpl,
-                            assignment_group=group,
-                            period_start=period_start,
-                            period_end=period_end,
-                        )
+                        covered_qs
                         .values("subject")
                         .distinct()
                         .count()
