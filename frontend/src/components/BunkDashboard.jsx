@@ -27,6 +27,7 @@ import DayStepper from './ui/DayStepper';
 import AdminGroupLink from './AdminGroupLink';
 import GroupLeaders from './GroupLeaders';
 import ScoreGrid from './ScoreGrid';
+import GroupTypeIcon from './GroupTypeIcon';
 import SupervisorHeading from './supervisor/SupervisorHeading';
 import CounselorSelfReflectionsList, { counselorSelfReflectionSummary } from './CounselorSelfReflectionsList';
 
@@ -587,6 +588,7 @@ export default function BunkDashboard({
         </div>
         <SupervisorHeading
           eyebrow={data?.header?.bunk?.unit_name}
+          leading={<GroupTypeIcon type="bunk" />}
           title={data?.header?.bunk?.name}
           summary={[
             resolvedProgramName,

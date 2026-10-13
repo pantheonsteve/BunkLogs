@@ -8,6 +8,7 @@ import ProgressBar from '../ui/ProgressBar';
 export default function SupervisorHeading({
   eyebrow,
   title,
+  leading,
   summary,
   progressLabel = 'Logs today',
   done,
@@ -21,7 +22,10 @@ export default function SupervisorHeading({
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && <p className="text-[13px] font-semibold text-muted">{eyebrow}</p>}
-        <h1 className="mt-1 text-[28px] leading-tight font-bold tracking-tight text-ink">{title}</h1>
+        <div className="mt-1 flex items-center gap-3 min-w-0">
+          {leading}
+          <h1 className="min-w-0 text-[28px] leading-tight font-bold tracking-tight text-ink">{title}</h1>
+        </div>
         {summary && <p className="mt-1.5 text-[15px] text-ink-2">{summary}</p>}
         {children}
       </div>

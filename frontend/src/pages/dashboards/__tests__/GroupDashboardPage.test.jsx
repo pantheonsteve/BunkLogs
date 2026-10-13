@@ -131,6 +131,7 @@ describe('GroupDashboardPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId(testid)).toBeInTheDocument();
       });
+      expect(screen.getByTestId(`group-type-icon-${_type}`)).toBeInTheDocument();
     },
   );
 

@@ -11,6 +11,7 @@
 import { Link } from 'react-router-dom';
 import { groupDashboardLink } from '../utils/dashboardLinks';
 import AdminGroupLink from './AdminGroupLink';
+import GroupTypeIcon from './GroupTypeIcon';
 import GroupLeaders from './GroupLeaders';
 
 export default function DivisionDashboard({
@@ -37,9 +38,12 @@ export default function DivisionDashboard({
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {group.name || 'Division'}
-            </h1>
+            <div className="flex items-center gap-2.5">
+              <GroupTypeIcon type={group.group_type || 'division'} />
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                {group.name || 'Division'}
+              </h1>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Division dashboard · {summary.unit_count || 0} units · {summary.bunk_count || 0} bunks
             </p>
