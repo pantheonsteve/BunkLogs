@@ -53,6 +53,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.templates import ReflectionTemplateSerializer
 from bunk_logs.core import audit
+from bunk_logs.core.form_audience import form_role_filters_error
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import TemplateAssignment
@@ -144,6 +145,13 @@ def _audit_template(*, request, template: ReflectionTemplate, action: str, **ext
         )
 
 
+def _reject_role_filters(org, group_types, author_filter, subject_filter) -> None:
+    """Saved filters may only narrow the roles a group type already seats."""
+    error = form_role_filters_error(org, group_types, author_filter, subject_filter)
+    if error:
+        raise ValidationError(error)
+
+
 # ---------------------------------------------------------------------------
 # List + create
 # ---------------------------------------------------------------------------
@@ -222,6 +230,13 @@ class LeadershipTeamTemplateListCreateView(APIView):
             .first()
         )
         next_version = (existing_version or 0) + 1
+
+        _reject_role_filters(
+            ctx.organization,
+            payload.get("assignment_group_types") or [],
+            payload.get("author_role_filter") or [],
+            payload.get("subject_role_filter") or [],
+        )
 
         tpl = ReflectionTemplate(
             organization=ctx.organization,
@@ -336,6 +351,12 @@ class LeadershipTeamTemplateDetailView(APIView):
     def _create_version(request, old: ReflectionTemplate) -> Response:
         """Bump version + 1, optionally archive old (Story 51 c6)."""
         patch = request.data
+        _reject_role_filters(
+            old.organization,
+            patch.get("assignment_group_types", old.assignment_group_types),
+            patch.get("author_role_filter", old.author_role_filter),
+            patch.get("subject_role_filter", old.subject_role_filter),
+        )
         new_schema = patch.get("schema", old.schema)
         new_languages = patch.get("languages", old.languages)
         try:

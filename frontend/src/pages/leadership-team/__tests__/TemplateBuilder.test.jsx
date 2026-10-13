@@ -167,6 +167,54 @@ describe('TemplateBuilderPage', () => {
     expect(body.assignment_group_types).toEqual([]);
   });
 
+  it('says a self-reflection is about the person filling it out', () => {
+    renderNew();
+    expect(screen.getByTestId('lt-builder-about-self')).toHaveTextContent(
+      'This submission is about the person filling it out.',
+    );
+    expect(screen.queryByTestId('lt-builder-subjects')).not.toBeInTheDocument();
+  });
+
+  it('labels writers and subjects from the group type, and saves only those filters', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        enabled_roles: ['counselor', 'camper', 'leadership_team'],
+        role_catalog: [],
+        group_type_config: {
+          bunk: {
+            enabled: true,
+            members: [
+              { role: 'counselor', placed_as: 'author' },
+              { role: 'camper', placed_as: 'subject' },
+            ],
+          },
+        },
+      },
+    });
+    postMock.mockResolvedValue({ data: { id: 99 } });
+    renderNew();
+    expect(screen.getByRole('option', { name: 'Counselor' })).toHaveValue('counselor');
+    fireEvent.change(screen.getByTestId('lt-builder-subject-mode'), { target: { value: 'single_subject' } });
+    fireEvent.click(screen.getByTestId('lt-builder-group-type-bunk'));
+    await screen.findByTestId('lt-builder-writer-counselor');
+    await waitFor(() => expect(screen.getByTestId('lt-builder-writer-counselor')).toBeChecked());
+    const writer = screen.getByTestId('lt-builder-writer-counselor');
+    expect(writer.closest('label')).toHaveTextContent('Counselor');
+    expect(writer.closest('label')).not.toHaveTextContent(/^counselor$/);
+    expect(screen.getByTestId('lt-builder-subject-camper')).toBeChecked();
+    fireEvent.click(screen.getByTestId('lt-builder-writer-counselor'));
+    fireEvent.change(screen.getByTestId('lt-builder-name'), { target: { value: 'Bunk daily' } });
+    fireEvent.click(screen.getByTestId('lt-builder-save'));
+    expect(await screen.findByText('Choose who writes this form.')).toBeInTheDocument();
+    expect(postMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('lt-builder-writer-counselor'));
+    fireEvent.click(screen.getByTestId('lt-builder-save'));
+    await waitFor(() => expect(postMock).toHaveBeenCalled());
+    const body = postMock.mock.calls[0][1];
+    expect(body.author_role_filter).toEqual(['counselor']);
+    expect(body.subject_role_filter).toEqual(['camper']);
+  });
+
   it('auto-syncs assignment_scope and shows group-type checkboxes when subject mode changes', async () => {
     postMock.mockResolvedValue({ data: { id: 99 } });
     renderNew();

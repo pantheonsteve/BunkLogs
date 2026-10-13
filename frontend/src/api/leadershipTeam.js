@@ -154,6 +154,22 @@ export async function createAssignment(orgSlug, payload) {
   return data;
 }
 
+/** Who will write, who it is about, and who can read it, before save. */
+export async function previewAssignmentAudience(orgSlug, templateId, {
+  targetType,
+  role,
+  groupIds = [],
+} = {}) {
+  const params = { target_type: targetType };
+  if (role) params.role = role;
+  if (groupIds.length) params.groups = groupIds.join(',');
+  const { data } = await api.get(`${BASE}/templates/${templateId}/audience-preview/`, {
+    params,
+    headers: headers(orgSlug),
+  });
+  return data;
+}
+
 export async function patchAssignment(orgSlug, id, payload) {
   const { data } = await api.patch(`${BASE}/assignments/${id}/`, payload, {
     headers: headers(orgSlug),

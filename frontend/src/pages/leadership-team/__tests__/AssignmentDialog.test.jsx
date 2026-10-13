@@ -242,20 +242,25 @@ describe('AssignmentDialog', () => {
   });
 
   it('lists current assignments and unassigns an active one via PATCH end_date', async () => {
-    getMock.mockResolvedValue({
-      data: {
-        assignments: [
-          {
-            id: 77,
-            target_type: 'role',
-            target_payload: { role: 'kitchen_staff' },
-            start_date: '2026-06-01',
-            end_date: null,
-            status: 'active',
-            display_title: 'Kitchen weekly',
+    getMock.mockImplementation((url) => {
+      if (String(url).includes('/assignments/') && !String(url).includes('audience-preview')) {
+        return Promise.resolve({
+          data: {
+            assignments: [
+              {
+                id: 77,
+                target_type: 'role',
+                target_payload: { role: 'kitchen_staff' },
+                start_date: '2026-06-01',
+                end_date: null,
+                status: 'active',
+                display_title: 'Kitchen weekly',
+              },
+            ],
           },
-        ],
-      },
+        });
+      }
+      return Promise.resolve({ data: {} });
     });
     patchMock.mockResolvedValue({ data: { id: 77, status: 'ended' } });
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -263,7 +268,7 @@ describe('AssignmentDialog', () => {
     render(<AssignmentDialog template={template} onCreated={onCreated} onClose={() => {}} />);
 
     const row = await screen.findByTestId('lt-current-row-77');
-    expect(row).toHaveTextContent('Role: kitchen_staff');
+    expect(row).toHaveTextContent('Role: Kitchen staff');
 
     fireEvent.click(screen.getByTestId('lt-unassign-77'));
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
@@ -276,23 +281,27 @@ describe('AssignmentDialog', () => {
   });
 
   it('unassigns a scheduled assignment via DELETE', async () => {
-    getMock.mockResolvedValueOnce({
-      data: {
-        assignments: [
-          {
-            id: 88,
-            target_type: 'assignment_group',
-            assignment_group: 11,
-            assignment_group_name: 'Bunk Birch',
-            target_payload: {},
-            start_date: '2099-01-01',
-            end_date: null,
-            status: 'scheduled',
+    getMock.mockImplementation((url) => {
+      if (String(url).includes('/assignments/') && !String(url).includes('audience-preview')) {
+        return Promise.resolve({
+          data: {
+            assignments: [
+              {
+                id: 88,
+                target_type: 'assignment_group',
+                assignment_group: 11,
+                assignment_group_name: 'Bunk Birch',
+                target_payload: {},
+                start_date: '2099-01-01',
+                end_date: null,
+                status: 'scheduled',
+              },
+            ],
           },
-        ],
-      },
+        });
+      }
+      return Promise.resolve({ data: { assignments: [] } });
     });
-    getMock.mockResolvedValue({ data: { assignments: [] } });
     deleteMock.mockResolvedValue({});
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<AssignmentDialog template={template} onCreated={() => {}} onClose={() => {}} />);
@@ -305,5 +314,55 @@ describe('AssignmentDialog', () => {
     expect(deleteMock.mock.calls[0][0]).toMatch(/\/assignments\/88\//);
     expect(patchMock).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  it('shows who will write and refuses a group with nobody to write it', async () => {
+    const aboutOthers = {
+      ...template,
+      subject_mode: 'single_subject',
+      assignment_scope: 'per_subject_in_group',
+      assignment_group_types: ['classroom'],
+    };
+    getMock.mockImplementation((url) => {
+      const path = String(url);
+      if (path.includes('audience-preview')) {
+        return Promise.resolve({
+          data: {
+            sentence: 'Grade 3 has no students. This form is about other people, so it cannot be assigned there.',
+            can_assign: false,
+            writers: [],
+            subjects: [],
+            supervisors: [],
+            groups: [{ id: 3, name: 'Grade 3', missing: ['subjects'], can_assign: false }],
+          },
+        });
+      }
+      if (path.includes('/assignment-groups/')) {
+        return Promise.resolve({
+          data: [{
+            id: 3, name: 'Grade 3', group_type: 'classroom', program: summerProgramId,
+            program_name: 'School', is_active: true,
+          }],
+        });
+      }
+      return Promise.resolve({ data: { assignments: [] } });
+    });
+    render(<AssignmentDialog template={aboutOthers} onCreated={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByTestId('lt-assignment-target-assignment_group'));
+    await waitFor(() => screen.getByTestId('lt-assignment-program-filter'));
+    selectAssignmentGroupFilters(summerProgramId, 'classroom');
+    await waitFor(() => screen.getByTestId('lt-assignment-group-3'));
+    fireEvent.click(screen.getByTestId('lt-assignment-group-3'));
+    fireEvent.change(screen.getByTestId('lt-assignment-start'), { target: { value: '2026-07-12' } });
+    expect(await screen.findByTestId('audience-preview')).toHaveTextContent('Grade 3 has no students');
+    expect(screen.getByTestId('lt-assignment-submit')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('lt-assignment-submit'));
+    expect(postMock).not.toHaveBeenCalled();
+  });
+
+  it('labels the role picker with the camp word, not the slug', () => {
+    render(<AssignmentDialog template={template} onClose={() => {}} onCreated={() => {}} />);
+    const option = screen.getByRole('option', { name: 'Kitchen staff' });
+    expect(option).toHaveValue('kitchen_staff');
   });
 });

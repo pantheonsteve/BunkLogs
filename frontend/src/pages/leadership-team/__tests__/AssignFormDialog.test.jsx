@@ -11,6 +11,14 @@ vi.mock('../../../auth/AuthContext', () => ({
 vi.mock('../../../api/leadershipTeam', () => ({
   createAssignment: vi.fn(),
   listAssignmentGroups: vi.fn(),
+  previewAssignmentAudience: vi.fn().mockResolvedValue({
+    sentence: 'Counselors will write about the campers.',
+    can_assign: true,
+  }),
+}));
+
+vi.mock('../../../api/admin', () => ({
+  getAdminSettings: vi.fn().mockResolvedValue(null),
 }));
 
 import { createAssignment, listAssignmentGroups } from '../../../api/leadershipTeam';

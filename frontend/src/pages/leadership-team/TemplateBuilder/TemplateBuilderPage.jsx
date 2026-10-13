@@ -38,6 +38,7 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import AssignmentList from '../AssignmentList';
 import AssignFormDialog from '../AssignFormDialog';
+import { groupTypeLabel, seatsFor, useOrgRoles } from '../useOrgRoles';
 import { SUBJECT_MODE_OPTIONS } from '../../../lib/templateRouting';
 
 const TIER_1_TYPES = [
@@ -482,6 +483,10 @@ export default function TemplateBuilderPage() {
   const navigate = useNavigate();
   const { orgSlug } = useAuth();
   const isEdit = Boolean(id);
+  const [checkedAuthors, setCheckedAuthors] = useState(null);
+  const [checkedSubjects, setCheckedSubjects] = useState(null);
+  const seatsReady = useRef(false);
+  const seatTypes = useRef([]);
 
   const [template, setTemplate] = useState({
     name: '',
@@ -491,6 +496,8 @@ export default function TemplateBuilderPage() {
     subject_mode: 'self',
     assignment_scope: 'none',
     assignment_group_types: [],
+    author_role_filter: [],
+    subject_role_filter: [],
     status: 'draft',
     schema: { fields: [] },
     is_active: true,
@@ -510,6 +517,38 @@ export default function TemplateBuilderPage() {
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
 
+  const { roles, labelFor, groupConfig, term } = useOrgRoles(template.role);
+  const groupTypesKey = (template.assignment_group_types || []).join(',');
+
+  useEffect(() => {
+    if (!groupConfig) return undefined;
+    const types = groupTypesKey ? groupTypesKey.split(',') : [];
+    if (isEdit && loading) return undefined;
+    if (!isEdit && !seatsReady.current && types.length === 0) return undefined;
+    const { writers, subjects } = seatsFor(types, groupConfig);
+    if (!seatsReady.current) {
+      const savedAuthors = template.author_role_filter || [];
+      const savedSubjects = template.subject_role_filter || [];
+      setCheckedAuthors(savedAuthors.length ? writers.filter((role) => savedAuthors.includes(role)) : writers);
+      setCheckedSubjects(savedSubjects.length ? subjects.filter((role) => savedSubjects.includes(role)) : subjects);
+      seatsReady.current = true;
+      seatTypes.current = types;
+      return undefined;
+    }
+    const added = types.filter((type) => !seatTypes.current.includes(type));
+    const addedSeats = seatsFor(added, groupConfig);
+    setCheckedAuthors((prev) => {
+      const kept = (prev || []).filter((role) => writers.includes(role));
+      return [...kept, ...addedSeats.writers.filter((role) => !kept.includes(role))];
+    });
+    setCheckedSubjects((prev) => {
+      const kept = (prev || []).filter((role) => subjects.includes(role));
+      return [...kept, ...addedSeats.subjects.filter((role) => !kept.includes(role))];
+    });
+    seatTypes.current = types;
+    return undefined;
+  }, [groupConfig, groupTypesKey, isEdit, loading, template.author_role_filter, template.subject_role_filter]);
+
   const load = useCallback(async () => {
     if (!isEdit) return;
     setLoading(true);
@@ -525,6 +564,8 @@ export default function TemplateBuilderPage() {
         subject_mode: mode,
         assignment_scope: data.assignment_scope ?? SCOPE_FOR_MODE[mode] ?? 'none',
         assignment_group_types: data.assignment_group_types ?? [],
+        author_role_filter: data.author_role_filter ?? [],
+        subject_role_filter: data.subject_role_filter ?? [],
         status: data.status ?? (data.is_active ? 'published' : 'archived'),
         schema: data.schema ?? { fields: [] },
         is_active: data.is_active,
@@ -609,12 +650,28 @@ export default function TemplateBuilderPage() {
     } else if (template.slug) {
       payload.slug = template.slug;
     }
+    const selectedTypes = template.assignment_group_types ?? [];
+    if (groupConfig && selectedTypes.length && checkedAuthors) {
+      payload.author_role_filter = checkedAuthors;
+      payload.subject_role_filter = (template.subject_mode ?? 'self') === 'self' ? [] : (checkedSubjects || []);
+    }
     return payload;
   };
 
   const save = async ({ forceNewVersion = false } = {}) => {
     setError('');
     setWarnings([]);
+    const selectedTypes = template.assignment_group_types ?? [];
+    const seatChoices = seatsFor(selectedTypes, groupConfig);
+    const aboutSelf = (template.subject_mode ?? 'self') === 'self';
+    if (seatChoices.writers.length && (checkedAuthors || []).length === 0) {
+      setError('Choose who writes this form.');
+      return null;
+    }
+    if (!aboutSelf && seatChoices.subjects.length && (checkedSubjects || []).length === 0) {
+      setError('Choose who this form is about.');
+      return null;
+    }
     if (validationIssues.length > 0) {
       setError(validationIssues.join(' · '));
       // Surface the issues panel — easy to miss when the save button sits above the fold.
@@ -890,12 +947,7 @@ export default function TemplateBuilderPage() {
               className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
               data-testid="lt-builder-role"
             >
-              {[
-                'counselor', 'specialist', 'unit_head', 'leadership_team',
-                'kitchen_staff', 'maintenance', 'administrative_staff', 'housekeeping',
-                'camper_care', 'health_center', 'medical', 'madrich', 'general_counselor',
-                'faculty',
-              ].map((r) => <option key={r} value={r}>{r}</option>)}
+              {roles.map((r) => <option key={r} value={r}>{labelFor(r)}</option>)}
             </select>
           </label>
           <label className="block text-sm text-gray-700 dark:text-gray-300">
@@ -935,6 +987,14 @@ export default function TemplateBuilderPage() {
             >
               {SUBJECT_MODE_OPTIONS.find((m) => m.value === (template.subject_mode ?? 'self'))?.description}
             </p>
+            {(template.subject_mode ?? 'self') === 'self' && (
+              <p
+                className="mt-1 text-xs text-gray-600 dark:text-gray-300"
+                data-testid="lt-builder-about-self"
+              >
+                This submission is about the person filling it out.
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
               Appears on:{' '}
               {SUBJECT_MODE_OPTIONS.find((m) => m.value === (template.subject_mode ?? 'self'))?.appearsOn}
@@ -985,7 +1045,75 @@ export default function TemplateBuilderPage() {
                     onChange={() => toggleGroupType(gt.value)}
                     data-testid={`lt-builder-group-type-${gt.value}`}
                   />
-                  {gt.label}
+                  {groupTypeLabel(gt.value, term, gt.label)}
+                </label>
+              ))}
+            </fieldset>
+          )}
+
+          {seatsFor(template.assignment_group_types ?? [], groupConfig).writers.length > 0 && (
+            <fieldset
+              className="border border-gray-200 dark:border-gray-700 rounded-md p-2"
+              data-testid="lt-builder-writers"
+            >
+              <legend className="text-xs text-gray-500 dark:text-gray-400 px-1">Who writes</legend>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                Unchecking only removes a role. It cannot add one this group type does not use.
+              </p>
+              {seatsFor(template.assignment_group_types ?? [], groupConfig).writers.map((role) => (
+                <label
+                  key={role}
+                  className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(checkedAuthors || []).includes(role)}
+                    disabled={isArchived}
+                    onChange={() => {
+                      setCheckedAuthors((prev) => {
+                        const current = prev || [];
+                        return current.includes(role)
+                          ? current.filter((item) => item !== role)
+                          : [...current, role];
+                      });
+                      setDirty(true);
+                    }}
+                    data-testid={`lt-builder-writer-${role}`}
+                  />
+                  {labelFor(role)}
+                </label>
+              ))}
+            </fieldset>
+          )}
+
+          {(template.subject_mode ?? 'self') !== 'self'
+            && seatsFor(template.assignment_group_types ?? [], groupConfig).subjects.length > 0 && (
+            <fieldset
+              className="border border-gray-200 dark:border-gray-700 rounded-md p-2"
+              data-testid="lt-builder-subjects"
+            >
+              <legend className="text-xs text-gray-500 dark:text-gray-400 px-1">Who it is about</legend>
+              {seatsFor(template.assignment_group_types ?? [], groupConfig).subjects.map((role) => (
+                <label
+                  key={role}
+                  className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(checkedSubjects || []).includes(role)}
+                    disabled={isArchived}
+                    onChange={() => {
+                      setCheckedSubjects((prev) => {
+                        const current = prev || [];
+                        return current.includes(role)
+                          ? current.filter((item) => item !== role)
+                          : [...current, role];
+                      });
+                      setDirty(true);
+                    }}
+                    data-testid={`lt-builder-subject-${role}`}
+                  />
+                  {labelFor(role)}
                 </label>
               ))}
             </fieldset>

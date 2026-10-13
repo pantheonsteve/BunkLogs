@@ -20,6 +20,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createAssignment, listAssignmentGroups } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
+import AudiencePreview, { useAudiencePreview } from './AudiencePreview';
+import { useOrgRoles } from './useOrgRoles';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -28,13 +30,6 @@ const TARGET_TYPES = [
   { value: 'role', label: 'Role' },
   { value: 'tag_group', label: 'Tag group' },
   { value: 'individuals', label: 'Individuals', disabled: true, hint: 'Coming soon' },
-];
-
-const ROLE_OPTIONS = [
-  'counselor', 'junior_counselor', 'specialist', 'general_counselor',
-  'unit_head', 'leadership_team', 'kitchen_staff', 'maintenance',
-  'administrative_staff', 'housekeeping', 'camper_care', 'health_center', 'medical',
-  'madrich', 'faculty',
 ];
 
 const CADENCES = ['daily', 'weekly', 'biweekly', 'monthly', 'on_demand'];
@@ -432,11 +427,12 @@ function ConflictPanel({ conflicts, resolution, onResolutionChange, onConfirm, o
  */
 export default function AssignFormDialog({ template, onClose, onCreated }) {
   const { orgSlug } = useAuth();
+  const { roles, labelFor } = useOrgRoles(template?.role);
 
   // Form state
   const [targetType, setTargetType] = useState('assignment_group');
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set());
-  const [role, setRole] = useState('counselor');
+  const [role, setRole] = useState(template?.role || 'counselor');
   const [tag, setTag] = useState('');
   const [title, setTitle] = useState('');
   const [isRequired, setIsRequired] = useState(true);
@@ -463,6 +459,15 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
   const [singleResolution, setSingleResolution] = useState('replace');
 
   // Validate end >= start client-side
+  const preview = useAudiencePreview({
+    orgSlug,
+    templateId: template?.id,
+    targetType,
+    role,
+    groupIds: [...selectedGroupIds],
+  });
+  const audienceBlocked = targetType === 'assignment_group' && preview?.can_assign === false;
+
   const validateDates = () => {
     if (endDate && startDate && endDate < startDate) {
       setDateError('End date must be on or after start date.');
@@ -597,6 +602,7 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
     }
     if (targetType === 'role' && !role) { setError('Select a role.'); return; }
     if (targetType === 'tag_group' && !tag.trim()) { setError('Enter a tag.'); return; }
+    if (audienceBlocked) { setError(preview.sentence); return; }
 
     setSubmitting(true);
     try {
@@ -770,8 +776,8 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
                 className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm disabled:opacity-50"
                 data-testid="assign-form-role"
               >
-                {ROLE_OPTIONS.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                {roles.map((r) => (
+                  <option key={r} value={r}>{labelFor(r)}</option>
                 ))}
               </select>
             </label>
@@ -943,7 +949,9 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
               submitting={submitting}
             />
           ) : (
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="space-y-3 pt-2">
+              <AudiencePreview preview={preview} />
+              <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={onClose}
@@ -955,12 +963,13 @@ export default function AssignFormDialog({ template, onClose, onCreated }) {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || audienceBlocked}
                 className="text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-1.5"
                 data-testid="assign-form-submit"
               >
                 {assignButtonLabel}
               </button>
+              </div>
             </div>
           )}
         </div>

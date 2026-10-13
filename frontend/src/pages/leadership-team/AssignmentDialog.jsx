@@ -25,19 +25,14 @@ import {
   unassignAssignment,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
+import AudiencePreview, { useAudiencePreview } from './AudiencePreview';
+import { groupTypeLabel, useOrgRoles } from './useOrgRoles';
 
 const TARGET_TYPES = [
   { value: 'role', label: 'Role' },
   { value: 'individuals', label: 'Individuals' },
   { value: 'tag_group', label: 'Tag group' },
   { value: 'assignment_group', label: 'Assignment group' },
-];
-
-const ROLE_OPTIONS = [
-  'counselor', 'junior_counselor', 'specialist', 'general_counselor',
-  'unit_head', 'leadership_team', 'kitchen_staff', 'maintenance',
-  'administrative_staff', 'housekeeping', 'camper_care', 'health_center', 'medical',
-  'madrich', 'faculty',
 ];
 
 const CADENCE_OVERRIDES = ['', 'daily', 'weekly', 'biweekly', 'monthly', 'on_demand'];
@@ -88,11 +83,11 @@ const GROUP_TYPE_LABEL = {
 // Render a compact human label for an assignment row so the LT user can
 // tell rows apart in the "Current assignments" list. Falls back to the
 // raw target_type when nothing more specific is available.
-function describeAssignment(a) {
+function describeAssignment(a, labelFor) {
   if (!a) return '';
   if (a.target_type === 'role') {
     const role = a.target_payload?.role;
-    return role ? `Role: ${role}` : 'Role';
+    return role ? `Role: ${labelFor(role)}` : 'Role';
   }
   if (a.target_type === 'individuals') {
     const n = Array.isArray(a.target_payload?.membership_ids)
@@ -114,6 +109,7 @@ function describeAssignment(a) {
 
 export default function AssignmentDialog({ template, onClose, onCreated }) {
   const { orgSlug } = useAuth();
+  const { roles, labelFor, term } = useOrgRoles(template?.role);
   const [targetType, setTargetType] = useState('role');
   const [role, setRole] = useState(template?.role ?? 'counselor');
   const [membershipIds, setMembershipIds] = useState('');
@@ -183,6 +179,15 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
       )
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [groups, programFilter, groupTypeFilter]);
+
+  const preview = useAudiencePreview({
+    orgSlug,
+    templateId: template?.id,
+    targetType,
+    role,
+    groupIds: [...selectedGroupIds],
+  });
+  const audienceBlocked = targetType === 'assignment_group' && preview?.can_assign === false;
 
   const filtersReady = Boolean(programFilter && groupTypeFilter);
   const allVisibleSelected = visibleGroups.length > 0
@@ -337,6 +342,7 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
     if (targetType === 'assignment_group' && selectedGroupIds.size === 0) {
       return 'Check at least one group.';
     }
+    if (audienceBlocked) return preview.sentence;
     return '';
   };
 
@@ -500,7 +506,7 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                 title="Applies to this group type"
                 data-testid={`lt-assignment-group-type-badge-${gt}`}
               >
-                {GROUP_TYPE_SHORT[gt] ?? gt}
+                {groupTypeLabel(gt, term, GROUP_TYPE_SHORT[gt])}
               </span>
             ))}
           </div>
@@ -542,7 +548,7 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                   data-testid={`lt-current-row-${a.id}`}
                 >
                   <div className="min-w-0">
-                    <div className="truncate">{describeAssignment(a)}</div>
+                    <div className="truncate">{describeAssignment(a, labelFor)}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {a.start_date} – {a.end_date ?? '∞'}
                       <span className="ml-2 uppercase tracking-wide">{a.status}</span>
@@ -593,7 +599,7 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
                 className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
                 data-testid="lt-assignment-role"
               >
-                {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                {roles.map((r) => <option key={r} value={r}>{labelFor(r)}</option>)}
               </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Membership in this role auto-includes future additions while the assignment is active.
@@ -864,6 +870,7 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
               {error}
             </p>
           )}
+          <AudiencePreview preview={preview} />
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
@@ -877,7 +884,7 @@ export default function AssignmentDialog({ template, onClose, onCreated }) {
           <button
             type="button"
             onClick={submit}
-            disabled={submitting}
+            disabled={submitting || audienceBlocked}
             className="text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-1.5"
             data-testid="lt-assignment-submit"
           >
