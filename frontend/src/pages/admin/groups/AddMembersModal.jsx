@@ -18,6 +18,7 @@ import { SearchInput } from '../../../components/ui/FilterBar';
 export default function AddMembersModal({
   title,
   roleInGroup,
+  membershipRole = '',
   programId,
   existingPersonIds,
   onAdd,
@@ -37,6 +38,7 @@ export default function AddMembersModal({
       const params = { page_size: 50 };
       if (q.trim()) params.search = q.trim();
       if (programId) params.program = String(programId);
+      if (membershipRole) params.role = membershipRole;
       const data = await listAdminPeople(params);
       setResults(Array.isArray(data?.results) ? data.results : []);
     } catch {
@@ -44,7 +46,7 @@ export default function AddMembersModal({
     } finally {
       setSearching(false);
     }
-  }, [programId]);
+  }, [programId, membershipRole]);
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 250);

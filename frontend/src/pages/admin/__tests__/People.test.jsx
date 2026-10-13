@@ -142,7 +142,7 @@ describe('AdminPeople', () => {
   it('shows role and invite status in the row', async () => {
     renderPeople();
     const alice = await screen.findByTestId('person-row-1');
-    expect(within(alice).getByText('counselor')).toBeInTheDocument();
+    expect(within(alice).getByText('Counselor')).toBeInTheDocument();
     expect(within(alice).getByText('Signed in')).toBeInTheDocument();
     expect(within(screen.getByTestId('person-row-2')).getByText('Not invited')).toBeInTheDocument();
   });
@@ -218,8 +218,9 @@ describe('AdminPeople', () => {
     await screen.findByTestId('person-row-1');
     fireEvent.click(screen.getByTestId('open-add-person'));
 
-    const roleSelect = await screen.findByDisplayValue('counselor');
-    expect(within(roleSelect).getByRole('option', { name: 'student' })).toBeInTheDocument();
+    const roleSelect = await screen.findByLabelText('Initial role');
+    expect(roleSelect).toHaveValue('counselor');
+    expect(within(roleSelect).getByRole('option', { name: 'Student' })).toBeInTheDocument();
     expect(screen.queryByTestId('add-person-subject-role-note')).toBeNull();
 
     fireEvent.change(roleSelect, { target: { value: 'student' } });
@@ -229,6 +230,25 @@ describe('AdminPeople', () => {
     await waitFor(() => expect(createAdminPerson).toHaveBeenCalledWith(
       expect.objectContaining({ membership: expect.objectContaining({ role: 'student' }) }),
     ));
+  });
+
+  it('limits the add-person role list to the roles the organization turned on', async () => {
+    listAdminPeople.mockResolvedValue({
+      results: PEOPLE,
+      count: 2,
+      offset: 0,
+      page_size: 50,
+      enabled_roles: ['counselor', 'camper'],
+    });
+    renderPeople();
+    await screen.findByTestId('person-row-1');
+    fireEvent.click(screen.getByTestId('open-add-person'));
+
+    const roleSelect = await screen.findByLabelText('Initial role');
+    const names = within(roleSelect).getAllByRole('option').map((option) => option.textContent);
+    expect(names).toEqual(['Counselor', 'Camper']);
+    expect(within(roleSelect).queryByRole('option', { name: 'Faculty' })).toBeNull();
+    expect(within(roleSelect).queryByRole('option', { name: 'Student' })).toBeNull();
   });
 
   it('keeps delete behind the profile overflow menu', async () => {

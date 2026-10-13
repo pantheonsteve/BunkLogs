@@ -27,6 +27,35 @@ function FieldInput({ label, value, onChange, type = 'text', readOnly = false, h
 
 const ALIAS_HINT = 'Optional short name shown across the app instead of the full name, e.g. "RLYGRS 2026-2027".';
 
+export const PROGRAM_TYPE_OPTIONS = [
+  { value: 'summer_camp', label: 'Summer Camp' },
+  { value: 'religious_school', label: 'Religious School' },
+];
+
+export function programTypeLabel(value) {
+  return PROGRAM_TYPE_OPTIONS.find((option) => option.value === value)?.label || '';
+}
+
+export function ProgramTypeField({ value, onChange }) {
+  const known = PROGRAM_TYPE_OPTIONS.some((option) => option.value === value);
+  return (
+    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+      Program type
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        data-testid="program-type-select"
+        className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 text-sm text-gray-900 dark:text-white"
+      >
+        {!known && value && <option value={value}>{value}</option>}
+        {PROGRAM_TYPE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function AliasInput({ value, onChange }) {
   return (
     <FieldInput
@@ -61,7 +90,7 @@ export function AddProgramModal({ onClose, onCreated }) {
     name: '',
     display_alias: '',
     slug: '',
-    program_type: '',
+    program_type: 'summer_camp',
     start_date: '',
     end_date: '',
   });
@@ -88,7 +117,7 @@ export function AddProgramModal({ onClose, onCreated }) {
         <FieldInput label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} />
         <AliasInput value={draft.display_alias} onChange={(v) => setDraft({ ...draft, display_alias: v })} />
         <FieldInput label="Slug" value={draft.slug} onChange={(v) => setDraft({ ...draft, slug: v })} />
-        <FieldInput label="Program type (e.g. summer_camp)" value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
+        <ProgramTypeField value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
         <FieldInput label="Start date (yyyy-mm-dd)" value={draft.start_date} onChange={(v) => setDraft({ ...draft, start_date: v })} />
         <FieldInput label="End date (yyyy-mm-dd, optional)" value={draft.end_date} onChange={(v) => setDraft({ ...draft, end_date: v })} />
         {error && <p className="text-sm text-red-700">{error}</p>}
@@ -159,7 +188,7 @@ export function EditProgramModal({ programId, onClose, onSaved }) {
           <FieldInput label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} />
           <AliasInput value={draft.display_alias} onChange={(v) => setDraft({ ...draft, display_alias: v })} />
           <FieldInput label="Slug" value={draft.slug} onChange={(v) => setDraft({ ...draft, slug: v })} />
-          <FieldInput label="Program type" value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
+          <ProgramTypeField value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
           <FieldInput label="Start date (yyyy-mm-dd)" value={draft.start_date} onChange={(v) => setDraft({ ...draft, start_date: v })} />
           <FieldInput label="End date (yyyy-mm-dd, optional)" value={draft.end_date} onChange={(v) => setDraft({ ...draft, end_date: v })} />
           {error && <p className="text-sm text-red-700">{error}</p>}
@@ -207,7 +236,7 @@ export function ViewProgramModal({ programId, onClose }) {
           <FieldInput label="Name" value={program.name || ''} onChange={() => {}} readOnly />
           <FieldInput label="Display alias" value={program.display_alias || '—'} onChange={() => {}} readOnly />
           <FieldInput label="Slug" value={program.slug || ''} onChange={() => {}} readOnly />
-          <FieldInput label="Program type" value={program.program_type || ''} onChange={() => {}} readOnly />
+          <FieldInput label="Program type" value={programTypeLabel(program.program_type) || program.program_type || ''} onChange={() => {}} readOnly />
           <FieldInput label="Start date" value={program.start_date || '—'} onChange={() => {}} readOnly />
           <FieldInput label="End date" value={program.end_date || '—'} onChange={() => {}} readOnly />
           <p className="text-xs text-gray-500 dark:text-gray-400">

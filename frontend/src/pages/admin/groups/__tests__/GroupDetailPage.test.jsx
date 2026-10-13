@@ -154,6 +154,45 @@ describe('GroupDetailPage', () => {
     expect(screen.queryByTestId('group-tab-supervision')).toBeNull();
   });
 
+  it('uses one add button per configured role and labels the placement', async () => {
+    mockGroup({
+      group_type_config: {
+        bunk: {
+          enabled: true,
+          members: [
+            { role: 'counselor', placed_as: 'author', supervises_group: false },
+            { role: 'camper', placed_as: 'subject', supervises_group: false },
+          ],
+        },
+      },
+      memberships: [
+        {
+          ...GROUP.memberships[0],
+          membership_role: 'camper',
+          supervises_group: false,
+        },
+        {
+          ...GROUP.memberships[1],
+          membership_role: 'counselor',
+          supervises_group: false,
+        },
+      ],
+    });
+    renderDetail();
+    await screen.findByTestId('group-roster-subject');
+
+    expect(screen.getByTestId('group-tab-members')).toHaveTextContent('Campers');
+    expect(screen.getByTestId('group-add-camper')).toHaveTextContent('Add Camper');
+    expect(screen.getByTestId('group-member-place-11')).toHaveTextContent('Is written about');
+    expect(screen.getByText('Camper')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Select row 11'));
+    expect(screen.queryByTestId('group-subject-flip')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('group-tab-staff'));
+    expect(await screen.findByTestId('group-add-counselor')).toHaveTextContent('Add Counselor');
+    expect(screen.getByTestId('group-member-place-12')).toHaveTextContent('Writes');
+  });
+
   it('keeps archiving in the Settings danger zone behind a confirmation', async () => {
     renderDetail('/admin/groups/7?tab=settings');
     await screen.findByTestId('group-settings-tab');

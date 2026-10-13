@@ -5,8 +5,12 @@ import {
   addAdminMembership,
   deactivateAdminMembership,
 } from '../../api/admin';
+import { useTerm } from '../../context/OrgBrandingContext';
+import { labeledRoles } from '../../utils/roleLabels';
 import { profileLink } from '../../utils/dashboardLinks';
+import Button from '../ui/Button';
 import OverflowMenu, { OverflowMenuItem } from '../ui/OverflowMenu';
+import AddToGroupModal from './AddToGroupModal';
 import PersonSupervisionTab from './PersonSupervisionTab';
 
 export const MEMBERSHIP_ROLE_OPTIONS = [
@@ -180,17 +184,31 @@ function MembershipsTab({ person, programs, onChanged }) {
           }}
         />
       )}
-      <PersonGroupsSection groups={person.group_memberships || []} />
+      <PersonGroupsSection person={person} onChanged={onChanged} />
     </div>
   );
 }
 
-function PersonGroupsSection({ groups }) {
+function placementWords(roleInGroup) {
+  if (roleInGroup === 'author') return 'Writes';
+  if (roleInGroup === 'subject') return 'Is written about';
+  return '';
+}
+
+function PersonGroupsSection({ person, onChanged }) {
+  const term = useTerm();
+  const [adding, setAdding] = useState(false);
+  const groups = person.group_memberships || [];
   return (
     <section className="pt-2 space-y-2" data-testid="person-groups">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        Groups
-      </h4>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Groups
+        </h4>
+        <Button size="sm" variant="secondary" onClick={() => setAdding(true)} data-testid="person-add-to-group">
+          Add to group
+        </Button>
+      </div>
       <ul className="divide-y border rounded-md bg-white dark:bg-gray-900">
         {groups.length === 0 && (
           <li className="p-3 text-sm italic text-gray-500">Not in any groups.</li>
@@ -204,11 +222,21 @@ function PersonGroupsSection({ groups }) {
               {g.group_name}
             </Link>
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              {g.group_type} · {g.role_in_group}
+              {term(g.group_type, { capitalize: true })} · {placementWords(g.role_in_group)}
             </span>
           </li>
         ))}
       </ul>
+      {adding && (
+        <AddToGroupModal
+          person={person}
+          onClose={() => setAdding(false)}
+          onAdded={() => {
+            setAdding(false);
+            onChanged();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -284,9 +312,12 @@ function MembershipRow({ membership, onChanged }) {
 }
 
 function AddMembershipForm({ person, programs, onAdded }) {
+  const term = useTerm();
+  const roleOptions = person.enabled_roles?.length ? person.enabled_roles : MEMBERSHIP_ROLE_OPTIONS;
+  const roleLabels = labeledRoles(roleOptions, term, person.role_catalog);
   const [draft, setDraft] = useState({
     program_id: programs[0]?.id || '',
-    role: 'counselor',
+    role: roleOptions.includes('counselor') ? 'counselor' : roleOptions[0],
     grade_level: '',
     tags: '',
   });
@@ -331,8 +362,8 @@ function AddMembershipForm({ person, programs, onAdded }) {
           onChange={(e) => setDraft({ ...draft, role: e.target.value })}
           className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm"
         >
-          {MEMBERSHIP_ROLE_OPTIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
+          {roleOptions.map((r, index) => (
+            <option key={r} value={r}>{roleLabels[index]}</option>
           ))}
         </select>
       </label>
