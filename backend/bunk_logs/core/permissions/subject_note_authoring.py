@@ -9,17 +9,29 @@ Who may *write* a SubjectNote about a subject is controlled by:
 
 Scopes (most → least permissive): ``org`` > ``program`` > ``supervised`` > ``none``.
 When a viewer holds multiple active memberships, the broadest scope wins.
+
+Saved ``group_types`` replaces the supervised scope: writers log on
+subjects of groups they author, and supervisors also log on the writers
+of groups they supervise (including descendants). Those writers stay off
+the subject seat.
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
+from bunk_logs.core.group_audience import people_on_seats
+from bunk_logs.core.group_audience import supervising_group_ids
+from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.org_config import saved_group_type_config
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.permissions.visibility import author_group_ids_with_descendants
+from bunk_logs.core.permissions.visibility import descendant_group_ids
+from bunk_logs.core.program_scope import operational_program_q
+from bunk_logs.core.time_utils import get_today
 
 AuthorScope = Literal["none", "supervised", "program", "org"]
 
@@ -95,6 +107,9 @@ def max_author_scope(viewer_person: Person, org) -> AuthorScope:
 
 
 def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
+    seat_ids = _seat_note_subject_ids(viewer, viewer.organization)
+    if seat_ids is not None:
+        return subject.id in seat_ids
     group_ids = author_group_ids_with_descendants(viewer)
     if not group_ids:
         return False
@@ -104,6 +119,43 @@ def _viewer_supervises_subject(viewer: Person, subject: Person) -> bool:
         role_in_group="subject",
         is_active=True,
     ).exists()
+
+
+def _seat_note_subject_ids(viewer: Person, org) -> set[int] | None:
+    """People the viewer may log about once group_types is saved.
+
+    None means the org has not saved group_types. Writers of groups the
+    viewer merely authors are omitted; writers of groups they supervise
+    are included.
+    """
+    if saved_group_type_config(org) is None:
+        return None
+    today = get_today(org)
+    authored = set(
+        AssignmentGroupMembership.all_objects.filter(
+            person=viewer,
+            role_in_group="author",
+            is_active=True,
+            group__is_active=True,
+            group__organization_id=org.id,
+        )
+        .filter(operational_program_q(today=today, prefix="group__program"))
+        .values_list("group_id", flat=True),
+    )
+    roots = supervising_group_ids(org, viewer, today=today) or set()
+    supervised = set(roots) | descendant_group_ids(org.id, roots)
+    if supervised:
+        supervised = set(
+            AssignmentGroup.all_objects.filter(id__in=supervised, is_active=True)
+            .filter(operational_program_q(today=today, prefix="program"))
+            .values_list("id", flat=True),
+        )
+    _authored_writers, authored_subjects = people_on_seats(org, authored) or (set(), set())
+    supervised_writers, supervised_subjects = people_on_seats(org, supervised) or (
+        set(),
+        set(),
+    )
+    return set(authored_subjects) | set(supervised_subjects) | set(supervised_writers)
 
 
 def _shares_program(viewer: Person, subject: Person, org) -> bool:
@@ -143,10 +195,7 @@ def can_author_subject_note(
     if scope == "program":
         return _shares_program(viewer_person, subject, org)
     if scope == "supervised":
-        return (
-            viewer_person.id == subject.id
-            or _viewer_supervises_subject(viewer_person, subject)
-        )
+        return viewer_person.id == subject.id or _viewer_supervises_subject(viewer_person, subject)
     return False
 
 
@@ -173,6 +222,10 @@ def authorable_subject_queryset(viewer_person: Person, org):
         ).values_list("person_id", flat=True)
         return base.filter(id__in=subject_ids)
     if scope == "supervised":
+        seat_ids = _seat_note_subject_ids(viewer_person, org)
+        if seat_ids is not None:
+            seat_ids.add(viewer_person.id)
+            return base.filter(id__in=seat_ids)
         group_ids = author_group_ids_with_descendants(viewer_person)
         supervised_ids: set[int] = set()
         if group_ids:
