@@ -19,6 +19,7 @@ export const DEFAULT_TERMS = Object.freeze({
   // renames it, the same way `camper` does — `group_type` still stores `bunk`
   // when a school renders it as "class".
   bunk: { one: 'bunk', other: 'bunks' },
+  classroom: { one: 'classroom', other: 'classrooms' },
   unit: { one: 'unit', other: 'units' },
   team: { one: 'team', other: 'teams' },
   caseload: { one: 'caseload', other: 'caseloads' },
@@ -30,9 +31,23 @@ export const DEFAULT_TERMS = Object.freeze({
   // Role nouns, for screens that name a role in prose. These do NOT rename
   // `Membership.role` slugs, which route templates and derive capabilities.
   counselor: { one: 'counselor', other: 'counselors' },
+  junior_counselor: { one: 'junior counselor', other: 'junior counselors' },
+  general_counselor: { one: 'general counselor', other: 'general counselors' },
+  specialist: { one: 'specialist', other: 'specialists' },
   unit_head: { one: 'unit head', other: 'unit heads' },
   camper_care: { one: 'Camper Care', other: 'Camper Care' },
   leadership: { one: 'Leadership', other: 'Leadership' },
+  leadership_team: { one: 'leadership team', other: 'leadership team' },
+  kitchen_staff: { one: 'kitchen staff', other: 'kitchen staff' },
+  maintenance: { one: 'maintenance', other: 'maintenance' },
+  administrative_staff: { one: 'administrative staff', other: 'administrative staff' },
+  housekeeping: { one: 'housekeeping', other: 'housekeeping' },
+  health_center: { one: 'health center', other: 'health center' },
+  medical: { one: 'medical', other: 'medical' },
+  special_diets: { one: 'special diets', other: 'special diets' },
+  madrich: { one: 'madrich', other: 'madrichim' },
+  faculty: { one: 'faculty', other: 'faculty' },
+  admin: { one: 'admin', other: 'admins' },
   staff: { one: 'staff', other: 'staff' },
 });
 

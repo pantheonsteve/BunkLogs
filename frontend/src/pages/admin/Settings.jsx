@@ -9,6 +9,8 @@ import {
   patchAdminProgram,
   endAdminProgram,
 } from '../../api/admin';
+import { ProgramTypeField, programTypeLabel } from '../../components/admin/ProgramAdminModals';
+import RolesAndGroupsTab from './RolesAndGroupsSettings';
 
 /**
  * Step 7_13 PR2 — Settings + Programs (Story 58).
@@ -29,6 +31,7 @@ const TABS = [
   { key: 'tags', label: 'Tag vocabulary' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'programs', label: 'Programs' },
+  { key: 'roles', label: 'Roles & groups' },
 ];
 
 const EMPTY_RECIPIENT = { email: '', instant: true, digest: false };
@@ -425,7 +428,7 @@ function ProgramsTab() {
             <li key={p.id} className="p-3 text-sm flex items-center justify-between" data-testid={`program-row-${p.id}`}>
               <div>
                 <p className="font-medium">{p.name}</p>
-                <p className="text-xs text-gray-500">{p.program_type} · {p.start_date || '—'} → {p.end_date || 'open'}</p>
+                <p className="text-xs text-gray-500">{programTypeLabel(p.program_type) || 'No type'} · {p.start_date || '—'} → {p.end_date || 'open'}</p>
               </div>
               {p.is_active ? (
                 <button
@@ -459,7 +462,7 @@ function AddProgramForm({ onCreated, onCancel }) {
   const [draft, setDraft] = useState({
     name: '',
     slug: '',
-    program_type: '',
+    program_type: 'summer_camp',
     start_date: '',
     end_date: '',
   });
@@ -482,7 +485,7 @@ function AddProgramForm({ onCreated, onCancel }) {
     <form onSubmit={submit} className="rounded-md border border-indigo-200 bg-indigo-50/30 p-3 space-y-2" data-testid="program-add-form">
       <FieldInput label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} />
       <FieldInput label="Slug" value={draft.slug} onChange={(v) => setDraft({ ...draft, slug: v })} />
-      <FieldInput label="Program type (e.g. summer_camp)" value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
+      <ProgramTypeField value={draft.program_type} onChange={(v) => setDraft({ ...draft, program_type: v })} />
       <FieldInput label="Start date (yyyy-mm-dd)" value={draft.start_date} onChange={(v) => setDraft({ ...draft, start_date: v })} />
       <FieldInput label="End date (yyyy-mm-dd, optional)" value={draft.end_date} onChange={(v) => setDraft({ ...draft, end_date: v })} />
       {error && <p className="text-sm text-red-700">{error}</p>}
@@ -635,6 +638,12 @@ export default function AdminSettings() {
             />
           )}
           {tab === 'programs' && <ProgramsTab />}
+          {tab === 'roles' && (
+            <RolesAndGroupsTab
+              settings={settings}
+              onSaved={(patch) => setSettings({ ...settings, ...patch })}
+            />
+          )}
         </>
       )}
     </main>

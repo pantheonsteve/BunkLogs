@@ -38,6 +38,71 @@ function orgUsesSupervision(facets) {
   return (facets.roles || []).includes('camper_care');
 }
 
+function placementTabs(members, term) {
+  const byPlacement = { subject: [], author: [] };
+  for (const member of members) {
+    const placed = member.placed_as;
+    if (!byPlacement[placed]) continue;
+    if (byPlacement[placed].some((row) => row.role === member.role)) continue;
+    byPlacement[placed].push(member);
+  }
+  const tabs = [];
+  for (const placed of ['subject', 'author']) {
+    const rows = byPlacement[placed];
+    if (!rows.length) continue;
+    const plural = [...new Set(rows.map((row) => term(row.role, { plural: true, capitalize: true })))];
+    const singular = [...new Set(rows.map((row) => term(row.role)))];
+    const joined = plural.join(' & ');
+    tabs.push({
+      key: placed === 'subject' ? 'members' : 'staff',
+      label: joined,
+      roleInGroup: placed,
+      roleLabel: { one: singular.join(' & '), other: joined.toLowerCase() },
+      otherRoleLabel: '',
+      addRoles: rows.map((row) => ({
+        role: row.role,
+        label: term(row.role, { capitalize: true }),
+      })),
+      emptyHint: placed === 'subject'
+        ? `Add the ${joined.toLowerCase()} this ${term('group')} is about.`
+        : `Nobody can write logs here until at least one ${singular.join(' & ')} is assigned.`,
+    });
+  }
+  return tabs;
+}
+
+function rosterTabsFor(group, term) {
+  const cfg = group.group_type_config?.[group.group_type];
+  if (cfg?.enabled && cfg.members?.length) {
+    const configured = placementTabs(cfg.members, term);
+    if (configured.length) return configured;
+  }
+  const staffLabel = term(authorTermKey(group.group_type), { plural: true, capitalize: true });
+  const staffLabelOne = term(authorTermKey(group.group_type));
+  const membersLabel = term('camper', { plural: true, capitalize: true });
+  const membersLabelOne = term('camper');
+  return [
+    {
+      key: 'members',
+      label: membersLabel,
+      roleInGroup: 'subject',
+      roleLabel: { one: membersLabelOne, other: membersLabel.toLowerCase() },
+      otherRoleLabel: staffLabel.toLowerCase(),
+      addRoles: null,
+      emptyHint: `Add the ${membersLabel.toLowerCase()} this ${term('group')} is about. A group with no ${membersLabel.toLowerCase()} produces no logs.`,
+    },
+    {
+      key: 'staff',
+      label: staffLabel,
+      roleInGroup: 'author',
+      roleLabel: { one: staffLabelOne, other: staffLabel.toLowerCase() },
+      otherRoleLabel: membersLabel.toLowerCase(),
+      addRoles: null,
+      emptyHint: `Nobody can write logs here until at least one ${staffLabelOne} is assigned.`,
+    },
+  ];
+}
+
 export default function GroupDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -83,21 +148,17 @@ export default function GroupDetailPage() {
   }
   if (!group) return null;
 
-  const staffLabel = term(authorTermKey(group.group_type), { plural: true, capitalize: true });
-  const staffLabelOne = term(authorTermKey(group.group_type));
-  const membersLabel = term('camper', { plural: true, capitalize: true });
-  const membersLabelOne = term('camper');
+  const rosterTabs = rosterTabsFor(group, term);
   const showSupervision = SUPERVISABLE_TYPES.has(group.group_type)
     && orgUsesSupervision(facets);
 
   const tabs = [
-    { key: 'members', label: membersLabel },
-    { key: 'staff', label: staffLabel },
+    ...rosterTabs.map(({ key, label }) => ({ key, label })),
     ...(showSupervision ? [{ key: 'supervision', label: 'Supervision' }] : []),
     { key: 'settings', label: 'Settings' },
   ];
   const requested = searchParams.get('tab');
-  const activeTab = tabs.some((t) => t.key === requested) ? requested : 'members';
+  const activeTab = tabs.some((t) => t.key === requested) ? requested : tabs[0].key;
   const setTab = (key) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -165,28 +226,19 @@ export default function GroupDetailPage() {
         ))}
       </nav>
 
-      {activeTab === 'members' && (
+      {rosterTabs.filter((tab) => tab.key === activeTab).map((tab) => (
         <GroupRosterTab
+          key={tab.key}
           group={group}
-          roleInGroup="subject"
-          roleLabel={{ one: membersLabelOne, other: membersLabel.toLowerCase() }}
-          otherRoleLabel={staffLabel.toLowerCase()}
-          emptyHint={`Add the ${membersLabel.toLowerCase()} this ${term('group')} is about. A group with no ${membersLabel.toLowerCase()} produces no logs.`}
+          roleInGroup={tab.roleInGroup}
+          roleLabel={tab.roleLabel}
+          otherRoleLabel={tab.otherRoleLabel}
+          addRoles={tab.addRoles}
+          emptyHint={tab.emptyHint}
           onChanged={load}
           showToast={showToast}
         />
-      )}
-      {activeTab === 'staff' && (
-        <GroupRosterTab
-          group={group}
-          roleInGroup="author"
-          roleLabel={{ one: staffLabelOne, other: staffLabel.toLowerCase() }}
-          otherRoleLabel={membersLabel.toLowerCase()}
-          emptyHint={`Nobody can write logs here until at least one ${staffLabelOne} is assigned.`}
-          onChanged={load}
-          showToast={showToast}
-        />
-      )}
+      ))}
       {activeTab === 'supervision' && (
         <GroupSupervisionTab group={group} onChanged={load} showToast={showToast} />
       )}
