@@ -11,13 +11,7 @@ import Card, { CardBody, CardHeader } from '../../components/ui/Card';
 import Note from '../../components/ui/Note';
 import { useTerm } from '../../context/OrgBrandingContext';
 import { labeledRoles } from '../../utils/roleLabels';
-import { GROUP_TYPE_LABELS, GROUP_TYPE_ORDER } from './groups/groupTypes';
-
-function groupTypeName(type, term) {
-  const fromTerm = term(type, { capitalize: true });
-  if (fromTerm.toLowerCase() !== type) return fromTerm;
-  return GROUP_TYPE_LABELS[type] || fromTerm;
-}
+import { GROUP_TYPE_ORDER, groupTypeDisplayName } from './groups/groupTypes';
 
 function rowsFromMembers(members) {
   const byRole = new Map();
@@ -145,9 +139,10 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
     const groupTypes = {};
     for (const type of GROUP_TYPE_ORDER) {
       const entry = groups[type];
+      const rows = (entry?.rows || []).filter((row) => checked.has(row.role));
       groupTypes[type] = {
         enabled: Boolean(entry?.enabled),
-        members: membersFromRows(entry?.rows || []),
+        members: membersFromRows(rows),
       };
     }
     try {
@@ -211,13 +206,14 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
       <Card data-testid="settings-groups-card">
         <CardHeader
           title="Groups"
-          subtitle="For each kind of group, choose who can be added and what they do there."
+          subtitle="Turn on the kinds of groups this organization uses. For each one, add roles from the list above, then mark who writes, who the log is about, and who supervises."
         />
         <CardBody className="space-y-4">
           {GROUP_TYPE_ORDER.map((type) => {
             const entry = groups[type];
             if (!entry) return null;
-            const used = new Set(entry.rows.map((row) => row.role));
+            const visibleRows = entry.rows.filter((row) => checked.has(row.role));
+            const used = new Set(visibleRows.map((row) => row.role));
             const available = [...checked].filter((role) => !used.has(role));
             const availableLabels = labeledRoles(available, term, catalog);
             return (
@@ -229,11 +225,11 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
                     onChange={(e) => updateType(type, { enabled: e.target.checked })}
                     data-testid={`settings-group-enabled-${type}`}
                   />
-                  {groupTypeName(type, term)}
+                  {groupTypeDisplayName(type)}
                 </label>
                 {entry.enabled && (
                   <div className="space-y-2 pl-6">
-                    {entry.rows.map((row) => (
+                    {visibleRows.map((row) => (
                       <div key={row.role} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                         <span className="w-36 font-medium">{term(row.role, { capitalize: true })}</span>
                         <label className="flex items-center gap-1">
@@ -242,7 +238,7 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
                             checked={row.writes}
                             onChange={(e) => updateRow(type, row.role, { writes: e.target.checked })}
                           />
-                          Writes
+                          Writer
                         </label>
                         <label className="flex items-center gap-1">
                           <input
@@ -250,7 +246,7 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
                             checked={row.about}
                             onChange={(e) => updateRow(type, row.role, { about: e.target.checked })}
                           />
-                          Is written about
+                          Written about
                         </label>
                         <label className="flex items-center gap-1">
                           <input
@@ -259,7 +255,7 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
                             disabled={!superviseByRole[row.role]}
                             onChange={(e) => updateRow(type, row.role, { supervises: e.target.checked })}
                           />
-                          Supervises
+                          Supervisor
                         </label>
                       </div>
                     ))}

@@ -14,6 +14,7 @@ vi.mock('../../../../api', () => ({
 }));
 vi.mock('../../../../api/admin', () => ({
   listAdminGroupsOverview: vi.fn(),
+  getAdminSettings: vi.fn(),
 }));
 vi.mock('../../../../components/admin/GroupBulkImportPanel', () => ({
   default: () => <div data-testid="group-bulk-import" />,
@@ -29,8 +30,18 @@ vi.mock('../../../../context/AdminProgramContext', () => ({
 }));
 
 import api from '../../../../api';
-import { listAdminGroupsOverview } from '../../../../api/admin';
+import { getAdminSettings, listAdminGroupsOverview } from '../../../../api/admin';
+import { DEFAULT_TERMS, normalizeTerminology, resolveTerm } from '../../../../utils/terminology';
 import GroupListPage from '../GroupListPage';
+
+let terms = DEFAULT_TERMS;
+vi.mock('../../../../context/OrgBrandingContext', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useTerm: () => (key, opts) => resolveTerm(terms, key, opts),
+  };
+});
 
 const GROUPS = [
   {
@@ -56,8 +67,17 @@ const GROUPS = [
 ];
 
 beforeEach(() => {
+  terms = DEFAULT_TERMS;
   vi.clearAllMocks();
   listAdminGroupsOverview.mockResolvedValue({ results: GROUPS });
+  getAdminSettings.mockResolvedValue({
+    group_type_config: {
+      bunk: { enabled: true },
+      classroom: { enabled: false },
+      unit: { enabled: true },
+      cohort: { enabled: false },
+    },
+  });
   api.get.mockResolvedValue({ data: { results: [] } });
   api.post.mockResolvedValue({ data: { id: 99, name: 'Bunk New' } });
 });
@@ -118,6 +138,40 @@ describe('GroupListPage (Assignments merged in)', () => {
       expect(screen.getAllByTestId(/^group-list-row-/)).toHaveLength(1);
     });
     expect(screen.getByTestId('group-list-row-4')).toBeInTheDocument();
+  });
+
+  it('offers only the group types this organization has turned on', async () => {
+    renderList();
+    fireEvent.click(await screen.findByTestId('group-list-add'));
+
+    const select = await screen.findByTestId('create-group-type');
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Bunk',
+      'Unit',
+    ]);
+  });
+
+  it('keeps Bunk and Classroom as separate types', async () => {
+    terms = normalizeTerminology({ bunk: { one: 'class', other: 'classes' } });
+    getAdminSettings.mockResolvedValue({
+      group_type_config: {
+        bunk: { enabled: true },
+        classroom: { enabled: true },
+        unit: { enabled: false },
+      },
+    });
+    renderList();
+    fireEvent.click(await screen.findByTestId('group-list-add'));
+
+    const select = await screen.findByTestId('create-group-type');
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Bunk',
+      'Classroom',
+    ]);
+    expect(within(select).getAllByRole('option').map((option) => option.value)).toEqual([
+      'bunk',
+      'classroom',
+    ]);
   });
 
   it('searches by name without another round trip', async () => {

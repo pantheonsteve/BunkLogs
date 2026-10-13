@@ -13,7 +13,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Users } from 'lucide-react';
 
 import api from '../../../api';
-import { listAdminGroupsOverview } from '../../../api/admin';
+import { getAdminSettings, listAdminGroupsOverview } from '../../../api/admin';
 import GroupBulkImportPanel from '../../../components/admin/GroupBulkImportPanel';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
@@ -31,10 +31,11 @@ import { useAdminProgram } from '../../../context/AdminProgramContext';
 import { useTerm } from '../../../context/OrgBrandingContext';
 import { canHaveParent, parentTypesFor } from '../../../lib/groupHierarchy';
 import {
-  GROUP_TYPE_LABELS,
+  GROUP_TYPE_ORDER,
   SUBJECT_BEARING_TYPES,
   developmentalSort,
-  groupTypeLabel,
+  enabledGroupTypes,
+  groupTypeDisplayName,
 } from './groupTypes';
 
 const STATUS_FILTERS = [
@@ -64,11 +65,22 @@ function warningsFor(group) {
   return out;
 }
 
-function CreateGroupModal({ programId, onClose, onCreated, showToast }) {
-  const [draft, setDraft] = useState({ name: '', group_type: 'bunk', parent: '' });
+function CreateGroupModal({ programId, groupTypes, onClose, onCreated, showToast }) {
+  const term = useTerm();
+  const [draft, setDraft] = useState({
+    name: '',
+    group_type: groupTypes?.[0] || '',
+    parent: '',
+  });
   const [parentOptions, setParentOptions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!groupTypes?.length) return;
+    if (groupTypes.includes(draft.group_type)) return;
+    setDraft((current) => ({ ...current, group_type: groupTypes[0], parent: '' }));
+  }, [groupTypes, draft.group_type]);
 
   useEffect(() => {
     if (!programId || !canHaveParent(draft.group_type)) {
@@ -128,7 +140,7 @@ function CreateGroupModal({ programId, onClose, onCreated, showToast }) {
           <div className="flex-1" />
           <Button
             onClick={submit}
-            disabled={saving || !draft.name.trim() || !programId}
+            disabled={saving || !draft.name.trim() || !programId || !draft.group_type}
             data-testid="create-group-save"
           >
             {saving ? 'Creating…' : 'Create'}
@@ -142,24 +154,32 @@ function CreateGroupModal({ programId, onClose, onCreated, showToast }) {
           <input
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder="e.g. Bunk Aleph"
+            placeholder={`e.g. ${term('bunk', { capitalize: true })} Aleph`}
             data-testid="create-group-name"
             className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
           />
         </label>
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-          Type
-          <select
-            value={draft.group_type}
-            onChange={(e) => setDraft({ ...draft, group_type: e.target.value, parent: '' })}
-            data-testid="create-group-type"
-            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-          >
-            {Object.entries(GROUP_TYPE_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </label>
+        {groupTypes == null ? (
+          <p className="text-sm text-gray-500">Loading group types…</p>
+        ) : groupTypes.length === 0 ? (
+          <Note tone="warn">
+            Turn on the kinds of groups this organization uses in Settings before adding one.
+          </Note>
+        ) : (
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            Type
+            <select
+              value={draft.group_type}
+              onChange={(e) => setDraft({ ...draft, group_type: e.target.value, parent: '' })}
+              data-testid="create-group-type"
+              className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+            >
+              {groupTypes.map((type) => (
+                <option key={type} value={type}>{groupTypeDisplayName(type, term)}</option>
+              ))}
+            </select>
+          </label>
+        )}
         {canHaveParent(draft.group_type) && (
           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
             Part of
@@ -172,7 +192,7 @@ function CreateGroupModal({ programId, onClose, onCreated, showToast }) {
               <option value="">Nothing</option>
               {parentOptions.map((g) => (
                 <option key={g.id} value={String(g.id)}>
-                  {g.name} ({groupTypeLabel(g.group_type)})
+                  {g.name} ({groupTypeDisplayName(g.group_type, term)})
                 </option>
               ))}
             </select>
@@ -204,6 +224,7 @@ export default function GroupListPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [groupTypes, setGroupTypes] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const { toast, showToast } = useToast(3000);
 
@@ -242,6 +263,16 @@ export default function GroupListPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    getAdminSettings()
+      .then((data) => {
+        if (!cancelled) setGroupTypes(enabledGroupTypes(data?.group_type_config));
+      })
+      .catch(() => { if (!cancelled) setGroupTypes([]); });
+    return () => { cancelled = true; };
+  }, []);
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = groups.filter((g) => {
@@ -265,7 +296,7 @@ export default function GroupListPage() {
         <div className="min-w-0">
           <p className="font-semibold text-gray-900 dark:text-white">{g.name}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {groupTypeLabel(g.group_type)}
+            {groupTypeDisplayName(g.group_type, term)}
             {g.parent_name ? ` · part of ${g.parent_name}` : ''}
           </p>
         </div>
@@ -432,7 +463,10 @@ export default function GroupListPage() {
           data-testid="group-type-filter"
           options={[
             { value: '', label: 'All types' },
-            ...Object.entries(GROUP_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
+            ...GROUP_TYPE_ORDER.map((type) => ({
+              value: type,
+              label: groupTypeDisplayName(type),
+            })),
           ]}
         />
         {warningFilter && (
@@ -471,6 +505,7 @@ export default function GroupListPage() {
       {creating && (
         <CreateGroupModal
           programId={programId}
+          groupTypes={groupTypes}
           showToast={showToast}
           onClose={() => setCreating(false)}
           onCreated={(created) => {
