@@ -14,4 +14,5 @@ echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "Starting Django development server..."
-exec python manage.py runserver_plus 0.0.0.0:8000
+# watchdog's inotify reloader spins on open/access events over the macOS bind mount.
+exec python manage.py runserver_plus 0.0.0.0:8000 --reloader-type stat

@@ -21,8 +21,8 @@ Verify:
 
 ## Architecture
 
-- **Backend**: Django 5.0.13 + DRF, PostgreSQL 16, Redis 7, hosted on Render at `admin.bunklogs.net`
-- **Frontend**: React 19 + Vite 6, hosted on Render (static site) at `clc.bunklogs.net`
+- **Backend**: Django 5.2 LTS + DRF, PostgreSQL 16, Redis 7, hosted on Render at `admin.bunklogs.net`
+- **Frontend**: React 19 + Vite 6 + Tailwind 4, hosted on Render (static site), one subdomain per organization (`clc.bunklogs.net`, `tbe.bunklogs.net`)
 - **Auth**: Django Allauth (headless) + JWT (SimpleJWT) + Google OAuth
 - **Email**: Mailpit locally, Mailgun in production
 - **Observability**: Datadog RUM (frontend) + APM (backend production)
@@ -103,6 +103,7 @@ In Google Cloud Console -> APIs & Services -> Credentials -> edit the OAuth 2.0 
 Authorized JavaScript origins should include:
 - `http://localhost:5173`
 - `https://clc.bunklogs.net`
+- `https://tbe.bunklogs.net` (and each new org's subdomain)
 
 Authorized redirect URIs should include:
 - `http://localhost:8000/accounts/google/login/callback/`
@@ -127,7 +128,7 @@ Render preview subdomains are non-deterministic (e.g. `bunklogs-backend-pr-42.on
 - `vite` / `vitest` / `esbuild` / `@vitest/mocker`: moderate severity, dev-only. Fix requires upgrading to `vitest@4` which is a breaking change. Accept until we do a test infrastructure refresh.
 - `quill` 2.0.3 -> 2.0.2: XSS via HTML export. Downgrade would be a regression on features; evaluate upstream fix or switch to a different rich text editor.
 
-**Django 5.0.13 is end-of-life.** Plan a migration to Django 5.2 LTS.
+Django was upgraded to 5.2 LTS in October 2026.
 
 **Cadence**: aim for one dependency PR per week during normal operations. Dependabot or Renovate can automate PR creation.
 
@@ -162,7 +163,7 @@ make reset-db             # Drop volume, re-migrate
 ```
 BunkLogs/
 ├── backend/
-│   ├── bunk_logs/          # Django apps (users, bunks, campers, bunklogs, orders, messaging, api, utils)
+│   ├── bunk_logs/          # Django apps (core = multi-tenant models, api, users, notes, orders, messaging, utils; bunks/campers/bunklogs are frozen legacy)
 │   ├── config/             # Settings, urls, wsgi, auth
 │   ├── compose/            # Dockerfiles (local, production, docs)
 │   ├── requirements/       # base.txt, local.txt, production.txt
@@ -201,22 +202,24 @@ podman ps -a             # stop/remove old containers
 
 **Cache not working in production health check**: Redis on Render may need re-provisioning. See `render.yaml` for the declared Redis service.
 
-## Multi-tenant Migration
+## Multi-tenant Architecture
 
-BunkLogs is mid-way through a **Strangler Fig migration** from a single-tenant deployment (URJ Crane Lake Camp) to a multi-tenant SaaS platform.
+The Strangler Fig migration from single-tenant (Crane Lake only) to multi-tenant is **complete**. Live tenants: Crane Lake Camp (`clc`, summer camp) and Temple Beth-El (`tbe`, religious school).
 
-**Current state**: Old data model hierarchy `Session → Unit → Bunk → CamperBunkAssignment → BunkLog` still serves Crane Lake's existing data. New models (`Organization`, `Program`, `Person`, `Membership`, `ReflectionTemplate`, `Reflection`) coexist alongside the old ones and will serve:
-- Crane Lake Summer 2026 expansion (role-based reflection forms for Kitchen, Maintenance, Housekeeping, Wellness, JCs, Specialists, GCs, Leadership)
-- Temple Beth-El (new customer, launching Fall 2026)
+Models: `Organization → Program → Person → Membership → ReflectionTemplate → Reflection`. The legacy hierarchy (`Session → Unit → Bunk → CamperBunkAssignment → BunkLog`) is frozen read-only (6_1); its data has been migrated and the legacy frontend retired (6_2). Dropping the legacy tables (6_3) is pending.
 
 **Critical constraints**:
-- Do NOT modify old models or break Crane Lake's existing functionality unless explicitly asked
-- All new features must be built on the new multi-tenant architecture (never extend old models for new use cases)
+- Do NOT modify the legacy models or apps unless explicitly asked
 - `ReflectionTemplate.schema` must support localized prompts (English/Spanish) from day one
+
+**One product for camps and schools**:
+- Every feature must work for both a camp and a religious school. Do not branch on `program_type`, `isReligiousSchoolOrg`, org slug, or a camp-only or school-only role; gate optional features with `Organization.settings` flags.
+- User-visible nouns go through `term()` / `useTerm()`. Canonical keys stay the camp words; terminology is display-only.
+- Admin tasks must be doable in the app by a non-technical client admin (no Django admin, no management commands).
 
 **Canonical context document**: [`migration_prompts/0_0_context_prompt.md`](migration_prompts/0_0_context_prompt.md)
 
-**Ordered prompt sequence**: [`migration_prompts/`](migration_prompts/) — numbered files `1_1` through `6_3` define the full migration roadmap in execution order.
+**Prompt history**: [`migration_prompts/`](migration_prompts/) holds the numbered steps (`1_1` onward) in execution order.
 
 ## Migration step execution: lean by default
 

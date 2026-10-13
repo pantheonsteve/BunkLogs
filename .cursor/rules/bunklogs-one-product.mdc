@@ -1,0 +1,16 @@
+---
+description: BunkLogs rules for camp/school parity, terminology and admin usability
+alwaysApply: true
+---
+
+BunkLogs serves summer camps and religious schools with ONE product.
+
+- Every feature must work for both a camp and a religious school. A feature requested by one customer is built so the other can use it.
+- Per-customer differences are only terminology and per-org feature settings. Do not branch on `program_type`, `isReligiousSchoolOrg`, an org slug (`clc`, `tbe`), or a camp-only or school-only role. Optional features are gated by per-org settings (`core/features.py` / `hasFeature()` once 10_4 lands; `orgSurfaces()` until then), never by customer type.
+- All user-visible nouns go through `term()` (backend, `core/terminology.py`) or `useTerm()` (frontend). Canonical keys are the camp words (`camper`, `bunk`, `counselor`, `unit_head`, `director`, `group`, `program`, `cohort`); terminology is display-only and never used for permissions or lookups. When you touch a screen, convert hardcoded nouns on it. Never hardcode an organization's name.
+- Admin screens must be usable by a non-technical client admin: no Django admin or management commands for routine tasks, no internal values in form fields, empty states say what to do next, errors say how to fix the problem, destructive actions need confirmation.
+- Build UI from `frontend/src/components/ui` primitives and semantic color tokens. Counselor/madrich flows are phone-first.
+- Permission checks use `Membership.capability`; `role` is for template routing and labels.
+- Multi-tenancy: never bypass `OrgScopedManager` outside commands/migrations; outbound URLs come from the organization, never a global setting.
+- Before changing a home or dashboard, check `docs/dashboard-catalog.md` for its camp/school pair and the planned direction.
+- Full context: `migration_prompts/0_0_context_prompt.md`.
