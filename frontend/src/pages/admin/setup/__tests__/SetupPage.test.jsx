@@ -63,6 +63,16 @@ describe('AdminSetupPage', () => {
     expect(confirm).not.toBeDisabled();
   });
 
+  it('offers only the two program types', async () => {
+    renderSetup();
+    fireEvent.click(await screen.findByTestId('program-add'));
+
+    const select = await screen.findByTestId('program-type-select');
+    const options = within(select).getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['Summer Camp', 'Religious School']);
+    expect(screen.queryByPlaceholderText(/summer_camp/i)).toBeNull();
+  });
+
   it('will not offer to delete a program that already ended', async () => {
     renderSetup();
     await screen.findByTestId('program-row-1');

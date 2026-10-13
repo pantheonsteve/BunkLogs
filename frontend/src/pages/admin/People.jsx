@@ -36,6 +36,7 @@ import Note from '../../components/ui/Note';
 import OverflowMenu, { OverflowMenuItem } from '../../components/ui/OverflowMenu';
 import PageHeader from '../../components/ui/PageHeader';
 import { useAdminProgram } from '../../context/AdminProgramContext';
+import { useTerm } from '../../context/OrgBrandingContext';
 import { programDisplayName } from '../../lib/programLabel';
 import { profileLink } from '../../utils/dashboardLinks';
 import AddPersonModal from './people/AddPersonModal';
@@ -66,6 +67,7 @@ function relativeDay(iso) {
 }
 
 export default function AdminPeople() {
+  const term = useTerm();
   const [searchParams, setSearchParams] = useSearchParams();
   const { programId, program } = useAdminProgram();
 
@@ -74,6 +76,8 @@ export default function AdminPeople() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [availableRoles, setAvailableRoles] = useState([]);
+  const [enabledRoles, setEnabledRoles] = useState(null);
+  const [roleCatalog, setRoleCatalog] = useState([]);
   const [groupFilter, setGroupFilter] = useState('');
   const [availableGroups, setAvailableGroups] = useState([]);
   const [statusFilter, setStatusFilter] = useState('active');
@@ -136,6 +140,8 @@ export default function AdminPeople() {
         setPeople(list.results || []);
         setTotalCount(list.count ?? 0);
         setAvailableRoles(list.available_roles || []);
+        setEnabledRoles(Array.isArray(list.enabled_roles) ? list.enabled_roles : null);
+        setRoleCatalog(Array.isArray(list.role_catalog) ? list.role_catalog : []);
         setAvailableGroups(list.available_groups || []);
         setPrograms(progList.results || []);
       } catch (err) {
@@ -281,7 +287,7 @@ export default function AdminPeople() {
           ? <span className="text-gray-400">—</span>
           : (
             <div className="flex flex-wrap gap-1">
-              {p.roles.map((r) => <Badge key={r} tone="info">{r.replace(/_/g, ' ')}</Badge>)}
+              {p.roles.map((r) => <Badge key={r} tone="info">{term(r, { capitalize: true })}</Badge>)}
             </div>
           )
       ),
@@ -347,7 +353,7 @@ export default function AdminPeople() {
           data-testid="people-role-filter"
           options={[
             { value: '', label: 'Any role' },
-            ...roleFilterOptions.map((r) => ({ value: r, label: r.replace(/_/g, ' ') })),
+            ...roleFilterOptions.map((r) => ({ value: r, label: term(r, { capitalize: true }) })),
           ]}
         />
         <FilterSelect
@@ -495,6 +501,8 @@ export default function AdminPeople() {
         <AddPersonModal
           programs={programs}
           defaultProgramId={programId}
+          enabledRoles={enabledRoles}
+          roleCatalog={roleCatalog}
           onClose={() => setAdding(false)}
           onCreated={(person) => {
             setAdding(false);

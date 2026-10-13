@@ -15,6 +15,7 @@ import {
   EditProgramModal,
   EndProgramModal,
   ViewProgramModal,
+  programTypeLabel,
 } from '../../../components/admin/ProgramAdminModals';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
@@ -88,7 +89,7 @@ export default function AdminSetupPage() {
             </p>
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {p.program_type ? p.program_type.replace(/_/g, ' ') : 'no type set'}
+            {programTypeLabel(p.program_type) || 'no type set'}
           </p>
         </div>
       ),

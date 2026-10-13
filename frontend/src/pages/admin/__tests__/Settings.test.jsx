@@ -85,6 +85,35 @@ describe('AdminSettings — End Program flow (7_13 PR2)', () => {
   });
 });
 
+describe('AdminSettings — Roles & groups', () => {
+  it('shows the server message when a role still has people', async () => {
+    getAdminSettings.mockResolvedValue({
+      ...SETTINGS,
+      enabled_roles: ['counselor', 'admin'],
+      role_catalog: [
+        { role: 'counselor', description: 'Writes logs about the people in their group.', can_supervise: false },
+        { role: 'admin', description: 'Runs the organization.', can_supervise: true },
+      ],
+      group_type_config: {},
+    });
+    patchAdminSettings.mockRejectedValue({
+      response: { data: { detail: 'Counselor still has 2 active people. Change their role before turning it off.' } },
+    });
+
+    renderSettings();
+    fireEvent.click(await screen.findByTestId('settings-tab-roles'));
+    fireEvent.click(await screen.findByTestId('settings-role-counselor'));
+    fireEvent.click(screen.getByTestId('settings-roles-save'));
+
+    expect(await screen.findByTestId('settings-roles-error')).toHaveTextContent(
+      'Counselor still has 2 active people',
+    );
+    expect(patchAdminSettings).toHaveBeenCalledWith({
+      settings: { roles: ['admin'] },
+    });
+  });
+});
+
 describe('AdminSettings — Notifications tab', () => {
   it('loads legacy digest email and saves recipient toggles', async () => {
     getAdminSettings.mockResolvedValue({

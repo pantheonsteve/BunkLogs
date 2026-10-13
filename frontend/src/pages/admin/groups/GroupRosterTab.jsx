@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 
 import api from '../../../api';
+import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
 import BulkActionBar from '../../../components/ui/BulkActionBar';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 import DataTable from '../../../components/ui/DataTable';
 import EmptyState from '../../../components/ui/EmptyState';
 import OverflowMenu, { OverflowMenuItem } from '../../../components/ui/OverflowMenu';
+import { useTerm } from '../../../context/OrgBrandingContext';
 import { profileLink } from '../../../utils/dashboardLinks';
 import AddMembersModal from './AddMembersModal';
 
@@ -31,12 +33,14 @@ export default function GroupRosterTab({
   roleInGroup,
   roleLabel,
   otherRoleLabel,
+  addRoles = null,
   emptyHint,
   onChanged,
   showToast,
 }) {
+  const term = useTerm();
   const [selected, setSelected] = useState(() => new Set());
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -116,6 +120,21 @@ export default function GroupRosterTab({
       ),
     },
     {
+      key: 'place',
+      header: 'In this group',
+      render: (m) => (
+        <div className="flex flex-wrap gap-1">
+          {m.membership_role && (
+            <Badge tone="info">{term(m.membership_role, { capitalize: true })}</Badge>
+          )}
+          <Badge tone="neutral" data-testid={`group-member-place-${m.id}`}>
+            {m.role_in_group === 'author' ? 'Writes' : 'Is written about'}
+          </Badge>
+          {m.supervises_group && <Badge tone="ok">Supervises</Badge>}
+        </div>
+      ),
+    },
+    {
       key: 'since',
       header: 'Since',
       align: 'right',
@@ -131,25 +150,40 @@ export default function GroupRosterTab({
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {members.length} {members.length === 1 ? roleLabel.one : roleLabel.other}
         </p>
-        <Button
-          size="sm"
-          onClick={() => setAdding(true)}
-          data-testid={`group-add-${roleInGroup}`}
-        >
-          Add {roleLabel.other}
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {addRoles?.length ? addRoles.map((entry) => (
+            <Button
+              key={entry.role}
+              size="sm"
+              onClick={() => setAdding(entry)}
+              data-testid={`group-add-${entry.role}`}
+            >
+              Add {entry.label}
+            </Button>
+          )) : (
+            <Button
+              size="sm"
+              onClick={() => setAdding({ role: '', label: '' })}
+              data-testid={`group-add-${roleInGroup}`}
+            >
+              Add {roleLabel.other}
+            </Button>
+          )}
+        </div>
       </div>
 
       <BulkActionBar count={selected.size} onClear={() => setSelected(new Set())}>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={flipRole}
-          disabled={busy}
-          data-testid={`group-${roleInGroup}-flip`}
-        >
-          Move to {otherRoleLabel}
-        </Button>
+        {!addRoles?.length && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={flipRole}
+            disabled={busy}
+            data-testid={`group-${roleInGroup}-flip`}
+          >
+            Move to {otherRoleLabel}
+          </Button>
+        )}
         <OverflowMenu size="sm" label="More actions" triggerTestId={`group-${roleInGroup}-overflow`}>
           <OverflowMenuItem
             danger
@@ -182,14 +216,17 @@ export default function GroupRosterTab({
 
       {adding && (
         <AddMembersModal
-          title={`Add ${roleLabel.other} to ${group.name}`}
-          roleInGroup={roleLabel.one}
+          title={adding.label
+            ? `Add ${adding.label.toLowerCase()} to ${group.name}`
+            : `Add ${roleLabel.other} to ${group.name}`}
+          roleInGroup={adding.label || roleLabel.one}
+          membershipRole={adding.role}
           programId={group.program}
           existingPersonIds={existingPersonIds}
           onAdd={addPerson}
-          onClose={() => setAdding(false)}
+          onClose={() => setAdding(null)}
           onDone={async (count) => {
-            setAdding(false);
+            setAdding(null);
             await onChanged();
             showToast(`Added ${count} ${count === 1 ? roleLabel.one : roleLabel.other}.`);
           }}

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 
 import { createAdminPerson } from '../../../api/admin';
+import { MEMBERSHIP_ROLE_OPTIONS, SUBJECT_ROLES } from '../../../components/admin/PersonProfilePanel';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import Note from '../../../components/ui/Note';
-import { MEMBERSHIP_ROLE_OPTIONS, SUBJECT_ROLES } from '../../../components/admin/PersonProfilePanel';
+import { useTerm } from '../../../context/OrgBrandingContext';
+import { labeledRoles } from '../../../utils/roleLabels';
 
 function Field({ label, value, onChange, type = 'text' }) {
   return (
@@ -27,14 +29,17 @@ function Field({ label, value, onChange, type = 'text' }) {
  * the conflict is offered as "open the person you already have" rather
  * than as an error the admin has to decode.
  */
-export default function AddPersonModal({ programs, defaultProgramId, onClose, onCreated }) {
+export default function AddPersonModal({ programs, defaultProgramId, enabledRoles, roleCatalog, onClose, onCreated }) {
+  const term = useTerm();
+  const roleOptions = enabledRoles?.length ? enabledRoles : MEMBERSHIP_ROLE_OPTIONS;
+  const roleLabels = labeledRoles(roleOptions, term, roleCatalog);
   const [draft, setDraft] = useState({
     first_name: '',
     last_name: '',
     preferred_name: '',
     email: '',
     program_id: defaultProgramId || programs[0]?.id || '',
-    role: 'counselor',
+    role: roleOptions.includes('counselor') ? 'counselor' : roleOptions[0],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -111,8 +116,11 @@ export default function AddPersonModal({ programs, defaultProgramId, onClose, on
             value={draft.role}
             onChange={(e) => setDraft({ ...draft, role: e.target.value })}
             className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+            data-testid="add-person-role"
           >
-            {MEMBERSHIP_ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            {roleOptions.map((r, index) => (
+              <option key={r} value={r}>{roleLabels[index]}</option>
+            ))}
           </select>
         </label>
         {isSubjectRole && (
