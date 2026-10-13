@@ -107,9 +107,9 @@ export function QueueRow({ item }) {
   );
 }
 
-function ClassroomDetail({ classroom, rows, roster }) {
+function ClassroomDetail({ classroom, rows, roster, peopleTerm }) {
   const term = useTerm();
-  const subjectsTitle = titleCase(term('camper', { plural: true }));
+  const subjectsTitle = titleCase(term(peopleTerm, { plural: true }));
   return (
     <Card
       as="section"
@@ -143,13 +143,13 @@ function ClassroomDetail({ classroom, rows, roster }) {
         </Button>
       </div>
       {rows.length === 0 ? (
-        <p className="text-[13px] text-muted">{`No ${term('camper', { plural: true })} on this roster yet.`}</p>
+        <p className="text-[13px] text-muted">{`No ${term(peopleTerm, { plural: true })} on this roster yet.`}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted">
-                <th scope="col" className="font-semibold py-1 pr-3">{titleCase(term('camper'))}</th>
+                <th scope="col" className="font-semibold py-1 pr-3">{titleCase(term(peopleTerm))}</th>
                 <th scope="col" className="font-semibold py-1 px-2">Reflection</th>
                 <th scope="col" className="font-semibold py-1 px-2" data-testid="fac-roster-availability-header">
                   Availability
@@ -346,8 +346,9 @@ export default function FacultyDashboard() {
   const subjectTotal = rooms.reduce((n, c) => n + (c.subject_count || 0), 0);
   const reflDone = rooms.reduce((n, c) => n + (c.reflections?.submitted || 0), 0);
   const reflTotal = rooms.reduce((n, c) => n + (c.reflections?.expected || 0), 0);
+  const peopleTerm = dashboard?.roster_term === 'counselor' ? 'counselor' : 'camper';
   const groupWord = (n) => term('bunk', { plural: n !== 1 });
-  const subjectWord = (n) => term('camper', { plural: n !== 1 });
+  const subjectWord = (n) => term(peopleTerm, { plural: n !== 1 });
 
   const queueItems = queue?.items || [];
   const queueRows = queueItems.map((item) => {
@@ -469,6 +470,7 @@ export default function FacultyDashboard() {
               classroom={room}
               rows={rosterRows.filter((r) => r.classroom_id === room.id)}
               roster={roster}
+              peopleTerm={peopleTerm}
             />
           ))}
         </>

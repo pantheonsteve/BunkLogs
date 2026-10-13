@@ -110,7 +110,7 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *
  *   ADMIN (collapsible, below Supervise) — see partials/adminNavConfig.js
  *     People / Groups, then Forms, Reports and Setup sub-groups. Groups
- *     is labelled per-tenant ("Classes" for TBE). Which reports appear
+ *     stays "Groups" for every organization. Which reports appear
  *     depends on the org's surfaces.
  *
  * Admins land on /admin (see pages/Dashboard.jsx). Leadership Team lands

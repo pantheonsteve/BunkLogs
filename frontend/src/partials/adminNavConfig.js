@@ -10,9 +10,9 @@
  * the counts object the layout fetches, keeping this module plain data so
  * nav shape is testable without rendering anything.
  *
- * `label` may depend on the terminology resolver so a tenant's word for a
- * group ("Classes" at a religious school) reaches the nav without the nav
- * knowing which tenant it is.
+ * The Groups link stays "Groups" for every organization. Group types
+ * (Bunk, Classroom, Unit, and the rest) live under that page, so the
+ * nav does not rename it to a tenant's word for one of those types.
  */
 
 /** Contents of the /admin/forms hub, and the reason the nav item exists. */
@@ -90,10 +90,9 @@ export function adminSetupLinks(surfaces, term) {
  * Admin nav: seven items, top to bottom.
  *
  * @param {{campOps: boolean, gradeReflections: boolean}} surfaces
- * @param {(key: string, opts?: object) => string} term
  * @returns {Array<{to: string, label: string, icon: string, badge?: string, end?: boolean}>}
  */
-export function adminNavItems(surfaces, term) {
+export function adminNavItems(surfaces) {
   const items = [
     { to: '/admin/home', label: 'Home', icon: 'dashboard', end: true, placement: 'home' },
     {
@@ -104,7 +103,7 @@ export function adminNavItems(surfaces, term) {
     },
     {
       to: '/admin/groups',
-      label: term('group', { plural: true, capitalize: true }),
+      label: 'Groups',
       icon: 'groups',
       badge: 'groupsNeedingAttention',
       placement: 'manage',

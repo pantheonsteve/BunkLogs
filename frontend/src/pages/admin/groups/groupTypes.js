@@ -39,6 +39,25 @@ export function groupTypeLabel(type) {
 }
 
 /**
+ * The type's own name (Bunk, Classroom, Unit), not the organization's
+ * word for the people in it. Terminology renames nouns elsewhere;
+ * choosing a type has to stay Bunk versus Classroom.
+ */
+export function groupTypeDisplayName(type) {
+  return GROUP_TYPE_LABELS[type] || type;
+}
+
+/** Types this org has turned on, in the same order as the full list. */
+export function enabledGroupTypes(config) {
+  if (!config || typeof config !== 'object') return [];
+  const known = Object.keys(GROUP_TYPE_LABELS).filter((type) => config[type]?.enabled);
+  const rest = Object.keys(config).filter(
+    (type) => config[type]?.enabled && !known.includes(type),
+  );
+  return [...known, ...rest];
+}
+
+/**
  * What the group's authors are called.
  *
  * A classroom's authors are its faculty/counselors; a team's are its staff.

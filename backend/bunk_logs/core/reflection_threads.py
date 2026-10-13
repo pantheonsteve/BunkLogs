@@ -24,6 +24,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import CohortShare
 from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import ThreadRead
+from bunk_logs.core.org_config import saved_group_type_config
 
 if TYPE_CHECKING:
     from bunk_logs.core.models import Person
@@ -31,7 +32,9 @@ if TYPE_CHECKING:
     from bunk_logs.core.models import Reflection
 
 CLASSROOM = "classroom"
+COHORT = "cohort"
 SUBJECT = "subject"
+AUTHOR = "author"
 
 EXCERPT_LEN = 160
 
@@ -153,11 +156,30 @@ def shareable_entries(reflection: Reflection) -> list[dict]:
 
 
 def cohort_group_ids(person: Person, program: Program) -> list[int]:
-    """Classroom groups where ``person`` is a subject -- their cohort(s).
+    """Groups that make up this person's Teaching Team.
 
-    A Madrich in several classrooms has a union feed; callers dedupe on
-    the share id rather than picking one group.
+    Saved group_types: cohort groups where they hold a seat. With no
+    cohort seat, the feed stays classrooms where they are a subject, so
+    a class that has not been retyped yet still works. Unsaved orgs
+    always use that subject-of-classroom feed.
     """
+    org = getattr(program, "organization", None)
+    if org is not None and saved_group_type_config(org) is not None:
+        cohort_ids = list(
+            AssignmentGroupMembership.all_objects.filter(
+                person=person,
+                role_in_group__in=(AUTHOR, SUBJECT),
+                is_active=True,
+                group__group_type=COHORT,
+                group__program=program,
+                group__is_active=True,
+            )
+            .order_by("group_id")
+            .values_list("group_id", flat=True)
+            .distinct(),
+        )
+        if cohort_ids:
+            return cohort_ids
     return list(
         AssignmentGroupMembership.all_objects.filter(
             person=person,

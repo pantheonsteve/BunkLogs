@@ -41,6 +41,7 @@ from bunk_logs.api.threads.common import display_name
 from bunk_logs.api.threads.common import routed_queue_qs
 from bunk_logs.api.threads.common import thread_list_item
 from bunk_logs.api.threads.common import viewer_from_role_ctx
+from bunk_logs.core.group_audience import writer_ids_by_group
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import EntryThread
@@ -52,6 +53,8 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionThemeTag
 from bunk_logs.core.models import ThreadMessage
 from bunk_logs.core.scheduling.availability_matrix import resolve_session_window
+from bunk_logs.core.school_seats import counted_seat
+from bunk_logs.core.school_seats import supervised_writer_ids
 from bunk_logs.core.theme_tagging.taxonomy import theme_label
 from bunk_logs.core.time_utils import get_current_period
 
@@ -124,7 +127,7 @@ def ungrouped_madrichim(program: Program) -> dict:
     grouped = set(
         AssignmentGroupMembership.objects.filter(
             person_id__in=person_ids or [0],
-            role_in_group=SUBJECT,
+            role_in_group=counted_seat(program.organization),
             is_active=True,
             group__group_type=CLASSROOM,
             group__program=program,
@@ -391,6 +394,22 @@ def _madrich_person_ids(program: Program) -> set[int]:
     )
 
 
+def _counted_people_by_group(program: Program, group_ids: list[int]) -> dict[int, list[int]]:
+    """Madrichim who count toward coverage for each classroom.
+
+    Saved group_types: writers, excluding the supervising role. Otherwise
+    madrich subjects.
+    """
+    writers = writer_ids_by_group(
+        program.organization, group_ids, exclude_supervisors=True,
+    )
+    if writers is None:
+        return _classroom_people(
+            group_ids, SUBJECT, limit_to=_madrich_person_ids(program),
+        )
+    return {gid: list(writers.get(gid, ())) for gid in group_ids}
+
+
 def _classroom_people(
     group_ids: list[int],
     role_in_group: str,
@@ -473,9 +492,7 @@ class DirectorCoverageView(APIView):
             })
 
         group_ids = [g.id for g in groups]
-        people_by_group = _classroom_people(
-            group_ids, SUBJECT, limit_to=_madrich_person_ids(program),
-        )
+        people_by_group = _counted_people_by_group(program, group_ids)
         faculty_by_group = _classroom_people(
             group_ids, AUTHOR, limit_to=_faculty_person_ids(program),
         )
@@ -551,9 +568,7 @@ class DirectorCoverageDetailView(APIView):
 
         groups = _ordered_classrooms(program)
         group_ids = [g.id for g in groups]
-        people_by_group = _classroom_people(
-            group_ids, SUBJECT, limit_to=_madrich_person_ids(program),
-        )
+        people_by_group = _counted_people_by_group(program, group_ids)
         faculty_by_group = _classroom_people(
             group_ids, AUTHOR, limit_to=_faculty_person_ids(program),
         )
@@ -658,36 +673,44 @@ class DirectorFacultyActivityView(APIView):
             return Response({"results": []})
 
         faculty_person_ids = {m.person_id for m in faculty}
-        classroom_rows = list(
-            AssignmentGroupMembership.objects.filter(
-                group__program=program,
-                group__group_type=CLASSROOM,
-                group__is_active=True,
-                is_active=True,
-                role_in_group__in=[AUTHOR, SUBJECT],
-            ).values_list("group_id", "person_id", "role_in_group"),
-        )
-        authors_by_group: dict[int, list[int]] = {}
-        subjects_by_group: dict[int, list[int]] = {}
-        for group_id, person_id, role in classroom_rows:
-            target = authors_by_group if role == AUTHOR else subjects_by_group
-            target.setdefault(group_id, []).append(person_id)
-
-        # Classroom subjects include students. Responsiveness is about the
-        # Madrichim this faculty member authors a room with, not every child
-        # in the grade.
-        madrich_ids = {
-            m.person_id for m in _madrich_memberships(program)
-        }
         supervised: dict[int, set[int]] = {pid: set() for pid in faculty_person_ids}
-        for group_id, authors in authors_by_group.items():
-            subjects = [
-                pid for pid in subjects_by_group.get(group_id, [])
-                if pid in madrich_ids
-            ]
-            for author_id in authors:
-                if author_id in supervised:
-                    supervised[author_id].update(subjects)
+        sample = supervised_writer_ids(faculty[0].person, program)
+        if sample is not None:
+            supervised[faculty[0].person_id] = sample
+            for membership in faculty[1:]:
+                supervised[membership.person_id] = supervised_writer_ids(
+                    membership.person, program,
+                ) or set()
+        else:
+            classroom_rows = list(
+                AssignmentGroupMembership.objects.filter(
+                    group__program=program,
+                    group__group_type=CLASSROOM,
+                    group__is_active=True,
+                    is_active=True,
+                    role_in_group__in=[AUTHOR, SUBJECT],
+                ).values_list("group_id", "person_id", "role_in_group"),
+            )
+            authors_by_group: dict[int, list[int]] = {}
+            subjects_by_group: dict[int, list[int]] = {}
+            for group_id, person_id, role in classroom_rows:
+                target = authors_by_group if role == AUTHOR else subjects_by_group
+                target.setdefault(group_id, []).append(person_id)
+
+            # Classroom subjects include students. Responsiveness is about the
+            # Madrichim this faculty member authors a room with, not every child
+            # in the grade.
+            madrich_ids = {
+                m.person_id for m in _madrich_memberships(program)
+            }
+            for group_id, authors in authors_by_group.items():
+                subjects = [
+                    pid for pid in subjects_by_group.get(group_id, [])
+                    if pid in madrich_ids
+                ]
+                for author_id in authors:
+                    if author_id in supervised:
+                        supervised[author_id].update(subjects)
 
         all_subjects = {pid for ids in supervised.values() for pid in ids}
         threads = list(
@@ -806,7 +829,7 @@ def _roster_rows(ctx, program) -> tuple[list[dict], dict]:
     classrooms = dict(
         AssignmentGroupMembership.objects.filter(
             person_id__in=person_ids or [0],
-            role_in_group=SUBJECT,
+            role_in_group=counted_seat(program.organization),
             is_active=True,
             group__group_type=CLASSROOM,
             group__program=program,

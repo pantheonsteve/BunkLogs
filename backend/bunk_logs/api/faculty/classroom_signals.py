@@ -21,13 +21,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from bunk_logs.api.classroom_challenges.common import classroom_group_ids_for_role
 from bunk_logs.core.assignment_resolution import resolve_template_for
+from bunk_logs.core.group_audience import non_supervisor_writer_roles
+from bunk_logs.core.group_audience import writer_ids_by_group
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.scheduling.availability_matrix import build_matrix_rows
 from bunk_logs.core.scheduling.availability_matrix import resolve_session_window
 from bunk_logs.core.scheduling.availability_matrix import summarize_counts
+from bunk_logs.core.school_seats import supervised_classroom_ids
 from bunk_logs.core.time_utils import get_current_period
 
 if TYPE_CHECKING:
@@ -44,6 +48,7 @@ __all__ = [
     "build_availability_window",
     "build_weekly_completion",
     "classroom_subject_memberships",
+    "faculty_classroom_ids",
 ]
 
 
@@ -66,18 +71,38 @@ def _display_name(person: Person | None) -> str:
     return f"{first} {last}".strip()
 
 
+def faculty_classroom_ids(person, program) -> list[int]:
+    """Classrooms this faculty member's home, roster, and queue cover.
+
+    Saved group_types: classrooms they supervise. Otherwise classrooms
+    they author.
+    """
+    supervised = supervised_classroom_ids(person, program)
+    if supervised is None:
+        return classroom_group_ids_for_role(person, program, role_in_group="author")
+    return supervised
+
+
 def classroom_subject_memberships(
     *, program: Program, group_ids: list[int],
 ) -> dict[int, list[Membership]]:
-    """Active Madrich Memberships per classroom id, keyed by group.
+    """People a faculty roster lists for each classroom.
 
-    Students in a TBE classroom are the Madrichim holding a ``subject``
-    roster row. Every requested group id gets a key so callers can
-    render an empty classroom without a lookup guard.
+    Unsaved group_types: Madrich memberships on the subject seat. Saved:
+    writer memberships, excluding roles that supervise the class. Every
+    requested group id gets a key so callers can render an empty classroom
+    without a lookup guard. The class dashboard's student list is a
+    separate subject-seat query and does not use this.
     """
     by_group: dict[int, list[Membership]] = {gid: [] for gid in group_ids}
     if not group_ids:
         return by_group
+
+    writers = writer_ids_by_group(
+        program.organization, group_ids, exclude_supervisors=True,
+    )
+    if writers is not None:
+        return _writer_memberships(program, group_ids, writers)
 
     roster = list(
         AssignmentGroupMembership.objects.filter(
@@ -101,6 +126,34 @@ def classroom_subject_memberships(
         membership = memberships.get(person_id)
         if membership is not None:
             by_group[group_id].append(membership)
+    return by_group
+
+
+def _writer_memberships(
+    program: Program,
+    group_ids: list[int],
+    writers: dict[int, set[int]],
+) -> dict[int, list[Membership]]:
+    """Membership rows for writer person ids, excluding the supervisor role."""
+    by_group: dict[int, list[Membership]] = {gid: [] for gid in group_ids}
+    person_ids = {pid for ids in writers.values() for pid in ids}
+    roles = non_supervisor_writer_roles(program.organization, "classroom") or frozenset()
+    if not person_ids or not roles:
+        return by_group
+    memberships = {
+        m.person_id: m
+        for m in Membership.all_objects.filter(
+            person_id__in=person_ids,
+            program=program,
+            role__in=roles,
+            is_active=True,
+        ).select_related("person")
+    }
+    for group_id, ids in writers.items():
+        for person_id in ids:
+            membership = memberships.get(person_id)
+            if membership is not None:
+                by_group.setdefault(group_id, []).append(membership)
     return by_group
 
 

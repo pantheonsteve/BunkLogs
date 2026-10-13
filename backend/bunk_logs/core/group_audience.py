@@ -28,8 +28,10 @@ from bunk_logs.core.time_utils import get_today
 __all__ = [
     "GroupAudience",
     "group_audience",
+    "non_supervisor_writer_roles",
     "people_on_seats",
     "supervising_group_ids",
+    "writer_ids_by_group",
 ]
 
 
@@ -152,6 +154,81 @@ def people_on_seats(
         elif seat == "subject" and held & subject_roles:
             subjects.add(person_id)
     return writers, subjects
+
+
+def non_supervisor_writer_roles(org, group_type: str) -> frozenset[str] | None:
+    """Author-seat roles that do not supervise ``group_type``.
+
+    None when ``org`` has no saved group_types. Faculty who also write the
+    class are dropped so a roster of writers is the other roles.
+    """
+    config = saved_group_type_config(org)
+    if config is None:
+        return None
+    author_roles, _subjects, supervisors_by_seat = _seat_roles(config.get(group_type) or {})
+    supervisor_roles: set[str] = set()
+    for roles in supervisors_by_seat.values():
+        supervisor_roles |= roles
+    return frozenset(author_roles - supervisor_roles)
+
+
+def writer_ids_by_group(
+    org,
+    group_ids: Iterable[int],
+    *,
+    exclude_supervisors: bool = False,
+) -> dict[int, set[int]] | None:
+    """Person ids on the author seat, per group.
+
+    None when ``org`` has no saved group_types. A person counts only when
+    their role is configured ``placed_as`` author. ``exclude_supervisors``
+    drops roles marked ``supervises_group``.
+    """
+    config = saved_group_type_config(org)
+    if config is None:
+        return None
+    ids = [gid for gid in group_ids if gid]
+    by_group: dict[int, set[int]] = {gid: set() for gid in ids}
+    if not ids:
+        return by_group
+
+    groups = {
+        gid: (group_type, program_id)
+        for gid, group_type, program_id in AssignmentGroup.all_objects.filter(
+            id__in=ids,
+            organization_id=org.id,
+        ).values_list("id", "group_type", "program_id")
+    }
+    if not groups:
+        return by_group
+
+    roles_by_type: dict[str, set[str]] = {}
+    for group_type in {group_type for group_type, _program_id in groups.values()}:
+        author_roles, _subjects, supervisors_by_seat = _seat_roles(config.get(group_type) or {})
+        if exclude_supervisors:
+            supervisor_roles: set[str] = set()
+            for seat_roles in supervisors_by_seat.values():
+                supervisor_roles |= seat_roles
+            author_roles -= supervisor_roles
+        roles_by_type[group_type] = author_roles
+
+    roster_rows = list(
+        AssignmentGroupMembership.all_objects.filter(
+            group_id__in=groups,
+            is_active=True,
+            role_in_group="author",
+        ).values_list("group_id", "person_id"),
+    )
+    roles = _roles_by_person_and_program(
+        {person_id for _group_id, person_id in roster_rows},
+        {program_id for _group_type, program_id in groups.values()},
+    )
+    for group_id, person_id in roster_rows:
+        group_type, program_id = groups[group_id]
+        held = roles.get((person_id, program_id), set())
+        if held & roles_by_type[group_type]:
+            by_group[group_id].add(person_id)
+    return by_group
 
 
 def supervising_group_ids(org, person, *, today=None) -> set[int] | None:

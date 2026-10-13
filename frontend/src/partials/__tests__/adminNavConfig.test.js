@@ -38,11 +38,11 @@ describe('adminNavItems', () => {
     ]);
   });
 
-  it('names Groups with the tenant vocabulary', () => {
+  it('keeps the Groups link named Groups for every organization', () => {
     const label = (surfaces, term) => adminNavItems(surfaces, term)
       .find((i) => i.to === '/admin/groups').label;
     expect(label(CAMP, campTerm)).toBe('Groups');
-    expect(label(SCHOOL, schoolTerm)).toBe('Classes');
+    expect(label(SCHOOL, schoolTerm)).toBe('Groups');
   });
 
   it('hides Reports when the org has none to show', () => {
