@@ -17,12 +17,15 @@ from django.db.models import Q
 from django.db.models import QuerySet
 
 from bunk_logs.core.context import get_current_organization
+from bunk_logs.core.group_audience import people_on_seats
+from bunk_logs.core.group_audience import supervising_group_ids
 from bunk_logs.core.identity import person_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.org_config import saved_group_type_config
 from bunk_logs.core.permissions.super_admin import is_super_admin
 from bunk_logs.core.program_scope import operational_program_q
 from bunk_logs.core.time_utils import get_today
@@ -50,9 +53,14 @@ WELLNESS_ROLES = frozenset({"health_center", "medical", "special_diets"})
 # ``camper_care`` so a nurse / dietitian still has visibility into pastoral
 # notes about a camper they're co-caring for, even though camper-care staff
 # themselves no longer get this shortcut.
-WELLNESS_TEMPLATE_ROLES = frozenset({
-    "camper_care", "health_center", "medical", "special_diets",
-})
+WELLNESS_TEMPLATE_ROLES = frozenset(
+    {
+        "camper_care",
+        "health_center",
+        "medical",
+        "special_diets",
+    },
+)
 
 
 def _person_for_user(user) -> Person | None:
@@ -88,6 +96,10 @@ def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q 
     if not memberships:
         return None
 
+    # Saved group_types: faculty see the classes they supervise. An empty
+    # unit-slug list no longer opens the whole program for them.
+    faculty_shortcut_closed = saved_group_type_config(person.organization) is not None
+
     program_specs: dict[int, dict] = {}
     for m in memberships:
         pid = m.program_id
@@ -98,6 +110,8 @@ def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q 
         if m.role == "camper_care":
             if raw:
                 entry["units"].update(str(x) for x in raw)
+            continue
+        if faculty_shortcut_closed and m.role == "faculty" and not raw:
             continue
         if not raw:
             entry["unrestricted"] = True
@@ -126,7 +140,8 @@ def _unit_scoped_supervisor_q(person: Person, organization_id: int | None) -> Q 
 
 
 def _camper_care_caseload_q(
-    person: Person, organization_id: int | None,
+    person: Person,
+    organization_id: int | None,
 ) -> Q | None:
     """Q filter scoping camper_care to supervised units/bunks.
 
@@ -151,7 +166,9 @@ def _camper_care_caseload_q(
     parts: list[Q] = []
     for membership in qs:
         bunk_ids = _caseload_bunk_ids_for_membership(
-            Supervision.objects, membership, today=today,
+            Supervision.objects,
+            membership,
+            today=today,
         )
         if not bunk_ids:
             continue
@@ -241,7 +258,10 @@ def _supervision_authored_q(person: Person, organization_id: int | None) -> Q | 
     membership_target_person_ids: set[int] = set()
     bunk_ids: set[int] = set()
     for sup in sup_qs.select_related("target_membership", "target_bunk").only(
-        "id", "target_type", "target_membership__person_id", "target_bunk_id",
+        "id",
+        "target_type",
+        "target_membership__person_id",
+        "target_bunk_id",
     ):
         if sup.target_type == "membership" and sup.target_membership_id:
             person_id = getattr(sup.target_membership, "person_id", None)
@@ -266,8 +286,7 @@ def _supervision_authored_q(person: Person, organization_id: int | None) -> Q | 
             parts.append(Q(assignment_group_id__in=sup_group_ids))
         # Also surface the supervised Persons' OWN self-reflections (UH's
         # supervisor pipe into their counselors' self-reflections).
-        parts.append(Q(author_id__in=membership_target_person_ids,
-                       subject_id__in=membership_target_person_ids))
+        parts.append(Q(author_id__in=membership_target_person_ids, subject_id__in=membership_target_person_ids))
 
     if bunk_ids:
         parts.append(Q(assignment_group_id__in=bunk_ids))
@@ -307,25 +326,52 @@ def _author_group_ids_split(person: Person, *, today: date | None = None) -> tup
     if not direct_ids:
         return set(), set()
 
+    descendant_only_ids = descendant_group_ids(person.organization_id, direct_ids)
+    return direct_ids, descendant_only_ids
+
+
+def descendant_group_ids(organization_id: int, root_ids: set[int]) -> set[int]:
+    """Active descendants of ``root_ids``. The roots themselves are omitted."""
+    if not root_ids:
+        return set()
+    return _expand_descendants(_children_map(organization_id), root_ids)
+
+
+def _children_map(organization_id: int) -> dict[int, list[int]]:
     children_map: dict[int, list[int]] = {}
     rows = AssignmentGroup.all_objects.filter(
-        organization_id=person.organization_id,
+        organization_id=organization_id,
         is_active=True,
         parent_id__isnull=False,
     ).values_list("parent_id", "id")
     for parent_id, child_id in rows:
         children_map.setdefault(parent_id, []).append(child_id)
+    return children_map
 
-    visited = set(direct_ids)
-    queue: list[int] = list(direct_ids)
+
+def _expand_descendants(
+    children_map: dict[int, list[int]],
+    root_ids: set[int],
+) -> set[int]:
+    visited = set(root_ids)
+    queue: list[int] = list(root_ids)
     while queue:
         node = queue.pop()
         for child_id in children_map.get(node, ()):
             if child_id not in visited:
                 visited.add(child_id)
                 queue.append(child_id)
-    descendant_only_ids = visited - direct_ids
-    return direct_ids, descendant_only_ids
+    return visited - set(root_ids)
+
+
+def _operational_group_ids(group_ids: set[int], *, today: date) -> set[int]:
+    if not group_ids:
+        return set()
+    return set(
+        AssignmentGroup.all_objects.filter(id__in=group_ids, is_active=True)
+        .filter(operational_program_q(today=today, prefix="program"))
+        .values_list("id", flat=True),
+    )
 
 
 def supervised_person_ids(
@@ -349,6 +395,10 @@ def supervised_person_ids(
     counselor never supervises their co-counselors. People are collected from
     bunk-type groups only (counselors as authors, campers as subjects).
 
+    When the org has saved ``group_types``, that bunk filter is replaced:
+    a supervisor sees subjects and writers of the groups they supervise,
+    including descendants. Direct author groups stay peers.
+
     ``author_descendant_group_ids`` lets callers that already computed the
     ``_author_group_ids_split`` result (e.g. ``reflections_visible_to``) pass
     it in to avoid recomputing the two-query descendant walk.
@@ -358,9 +408,18 @@ def supervised_person_ids(
     if today is None:
         today = get_today(person.organization)
 
+    if saved_group_type_config(person.organization) is not None:
+        _descendants, person_ids = _seat_visibility_scope(
+            person,
+            organization_id,
+            today,
+        )
+        return person_ids
+
     if author_descendant_group_ids is None:
         _direct_ids, author_descendant_group_ids = _author_group_ids_split(
-            person, today=today,
+            person,
+            today=today,
         )
     group_ids: set[int] = set(author_descendant_group_ids)
 
@@ -395,11 +454,7 @@ def supervised_person_ids(
         elif tt == Supervision.TargetType.ASSIGNMENT_GROUP and sup.target_group_id:
             group_ids.add(sup.target_group_id)
             group_ids.update(d.id for d in sup.target_group.get_descendants())
-        elif (
-            tt == Supervision.TargetType.ROLE_IN_PROGRAM
-            and sup.target_program_id
-            and sup.target_role
-        ):
+        elif tt == Supervision.TargetType.ROLE_IN_PROGRAM and sup.target_program_id and sup.target_role:
             role_pairs.add((sup.target_program_id, sup.target_role))
 
     person_ids: set[int] = set(membership_person_ids)
@@ -422,6 +477,71 @@ def supervised_person_ids(
         )
 
     return person_ids
+
+
+def _seat_visibility_scope(
+    person: Person,
+    organization_id: int | None,
+    today: date,
+) -> tuple[set[int], set[int]]:
+    """Saved-settings supervisor scope: ``(descendant group ids, person ids)``.
+
+    Roots are groups the person supervises by seat, plus bunk and assignment
+    group ``Supervision`` targets. Descendants of those roots are returned so
+    a unit head still sees the bunks inside the unit. Person ids are the
+    subjects and writers of the roots and those descendants, plus membership
+    and role targets.
+    """
+    from bunk_logs.core.models import Supervision
+
+    roots = set(supervising_group_ids(person.organization, person, today=today) or ())
+
+    sup_qs = Supervision.all_objects.filter(
+        supervisor_membership__person=person,
+        supervisor_membership__is_active=True,
+        start_date__lte=today,
+    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+    if organization_id is not None:
+        sup_qs = sup_qs.filter(
+            supervisor_membership__program__organization_id=organization_id,
+        )
+
+    membership_person_ids: set[int] = set()
+    role_pairs: set[tuple[int, str]] = set()
+    for sup in sup_qs.select_related("target_membership", "target_group").only(
+        "id",
+        "target_type",
+        "target_membership__person_id",
+        "target_bunk_id",
+        "target_group_id",
+        "target_program_id",
+        "target_role",
+    ):
+        tt = sup.target_type
+        if tt == Supervision.TargetType.MEMBERSHIP and sup.target_membership_id:
+            pid = getattr(sup.target_membership, "person_id", None)
+            if pid:
+                membership_person_ids.add(pid)
+        elif tt == Supervision.TargetType.BUNK and sup.target_bunk_id:
+            roots.add(sup.target_bunk_id)
+        elif tt == Supervision.TargetType.ASSIGNMENT_GROUP and sup.target_group_id:
+            roots.add(sup.target_group_id)
+        elif tt == Supervision.TargetType.ROLE_IN_PROGRAM and sup.target_program_id and sup.target_role:
+            role_pairs.add((sup.target_program_id, sup.target_role))
+
+    descendants = descendant_group_ids(person.organization_id, roots)
+    expanded = _operational_group_ids(set(roots) | descendants, today=today)
+    writers, subjects = people_on_seats(person.organization, expanded) or (set(), set())
+    person_ids: set[int] = set(writers) | set(subjects) | membership_person_ids
+
+    if role_pairs:
+        role_q = reduce(or_, [Q(program_id=pid, role=role) for pid, role in role_pairs])
+        person_ids.update(
+            Membership.all_objects.filter(role_q, is_active=True)
+            .filter(operational_program_q(today=today, prefix="program"))
+            .values_list("person_id", flat=True),
+        )
+    return descendants & expanded, person_ids
 
 
 def reflections_visible_to(
@@ -479,14 +599,30 @@ def reflections_visible_to(
     parts: list[Q] = [Q(author=person), Q(subject=person, template__subject_visible=True)]
 
     direct_group_ids, descendant_group_ids = _author_group_ids_split(person)
+    # Org is already loaded by the split above. Unsaved orgs keep the
+    # author-descendant pipe; saved group_types follow the supervise seat.
+    saved_settings = saved_group_type_config(person.organization) is not None
+    seat_descendants: set[int] = set()
+    seat_people: set[int] = set()
+    if saved_settings:
+        seat_descendants, seat_people = _seat_visibility_scope(
+            person,
+            org_id,
+            get_today(person.organization),
+        )
     if direct_group_ids:
         # Peer visibility: same-group co-authors see each other only when
         # the reflection is team-visible.
-        parts.append(Q(
-            assignment_group_id__in=direct_group_ids,
-            team_visibility=Reflection.TeamVisibility.TEAM,
-        ))
-    if descendant_group_ids:
+        parts.append(
+            Q(
+                assignment_group_id__in=direct_group_ids,
+                team_visibility=Reflection.TeamVisibility.TEAM,
+            ),
+        )
+    if saved_settings:
+        if seat_descendants:
+            parts.append(Q(assignment_group_id__in=seat_descendants))
+    elif descendant_group_ids:
         # Supervisor pipe: authors of ancestor groups always see, regardless
         # of team_visibility -- that's the whole point of marking something
         # "supervisors only".
@@ -519,9 +655,14 @@ def reflections_visible_to(
     # (non-supervised) bunk. Supervision is derived from unit/bunk authorship +
     # Supervision rows, so a Unit Head assigned to a unit gains it automatically
     # without any explicit Supervision rows.
-    supervised_ids = supervised_person_ids(
-        person, org_id, author_descendant_group_ids=descendant_group_ids,
-    )
+    if saved_settings:
+        supervised_ids = seat_people
+    else:
+        supervised_ids = supervised_person_ids(
+            person,
+            org_id,
+            author_descendant_group_ids=descendant_group_ids,
+        )
     if supervised_ids:
         parts.append(Q(subject_id__in=supervised_ids))
 
@@ -568,6 +709,9 @@ def has_supervisor_role(user) -> bool:
     if _has_org_admin_membership(person, person.organization_id):
         return True
     if _unit_scoped_supervisor_q(person, person.organization_id) is not None:
+        return True
+    # Saved settings: supervising a class with no child groups still counts.
+    if supervising_group_ids(person.organization, person):
         return True
 
     direct_ids = list(
