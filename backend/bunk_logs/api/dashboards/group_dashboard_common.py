@@ -6,12 +6,13 @@ and TBE Madrich/Faculty viewers across every ``AssignmentGroup``
 type (bunk, unit, division, classroom). Per-role gating lives here so
 the view stays focused on payload assembly. Precedence (first match
 wins) is admin > leadership_team > unit_head > camper_care >
-counselor > classroom_author.
+group author. Author access is whoever the org's group-type config
+lists as an author for that group, and only on the group they author.
+Counselors still get no rollup to a parent unit or division.
 
 The resolver loads the target ``AssignmentGroup`` up front because
 the access check needs to know its ``program`` (Supervision rows are
-program-scoped) and its ``group_type`` (counselor access is bunk-only;
-classroom access is faculty/madrich-only).
+program-scoped) and its ``group_type``.
 """
 from __future__ import annotations
 
@@ -21,13 +22,14 @@ from typing import TYPE_CHECKING
 from rest_framework.exceptions import PermissionDenied
 
 from bunk_logs.api.camper_care.common import caseload_bunk_ids
-from bunk_logs.api.counselor.common import COUNSELOR_ROLES
 from bunk_logs.api.unit_head.common import supervised_bunk_ids
 from bunk_logs.core.managers import _expand_group_to_bunk_ids
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
+from bunk_logs.core.org_config import author_roles_for
+from bunk_logs.core.org_config import group_type_config
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -38,10 +40,9 @@ if TYPE_CHECKING:
 
 
 # Precedence order for role resolution. The first matching role wins.
-# ``classroom_author`` (faculty / madrich AGM author on a classroom)
-# is a derived role: there is no single Membership role that owns
-# classroom-level access. See the classroom branch in
-# :func:`resolve_group_dashboard_context` for the lookup rules.
+# ``counselor`` and ``classroom_author`` are the viewer-role strings the
+# bunk and classroom payloads already branch on. Which membership roles
+# earn them comes from the org's group-type config, not a hardcoded list.
 ROLE_PRECEDENCE: tuple[str, ...] = (
     "admin",
     "leadership_team",
@@ -51,13 +52,37 @@ ROLE_PRECEDENCE: tuple[str, ...] = (
     "classroom_author",
 )
 
-# Membership roles that, when paired with an AGM ``author`` row on a
-# classroom group, grant read access to that classroom's dashboard.
-# Faculty + madrich are the TBE counterparts to the camp-side
-# counselor role.
-CLASSROOM_AUTHOR_ROLES: frozenset[str] = frozenset({"faculty", "madrich"})
-
 _ACCESS_DENIED_MESSAGE = "You do not have access to this group."
+
+
+def _author_viewer_role(group_type: str, membership_role: str) -> str:
+    """Viewer-role string for an author grant. Bunk and classroom stay stable."""
+    if group_type == "classroom":
+        return "classroom_author"
+    if group_type == "bunk":
+        return "counselor"
+    return membership_role
+
+
+def _configured_author_membership(person, group, program, organization):
+    """Active author on this group whose role is an author for the group type.
+
+    The authorship row has to be on ``group`` itself. A counselor who
+    authors a child bunk does not get the parent.
+    """
+    if not AssignmentGroupMembership.objects.filter(
+        person=person, group=group, role_in_group="author", is_active=True,
+    ).exists():
+        return None
+    author_roles = author_roles_for(organization, group.group_type)
+    if not author_roles:
+        return None
+    return Membership.objects.filter(
+        person=person,
+        role__in=tuple(author_roles),
+        is_active=True,
+        program=program,
+    ).first()
 
 
 @dataclass(frozen=True)
@@ -81,9 +106,10 @@ def resolve_group_dashboard_context(
     Roles are evaluated in :data:`ROLE_PRECEDENCE`. Admin and Leadership
     Team grant org-wide access. UH and CC each require an active
     program-scoped Membership plus a supervision link to at least one
-    leaf bunk under the group (``_expand_group_to_bunk_ids``). Counselor
-    is bunk-only (no group-level views). Classroom is faculty/madrich
-    AGM-author only.
+    leaf bunk under the group (``_expand_group_to_bunk_ids``). After
+    that, an active author whose membership role is configured as an
+    author for this group type may open the group. They do not roll up
+    to a parent.
 
     Superusers without a ``Person`` profile resolve as admin so Django
     superadmins can hit the endpoint for debugging without a tenant
@@ -198,58 +224,21 @@ def resolve_group_dashboard_context(
                 membership=cc_membership,
             )
 
-    # 5. Counselor / Junior Counselor — bunk-only. Counselors don't get
-    # rollup access to a parent unit/division (would expose peers'
-    # bunks they don't author).
-    if group.group_type == "bunk" and AssignmentGroupMembership.objects.filter(
-        person=person, group=group, role_in_group="author", is_active=True,
-    ).exists():
-        counselor_membership = (
-            Membership.objects.filter(
-                person=person,
-                role__in=tuple(COUNSELOR_ROLES),
-                is_active=True,
-                program=program,
-            )
-            .first()
+    # 5. Configured author — active author on this group whose membership
+    # role is an author for the group type. No rollup to parent groups.
+    author_membership = _configured_author_membership(
+        person, group, program, organization,
+    )
+    if author_membership is not None:
+        return GroupViewerContext(
+            role=_author_viewer_role(group.group_type, author_membership.role),
+            person=person,
+            organization=organization,
+            program=program,
+            today=today,
+            group=group,
+            membership=author_membership,
         )
-        if counselor_membership is not None:
-            return GroupViewerContext(
-                role="counselor",
-                person=person,
-                organization=organization,
-                program=program,
-                today=today,
-                group=group,
-                membership=counselor_membership,
-            )
-
-    # 6. Classroom author (TBE) — faculty or madrich AGM ``author`` on
-    # the classroom plus any active Membership in the classroom's
-    # program. There is no parallel for camp groups; counselors are
-    # handled above.
-    if group.group_type == "classroom" and AssignmentGroupMembership.objects.filter(
-        person=person, group=group, role_in_group="author", is_active=True,
-    ).exists():
-        classroom_membership = (
-            Membership.objects.filter(
-                person=person,
-                role__in=tuple(CLASSROOM_AUTHOR_ROLES),
-                is_active=True,
-                program=program,
-            )
-            .first()
-        )
-        if classroom_membership is not None:
-            return GroupViewerContext(
-                role="classroom_author",
-                person=person,
-                organization=organization,
-                program=program,
-                today=today,
-                group=group,
-                membership=classroom_membership,
-            )
 
     raise PermissionDenied(_ACCESS_DENIED_MESSAGE)
 
@@ -265,8 +254,8 @@ def groups_visible_to_viewer(
 
     Mirrors :func:`resolve_group_dashboard_context` rules without probing a
     single group: LT sees all program groups; UH/CC see groups whose leaf
-    bunks overlap supervision/caseload; counselors see authored bunks only;
-    faculty/madrich see authored classrooms only.
+    bunks overlap supervision/caseload; configured authors see the groups
+    they author and nothing above them.
     """
     program_groups = list(
         AssignmentGroup.objects.filter(
@@ -285,43 +274,31 @@ def groups_visible_to_viewer(
 
     visible: set[int] = set()
 
-    counselor_bunk_ids = set(
-        AssignmentGroupMembership.objects.filter(
+    membership_roles = set(
+        Membership.objects.filter(
+            person=person, is_active=True, program=program,
+        ).values_list("role", flat=True),
+    )
+    if membership_roles:
+        config = group_type_config(organization)
+        authored = AssignmentGroupMembership.objects.filter(
             person=person,
             role_in_group="author",
             is_active=True,
             group__program=program,
-            group__group_type="bunk",
-        ).values_list("group_id", flat=True),
-    )
-    if counselor_bunk_ids:
-        counselor_membership = Membership.objects.filter(
-            person=person,
-            role__in=tuple(COUNSELOR_ROLES),
-            is_active=True,
-            program=program,
-        ).exists()
-        if counselor_membership:
-            visible.update(counselor_bunk_ids)
-
-    classroom_ids = set(
-        AssignmentGroupMembership.objects.filter(
-            person=person,
-            role_in_group="author",
-            is_active=True,
-            group__program=program,
-            group__group_type="classroom",
-        ).values_list("group_id", flat=True),
-    )
-    if classroom_ids:
-        has_classroom_role = Membership.objects.filter(
-            person=person,
-            role__in=tuple(CLASSROOM_AUTHOR_ROLES),
-            is_active=True,
-            program=program,
-        ).exists()
-        if has_classroom_role:
-            visible.update(classroom_ids)
+            group__is_active=True,
+        ).select_related("group")
+        for agm in authored:
+            type_cfg = config.get(agm.group.group_type) or {}
+            if not type_cfg.get("enabled", True):
+                continue
+            author_roles = {
+                member["role"]
+                for member in type_cfg.get("members") or []
+                if member.get("placed_as") == "author"
+            }
+            if membership_roles & author_roles:
+                visible.add(agm.group_id)
 
     supervised_leaf_ids: set[int] = set()
     for uh_membership in Membership.objects.filter(

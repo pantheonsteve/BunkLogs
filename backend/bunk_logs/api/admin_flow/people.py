@@ -49,6 +49,10 @@ from bunk_logs.core.models import AuditEvent
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
+from bunk_logs.core.org_config import enabled_roles
+from bunk_logs.core.org_config import group_type_config
+from bunk_logs.core.org_config import role_allowed
+from bunk_logs.core.org_config import role_catalog
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.messaging.services.email_service import get_email_service
 
@@ -63,6 +67,28 @@ INVITE_NEVER = "never"
 INVITE_INVITED = "invited"
 INVITE_ACTIVE = "active"
 INVITE_STATUSES = frozenset({INVITE_NEVER, INVITE_INVITED, INVITE_ACTIVE})
+
+
+def _org_config_payload(org) -> dict[str, Any]:
+    return {
+        "enabled_roles": enabled_roles(org),
+        "group_type_config": group_type_config(org),
+        "role_catalog": role_catalog(org),
+    }
+
+
+def _disabled_role_response(org, role: str) -> Response | None:
+    if role_allowed(org, role):
+        return None
+    return Response(
+        {
+            "detail": (
+                "That role is turned off. Turn it on in Settings "
+                "before adding someone."
+            ),
+        },
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 def invitable_people(organization):
     """Active people outside SUBJECT_ROLES -- who an invitation applies to."""
@@ -346,6 +372,7 @@ class AdminPeopleListCreateView(APIView):
             "page_size": page_size,
             "available_roles": available_roles,
             "available_groups": available_groups,
+            **_org_config_payload(ctx.organization),
             "results": [_serialize_person(p, include_summary=True) for p in items],
         })
 
@@ -394,6 +421,9 @@ class AdminPeopleListCreateView(APIView):
                 {"detail": f"Unknown role {role!r}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        denied = _disabled_role_response(ctx.organization, role)
+        if denied is not None:
+            return denied
 
         actor = ctx.membership or request.user
         with transaction.atomic():
@@ -456,6 +486,7 @@ class AdminPeopleDetailView(APIView):
             return _not_found("Person")
         payload = _serialize_person(person, include_memberships=True)
         payload["recent_activity"] = _recent_activity_for_person(ctx, person)
+        payload.update(_org_config_payload(ctx.organization))
         return Response(payload)
 
     def patch(self, request, person_id, *args, **kwargs):
@@ -585,6 +616,9 @@ class AdminPersonMembershipsView(APIView):
                 {"detail": f"Unknown role {role!r}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        denied = _disabled_role_response(ctx.organization, role)
+        if denied is not None:
+            return denied
         if Membership.all_objects.filter(
             program=program, person=person, role=role,
         ).exists():

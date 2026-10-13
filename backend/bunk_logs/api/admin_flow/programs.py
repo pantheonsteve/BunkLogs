@@ -46,6 +46,11 @@ from bunk_logs.core.models import MaintenanceTicket
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Order
 from bunk_logs.core.models import Program
+from bunk_logs.core.org_config import enabled_roles
+from bunk_logs.core.org_config import group_type_config
+from bunk_logs.core.org_config import role_catalog
+from bunk_logs.core.org_config import validate_group_types
+from bunk_logs.core.org_config import validate_roles_update
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 from bunk_logs.core.state_machine import OrderStateMachine
 
@@ -362,6 +367,13 @@ class AdminSettingsView(APIView):
             "rollover_hour": settings.get("rollover_hour"),
             "tag_vocabulary": settings.get("tag_vocabulary") or [],
             "day_rollover_hour": settings.get("rollover_hour"),
+            "enabled_roles": enabled_roles(org),
+            "group_type_config": group_type_config(org),
+            "role_catalog": role_catalog(org),
+            "program_types": [
+                {"value": value, "label": label}
+                for value, label in Program.PROGRAM_TYPES
+            ],
         })
 
     def patch(self, request, *args, **kwargs):
@@ -370,6 +382,16 @@ class AdminSettingsView(APIView):
         before = dict(org.settings or {})
         new_settings: dict[str, Any] = dict(before)
         data = request.data or {}
+
+        incoming_settings = data["settings"] if isinstance(data.get("settings"), dict) else {}
+        if "roles" in incoming_settings:
+            role_error = validate_roles_update(org, incoming_settings["roles"])
+            if role_error:
+                return Response({"detail": role_error}, status=status.HTTP_400_BAD_REQUEST)
+        if "group_types" in incoming_settings:
+            group_error = validate_group_types(org, incoming_settings["group_types"])
+            if group_error:
+                return Response({"detail": group_error}, status=status.HTTP_400_BAD_REQUEST)
 
         if "settings" in data and isinstance(data["settings"], dict):
             new_settings.update(data["settings"])

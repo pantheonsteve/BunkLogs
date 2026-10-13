@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpResponse
 from django.utils.text import slugify
 from rest_framework import permissions
@@ -16,12 +18,16 @@ from bunk_logs.core.group_clone import clone_assignment_group
 from bunk_logs.core.group_clone import unique_group_slug
 from bunk_logs.core.group_csv_import import build_group_import_template_csv
 from bunk_logs.core.group_csv_import import import_groups_from_csv_text
+from bunk_logs.core.group_supervision import sync_placement
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import RosterImportLog
+from bunk_logs.core.org_config import enabled_roles
+from bunk_logs.core.org_config import group_type_config
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
 
 
@@ -65,6 +71,35 @@ class AssignmentGroupSerializer(serializers.ModelSerializer):
             "memberships",
         ]
         read_only_fields = fields
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        org = instance.organization
+        config = group_type_config(org)
+        data["enabled_roles"] = enabled_roles(org)
+        data["group_type_config"] = config
+        type_members = (config.get(instance.group_type) or {}).get("members") or []
+        person_ids = [row["person"]["id"] for row in data.get("memberships") or []]
+        roles_by_person: dict[int, list[str]] = {}
+        if person_ids:
+            for membership in Membership.all_objects.filter(
+                person_id__in=person_ids,
+                program_id=instance.program_id,
+                is_active=True,
+            ).order_by("id"):
+                roles_by_person.setdefault(membership.person_id, []).append(membership.role)
+        for row in data.get("memberships") or []:
+            roles = roles_by_person.get(row["person"]["id"], [])
+            match = next(
+                (
+                    member for member in type_members
+                    if member.get("placed_as") == row["role_in_group"] and member["role"] in roles
+                ),
+                None,
+            )
+            row["membership_role"] = match["role"] if match else (roles[0] if roles else None)
+            row["supervises_group"] = bool(match and match.get("supervises_group"))
+        return data
 
 
 class AssignmentGroupListSerializer(serializers.ModelSerializer):
@@ -327,20 +362,33 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
 
         person = Person.all_objects.get(pk=data["person_id"])
-        membership, created = AssignmentGroupMembership.all_objects.get_or_create(
-            group=group,
-            person=person,
-            role_in_group=data["role_in_group"],
-            defaults={
-                "is_active": True,
-                "start_date": data.get("start_date"),
-                "end_date": data.get("end_date"),
-                "metadata": data.get("metadata", {}),
-            },
-        )
-        if not created and not membership.is_active:
-            membership.is_active = True
-            membership.save(update_fields=["is_active"])
+        try:
+            with transaction.atomic():
+                membership, created = AssignmentGroupMembership.all_objects.get_or_create(
+                    group=group,
+                    person=person,
+                    role_in_group=data["role_in_group"],
+                    defaults={
+                        "is_active": True,
+                        "start_date": data.get("start_date"),
+                        "end_date": data.get("end_date"),
+                        "metadata": data.get("metadata", {}),
+                    },
+                )
+                if not created and not membership.is_active:
+                    membership.is_active = True
+                    membership.save(update_fields=["is_active"])
+                sync_placement(membership, active=True)
+        except ValidationError:
+            return Response(
+                {
+                    "detail": (
+                        "This person can't supervise that group. "
+                        "Check the role under Settings, then try again."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         out = AssignmentGroupMembershipSerializer(membership)
         return Response(out.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -354,11 +402,13 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         hard_delete = request.query_params.get("hard", "").lower() in ("1", "true", "yes")
-        if hard_delete:
-            membership.delete()
-        else:
-            membership.is_active = False
-            membership.save(update_fields=["is_active"])
+        with transaction.atomic():
+            sync_placement(membership, active=False)
+            if hard_delete:
+                membership.delete()
+            else:
+                membership.is_active = False
+                membership.save(update_fields=["is_active"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
