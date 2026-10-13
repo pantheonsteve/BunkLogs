@@ -20,7 +20,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.classroom_challenges.common import classroom_group_ids_for_role
 from bunk_logs.api.threads.common import FACULTY
 from bunk_logs.api.threads.common import display_name
 from bunk_logs.api.threads.common import routed_queue_qs
@@ -31,10 +30,12 @@ from bunk_logs.core.models import ClassroomChallenge
 from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import Person
 from bunk_logs.core.reflection_threads import unread_thread_ids
+from bunk_logs.core.school_seats import roster_term_key
 
 from .classroom_signals import build_availability_window
 from .classroom_signals import build_weekly_completion
 from .classroom_signals import classroom_subject_memberships
+from .classroom_signals import faculty_classroom_ids
 from .common import viewer_or_403
 
 if TYPE_CHECKING:
@@ -139,9 +140,7 @@ class FacultyRosterView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        group_ids = classroom_group_ids_for_role(
-            ctx.person, ctx.program, role_in_group="author",
-        )
+        group_ids = faculty_classroom_ids(ctx.person, ctx.program)
         if not group_ids:
             return Response({"results": [], "classrooms": []})
 
@@ -228,6 +227,7 @@ class FacultyRosterView(APIView):
             "next_session": (
                 window.session_dates[0].isoformat() if window is not None else None
             ),
+            "roster_term": roster_term_key(ctx.organization),
         })
 
 

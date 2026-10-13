@@ -18,12 +18,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.faculty.classroom_signals import classroom_subject_memberships
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.scheduling.availability_matrix import build_matrix_rows
 from bunk_logs.core.scheduling.availability_matrix import resolve_session_window
+from bunk_logs.core.school_seats import supervised_classroom_ids
 from bunk_logs.core.time_utils import get_today
 
 if TYPE_CHECKING:
@@ -76,32 +78,45 @@ class FacultyClassroomAvailabilityView(APIView):
         if group is None:
             raise PermissionDenied(_ACCESS_DENIED_MESSAGE)
 
-        is_author = AssignmentGroupMembership.objects.filter(
-            person=person, group=group, role_in_group="author", is_active=True,
-        ).exists()
-        has_classroom_role = is_author and Membership.objects.filter(
-            person=person,
-            role__in=tuple(CLASSROOM_AUTHOR_ROLES),
-            is_active=True,
-            program=group.program,
-        ).exists()
-        if not has_classroom_role:
-            raise PermissionDenied(_ACCESS_DENIED_MESSAGE)
-
         program = group.program
-        subject_person_ids = AssignmentGroupMembership.objects.filter(
-            group=group, role_in_group="subject", is_active=True,
-        ).values_list("person_id", flat=True)
-        memberships = list(
-            Membership.objects.filter(
-                person_id__in=subject_person_ids,
-                program=program,
-                role="madrich",
+        supervised = supervised_classroom_ids(person, program)
+        if supervised is None:
+            is_author = AssignmentGroupMembership.objects.filter(
+                person=person, group=group, role_in_group="author", is_active=True,
+            ).exists()
+            has_classroom_role = is_author and Membership.objects.filter(
+                person=person,
+                role__in=tuple(CLASSROOM_AUTHOR_ROLES),
                 is_active=True,
+                program=program,
+            ).exists()
+            if not has_classroom_role:
+                raise PermissionDenied(_ACCESS_DENIED_MESSAGE)
+            subject_person_ids = AssignmentGroupMembership.objects.filter(
+                group=group, role_in_group="subject", is_active=True,
+            ).values_list("person_id", flat=True)
+            memberships = list(
+                Membership.objects.filter(
+                    person_id__in=subject_person_ids,
+                    program=program,
+                    role="madrich",
+                    is_active=True,
+                )
+                .select_related("person")
+                .order_by("person__last_name", "person__first_name"),
             )
-            .select_related("person")
-            .order_by("person__last_name", "person__first_name"),
-        )
+        else:
+            if group.id not in set(supervised):
+                raise PermissionDenied(_ACCESS_DENIED_MESSAGE)
+            memberships = classroom_subject_memberships(
+                program=program, group_ids=[group.id],
+            )[group.id]
+            memberships.sort(
+                key=lambda m: (
+                    (m.person.last_name or "").casefold(),
+                    (m.person.first_name or "").casefold(),
+                ),
+            )
 
         from_date = _parse_date_param(request.query_params.get("from"), label="from")
         to_date = _parse_date_param(request.query_params.get("to"), label="to")

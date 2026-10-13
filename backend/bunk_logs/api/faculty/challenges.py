@@ -28,7 +28,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.api.classroom_challenges.common import challenge_detail
 from bunk_logs.api.classroom_challenges.common import challenge_list_item
-from bunk_logs.api.classroom_challenges.common import classroom_group_ids_for_role
+from bunk_logs.api.faculty.classroom_signals import faculty_classroom_ids
 from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import ClassroomChallenge
 from bunk_logs.core.models import ClassroomChallengeResponse
@@ -55,7 +55,8 @@ class ClassroomChallengeStatusUpdateSerializer(serializers.Serializer):
 
 
 def _authored_classroom_ids(ctx: ViewerContext) -> list[int]:
-    return classroom_group_ids_for_role(ctx.person, ctx.program, role_in_group="author")
+    """Classrooms whose challenges this faculty member can see."""
+    return faculty_classroom_ids(ctx.person, ctx.program)
 
 
 def _detail_or_404(challenge_id) -> ClassroomChallenge:

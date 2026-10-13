@@ -38,6 +38,7 @@ from bunk_logs.core import audit as audit_module
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import ClassroomChallenge
 from bunk_logs.core.scheduling.sessions import program_session_dates
+from bunk_logs.core.school_seats import challenge_classroom_ids
 
 from .common import viewer_or_403
 
@@ -45,6 +46,18 @@ if TYPE_CHECKING:
     from datetime import date as date_type
 
     from bunk_logs.core.models import Program
+
+
+def _reportable_classroom_ids(person, program) -> list[int]:
+    """Classrooms this madrich may file into.
+
+    Saved group_types: classrooms they write. Otherwise classrooms where
+    they are a subject.
+    """
+    writer_ids = challenge_classroom_ids(person, program)
+    if writer_ids is None:
+        return classroom_group_ids_for_role(person, program, role_in_group="subject")
+    return writer_ids
 
 
 def _next_session_date(program: Program, today: date_type) -> date_type:
@@ -78,7 +91,7 @@ class MadrichChallengeClassroomsView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        group_ids = classroom_group_ids_for_role(ctx.person, ctx.program, role_in_group="subject")
+        group_ids = _reportable_classroom_ids(ctx.person, ctx.program)
         groups = AssignmentGroup.objects.filter(id__in=group_ids, is_active=True).order_by("name")
         default_session = _next_session_date(ctx.program, ctx.today).isoformat()
         return Response({
@@ -101,7 +114,7 @@ class MadrichChallengeListCreateView(APIView):
 
     def get(self, request, *args, **kwargs):
         ctx = viewer_or_403(request)
-        classroom_ids = classroom_group_ids_for_role(ctx.person, ctx.program, role_in_group="subject")
+        classroom_ids = _reportable_classroom_ids(ctx.person, ctx.program)
         mine = request.query_params.get("mine") == "1"
 
         if mine:
@@ -147,7 +160,7 @@ class MadrichChallengeListCreateView(APIView):
         payload = ser.validated_data
 
         group_id = payload["assignment_group_id"]
-        classroom_ids = classroom_group_ids_for_role(ctx.person, ctx.program, role_in_group="subject")
+        classroom_ids = _reportable_classroom_ids(ctx.person, ctx.program)
         if group_id not in classroom_ids:
             msg = "You are not a member of this classroom."
             raise PermissionDenied(msg)
@@ -201,7 +214,7 @@ class MadrichChallengeDetailView(APIView):
             raise NotFound(msg)
         is_author = challenge.author_id == ctx.person.id
         if not is_author:
-            classroom_ids = classroom_group_ids_for_role(ctx.person, ctx.program, role_in_group="subject")
+            classroom_ids = _reportable_classroom_ids(ctx.person, ctx.program)
             if challenge.assignment_group_id not in classroom_ids:
                 msg = "You do not have access to this challenge."
                 raise PermissionDenied(msg)

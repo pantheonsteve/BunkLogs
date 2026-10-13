@@ -123,6 +123,11 @@ def supervised_subject_ids(person: Person, program: Program | None) -> set[int]:
     """
     if person is None or program is None:
         return set()
+    from bunk_logs.core.school_seats import supervised_writer_ids
+
+    writers = supervised_writer_ids(person, program)
+    if writers is not None:
+        return writers
     group_ids = classroom_group_ids_for_role(person, program, role_in_group=AUTHOR)
     if not group_ids:
         return set()

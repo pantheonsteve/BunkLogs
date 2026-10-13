@@ -3366,15 +3366,25 @@ class ClassroomChallenge(models.Model):
                 {"assignment_group": "Challenges may only be raised against classroom groups."},
             )
         if self.assignment_group_id and self.author_id:
-            is_classroom_subject = AssignmentGroupMembership.all_objects.filter(
-                group_id=self.assignment_group_id,
-                person_id=self.author_id,
-                role_in_group="subject",
-                is_active=True,
-            ).exists()
-            if not is_classroom_subject:
+            from bunk_logs.core.group_audience import group_audience
+
+            audience = group_audience(
+                self.assignment_group.organization, self.assignment_group,
+            )
+            if audience is None:
+                is_classroom_subject = AssignmentGroupMembership.all_objects.filter(
+                    group_id=self.assignment_group_id,
+                    person_id=self.author_id,
+                    role_in_group="subject",
+                    is_active=True,
+                ).exists()
+                if not is_classroom_subject:
+                    raise ValidationError(
+                        {"author": "Author must be an active Madrich (subject) in this classroom."},
+                    )
+            elif self.author_id not in audience.writers:
                 raise ValidationError(
-                    {"author": "Author must be an active Madrich (subject) in this classroom."},
+                    {"author": "Author must hold the writer seat in this classroom."},
                 )
         if self.session_date and self.session_date.weekday() != 6:
             raise ValidationError({"session_date": "session_date must be a Sunday."})

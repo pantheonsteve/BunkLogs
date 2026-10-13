@@ -22,14 +22,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bunk_logs.api.classroom_challenges.common import classroom_group_ids_for_role
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import ClassroomChallenge
+from bunk_logs.core.school_seats import roster_term_key
 from bunk_logs.core.time_utils import get_current_period
 
 from .classroom_signals import build_availability_window
 from .classroom_signals import build_weekly_completion
 from .classroom_signals import classroom_subject_memberships
+from .classroom_signals import faculty_classroom_ids
 from .common import viewer_or_403
 from .roster import response_queue
 
@@ -59,9 +60,7 @@ class FacultyDashboardView(APIView):
         program = ctx.program
         today = ctx.today
 
-        group_ids = classroom_group_ids_for_role(
-            ctx.person, program, role_in_group="author",
-        )
+        group_ids = faculty_classroom_ids(ctx.person, program)
         groups = list(
             AssignmentGroup.objects.filter(id__in=group_ids).order_by("name"),
         )
@@ -140,6 +139,7 @@ class FacultyDashboardView(APIView):
             "classrooms": classrooms,
             "challenges_url": "/faculty/challenges",
             "response_queue": response_queue(ctx),
+            "roster_term": roster_term_key(org),
         })
 
 

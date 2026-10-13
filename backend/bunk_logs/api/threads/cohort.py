@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db.models import Count
+from django.db.models import Q
 from rest_framework import serializers
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -28,8 +29,10 @@ from bunk_logs.core.models import CohortShareModeration
 from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import ShareReaction
+from bunk_logs.core.org_config import saved_group_type_config
 from bunk_logs.core.reflection_threads import unread_thread_ids
 
+from .common import AUTHOR
 from .common import SUBJECT
 from .common import ThreadViewer
 from .common import display_name
@@ -167,9 +170,7 @@ class CohortMembersView(APIView):
             return Response({"results": [], "cohorts": []})
 
         rows = (
-            AssignmentGroupMembership.objects.filter(
-                group_id__in=group_ids, role_in_group=SUBJECT, is_active=True,
-            )
+            _teaching_team_rows(viewer, group_ids)
             .select_related("person", "group")
             .order_by("person__last_name", "person__first_name")
         )
@@ -214,6 +215,32 @@ class CohortMembersView(APIView):
                 "is_me": row.person_id == viewer.person.id,
             })
         return Response({"results": results, "cohorts": cohorts})
+
+
+def _teaching_team_rows(viewer: ThreadViewer, group_ids: list[int]):
+    """Roster rows for the Teaching Team.
+
+    Saved settings: a cohort group includes either seat. Classrooms, including
+    the fallback feed for someone with no cohort seat, stay on the subject
+    seat so students are not treated as the team.
+    """
+    base = AssignmentGroupMembership.objects.filter(is_active=True)
+    if saved_group_type_config(viewer.organization) is None:
+        return base.filter(group_id__in=group_ids, role_in_group=SUBJECT)
+    cohort_ids = set(
+        AssignmentGroup.objects.filter(
+            id__in=group_ids, group_type="cohort",
+        ).values_list("id", flat=True),
+    )
+    other_ids = [gid for gid in group_ids if gid not in cohort_ids]
+    seat = Q()
+    if other_ids:
+        seat |= Q(group_id__in=other_ids, role_in_group=SUBJECT)
+    if cohort_ids:
+        seat |= Q(group_id__in=cohort_ids, role_in_group__in=(AUTHOR, SUBJECT))
+    if not seat:
+        return base.none()
+    return base.filter(seat)
 
 
 def _initials(person) -> str:
