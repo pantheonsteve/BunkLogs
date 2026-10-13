@@ -218,17 +218,20 @@ describe('MadrichDashboard', () => {
   });
 
   it('points the classroom card at the group dashboard for the roster', async () => {
-    getMock.mockImplementation((url) => Promise.resolve({
-      data: url.includes('/challenges/classrooms/')
-        ? { classrooms: [{ assignment_group_id: 88, name: 'Grade 7A' }] }
-        : samplePayload,
-    }));
+    getMock.mockResolvedValue({
+      data: {
+        ...samplePayload,
+        classrooms: [{ assignment_group_id: 88, name: 'Grade 7A' }],
+      },
+    });
     render(<MemoryRouter><MadrichDashboard /></MemoryRouter>);
     await waitFor(() => screen.getByTestId('md-classroom-card'));
     expect(screen.getByTestId('md-classroom-card')).toHaveTextContent('Grade 7A');
+    expect(screen.getByTestId('md-classroom-card')).not.toHaveTextContent('Your students');
     expect(screen.getByTestId('md-classroom-link-88')).toHaveAttribute(
       'href', '/dashboards/group/88',
     );
+    expect(screen.getByTestId('md-classroom-link-88')).toHaveTextContent('View campers');
   });
 
   it('hides the classroom card when the Madrich is on no classroom', async () => {

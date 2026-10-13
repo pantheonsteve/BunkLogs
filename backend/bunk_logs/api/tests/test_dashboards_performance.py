@@ -18,6 +18,7 @@ from bunk_logs.core.models import Reflection
 from bunk_logs.core.models import ReflectionTemplate
 from bunk_logs.core.models import Supervision
 from bunk_logs.core.models import TemplateAssignment
+from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_today
 from bunk_logs.testing import SEASON_END
 from bunk_logs.testing import SEASON_START
@@ -446,3 +447,100 @@ def test_counselor_sees_only_own_bunk_not_sibling(
         **_hdr(org.slug),
     )
     assert resp_unit.json()["groups"] == []
+
+
+def test_classroom_weekly_template_counts_madrich_submission(
+    api_client, org, program, scored_camper_template,
+):
+    """A weekly self template assigned to a classroom counts the madrich who filed it.
+
+    The submission may have no assignment_group (filed via a role assignment).
+    The bunk camper path is untouched: a camp bunk still reports camper logs only.
+    """
+    day = get_today(org)
+    period_start, period_end = get_current_period(
+        "weekly", org, program=program, anchor=day,
+    )
+    classroom = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Madrichim",
+        slug="madrichim", group_type="classroom",
+    )
+    bunk = AssignmentGroup.all_objects.create(
+        organization=org, program=program, name="Bunk Maple",
+        slug="bunk-maple-extra", group_type="bunk",
+    )
+    filed = _person(org, "Leo", "Sobel")
+    silent = _person(org, "Noa", "Quiet")
+    for person in (filed, silent):
+        Membership.all_objects.create(
+            program=program, person=person, role="madrich", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=classroom, person=person, role_in_group="subject", is_active=True,
+        )
+
+    template = ReflectionTemplate.all_objects.create(
+        organization=org, name="Weekly 3-2-1", slug="weekly-321",
+        cadence="weekly", subject_mode="self", author_role_filter=["madrich"],
+        schema={"fields": []},
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=template,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=classroom,
+        start_date=program.start_date, end_date=program.end_date,
+        status=TemplateAssignment.Status.SCHEDULED,
+    )
+    # On-demand forms are not owed on the selected day.
+    incident = ReflectionTemplate.all_objects.create(
+        organization=org, name="Behavior", slug="behavior",
+        cadence="on_demand", subject_mode="single_subject", role="faculty",
+        schema={"fields": []},
+    )
+    TemplateAssignment.all_objects.create(
+        organization=org, program=program, template=incident,
+        target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+        assignment_group=classroom,
+        start_date=program.start_date,
+        status=TemplateAssignment.Status.SCHEDULED,
+    )
+    Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        subject=filed, author=filed, assignment_group=None,
+        period_start=period_start, period_end=period_end,
+        answers={}, language="en", is_complete=True,
+    )
+
+    camper = _person(org, "Cam", "One")
+    AssignmentGroupMembership.all_objects.create(
+        group=bunk, person=camper, role_in_group="subject", is_active=True,
+    )
+    _assign_template(org, program, scored_camper_template, group=bunk)
+    Reflection.all_objects.create(
+        organization=org, program=program, template=scored_camper_template,
+        subject=camper, author=filed, assignment_group=bunk,
+        period_start=day, period_end=day,
+        answers={"overall": 4}, language="en", is_complete=True,
+    )
+
+    _setup_admin(api_client, org, program)
+    classroom_resp = api_client.get(
+        URL,
+        {"date": day.isoformat(), "group_type": "classroom", "program": program.id},
+        **_hdr(org.slug),
+    )
+    assert classroom_resp.status_code == 200
+    groups = classroom_resp.json()["groups"]
+    assert len(groups) == 1
+    assert groups[0]["completion"]["submitted"] == 1
+    assert groups[0]["completion"]["expected"] == 2
+
+    bunk_resp = api_client.get(
+        URL,
+        {"date": day.isoformat(), "group_type": "bunk", "program": program.id},
+        **_hdr(org.slug),
+    )
+    bunks = bunk_resp.json()["groups"]
+    maple = next(g for g in bunks if g["name"] == "Bunk Maple")
+    assert maple["completion"]["submitted"] == 1
+    assert maple["completion"]["expected"] == 1

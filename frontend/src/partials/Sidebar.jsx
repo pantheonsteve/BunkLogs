@@ -351,23 +351,27 @@ function Sidebar({
           </Section>
           )}
 
-          {surfaces.campDashboards && (
+          {(surfaces.campDashboards || canAdmin) && (
             <Section heading="Supervise">
               <NavItem
                 to="/dashboards/coverage"
                 label="Coverage dashboard"
                 icon={IconGrid}
               />
-              <NavItem
-                to="/dashboards/concerns"
-                label="Concerns inbox"
-                icon={IconAlert}
-              />
-              <NavItem
-                to="/dashboards/authors"
-                label="Author attribution"
-                icon={IconCounselor}
-              />
+              {surfaces.campDashboards && (
+                <>
+                  <NavItem
+                    to="/dashboards/concerns"
+                    label="Concerns inbox"
+                    icon={IconAlert}
+                  />
+                  <NavItem
+                    to="/dashboards/authors"
+                    label="Author attribution"
+                    icon={IconCounselor}
+                  />
+                </>
+              )}
             </Section>
           )}
 
@@ -432,11 +436,17 @@ function Sidebar({
             {!isCamperCare && (
               <NavItem to="/tasks" label="My tasks" icon={IconTasks} />
             )}
-            {canSeeFileReflectionNav && (
-              <NavItem to="/reflect" label="File a reflection" icon={IconPencil} />
-            )}
-            {canFileReflection && !isCamperCare && (
-              <NavItem to="/my-reflections" label="My reflections" icon={IconClipboard} />
+            {isFaculty ? (
+              <FacultyReflectionsNav />
+            ) : (
+              <>
+                {canSeeFileReflectionNav && (
+                  <NavItem to="/reflect" label="File a reflection" icon={IconPencil} />
+                )}
+                {canFileReflection && !isCamperCare && (
+                  <NavItem to="/my-reflections" label="My reflections" icon={IconClipboard} />
+                )}
+              </>
             )}
             {isMadrich && (
               <NavItem to="/madrich/history" label="My reflections" icon={IconClipboard} />
@@ -466,14 +476,7 @@ function Sidebar({
                 icon={IconGrid}
               />
             )}
-            {canSupervise && !canSeeDashboards && canSeeLogs && !isCamperCare && !isUnitHead && (
-              <NavItem
-                to="/dashboards/logs"
-                label="Daily logs"
-                icon={IconBars}
-              />
-            )}
-            {canSeeReflectionsDashboard && !canAdmin && !isUnitHead && (
+            {canSeeReflectionsDashboard && !canAdmin && !isUnitHead && !isFaculty && (
               <NavItem
                 to="/dashboards/reflections"
                 label="Reflections"
@@ -498,7 +501,7 @@ function Sidebar({
               />
               <NavItem
                 to="/dashboards/concerns"
-                label="Concerns about my unit"
+                label={`Concerns about my ${term('unit')}`}
                 icon={IconAlert}
               />
               {isUnitHead && (
@@ -635,6 +638,24 @@ const NAV_ITEM_ACTIVE =
 const NAV_ITEM_IDLE =
   'font-medium text-[#3a3850] dark:text-gray-300 hover:bg-line-soft hover:text-ink';
 const COLLAPSED_DOT_TONE = { danger: 'bg-danger-ink', warn: 'bg-warn-ink' };
+
+/** File a reflection and My reflections, under one label. */
+function FacultyReflectionsNav() {
+  return (
+    <li>
+      <div className={`${NAV_ITEM_BASE} ${NAV_ITEM_IDLE}`} title="Reflections">
+        <div className={`${COLLAPSED_ICON_ROW} w-full`}>
+          <IconClipboard {...ICON_PROPS} />
+          <span className={COLLAPSED_LABEL}>Reflections</span>
+        </div>
+      </div>
+      <ul className="mt-0.5 space-y-0.5 pl-9">
+        <SubItem to="/reflect" label="File a reflection" />
+        <SubItem to="/my-reflections" label="My reflections" />
+      </ul>
+    </li>
+  );
+}
 
 function NavItem({
   to,

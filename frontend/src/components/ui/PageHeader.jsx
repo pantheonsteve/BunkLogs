@@ -13,6 +13,7 @@ export default function PageHeader({
   subtitle,
   backTo,
   backLabel = 'Admin',
+  backTestId,
   actions,
   className = '',
   children,
@@ -24,6 +25,7 @@ export default function PageHeader({
         <Link
           to={backTo}
           className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-4"
+          data-testid={backTestId}
         >
           <ArrowLeft size={14} aria-hidden="true" /> {backLabel}
         </Link>

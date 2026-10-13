@@ -63,6 +63,10 @@ describe('MadrichChallengeDetail', () => {
 
     expect(screen.getByTestId('md-challenge-detail-author')).toHaveTextContent('You reported this');
     expect(screen.getByTestId('md-challenge-withdraw')).toBeInTheDocument();
+    expect(screen.getByTestId('md-challenge-done')).toHaveAttribute('href', '/madrich');
+    expect(screen.getByTestId('md-challenge-detail-back')).toHaveAttribute(
+      'href', '/madrich/challenges',
+    );
   });
 
   it('shows "Submitted by A Madrich" and no Withdraw button for a peer submission', async () => {

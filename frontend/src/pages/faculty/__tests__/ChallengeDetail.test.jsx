@@ -2,13 +2,18 @@
  * Faculty challenge detail — back navigation to the inbox.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import FacultyChallengeDetail from '../ChallengeDetail';
 
 const getMock = vi.fn();
+const postMock = vi.fn();
 vi.mock('../../../api', () => ({
-  default: { get: (...args) => getMock(...args) },
+  default: {
+    get: (...args) => getMock(...args),
+    post: (...args) => postMock(...args),
+    patch: vi.fn(),
+  },
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
@@ -29,6 +34,7 @@ const detail = {
 
 beforeEach(() => {
   getMock.mockReset();
+  postMock.mockReset();
 });
 
 describe('FacultyChallengeDetail', () => {
@@ -43,6 +49,33 @@ describe('FacultyChallengeDetail', () => {
     );
     await waitFor(() => screen.getByTestId('faculty-challenge-detail-body'));
     expect(screen.getByTestId('faculty-challenge-detail-back')).toHaveAttribute(
+      'href', '/faculty/challenges',
+    );
+    expect(screen.queryByTestId('faculty-challenge-done')).not.toBeInTheDocument();
+  });
+
+  it('shows Done back to the inbox after a reply', async () => {
+    getMock.mockResolvedValue({ data: detail });
+    postMock.mockResolvedValue({
+      data: {
+        ...detail,
+        responses: [{ id: 'r-1', author: { display_name: 'Sadie Allspaw' }, body: 'I will follow up.' }],
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={['/faculty/challenges/c-1']}>
+        <Routes>
+          <Route path="/faculty/challenges/:challengeId" element={<FacultyChallengeDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => screen.getByTestId('faculty-challenge-reply-input'));
+    fireEvent.change(screen.getByTestId('faculty-challenge-reply-input'), {
+      target: { value: 'I will follow up.' },
+    });
+    fireEvent.click(screen.getByTestId('faculty-challenge-reply-send'));
+    await waitFor(() => screen.getByTestId('faculty-challenge-done'));
+    expect(screen.getByTestId('faculty-challenge-done')).toHaveAttribute(
       'href', '/faculty/challenges',
     );
   });
