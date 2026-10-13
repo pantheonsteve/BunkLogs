@@ -25,10 +25,19 @@ vi.mock('../../auth/AuthContext', () => ({
 // Defaults to the pre-existing Crane Lake look; TBE-readiness tests below
 // override it to assert the text-only fallback for other orgs.
 const mockUseOrgBranding = vi.fn();
-vi.mock('../../context/OrgBrandingContext', async (importOriginal) => ({
-  ...(await importOriginal()),
-  useOrgBranding: () => mockUseOrgBranding(),
-}));
+vi.mock('../../context/OrgBrandingContext', async (importOriginal) => {
+  const actual = await importOriginal();
+  const { resolveTerm, DEFAULT_TERMS } = await import('../../utils/terminology');
+  return {
+    ...actual,
+    useOrgBranding: () => mockUseOrgBranding(),
+    useTerm: () => (key, options) => resolveTerm(
+      mockUseOrgBranding().terminology || DEFAULT_TERMS,
+      key,
+      options,
+    ),
+  };
+});
 
 // Pin tenant resolution to "unscoped host" so the single-org fixtures below
 // resolve regardless of any local VITE_DEV_ORGANIZATION_SLUG.
@@ -459,7 +468,10 @@ describe('Sidebar — religious-school admin surfaces', () => {
     expect(links).not.toContain('/dashboards/logs');
     expect(links).not.toContain('/groups/performance');
     expect(links).not.toContain('/observations');
-    expect(screen.queryByText('Supervise')).not.toBeInTheDocument();
+    expect(links).toContain('/dashboards/coverage');
+    expect(links).not.toContain('/dashboards/concerns');
+    expect(links).not.toContain('/dashboards/authors');
+    expect(screen.getByRole('link', { name: 'Coverage dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin/home');
     expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
     expect(links).not.toContain('/dashboards/reflections');
@@ -490,13 +502,33 @@ describe('Sidebar — religious-school admin surfaces', () => {
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 
-  it('gives faculty My tasks and File a reflection', () => {
+  it('gives faculty My tasks and one Reflections group, and no Daily logs', () => {
     renderWith(schoolUser('supervisor', ['faculty']));
     const links = hrefs();
     expect(links).toContain('/faculty');
     expect(links).toContain('/tasks');
     expect(links).toContain('/reflect');
     expect(links).toContain('/my-reflections');
+    expect(links).not.toContain('/dashboards/logs');
+    expect(links).not.toContain('/dashboards/reflections');
+    expect(screen.getAllByText('Reflections')).toHaveLength(1);
+    expect(screen.queryByRole('link', { name: 'Reflections' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Daily logs' })).not.toBeInTheDocument();
+  });
+
+  it('names concerns with the org word for unit', () => {
+    mockUseOrgBranding.mockReturnValue({
+      slug: 'tbe',
+      displayName: 'Temple Beth-El',
+      productName: 'BunkLogs',
+      isClc: false,
+      logoUrl: null,
+      heroUrl: null,
+      loading: false,
+      terminology: { unit: { one: 'grade', other: 'grades' } },
+    });
+    renderWith(schoolUser('supervisor', ['faculty']));
+    expect(screen.getByRole('link', { name: 'Concerns about my grade' })).toBeInTheDocument();
   });
 });
 

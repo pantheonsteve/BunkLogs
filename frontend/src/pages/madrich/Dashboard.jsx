@@ -16,7 +16,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchDashboard, fetchTrends } from '../../api/madrich';
 import { fetchAvailability } from '../../api/availability';
-import { fetchClassrooms } from '../../api/madrichChallenges';
 import { useAuth } from '../../auth/AuthContext';
 import { useTerm } from '../../context/OrgBrandingContext';
 import RatingTrendChart from '../../components/charts/RatingTrendChart';
@@ -340,12 +339,15 @@ function TrendsCard() {
  * nothing peer-related.
  */
 function MyClassroomCard({ classrooms }) {
+  const term = useTerm();
   const only = classrooms.length === 1 ? classrooms[0] : null;
+  const classesLabel = term('bunk', { plural: true });
+  const peopleLabel = term('camper', { plural: true });
 
   return (
     <HomeCard
-      title={only ? only.name : 'My classrooms'}
-      subtitle="Your students — open one to add an observation."
+      title={only ? only.name : `My ${classesLabel}`}
+      subtitle={`Your ${peopleLabel} — open one to add an observation.`}
       data-testid="md-classroom-card"
       footer={only && (
         <Link
@@ -353,7 +355,7 @@ function MyClassroomCard({ classrooms }) {
           className={secondaryCta}
           data-testid={`md-classroom-link-${only.assignment_group_id}`}
         >
-          View students
+          {`View ${peopleLabel}`}
         </Link>
       )}
     >
@@ -376,26 +378,10 @@ function MyClassroomCard({ classrooms }) {
   );
 }
 
-function OptionalBand({ cohort }) {
-  const { orgSlug } = useAuth();
-  const [classrooms, setClassrooms] = useState(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchClassrooms(orgSlug)
-      .then((data) => {
-        if (active) setClassrooms(data?.classrooms || []);
-      })
-      .catch(() => {
-        if (active) setClassrooms([]);
-      });
-    return () => { active = false; };
-  }, [orgSlug]);
-
-  const checked = classrooms !== null;
-  const hasClassroom = checked && classrooms.length > 0;
+function OptionalBand({ cohort, classrooms }) {
+  const hasClassroom = classrooms.length > 0;
   const showCohort = Boolean(cohort?.enabled);
-  if ((!checked && !showCohort) || (checked && !hasClassroom && !showCohort)) return null;
+  if (!hasClassroom && !showCohort) return null;
 
   return (
     <section aria-label="Optional" className="space-y-3" data-testid="md-optional">
@@ -541,7 +527,7 @@ export default function MadrichDashboard() {
         </div>
       </section>
 
-      <OptionalBand cohort={cohort} />
+      <OptionalBand cohort={cohort} classrooms={dashboard.classrooms || []} />
 
       <div className="space-y-4">
         {entryCards.map((card) => (

@@ -31,6 +31,8 @@ from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
 from bunk_logs.core.filters import reflections_visible_for_user
+from bunk_logs.core.models import AssignmentGroup
+from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Organization
 from bunk_logs.core.models import Person
@@ -223,6 +225,42 @@ class TestMadrichDashboard:
         card = r.json()["my_reflections"][0]
         assert card["state"] == "complete"
         assert card["editable"] is True
+
+    def test_dashboard_lists_author_classrooms_that_open(
+        self, madrich_api, org, program, madrich_user_person,
+    ):
+        person, _user = madrich_user_person
+        authored = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Grade 6",
+            slug="grade-6", group_type="classroom",
+        )
+        subject_only = AssignmentGroup.all_objects.create(
+            organization=org, program=program, name="Madrichim",
+            slug="madrichim", group_type="classroom",
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=authored, person=person, role_in_group="author", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=subject_only, person=person, role_in_group="subject", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=subject_only, person=person, role_in_group="author", is_active=False,
+        )
+
+        with organization_context(org):
+            dashboard = madrich_api.get("/api/v1/madrich/dashboard/", **_hdr(org.slug))
+            assert dashboard.status_code == 200
+            classrooms = dashboard.json()["classrooms"]
+            assert [c["assignment_group_id"] for c in classrooms] == [authored.id]
+            opened = madrich_api.get(
+                f"/api/v1/dashboards/group/{authored.id}/", **_hdr(org.slug),
+            )
+            assert opened.status_code == 200
+            denied = madrich_api.get(
+                f"/api/v1/dashboards/group/{subject_only.id}/", **_hdr(org.slug),
+            )
+            assert denied.status_code == 403
 
     def test_dashboard_403_for_non_madrich(self, api, org, other_user):
         _, user = other_user

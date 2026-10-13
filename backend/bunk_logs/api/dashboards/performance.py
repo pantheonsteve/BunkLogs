@@ -1,8 +1,9 @@
 """Group performance dashboard view.
 
 GET /api/v1/dashboards/groups/performance/ -> per-group completion +
-score distribution for a single day. Used by the Performance Dashboard
-at ``/groups/performance``.
+score distribution for the selected date. Bunks count the daily camper
+log. Other group types count recurring templates assigned to the group,
+over the period that contains the date (a day, a week, and so on).
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 
+from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,15 +22,20 @@ from bunk_logs.api.counselor.common import off_camp_camper_ids
 from bunk_logs.api.counselor.common import person_display_name
 from bunk_logs.api.dashboards.group_dashboard_common import groups_visible_to_viewer
 from bunk_logs.api.dashboards.group_roster import build_group_roster
+from bunk_logs.core.assignment_resolution import assignment_cadence
+from bunk_logs.core.assignment_resolution import resolve_members
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.models import TemplateAssignment
 from bunk_logs.core.permissions import is_super_admin
 from bunk_logs.core.permissions.visibility import is_org_admin
 from bunk_logs.core.reflection_scores import iter_scored_fields
 from bunk_logs.core.reflection_scores import resolve_rating_cells
+from bunk_logs.core.time_utils import get_current_period
 from bunk_logs.core.time_utils import get_today
 
 
@@ -145,6 +152,159 @@ def _score_distribution(reflections, template) -> dict:
     return {"scale_max": sm, "distribution": dist, "total_ratings": total}
 
 
+def _merge_scores(parts: list[tuple[list, object]]) -> dict:
+    """Sum rating counts across the templates that contributed submissions."""
+    if not parts:
+        return _score_distribution([], None)
+    merged: dict | None = None
+    for refs, template in parts:
+        block = _score_distribution(refs, template)
+        if merged is None:
+            merged = {
+                "scale_max": block["scale_max"],
+                "distribution": dict(block["distribution"]),
+                "total_ratings": block["total_ratings"],
+            }
+            continue
+        merged["scale_max"] = max(merged["scale_max"], block["scale_max"])
+        for key, count in block["distribution"].items():
+            merged["distribution"][key] = merged["distribution"].get(key, 0) + count
+        merged["total_ratings"] += block["total_ratings"]
+    scale_max = merged["scale_max"]
+    merged["distribution"] = {
+        str(i): merged["distribution"].get(str(i), 0) for i in range(1, scale_max + 1)
+    }
+    return merged
+
+
+def _date_effective_group_assignments(group_ids: list[int], target_date: date):
+    """Group-targeted assignments whose window contains ``target_date``.
+
+    ``scheduled`` rows count: several orgs leave in-window assignments on
+    that status. ``on_demand`` templates are incident forms, not a
+    submission owed on the selected day, so they are omitted.
+    """
+    if not group_ids:
+        return []
+    rows = (
+        TemplateAssignment.all_objects.filter(
+            assignment_group_id__in=group_ids,
+            target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
+            start_date__lte=target_date,
+        )
+        .filter(Q(end_date__isnull=True) | Q(end_date__gte=target_date))
+        .exclude(status=TemplateAssignment.Status.CANCELLED)
+        .select_related("template", "program")
+    )
+    kept = []
+    for assignment in rows:
+        template = assignment.template
+        if template is None or not template.is_active:
+            continue
+        if assignment_cadence(assignment) == "on_demand":
+            continue
+        kept.append(assignment)
+    return kept
+
+
+def _subject_ids_for_template(group, template) -> set[int]:
+    subject_ids = set(
+        AssignmentGroupMembership.all_objects.filter(
+            group=group, role_in_group="subject", is_active=True,
+        ).values_list("person_id", flat=True),
+    )
+    role_filter = [role for role in (template.subject_role_filter or []) if role]
+    if not subject_ids or not role_filter:
+        return subject_ids
+    return set(
+        Membership.all_objects.filter(
+            person_id__in=subject_ids,
+            program_id=group.program_id,
+            is_active=True,
+            role__in=role_filter,
+        ).values_list("person_id", flat=True),
+    )
+
+
+def _reflections_in_period(group, template, period_start: date, period_end: date, **extra):
+    return list(
+        Reflection.all_objects.filter(
+            organization_id=group.organization_id,
+            template=template,
+            is_complete=True,
+            period_start=period_start,
+            period_end=period_end,
+            **extra,
+        ),
+    )
+
+
+def _completion_for_assignment(group, assignment, target_date: date):
+    """Expected vs submitted for one group assignment in the date's period.
+
+    Self templates: the people ``resolve_members`` says should file
+    (authors and subjects whose membership role matches the template).
+    A submission counts even when it was filed through a role assignment
+    and has no group stamped on it.
+
+    Subject templates: one expected row per subject, matching the bunk
+    camper log. Group templates: one expected row for the group.
+    """
+    template = assignment.template
+    cadence = assignment_cadence(assignment)
+    period_start, period_end = get_current_period(
+        cadence, group.organization, program=group.program, anchor=target_date,
+    )
+    if template.subject_mode == "self":
+        person_ids = set(
+            resolve_members(assignment, target_date).values_list("person_id", flat=True),
+        )
+        if not person_ids:
+            return 0, 0, []
+        refs = [
+            ref for ref in _reflections_in_period(
+                group, template, period_start, period_end,
+                author_id__in=person_ids,
+            )
+            if ref.author_id == ref.subject_id and ref.author_id in person_ids
+        ]
+        submitted_ids = {ref.author_id for ref in refs}
+        return len(person_ids), len(submitted_ids), refs
+    if template.subject_mode == "group":
+        refs = _reflections_in_period(
+            group, template, period_start, period_end, assignment_group=group,
+        )
+        return 1, (1 if refs else 0), refs[:1]
+    subject_ids = _subject_ids_for_template(group, template)
+    if not subject_ids:
+        return 0, 0, []
+    refs = _reflections_in_period(
+        group, template, period_start, period_end,
+        assignment_group=group, subject_id__in=subject_ids,
+    )
+    submitted_ids = {ref.subject_id for ref in refs}
+    return len(subject_ids), len(submitted_ids), refs
+
+
+def _assigned_completion(group, assignments, target_date: date) -> tuple[int, int, dict]:
+    """Sum completion across the group's recurring assigned templates."""
+    seen: set[int] = set()
+    expected = 0
+    submitted = 0
+    parts: list[tuple[list, object]] = []
+    for assignment in assignments:
+        template = assignment.template
+        if template.id in seen:
+            continue
+        seen.add(template.id)
+        exp, sub, refs = _completion_for_assignment(group, assignment, target_date)
+        expected += exp
+        submitted += sub
+        if refs:
+            parts.append((refs, template))
+    return submitted, expected, _merge_scores(parts)
+
+
 class GroupPerformanceDashboardView(APIView):
     """Per-group daily completion + score breakdown for supervised groups."""
 
@@ -253,37 +413,49 @@ class GroupPerformanceDashboardView(APIView):
 
         group_ids = [g.id for g in groups]
         authors = _author_names_by_group(group_ids)
+        # Bunks keep the camper-log path below so Crane Lake's numbers
+        # stay put. Every other group type counts its assigned templates.
+        other_ids = [g.id for g in groups if g.group_type != "bunk"]
+        assignments_by_group: dict[int, list] = defaultdict(list)
+        for assignment in _date_effective_group_assignments(other_ids, target_date):
+            assignments_by_group[assignment.assignment_group_id].append(assignment)
 
         result_groups = []
         for group in groups:
             program = group.program
-            camper_template = camper_reflection_template(
-                org, program, bunk=group, as_of=target_date,
-            )
-            camper_ids = bunk_camper_ids(group) if group.group_type == "bunk" else []
-            off_camp = off_camp_camper_ids(org, target_date, camper_ids) if camper_ids else set()
-
-            submitted = 0
-            reflections: list[Reflection] = []
-            if camper_template and camper_ids:
-                reflections = list(
-                    Reflection.all_objects.filter(
-                        template=camper_template,
-                        assignment_group=group,
-                        period_start=target_date,
-                        period_end=target_date,
-                        is_complete=True,
-                    ),
+            if group.group_type == "bunk":
+                camper_template = camper_reflection_template(
+                    org, program, bunk=group, as_of=target_date,
                 )
-                submitted_ids = {r.subject_id for r in reflections}
-                on_camp = [c for c in camper_ids if c not in off_camp]
-                submitted = len([c for c in on_camp if c in submitted_ids])
-                expected = len(on_camp)
+                camper_ids = bunk_camper_ids(group)
+                off_camp = off_camp_camper_ids(org, target_date, camper_ids) if camper_ids else set()
+
+                submitted = 0
+                reflections: list[Reflection] = []
+                if camper_template and camper_ids:
+                    reflections = list(
+                        Reflection.all_objects.filter(
+                            template=camper_template,
+                            assignment_group=group,
+                            period_start=target_date,
+                            period_end=target_date,
+                            is_complete=True,
+                        ),
+                    )
+                    submitted_ids = {r.subject_id for r in reflections}
+                    on_camp = [c for c in camper_ids if c not in off_camp]
+                    submitted = len([c for c in on_camp if c in submitted_ids])
+                    expected = len(on_camp)
+                else:
+                    expected = 0
+
+                scores = _score_distribution(reflections, camper_template)
             else:
-                expected = 0
+                submitted, expected, scores = _assigned_completion(
+                    group, assignments_by_group.get(group.id, []), target_date,
+                )
 
             percent = round(submitted / expected * 100) if expected else 0
-            scores = _score_distribution(reflections, camper_template)
 
             result_groups.append({
                 "id": group.id,

@@ -19,11 +19,9 @@ Reflection-focused dashboard scoped to the active TBE
   assigned template, with the three most recent entries and their unread
   state. Discovered from the schema, so no TBE field name appears here.
 * ``cohort`` — Step 4_9: unread count and a link into the cohort feed.
-
-Operational signals about *other* people (rosters, faculty submissions,
-peer Madrichim, camp-side data) are intentionally omitted per Story 61
-criterion 4 -- the viewer's own availability commitment is not one of
-those, since Step 4_7 is explicitly a self-service staffing signal.
+* ``classrooms`` — groups the viewer authors (the ones the group
+  dashboard will open). Subject-only classrooms stay on the challenges
+  endpoint.
 """
 
 from __future__ import annotations
@@ -35,6 +33,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bunk_logs.api.classroom_challenges.common import classroom_group_ids_for_role
+from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import EntryThread
 from bunk_logs.core.models import Reflection
 from bunk_logs.core.reflection_threads import cohort_group_ids
@@ -146,7 +146,25 @@ class MadrichDashboardView(APIView):
             "availability_nudge": availability_nudge,
             "entry_cards": threaded_field_cards(ctx),
             "cohort": _cohort_summary(ctx),
+            # Author classrooms only: the group dashboard admits authors,
+            # so a subject roster row would link somewhere the viewer
+            # cannot open.
+            "classrooms": _author_classrooms(ctx),
         })
+
+
+def _author_classrooms(ctx) -> list[dict]:
+    """Classrooms the viewer authors, which are the ones they can open."""
+    group_ids = classroom_group_ids_for_role(
+        ctx.person, ctx.program, role_in_group="author",
+    )
+    if not group_ids:
+        return []
+    groups = AssignmentGroup.objects.filter(id__in=group_ids).order_by("name")
+    return [
+        {"assignment_group_id": group.id, "name": group.name}
+        for group in groups
+    ]
 
 
 def _cohort_summary(ctx) -> dict:
