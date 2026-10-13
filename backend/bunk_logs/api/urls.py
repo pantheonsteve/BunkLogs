@@ -45,6 +45,7 @@ from .faculty import roster as faculty_roster
 from .kitchen_staff import dashboard as ks_dashboard
 from .kitchen_staff import self_reflection as ks_self_reflection
 from .leadership_team import assignments as lt_assignments
+from .leadership_team import audience_preview as lt_audience_preview
 from .leadership_team import dashboard as lt_dashboard
 from .leadership_team import exports as lt_exports
 from .leadership_team import mark_attention as lt_mark_attention
@@ -765,6 +766,11 @@ urlpatterns = [
         "leadership-team/templates/<int:pk>/clone/",
         lt_templates.LeadershipTeamTemplateCloneView.as_view(),
         name="leadership-team-template-clone",
+    ),
+    path(
+        "leadership-team/templates/<int:pk>/audience-preview/",
+        lt_audience_preview.LeadershipTeamAudiencePreviewView.as_view(),
+        name="leadership-team-audience-preview",
     ),
     # LT assignments (Step 7_12 PR B — Story 52)
     path(

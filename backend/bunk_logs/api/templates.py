@@ -11,6 +11,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from bunk_logs.core.form_audience import form_role_filters_error
 from bunk_logs.core.models import FieldKey
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
@@ -78,15 +79,16 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
         # Coherence: re-run the model-level cross-field check whenever any of the
         # routing fields appear in the patch (or on create). Uses incoming values
         # falling back to the existing instance values for partial updates.
+        filter_fields = ("assignment_group_types", "author_role_filter", "subject_role_filter")
+
+        def _value(name, *, default):
+            if name in attrs:
+                return attrs[name]
+            if self.instance is not None:
+                return getattr(self.instance, name) or default
+            return default
+
         if any(f in attrs for f in self._COHERENCE_FIELDS) or self.instance is None:
-
-            def _value(name, *, default):
-                if name in attrs:
-                    return attrs[name]
-                if self.instance is not None:
-                    return getattr(self.instance, name) or default
-                return default
-
             try:
                 validate_template_coherence(
                     subject_mode=_value("subject_mode", default="self"),
@@ -101,6 +103,17 @@ class ReflectionTemplateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     exc.message_dict if hasattr(exc, "message_dict") else str(exc),
                 )
+
+        org = getattr(self.context.get("request"), "organization", None)
+        if org is not None and (self.instance is None or any(f in attrs for f in filter_fields)):
+            error = form_role_filters_error(
+                org,
+                _value("assignment_group_types", default=[]) or [],
+                _value("author_role_filter", default=[]) or [],
+                _value("subject_role_filter", default=[]) or [],
+            )
+            if error:
+                raise serializers.ValidationError(error)
         return attrs
 
     def create(self, validated_data):

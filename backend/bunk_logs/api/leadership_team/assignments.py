@@ -39,6 +39,7 @@ from rest_framework.views import APIView
 
 from bunk_logs.core import audit
 from bunk_logs.core.assignment_resolution import resolve_members
+from bunk_logs.core.form_audience import preview_form_audience
 from bunk_logs.core.models import SUBJECT_ROLES
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import Reflection
@@ -372,6 +373,16 @@ class LeadershipTeamAssignmentListCreateView(APIView):
         elif assignment_group_id:
             msg = "assignment_group can only be set when target_type='assignment_group'."
             raise ValidationError(msg)
+
+        if target_type == "assignment_group" and group is not None:
+            preview = preview_form_audience(
+                ctx.organization,
+                template,
+                target_type="assignment_group",
+                groups=[group],
+            )
+            if not preview["can_assign"]:
+                raise ValidationError(preview["sentence"])
 
         start = parse_date(payload.get("start_date") or "")
         if start is None:

@@ -144,6 +144,28 @@ def _client(user, org):
     return c
 
 
+def _staff(org, program, group):
+    """One counselor and one camper so an audience check can pass."""
+    counselor = Person.all_objects.create(
+        organization=org, first_name="Staff", last_name=f"Writer{group.id}",
+    )
+    Membership.all_objects.create(
+        program=program, person=counselor, role="counselor", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=group, person=counselor, role_in_group="author", is_active=True,
+    )
+    camper = Person.all_objects.create(
+        organization=org, first_name="Staff", last_name=f"Subject{group.id}",
+    )
+    Membership.all_objects.create(
+        program=program, person=camper, role="camper", is_active=True,
+    )
+    AssignmentGroupMembership.all_objects.create(
+        group=group, person=camper, role_in_group="subject", is_active=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Model tests
 # ---------------------------------------------------------------------------
@@ -326,6 +348,7 @@ def test_post_assignment_group_cohort_other_program(
         slug="counselors",
         group_type="cohort",
     )
+    _staff(org, other_program, cohort)
     c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
@@ -350,6 +373,7 @@ def test_post_assignment_group_as_admin(
     org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """Admin capability can POST assignments (FA7 widening) → 201."""
+    _staff(org, program, bunk)
     c = _client(admin_user, org)
     with organization_context(org):
         resp = c.post(
@@ -590,6 +614,7 @@ def test_conflict_detection_assignment_group(
     org, program, admin_membership, admin_user, bunk, published_template,
 ):
     """Two overlapping assignment_group assignments on the same bunk → 409."""
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=published_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -666,6 +691,7 @@ def test_second_different_scored_camper_form_same_bunk_is_400(
     Two scored camper forms on one bunk have no defined grid-column merge;
     the guard blocks this before it silently shadows the first form.
     """
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -720,6 +746,7 @@ def test_scored_form_with_non_camper_subject_is_allowed(
     org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """A scored form whose subject is NOT camper does not trigger the guard → 201."""
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -775,6 +802,7 @@ def test_second_camper_form_without_rating_fields_is_allowed(
     org, program, lt_membership, admin_membership, admin_user, bunk, scored_camper_template,
 ):
     """A second camper form with no rating fields doesn't collide on the grid → 201."""
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -823,6 +851,7 @@ def test_non_overlapping_windows_not_blocked(
     """Two different scored camper forms on the same bunk with non-overlapping
     date windows are allowed — they never co-drive the grid on the same day.
     """
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -880,6 +909,7 @@ def test_same_template_reuse_goes_through_conflict_resolution(
     the new guard — same template means identical grid columns, so it falls
     through to the existing conflict_resolution flow (→ 409, not 400).
     """
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -924,6 +954,7 @@ def test_scored_camper_form_on_different_bunk_is_allowed(
         organization=org, program=program,
         name="Bunk C", slug="bunk-c", group_type="bunk",
     )
+    _staff(org, program, other_bunk)
     second_template = ReflectionTemplate.all_objects.create(
         organization=org,
         name="Camper Rated Alt",
@@ -972,6 +1003,7 @@ def test_ended_scored_camper_assignment_does_not_block(
     """An ENDED scored camper assignment does not trigger the guard even when
     the date windows overlap — only SCHEDULED and ACTIVE assignments count.
     """
+    _staff(org, program, bunk)
     TemplateAssignment.all_objects.create(
         organization=org, program=program, template=scored_camper_template,
         target_type=TemplateAssignment.TargetType.ASSIGNMENT_GROUP,
@@ -1119,6 +1151,7 @@ def test_v2_over_v1_assignment_group_conflicts(
     org, program, lt_membership, admin_membership, admin_user, bunk,
 ):
     """Version-family conflict also applies to assignment_group targets → 409."""
+    _staff(org, program, bunk)
     v1 = _make_template_version(org, slug="bunk-daily", version=1)
     v2 = _make_template_version(org, slug="bunk-daily", version=2, parent=v1)
     TemplateAssignment.all_objects.create(
