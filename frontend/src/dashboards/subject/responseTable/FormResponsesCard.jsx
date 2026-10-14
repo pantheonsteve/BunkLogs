@@ -16,7 +16,7 @@
  */
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, FileText, Users } from 'lucide-react';
 import PrivacyChip from '../../../components/reflection/PrivacyChip';
 import PersonAvatar from '../../../components/ui/PersonAvatar';
@@ -34,6 +34,7 @@ import {
   RatingCellTd,
   SubjectCell,
 } from './cells';
+import { reflectionDetailLink } from '../../../utils/dashboardLinks';
 
 export function KpiTile({ icon: Icon, label, value, tone = 'neutral' }) {
   const accent = {
@@ -138,7 +139,9 @@ export default function FormResponsesCard({
   personId = null,
   onAddObservation = null,
   ratingChartMode = 'sparkline',
+  returnTo = null,
 }) {
+  const navigate = useNavigate();
   const tpl = block.template ?? {};
   const reflections = block.reflections ?? [];
   const firstDate = reflections.length > 0 ? reflections[0].date : null;
@@ -319,14 +322,25 @@ export default function FormResponsesCard({
                       ...r,
                       author: r.author_name ? { name: r.author_name } : null,
                     };
+                    const entryHref = reflectionDetailLink(r.id, returnTo);
                     return (
-                      <tr key={r.id} data-testid={`${testidPrefix}-row-${r.id}`}>
+                      <tr
+                        key={r.id}
+                        data-testid={`${testidPrefix}-row-${r.id}`}
+                        className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40"
+                        onClick={() => navigate(entryHref)}
+                      >
                         <td className="px-3 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 text-center">
-                              <div className="text-sm text-gray-800 dark:text-gray-100">
+                              <Link
+                                to={entryHref}
+                                className="text-sm text-indigo-700 dark:text-indigo-300 hover:underline"
+                                data-testid={`${testidPrefix}-open-${r.id}`}
+                                onClick={(event) => event.stopPropagation()}
+                              >
                                 {formatShortDate(r.date)}
-                              </div>
+                              </Link>
                               <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 inline-flex items-center gap-1">
                                 {r.language ?? 'en'}
                                 <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
@@ -335,6 +349,7 @@ export default function FormResponsesCard({
                                 <Link
                                   to={`/dashboards/group/${r.assignment_group.id}?date=${r.date}`}
                                   className="block mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                                  onClick={(event) => event.stopPropagation()}
                                 >
                                   {r.assignment_group.name ?? 'View group'} →
                                 </Link>
@@ -343,11 +358,11 @@ export default function FormResponsesCard({
                             {onAddObservation && (personId || (showSubject && r.subject?.id)) && (
                               <button
                                 type="button"
-                                onClick={() => (
-                                  showSubject && r.subject?.id
-                                    ? onAddObservation(r.date, r.subject)
-                                    : onAddObservation(r.date)
-                                )}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (showSubject && r.subject?.id) onAddObservation(r.date, r.subject);
+                                  else onAddObservation(r.date);
+                                }}
                                 className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30"
                                 data-testid={`${testidPrefix}-add-observation-${r.id}`}
                               >
@@ -409,11 +424,13 @@ export default function FormResponsesCard({
                 const headingText = showSubject
                   ? (subjectName ?? 'Unknown')
                   : formatShortDate(r.date);
+                const entryHref = reflectionDetailLink(r.id, returnTo);
                 return (
                   <div
                     key={r.id}
-                    className="rounded-lg border border-gray-200 dark:border-gray-700"
+                    className="rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer"
                     data-testid={`${testidPrefix}-card-${r.id}`}
+                    onClick={() => navigate(entryHref)}
                   >
                     <div className="sticky top-16 z-20 flex items-center gap-2 rounded-t-lg border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/60 px-3 py-2">
                       {showSubject && (
@@ -422,15 +439,33 @@ export default function FormResponsesCard({
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                           {showSubject && subjectLink ? (
-                            <Link to={subjectLink} className="text-indigo-700 dark:text-indigo-300 hover:underline">
+                            <Link
+                              to={subjectLink}
+                              className="text-indigo-700 dark:text-indigo-300 hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               {headingText}
                             </Link>
                           ) : (
-                            headingText
+                            <Link
+                              to={entryHref}
+                              className="text-indigo-700 dark:text-indigo-300 hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {headingText}
+                            </Link>
                           )}
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                          {showSubject && <span>{formatShortDate(r.date)}</span>}
+                          {showSubject && (
+                            <Link
+                              to={entryHref}
+                              className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {formatShortDate(r.date)}
+                            </Link>
+                          )}
                           <span className="inline-flex items-center gap-1">
                             {r.language ?? 'en'}
                             <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
@@ -439,6 +474,7 @@ export default function FormResponsesCard({
                             <Link
                               to={`/dashboards/group/${r.assignment_group.id}?date=${r.date}`}
                               className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                              onClick={(event) => event.stopPropagation()}
                             >
                               {r.assignment_group.name ?? 'View group'} →
                             </Link>
@@ -448,11 +484,11 @@ export default function FormResponsesCard({
                       {onAddObservation && (personId || (showSubject && r.subject?.id)) && (
                         <button
                           type="button"
-                          onClick={() => (
-                            showSubject && r.subject?.id
-                              ? onAddObservation(r.date, r.subject)
-                              : onAddObservation(r.date)
-                          )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (showSubject && r.subject?.id) onAddObservation(r.date, r.subject);
+                            else onAddObservation(r.date);
+                          }}
                           className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30"
                           data-testid={`${testidPrefix}-card-add-observation-${r.id}`}
                         >

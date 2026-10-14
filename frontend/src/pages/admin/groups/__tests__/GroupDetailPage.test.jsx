@@ -209,6 +209,22 @@ describe('GroupDetailPage', () => {
     });
   });
 
+  it('deletes a group only after the name is typed', async () => {
+    renderDetail('/admin/groups/7?tab=settings');
+    await screen.findByTestId('group-settings-tab');
+
+    fireEvent.click(screen.getByTestId('group-delete'));
+    expect(await screen.findByText('Delete Bunk Aleph?')).toBeInTheDocument();
+    expect(screen.getByTestId('confirm-dialog-confirm')).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId('confirm-dialog-typed'), { target: { value: 'Bunk Aleph' } });
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+
+    await waitFor(() => {
+      expect(api.delete).toHaveBeenCalledWith('/api/v1/assignment-groups/7/?hard=true');
+    });
+  });
+
   it('saves "Part of" and sort position from Settings', async () => {
     api.get.mockImplementation((url) => {
       if (String(url).includes('/assignment-groups/7/')) return Promise.resolve({ data: GROUP });

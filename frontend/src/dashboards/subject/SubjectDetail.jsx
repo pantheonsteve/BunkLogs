@@ -27,6 +27,7 @@ import { useTerm } from '../../context/OrgBrandingContext';
 import {
   groupDashboardLink,
   observationThreadLink,
+  reflectionDetailLink,
   profileBackLabel,
   profileLink,
   resolveProfileBackGroup,
@@ -340,7 +341,10 @@ function KpiGrid({ cols, reflections, priorReflections, end, priorLabel }) {
   );
 }
 
-function DailyLogs({ block, cols, flagFields, descTextFields, uhLabel, ccLabel, onAddObservation }) {
+function DailyLogs({
+  block, cols, flagFields, descTextFields, uhLabel, ccLabel, onAddObservation, profileReturnTo,
+}) {
+  const navigate = useNavigate();
   const tplId = block.template?.id;
   const rows = [...(block.reflections ?? [])].sort(
     (a, b) => b.date.localeCompare(a.date) || (b.id ?? 0) - (a.id ?? 0),
@@ -368,17 +372,33 @@ function DailyLogs({ block, cols, flagFields, descTextFields, uhLabel, ccLabel, 
                   .map((f) => r.answers?.[f.key])
                   .filter((v) => typeof v === 'string' && v.trim());
                 const flags = flagFields.filter((f) => isTruthyFlag(r.answers?.[f.key]));
+                const entryHref = reflectionDetailLink(r.id, profileReturnTo);
                 return (
-                  <tr key={r.id} data-testid={`subject-row-${r.id}`}>
+                  <tr
+                    key={r.id}
+                    data-testid={`subject-row-${r.id}`}
+                    className="cursor-pointer hover:bg-line-soft/60"
+                    onClick={() => navigate(entryHref)}
+                  >
                     <td className="py-2.5 pr-2 border-t border-line-soft align-top whitespace-nowrap">
                       <div className="flex items-center gap-1.5 font-semibold text-ink">
-                        {formatDay(r.date)}
+                        <Link
+                          to={entryHref}
+                          className="text-brand hover:underline"
+                          data-testid={`subject-log-open-${r.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {formatDay(r.date)}
+                        </Link>
                         <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
                       </div>
                       {onAddObservation && (
                         <button
                           type="button"
-                          onClick={() => onAddObservation(r.date)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onAddObservation(r.date);
+                          }}
                           className="mt-1 text-[11px] font-semibold text-brand hover:underline"
                           data-testid={`subject-add-observation-${r.id}`}
                         >
@@ -640,6 +660,7 @@ export default function SubjectDetail({
                   uhLabel={uhLabel}
                   ccLabel={ccLabel}
                   onAddObservation={onAddObservation}
+                  profileReturnTo={profileReturnTo}
                 />
               </>
             )}
@@ -655,6 +676,7 @@ export default function SubjectDetail({
                 language={language}
                 personId={personId}
                 onAddObservation={onAddObservation}
+                returnTo={profileReturnTo}
               />
             ))}
           </div>

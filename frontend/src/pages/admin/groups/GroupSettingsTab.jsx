@@ -18,7 +18,7 @@ import { groupTypeLabel } from './groupTypes';
  * `slug` is not editable here — it's an internal identifier nobody asked
  * for, and exposing it invited edits that break links. Archiving lives at
  * the bottom in a danger zone rather than as a header link beside
- * routine actions.
+ * routine actions. Delete removes the group; archive only hides it.
  */
 function formatApiError(data, fallback = 'Request failed.') {
   if (!data) return fallback;
@@ -94,6 +94,7 @@ export default function GroupSettingsTab({ group, onChanged, showToast }) {
   const pollRef = useRef(null);
 
   const [archiving, setArchiving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -243,6 +244,17 @@ export default function GroupSettingsTab({ group, onChanged, showToast }) {
     }
   };
 
+  const removeGroup = async () => {
+    try {
+      await api.delete(`/api/v1/assignment-groups/${group.id}/?hard=true`);
+      showToast(`${group.name} deleted.`);
+      navigate('/admin/groups');
+    } catch (err) {
+      showToast(formatApiError(err.response?.data, 'Could not delete.'));
+      setDeleting(false);
+    }
+  };
+
   const subjectCount = (group.memberships || [])
     .filter((m) => m.is_active && m.role_in_group === 'subject').length;
 
@@ -389,9 +401,9 @@ export default function GroupSettingsTab({ group, onChanged, showToast }) {
       <Card className="border-red-200 dark:border-red-900">
         <CardHeader
           title="Danger zone"
-          subtitle="Archiving hides the group from every list. Nothing is deleted."
+          subtitle={`Archiving hides the ${term('group')} and can be undone. Deleting removes it.`}
         />
-        <CardBody>
+        <CardBody className="flex flex-wrap gap-3">
           <Button
             variant="danger"
             className="border border-red-200 dark:border-red-900"
@@ -400,6 +412,14 @@ export default function GroupSettingsTab({ group, onChanged, showToast }) {
             data-testid="group-archive"
           >
             {group.is_active ? `Archive ${group.name}` : 'Already archived'}
+          </Button>
+          <Button
+            variant="danger"
+            className="border border-red-200 dark:border-red-900"
+            onClick={() => setDeleting(true)}
+            data-testid="group-delete"
+          >
+            {`Delete ${group.name}`}
           </Button>
         </CardBody>
       </Card>
@@ -417,6 +437,30 @@ export default function GroupSettingsTab({ group, onChanged, showToast }) {
           reassurance="Every log already written stays readable, and an admin can un-archive it."
           onConfirm={archive}
           onClose={() => setArchiving(false)}
+        />
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete ${group.name}?`}
+          confirmLabel="Delete"
+          requireTypedConfirmation={group.name}
+          consequences={[
+            `Remove this ${term('group')} and everyone on its roster`,
+            `Remove forms and supervision that exist only for this ${term('group')}`,
+          ]}
+          reassurance={`Logs, challenges, and shared posts stay. Archive the ${term('group')} to hide it while keeping that history.`}
+          alternativeLabel={group.is_active ? 'Archive instead' : undefined}
+          onAlternative={
+            group.is_active
+              ? () => {
+                setDeleting(false);
+                setArchiving(true);
+              }
+              : undefined
+          }
+          onConfirm={removeGroup}
+          onClose={() => setDeleting(false)}
         />
       )}
     </div>

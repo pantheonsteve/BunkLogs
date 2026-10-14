@@ -353,10 +353,15 @@ describe('LeadershipTeamResponses', () => {
       if (url.includes('/responses/')) return Promise.resolve({ data: individualPayload });
       return Promise.resolve({ data: templatePayload });
     });
-    renderAt('/admin/templates/7/responses?date=2026-06-03&dashboard=logs');
+    renderAt('/admin/templates/7/responses?date=2026-06-03&dashboard=logs&program=6');
     const back = await screen.findByTestId('lt-responses-back');
     expect(back).toHaveAttribute('href', '/dashboards/logs?date=2026-06-03');
     expect(back).toHaveTextContent('Back to Bunk Logs');
+    const row = await screen.findByTestId('lt-responses-row-401');
+    expect(within(row).getByRole('link', { name: 'Open →' })).toHaveAttribute(
+      'href',
+      `/reflections/401?returnTo=${encodeURIComponent('/admin/templates/7/responses?date=2026-06-03&dashboard=logs&program=6')}`,
+    );
   });
 
   it('sends role-based orgs home and opens member reflection history from a row', async () => {

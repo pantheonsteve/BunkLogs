@@ -64,6 +64,7 @@ export default function GroupTemplateResponses({
               : null
           }
           onAddObservation={openCompose}
+          returnTo={returnTo}
         />
       ))}
       {composeObservation && (

@@ -208,6 +208,10 @@ describe('SubjectDetail', () => {
     expect(within(row228).getByText('Solid day overall.')).toBeInTheDocument();
     expect(within(row228).getByText('BulkCounselor #9')).toBeInTheDocument();
 
+    expect(within(row228).getByTestId('subject-log-open-228')).toHaveAttribute(
+      'href',
+      '/reflections/228',
+    );
     expect(within(row228).getByTestId('subject-flag-16-request_camper_care_help')).toBeInTheDocument();
     expect(within(row234).queryByTestId('subject-flag-16-request_camper_care_help')).not.toBeInTheDocument();
   });

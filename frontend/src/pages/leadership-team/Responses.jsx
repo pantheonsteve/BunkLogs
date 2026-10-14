@@ -63,6 +63,7 @@ import {
   RatingCellTd,
   SubjectCell as SharedSubjectCell,
 } from '../../dashboards/subject/responseTable/cells';
+import { reflectionDetailLink } from '../../utils/dashboardLinks';
 
 function formatLongDate(yyyymmdd) {
   if (!yyyymmdd) return '';
@@ -259,6 +260,7 @@ function KpiCard({ icon: Icon, label, value, tone = 'neutral', active = false, o
 
 function IndividualTab({
   payload, template, language, filteredRows, sections, dateStr, memberDetail = false,
+  returnTo = null,
 }) {
   const { ratingCols: rawRatingCols, flagFields, chipFields, descTextFields } = sections;
   const ratingCols = orderRatingCols(rawRatingCols);
@@ -328,7 +330,7 @@ function IndividualTab({
                     {r.language} · v{r.template_version}
                   </div>
                   <Link
-                    to={`/reflections/${r.id}`}
+                    to={reflectionDetailLink(r.id, returnTo)}
                     className="block mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     Open →
@@ -415,7 +417,7 @@ function IndividualTab({
                   </div>
                 </div>
                 <Link
-                  to={`/reflections/${r.id}`}
+                  to={reflectionDetailLink(r.id, returnTo)}
                   className="shrink-0 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   Open →
@@ -1262,6 +1264,7 @@ export default function LeadershipTeamResponses() {
                 sections={sections}
                 dateStr={dateStr}
                 memberDetail={roleBasedOrg}
+                returnTo={`/admin/templates/${id}/responses${params.toString() ? `?${params}` : ''}`}
               />
             )}
             {!error && tab === 'aggregate' && aggregatePayload && (
