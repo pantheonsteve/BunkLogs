@@ -11,6 +11,7 @@
 import { Link } from 'react-router-dom';
 import { groupDashboardLink } from '../utils/dashboardLinks';
 import AdminGroupLink from './AdminGroupLink';
+import GroupTypeIcon from './GroupTypeIcon';
 import GroupLeaders from './GroupLeaders';
 import PersonAvatar from './ui/PersonAvatar';
 
@@ -92,9 +93,12 @@ export default function UnitDashboard({ data, selectedDate, onDateChange, backTo
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {group.name || 'Unit'}
-            </h1>
+            <div className="flex items-center gap-2.5">
+              <GroupTypeIcon type={group.group_type || 'unit'} />
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                {group.name || 'Unit'}
+              </h1>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Unit dashboard · {summary.bunk_count || 0} bunks
             </p>

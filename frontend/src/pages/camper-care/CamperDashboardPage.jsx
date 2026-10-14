@@ -71,13 +71,36 @@ function FlagHistoryRow({ flag, anchored }) {
 function NotesDateRangeFilter({ from, to, onChange }) {
   const [localFrom, setLocalFrom] = useState(from);
   const [localTo, setLocalTo] = useState(to);
-  // Keep local state in sync if URL params change externally (e.g. back/forward).
-  useEffect(() => { setLocalFrom(from); }, [from]);
-  useEffect(() => { setLocalTo(to); }, [to]);
-  const apply = () => onChange({ from: localFrom, to: localTo });
+  // Apply reads these, not the state closed over by the last render, so a
+  // click in the same turn as the date change still sends what was typed.
+  const fromValue = useRef(from);
+  const toValue = useRef(to);
+  const setFrom = (value) => {
+    fromValue.current = value;
+    setLocalFrom(value);
+  };
+  const setTo = (value) => {
+    toValue.current = value;
+    setLocalTo(value);
+  };
+  // Keep the fields in sync when the URL changes (back/forward, Apply).
+  // Skip the mount pass so that sync doesn't wipe a value typed first.
+  const fromProp = useRef(from);
+  const toProp = useRef(to);
+  useEffect(() => {
+    if (fromProp.current === from) return;
+    fromProp.current = from;
+    setFrom(from);
+  }, [from]);
+  useEffect(() => {
+    if (toProp.current === to) return;
+    toProp.current = to;
+    setTo(to);
+  }, [to]);
+  const apply = () => onChange({ from: fromValue.current, to: toValue.current });
   const clear = () => {
-    setLocalFrom('');
-    setLocalTo('');
+    setFrom('');
+    setTo('');
     onChange({ from: '', to: '' });
   };
   const isFiltered = Boolean(from || to);
@@ -97,7 +120,7 @@ function NotesDateRangeFilter({ from, to, onChange }) {
             type="date"
             value={localFrom}
             max={localTo || undefined}
-            onChange={(e) => setLocalFrom(e.target.value)}
+            onChange={(e) => setFrom(e.target.value)}
             className="mt-1 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white px-2 py-1 text-sm"
           />
         </div>
@@ -111,7 +134,7 @@ function NotesDateRangeFilter({ from, to, onChange }) {
             type="date"
             value={localTo}
             min={localFrom || undefined}
-            onChange={(e) => setLocalTo(e.target.value)}
+            onChange={(e) => setTo(e.target.value)}
             className="mt-1 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white px-2 py-1 text-sm"
           />
         </div>

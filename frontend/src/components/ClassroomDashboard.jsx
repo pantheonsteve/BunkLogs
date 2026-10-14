@@ -20,6 +20,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminGroupLink from './AdminGroupLink';
+import GroupTypeIcon from './GroupTypeIcon';
 import GroupLeaders from './GroupLeaders';
 import ObservationComposer from './observations/ObservationComposer';
 import PersonAvatar from './ui/PersonAvatar';
@@ -318,9 +319,12 @@ export default function ClassroomDashboard({
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {group.name || 'Classroom'}
-            </h1>
+            <div className="flex items-center gap-2.5">
+              <GroupTypeIcon type={group.group_type || 'classroom'} />
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                {group.name || 'Classroom'}
+              </h1>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Classroom dashboard · {students.length} students · {madrichim.length} madrichim · {faculty.length} faculty
             </p>
