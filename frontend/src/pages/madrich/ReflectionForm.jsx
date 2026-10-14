@@ -28,13 +28,14 @@ import {
 import { fetchReflection, fetchTemplateById, newClientSubmissionId } from '../../api/counselor';
 import { fetchTemplate, submitReflection, updateReflection } from '../../api/madrich';
 import { useAuth } from '../../auth/AuthContext';
-import { useTerm } from '../../context/OrgBrandingContext';
+import { useOrgBranding, useTerm } from '../../context/OrgBrandingContext';
 
 const LANGUAGE = 'en';
 
-function audienceDisclosure(term) {
-  return `The ${term('director')} and any Temple Beth-El staff assigned to oversee `
-    + 'Madrichim can read this reflection. Other Madrichim cannot.';
+function audienceDisclosure(term, displayName) {
+  const writers = term('madrich', { plural: true });
+  return `The ${term('director')} and any ${displayName} staff assigned to oversee `
+    + `${writers} can read this reflection. Other ${writers} cannot.`;
 }
 
 function flattenError(err, fallback) {
@@ -53,6 +54,7 @@ export default function MadrichReflectionForm() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { orgSlug } = useAuth();
+  const { displayName } = useOrgBranding();
   const term = useTerm();
   const isEdit = Boolean(reflectionId);
   const requestedTemplateId = searchParams.get('template');
@@ -169,7 +171,7 @@ export default function MadrichReflectionForm() {
           className="mb-6 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 px-4 py-3 text-sm text-blue-800 dark:text-blue-300"
           data-testid="md-audience-disclosure"
         >
-          {audienceDisclosure(term)}
+          {audienceDisclosure(term, displayName)}
         </div>
 
         <form onSubmit={handleSubmit} noValidate>

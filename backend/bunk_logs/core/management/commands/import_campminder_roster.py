@@ -31,7 +31,6 @@ from bunk_logs.core.campminder_person_match import match_campminder_person
 from bunk_logs.core.campminder_person_match import strategy_is_duplicate
 from bunk_logs.core.campminder_user_link import UserLinkAction
 from bunk_logs.core.campminder_user_link import ensure_user_for_imported_person
-from bunk_logs.core.group_roster_import import infer_role_in_group_from_program_role
 from bunk_logs.core.group_roster_import import load_target_group
 from bunk_logs.core.group_roster_import import resolve_role_in_group
 from bunk_logs.core.models import AssignmentGroup
@@ -504,6 +503,7 @@ class Command(BaseCommand):
                         row,
                         role,
                         bulk_role_in_group=bulk_role_in_group or None,
+                        group=target_group,
                     )
                     _, group_mem_created = _ensure_membership(
                         target_group,
@@ -528,7 +528,12 @@ class Command(BaseCommand):
 
                     bunk_group = _get_or_create_group(program, "bunk", bunk_name, parent=unit_group)
 
-                    role_in_group = infer_role_in_group_from_program_role(role)
+                    role_in_group = resolve_role_in_group(
+                        row,
+                        role,
+                        bulk_role_in_group=bulk_role_in_group or None,
+                        group=bunk_group,
+                    )
                     _, bunk_mem_created = _ensure_membership(
                         bunk_group,
                         person,

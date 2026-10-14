@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.http import HttpResponse
 from django.utils.text import slugify
 from rest_framework import permissions
@@ -21,7 +22,10 @@ from bunk_logs.core.group_csv_import import import_groups_from_csv_text
 from bunk_logs.core.group_supervision import sync_placement
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
+from bunk_logs.core.models import ClassroomChallenge
+from bunk_logs.core.models import CohortShare
 from bunk_logs.core.models import Membership
+from bunk_logs.core.models import Order
 from bunk_logs.core.models import Person
 from bunk_logs.core.models import Program
 from bunk_logs.core.models import Reflection
@@ -29,6 +33,7 @@ from bunk_logs.core.models import RosterImportLog
 from bunk_logs.core.org_config import enabled_roles
 from bunk_logs.core.org_config import group_type_config
 from bunk_logs.core.permissions import IsOrgAdminOrSuperuser
+from bunk_logs.notes.models import ObservationRecipient
 
 
 class PersonSummarySerializer(serializers.ModelSerializer):
@@ -237,6 +242,30 @@ class AssignmentGroupCloneResponseSerializer(AssignmentGroupSerializer):
         return self.context.get("clone_summary", {})
 
 
+def hard_delete_blocker(group):
+    """Why a group cannot be removed, in words an admin can act on.
+
+    Roster seats, form assignments, and supervision of this group go with
+    it. Written history does not: those rows would be erased or unlinked.
+    """
+    if (
+        Reflection.all_objects.filter(assignment_group=group).exists()
+        or Reflection.all_objects.filter(subject_group=group).exists()
+    ):
+        return "This group has logs written in it. Archive it instead so those logs stay readable."
+    if ClassroomChallenge.all_objects.filter(assignment_group=group).exists():
+        return "This group has challenges. Archive it instead so those stay readable."
+    if CohortShare.all_objects.filter(assignment_group=group).exists():
+        return "People have shared posts to this group. Archive it instead so those posts stay in place."
+    if Order.all_objects.filter(submitted_from_bunk=group).exists():
+        return "Requests were filed from this group. Archive it instead so those requests stay linked."
+    if ObservationRecipient.objects.filter(bunk_id_at_capture=group).exists():
+        return "Notes mention this group. Archive it instead so those notes stay linked."
+    if AssignmentGroup.all_objects.filter(parent=group).exists():
+        return "This group contains other groups. Move or delete those first."
+    return None
+
+
 class AssignmentGroupPermission(permissions.BasePermission):
     message = "Organization context required."
 
@@ -314,6 +343,20 @@ class AssignmentGroupViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         group = self.get_object()
+        hard = request.query_params.get("hard", "").lower() in ("1", "true", "yes")
+        if hard:
+            reason = hard_delete_blocker(group)
+            if reason:
+                return Response({"detail": reason}, status=status.HTTP_409_CONFLICT)
+            try:
+                group.delete()
+            except ProtectedError:
+                return Response(
+                    {"detail": "This group still has records attached. Archive it instead."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
         has_reflections = Reflection.all_objects.filter(
             assignment_group=group,
         ).exists() or Reflection.all_objects.filter(

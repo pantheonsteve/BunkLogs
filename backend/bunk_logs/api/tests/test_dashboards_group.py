@@ -946,28 +946,97 @@ class TestClassroomRoster:
 # ---------------------------------------------------------------------------
 
 
-class TestUnsupportedGroupType:
-    def test_cohort_returns_400(self, api, org, program):
+class TestMemberGroupDashboard:
+    def test_admin_opens_a_cohort_with_oversight_blocks(self, api, org, program):
         cohort = AssignmentGroup.all_objects.create(
             organization=org, program=program,
             name="Cohort A", slug="cohort-a",
             group_type="cohort", is_active=True,
         )
-        person, user = _make_person(
+        member, _user = _make_person(
+            org, first="Maya", last="Class", email="maya-coh@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=member, role="madrich", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=cohort, person=member, role_in_group="subject", is_active=True,
+        )
+        _admin, admin_user = _make_person(
             org, first="Adi", last="Coh", email="adi-coh@dash.test",
         )
         Membership.all_objects.create(
-            program=program, person=person, role="admin", is_active=True,
+            program=program, person=_admin, role="admin", is_active=True,
+        )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            resp = api.get(
+                f"/api/v1/dashboards/group/{cohort.id}/", **_hdr(org.slug),
+            )
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["header"]["group"]["group_type"] == "cohort"
+        assert body["viewer"]["sees_operations"] is True
+        assert "completion" in body
+        assert "challenges" not in body
+        assert member.id in {row["id"] for row in body["subjects"]}
+
+    def test_peer_writer_does_not_see_completion(self, api, org, program):
+        org.settings = {
+            "group_types": {
+                "cohort": {
+                    "enabled": True,
+                    "members": [
+                        {"role": "madrich", "placed_as": "author", "supervises_group": False},
+                        {"role": "madrich", "placed_as": "subject", "supervises_group": False},
+                    ],
+                },
+            },
+        }
+        org.save(update_fields=["settings"])
+        cohort = AssignmentGroup.all_objects.create(
+            organization=org, program=program,
+            name="Cohort B", slug="cohort-b",
+            group_type="cohort", is_active=True,
+        )
+        person, user = _make_person(
+            org, first="Noa", last="Peer", email="noa-peer@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=person, role="madrich", is_active=True,
+        )
+        AssignmentGroupMembership.all_objects.create(
+            group=cohort, person=person, role_in_group="author", is_active=True,
         )
         api.force_authenticate(user=user)
         with organization_context(org):
             resp = api.get(
                 f"/api/v1/dashboards/group/{cohort.id}/", **_hdr(org.slug),
             )
-        assert resp.status_code == 400
-        # Message should name the unsupported group_type so the
-        # frontend can render an actionable empty-state.
-        assert "cohort" in str(resp.json()).lower()
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["viewer"]["sees_operations"] is False
+        assert "completion" not in body
+
+    def test_team_uses_the_same_dashboard(self, api, org, program):
+        team = AssignmentGroup.all_objects.create(
+            organization=org, program=program,
+            name="Kitchen", slug="kitchen-team",
+            group_type="team", is_active=True,
+        )
+        _admin, admin_user = _make_person(
+            org, first="Ada", last="Team", email="ada-team@dash.test",
+        )
+        Membership.all_objects.create(
+            program=program, person=_admin, role="admin", is_active=True,
+        )
+        api.force_authenticate(user=admin_user)
+        with organization_context(org):
+            resp = api.get(
+                f"/api/v1/dashboards/group/{team.id}/", **_hdr(org.slug),
+            )
+        assert resp.status_code == 200, resp.content
+        assert resp.json()["header"]["group"]["group_type"] == "team"
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   observationBackLabel,
   observationThreadLink,
+  reflectionDetailLink,
   profileLink,
   resolveProfileBackGroup,
   safeInternalPath,
@@ -23,6 +24,15 @@ describe('dashboardLinks', () => {
       '/profile/221?date=2026-06-02',
     );
     expect(subjectProfileHref(99, { canViewProfile: false })).toBeNull();
+  });
+
+  it('builds reflection links with an encoded return path', () => {
+    const ret = '/profile/1347?group=199&date_start=2026-09-17&date_end=2026-10-14';
+    expect(reflectionDetailLink(41, ret)).toBe(
+      `/reflections/41?returnTo=${encodeURIComponent(ret)}`,
+    );
+    expect(reflectionDetailLink(41)).toBe('/reflections/41');
+    expect(reflectionDetailLink(41, '//evil.com')).toBe('/reflections/41');
   });
 
   it('builds observation links with encoded return path', () => {

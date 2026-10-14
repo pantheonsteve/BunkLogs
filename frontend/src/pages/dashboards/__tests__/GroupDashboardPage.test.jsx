@@ -214,6 +214,35 @@ describe('GroupDashboardPage', () => {
     expect(backLink).toHaveAttribute('href', '/dashboards');
   });
 
+  it('renders the standard member dashboard for a cohort', async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        role_context: { role: 'admin', group_type: 'cohort', can_edit: false },
+        header: {
+          group: { id: 51, name: 'Madrichim', slug: 'madrichim', group_type: 'cohort' },
+          date: '2026-10-14',
+          today: '2026-10-14',
+          program_name: 'School',
+        },
+        subjects: [{
+          id: 1, first_name: 'Maya', last_name: 'Class', preferred_name: '', membership_role: 'madrich',
+        }],
+        authors: [],
+        summary: { subject_count: 1, author_count: 0 },
+        viewer: { is_faculty_author: false, sees_operations: true },
+        completion: null,
+        availability: null,
+        roster: [],
+        templates: [],
+      },
+    });
+    renderAt('/dashboards/group/51');
+    expect(await screen.findByTestId('group-dashboard-member')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Madrichim');
+    expect(screen.getByText(/Cohort dashboard/)).toBeInTheDocument();
+    expect(screen.getByTestId('member-role-madrich')).toHaveTextContent('Maya Class');
+  });
+
   it('renders the unsupported empty-state on a 400 from the backend', async () => {
     getMock.mockRejectedValueOnce({
       response: {

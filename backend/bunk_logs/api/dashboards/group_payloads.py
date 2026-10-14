@@ -45,6 +45,7 @@ from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import ClassroomChallenge
 from bunk_logs.core.models import Membership
 from bunk_logs.core.models import Reflection
+from bunk_logs.core.org_config import group_type_config
 
 if TYPE_CHECKING:
     from datetime import date
@@ -566,6 +567,106 @@ def build_classroom_dashboard_payload(
         program=program, memberships=memberships, today=today,
     )
     payload["availability"] = window.summarize(memberships) if window else None
+    return payload
+
+
+_OVERSEER_ROLES = frozenset({
+    "admin", "leadership_team", "unit_head", "camper_care",
+})
+
+
+def _peer_writer(organization, group_type: str, role: str) -> bool:
+    """True when this role both writes and is written about in the group."""
+    members = (group_type_config(organization).get(group_type) or {}).get("members") or []
+    seats = {
+        member.get("placed_as")
+        for member in members
+        if member.get("role") == role
+    }
+    return "author" in seats and "subject" in seats
+
+
+def _sees_member_operations(*, request, group, organization, program) -> bool:
+    """Who may see reflection completion and availability.
+
+    People who oversee the group see them. A writer who is also a subject
+    of the same group does not — that list is their peers.
+    """
+    if _is_faculty_author(request=request, group=group, program=program):
+        return True
+    if getattr(request.user, "is_superuser", False):
+        return True
+    from bunk_logs.core.models import Person
+
+    person = Person.objects.filter(user=request.user).first()
+    if person is None:
+        return False
+    roles = set(
+        Membership.objects.filter(
+            person=person, program=program, is_active=True,
+        ).values_list("role", flat=True),
+    )
+    if roles & _OVERSEER_ROLES:
+        return True
+    is_author = AssignmentGroupMembership.objects.filter(
+        group=group, person=person, role_in_group="author", is_active=True,
+    ).exists()
+    if not is_author:
+        return False
+    return any(
+        not _peer_writer(organization, group.group_type, role) for role in roles
+    )
+
+
+def build_member_group_dashboard_payload(
+    *,
+    request,
+    group: AssignmentGroup,
+    target_date: date,
+    organization: Organization,
+    program: Program,
+    today: date,
+) -> dict:
+    """Standard dashboard for cohort, team, caseload, specialty, and custom.
+
+    Same roster and oversight blocks as a classroom. Challenges stay on
+    classrooms, because that is the only group type that can have them.
+    """
+    payload = build_classroom_dashboard_payload(
+        request=request,
+        group=group,
+        target_date=target_date,
+        organization=organization,
+        program=program,
+        today=today,
+    )
+    payload["header"]["group"]["group_type"] = group.group_type
+    payload["header"]["group"]["slug"] = group.slug
+    payload["header"]["group"]["parent"] = group.parent_id
+    payload.pop("challenges", None)
+
+    sees = _sees_member_operations(
+        request=request, group=group, organization=organization, program=program,
+    )
+    payload["viewer"]["sees_operations"] = sees
+    if sees and "completion" not in payload:
+        memberships = classroom_subject_memberships(
+            program=program, group_ids=[group.id],
+        )[group.id]
+        completion = build_weekly_completion(
+            organization=organization,
+            program=program,
+            person_ids={m.person_id for m in memberships},
+            as_of=target_date,
+        )
+        payload["completion"] = completion.summarize(memberships) if completion else None
+        window = build_availability_window(
+            program=program, memberships=memberships, today=today,
+        )
+        payload["availability"] = window.summarize(memberships) if window else None
+    elif not sees:
+        payload.pop("completion", None)
+        payload.pop("availability", None)
     return payload
 
 

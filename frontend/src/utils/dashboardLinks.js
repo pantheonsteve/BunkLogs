@@ -61,6 +61,14 @@ export function safeInternalPath(path) {
   return path;
 }
 
+/** Link to the full reflection, optionally returning to the page that opened it. */
+export function reflectionDetailLink(reflectionId, returnTo) {
+  const base = `/reflections/${reflectionId}`;
+  const back = safeInternalPath(returnTo);
+  if (!back) return base;
+  return `${base}?returnTo=${encodeURIComponent(back)}`;
+}
+
 /** Link to an observation thread, optionally preserving a return URL. */
 export function observationThreadLink(observationId, returnTo, { contextLabel } = {}) {
   const base = `/observations/${observationId}`;

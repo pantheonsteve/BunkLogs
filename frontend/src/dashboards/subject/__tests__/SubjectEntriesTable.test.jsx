@@ -132,6 +132,26 @@ describe('SubjectEntriesTable', () => {
     expect(screen.getAllByText('Check-in').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Great day').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Follow-up note').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('subject-entry-open-10')).toHaveAttribute('href', '/reflections/10');
+    expect(screen.getByTestId('subject-entry-open-20')).toHaveAttribute('href', '/observations/20');
+  });
+
+  it('returns to the profile when an entry is opened from it', () => {
+    const entries = flattenSubjectEntries(payload);
+    const back = '/profile/20/entries?date_start=2026-06-01&date_end=2026-06-30';
+    render(
+      <MemoryRouter>
+        <SubjectEntriesTable entries={entries} language="en" returnTo={back} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('subject-entry-open-10')).toHaveAttribute(
+      'href',
+      `/reflections/10?returnTo=${encodeURIComponent(back)}`,
+    );
+    expect(screen.getByTestId('subject-entry-open-20')).toHaveAttribute(
+      'href',
+      `/observations/20?from=${encodeURIComponent(back)}`,
+    );
   });
 
   it('shows empty state when no entries', () => {

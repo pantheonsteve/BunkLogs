@@ -46,7 +46,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function ChallengesSection({ challenges }) {
+export function ChallengesSection({ challenges }) {
   const recent = challenges.recent || [];
   return (
     <section
@@ -127,7 +127,7 @@ function Card({ title, count, testId, children }) {
   );
 }
 
-function CompletionSection({ completion, returnTo }) {
+export function CompletionSection({ completion, returnTo, emptyLabel = 'no students enrolled yet.' }) {
   if (!completion) {
     return (
       <Card title="Weekly reflections" testId="classroom-completion-section">
@@ -152,7 +152,7 @@ function CompletionSection({ completion, returnTo }) {
         {period?.start && ` · week of ${formatSession(period.start)}`}
       </p>
       {students.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">no students enrolled yet.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{emptyLabel}</p>
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
           {students.map((s) => (
@@ -198,7 +198,11 @@ function CompletionSection({ completion, returnTo }) {
   );
 }
 
-function AvailabilitySection({ availability }) {
+export function AvailabilitySection({
+  availability,
+  emptyLabel = 'no students enrolled yet.',
+  nameHeading = 'Madrich',
+}) {
   if (!availability) {
     return (
       <Card title="Sunday availability" testId="classroom-availability-section">
@@ -217,13 +221,13 @@ function AvailabilitySection({ availability }) {
       testId="classroom-availability-section"
     >
       {rows.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">no students enrolled yet.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{emptyLabel}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-500 dark:text-gray-400 text-left">
-                <th className="font-normal py-1 pr-3">Madrich</th>
+                <th className="font-normal py-1 pr-3">{nameHeading}</th>
                 {sessions.map((s) => (
                   <th key={s} className="font-normal py-1 px-2 whitespace-nowrap">
                     {formatSession(s)}

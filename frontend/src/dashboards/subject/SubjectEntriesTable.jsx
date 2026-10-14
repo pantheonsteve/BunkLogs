@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import RichText from '../../components/ui/RichText';
 import PrivacyChip from '../../components/reflection/PrivacyChip';
+import { observationThreadLink, reflectionDetailLink } from '../../utils/dashboardLinks';
 import { DescriptionCell, DescriptionContent } from './responseTable/cells';
 import { deriveSchemaSections, formatShortDate } from './responseTable/schema';
 
@@ -31,14 +32,19 @@ function formatScoresSummary(sections, answers) {
   return parts.length ? parts.join('; ') : '—';
 }
 
-function ReflectionDateCell({ reflection }) {
+function ReflectionDateCell({ reflection, href }) {
   const r = reflection;
   return (
     <td className="px-3 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
       <div className="min-w-0 text-center">
-        <div className="text-sm text-gray-800 dark:text-gray-100">
+        <Link
+          to={href}
+          className="text-sm text-indigo-700 dark:text-indigo-300 hover:underline"
+          data-testid={`subject-entry-open-${r.id}`}
+          onClick={(event) => event.stopPropagation()}
+        >
           {formatShortDate(r.date)}
-        </div>
+        </Link>
         <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 inline-flex items-center gap-1">
           {r.language ?? 'en'}
           <PrivacyChip teamVisibility={r.team_visibility} size="icon" />
@@ -47,6 +53,7 @@ function ReflectionDateCell({ reflection }) {
           <Link
             to={`/dashboards/group/${r.assignment_group.id}?date=${r.date}`}
             className="block mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+            onClick={(event) => event.stopPropagation()}
           >
             {r.assignment_group.name ?? 'View group'} →
           </Link>
@@ -56,7 +63,7 @@ function ReflectionDateCell({ reflection }) {
   );
 }
 
-function ObservationDateCell({ observation }) {
+function ObservationDateCell({ observation, href }) {
   const o = observation;
   const whenIso = o.observed_at || o.created_at;
   const whenLabel = whenIso
@@ -71,9 +78,14 @@ function ObservationDateCell({ observation }) {
   return (
     <td className="px-3 py-3 whitespace-nowrap border border-gray-300 dark:border-gray-700">
       <div className="min-w-0 text-center">
-        <div className="text-sm text-gray-800 dark:text-gray-100">
+        <Link
+          to={href}
+          className="text-sm text-indigo-700 dark:text-indigo-300 hover:underline"
+          data-testid={`subject-entry-open-${o.id}`}
+          onClick={(event) => event.stopPropagation()}
+        >
           {formatShortDate(o.date || whenIso?.slice(0, 10))}
-        </div>
+        </Link>
         {whenLabel && (
           <time
             dateTime={whenIso}
@@ -87,8 +99,10 @@ function ObservationDateCell({ observation }) {
   );
 }
 
-function ReflectionRow({ entry, language }) {
+function ReflectionRow({ entry, language, returnTo }) {
+  const navigate = useNavigate();
   const r = entry.reflection;
+  const href = reflectionDetailLink(r.id, returnTo);
   const schema = { fields: entry.schemaFields ?? [] };
   const sections = deriveSchemaSections(schema, language);
   const row = {
@@ -97,8 +111,13 @@ function ReflectionRow({ entry, language }) {
   };
 
   return (
-    <tr key={`reflection-${entry.id}`} data-testid={`subject-entry-row-${entry.id}`}>
-      <ReflectionDateCell reflection={r} />
+    <tr
+      key={`reflection-${entry.id}`}
+      data-testid={`subject-entry-row-${entry.id}`}
+      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40"
+      onClick={() => navigate(href)}
+    >
+      <ReflectionDateCell reflection={r} href={href} />
       <td className="px-3 py-3 border border-gray-300 dark:border-gray-700">
         <TypeBadge kind="reflection" />
       </td>
@@ -119,13 +138,20 @@ function ReflectionRow({ entry, language }) {
   );
 }
 
-function ObservationRow({ entry }) {
+function ObservationRow({ entry, returnTo }) {
+  const navigate = useNavigate();
   const o = entry.observation;
+  const href = observationThreadLink(o.id, returnTo);
   const authorName = o.author?.name;
 
   return (
-    <tr key={`observation-${entry.id}`} data-testid={`subject-entry-row-${entry.id}`}>
-      <ObservationDateCell observation={{ ...o, date: entry.date }} />
+    <tr
+      key={`observation-${entry.id}`}
+      data-testid={`subject-entry-row-${entry.id}`}
+      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40"
+      onClick={() => navigate(href)}
+    >
+      <ObservationDateCell observation={{ ...o, date: entry.date }} href={href} />
       <td className="px-3 py-3 border border-gray-300 dark:border-gray-700">
         <TypeBadge kind="observation" />
       </td>
@@ -150,7 +176,8 @@ function ObservationRow({ entry }) {
   );
 }
 
-export default function SubjectEntriesTable({ entries, language = 'en' }) {
+export default function SubjectEntriesTable({ entries, language = 'en', returnTo = null }) {
+  const navigate = useNavigate();
   if (!entries.length) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400 italic" data-testid="subject-entries-empty">
@@ -178,24 +205,33 @@ export default function SubjectEntriesTable({ entries, language = 'en' }) {
           <tbody className="text-sm font-medium divide-y divide-gray-200 dark:divide-gray-700/60">
             {entries.map((entry) => (
               entry.kind === 'reflection'
-                ? <ReflectionRow key={`reflection-${entry.id}`} entry={entry} language={language} />
-                : <ObservationRow key={`observation-${entry.id}`} entry={entry} />
+                ? <ReflectionRow key={`reflection-${entry.id}`} entry={entry} language={language} returnTo={returnTo} />
+                : <ObservationRow key={`observation-${entry.id}`} entry={entry} returnTo={returnTo} />
             ))}
           </tbody>
         </table>
       </div>
 
       <div className="md:hidden space-y-4">
-        {entries.map((entry) => (
+        {entries.map((entry) => {
+          const href = entry.kind === 'reflection'
+            ? reflectionDetailLink(entry.reflection.id, returnTo)
+            : observationThreadLink(entry.observation.id, returnTo);
+          return (
           <article
             key={`${entry.kind}-${entry.id}`}
-            className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50/50 dark:bg-gray-900/20"
+            className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50/50 dark:bg-gray-900/20 cursor-pointer"
             data-testid={`subject-entry-card-${entry.id}`}
+            onClick={() => navigate(href)}
           >
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
+              <Link
+                to={href}
+                className="text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
                 {formatShortDate(entry.date)}
-              </span>
+              </Link>
               <TypeBadge kind={entry.kind} />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
@@ -221,7 +257,8 @@ export default function SubjectEntriesTable({ entries, language = 'en' }) {
               />
             )}
           </article>
-        ))}
+          );
+        })}
       </div>
     </>
   );

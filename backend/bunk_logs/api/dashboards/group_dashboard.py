@@ -21,15 +21,15 @@ from rest_framework.views import APIView
 from bunk_logs.api.dashboards.group_dashboard_common import resolve_group_dashboard_context
 from bunk_logs.api.dashboards.group_payloads import build_classroom_dashboard_payload
 from bunk_logs.api.dashboards.group_payloads import build_division_dashboard_payload
+from bunk_logs.api.dashboards.group_payloads import build_member_group_dashboard_payload
 from bunk_logs.api.dashboards.group_payloads import build_unit_dashboard_payload
 from bunk_logs.api.dashboards.group_roster import build_group_roster
 from bunk_logs.api.dashboards.group_template_cards import build_group_template_cards
 from bunk_logs.api.unit_head.bunk_dashboard import build_bunk_dashboard_payload
 from bunk_logs.api.unit_head.bunk_dashboard import program_display_name
 
-# Dispatch table. Group types not represented here surface a 400 with
-# a friendly "not yet supported" message so the frontend can render
-# its own stub without guessing.
+# Bunk, unit, and division keep their rollup payloads. Every other type
+# uses the member dashboard (roster, reflections, availability).
 _PAYLOAD_BY_GROUP_TYPE = {
     "bunk": build_bunk_dashboard_payload,
     "unit": build_unit_dashboard_payload,
@@ -62,13 +62,9 @@ class GroupDashboardView(APIView):
         # to the org rollover-aware cap so the dashboard still loads.
         target_date = min(target_date, ctx.today)
 
-        builder = _PAYLOAD_BY_GROUP_TYPE.get(ctx.group.group_type)
-        if builder is None:
-            msg = (
-                f"Dashboard not yet supported for group_type "
-                f"'{ctx.group.group_type}'."
-            )
-            raise ValidationError(msg)
+        builder = _PAYLOAD_BY_GROUP_TYPE.get(
+            ctx.group.group_type, build_member_group_dashboard_payload,
+        )
 
         # Bunk builder still uses the keyword ``bunk=`` (no rename to
         # avoid churn in unit_head/bunk_dashboard.py); everything else

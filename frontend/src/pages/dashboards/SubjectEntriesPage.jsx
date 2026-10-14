@@ -161,7 +161,11 @@ export default function SubjectEntriesPage() {
                   </p>
                 )}
                 <div className="p-4">
-                  <SubjectEntriesTable entries={entries} language={language} />
+                  <SubjectEntriesTable
+                    entries={entries}
+                    language={language}
+                    returnTo={`/profile/${personId}/entries${searchParams.toString() ? `?${searchParams}` : ''}`}
+                  />
                 </div>
               </section>
             </div>

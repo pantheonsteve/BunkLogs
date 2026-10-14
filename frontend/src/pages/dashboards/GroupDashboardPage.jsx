@@ -18,6 +18,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import BunkDashboard, { BunkDashboardOrdersAndNotes } from '../../components/BunkDashboard';
 import ClassroomDashboard from '../../components/ClassroomDashboard';
 import DivisionDashboard from '../../components/DivisionDashboard';
+import MemberGroupDashboard from '../../components/MemberGroupDashboard';
 import UnitDashboard from '../../components/UnitDashboard';
 import UnsupportedGroupDashboard from '../../components/UnsupportedGroupDashboard';
 import GroupRoster from '../../components/GroupRoster';
@@ -181,7 +182,8 @@ export default function GroupDashboardPage() {
 
   const role = data?.role_context?.role;
   const groupType = data?.role_context?.group_type;
-  const Dash = COMPONENT_BY_GROUP_TYPE[groupType];
+  const Dash = COMPONENT_BY_GROUP_TYPE[groupType]
+    || (groupType ? MemberGroupDashboard : null);
   const backTo = backToFor(role, {
     date: dateParam || data?.header?.date,
     urlDate: dateParam,

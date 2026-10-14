@@ -312,7 +312,10 @@ class Command(BaseCommand):
                     group=group,
                     person=person,
                     role_in_group=resolve_role_in_group(
-                        row, role, bulk_role_in_group=bulk_role_in_group,
+                        row,
+                        role,
+                        bulk_role_in_group=bulk_role_in_group,
+                        group=group,
                     ),
                     defaults={"is_active": True},
                 )

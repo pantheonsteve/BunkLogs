@@ -25,6 +25,14 @@ vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => ({ orgSlug: 'tbe', user: { id: 7 } }),
 }));
 
+vi.mock('../../../context/OrgBrandingContext', async () => {
+  const actual = await vi.importActual('../../../context/OrgBrandingContext');
+  return {
+    ...actual,
+    useOrgBranding: () => ({ displayName: 'North Star School' }),
+  };
+});
+
 // Wysiwyg pulls in heavy quill bits; not used by any field in the
 // 3-2-1 template so stub it out.
 vi.mock('../../../components/form/Wysiwyg', () => ({
@@ -95,7 +103,9 @@ describe('MadrichReflectionForm', () => {
     renderForm();
     await waitFor(() => screen.getByTestId('md-audience-disclosure'));
     expect(screen.getByTestId('md-audience-disclosure')).toHaveTextContent(/Director/);
-    expect(screen.getByTestId('md-audience-disclosure')).toHaveTextContent(/Temple Beth-El/);
+    expect(screen.getByTestId('md-audience-disclosure')).toHaveTextContent(/North Star School/);
+    expect(screen.getByTestId('md-audience-disclosure')).toHaveTextContent(/madrichim/);
+    expect(screen.getByTestId('md-audience-disclosure')).not.toHaveTextContent(/Temple Beth-El/);
     expect(screen.queryByText(/Day off/i)).toBeNull();
   });
 

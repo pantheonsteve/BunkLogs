@@ -5,7 +5,7 @@
  * organization on the auth payload:
  *
  *   user.organizations = [
- *     { slug: 'tbe', name: 'Temple Beth-El', capability: 'participant', roles: ['madrich'] },
+ *     { slug: 'tbe', name: 'Example School', capability: 'participant', roles: ['madrich'] },
  *   ]
  *
  * The "current" organization is the tenant subdomain (clc.bunklogs.net ->

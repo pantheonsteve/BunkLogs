@@ -267,6 +267,65 @@ class TestDeleteGroup:
         r = client.delete(f"/api/v1/assignment-groups/{group.pk}/", **_hdr(org.slug))
         assert r.status_code == 409
 
+    def test_hard_delete_removes_the_group(self, client, org, group, admin_user, person_a):
+        AssignmentGroupMembership.all_objects.create(
+            group=group, person=person_a, role_in_group="subject", is_active=True,
+        )
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.delete(f"/api/v1/assignment-groups/{group.pk}/?hard=true", **_hdr(org.slug))
+        assert r.status_code == 204
+        assert not AssignmentGroup.all_objects.filter(pk=group.pk).exists()
+        assert not AssignmentGroupMembership.all_objects.filter(person=person_a).exists()
+
+    def test_hard_delete_denied_for_regular_user(self, client, org, group, regular_user):
+        user, _ = regular_user
+        client.force_authenticate(user=user)
+        r = client.delete(f"/api/v1/assignment-groups/{group.pk}/?hard=true", **_hdr(org.slug))
+        assert r.status_code == 403
+        assert AssignmentGroup.all_objects.filter(pk=group.pk).exists()
+
+    def test_hard_delete_blocked_when_reflections_exist(self, client, org, program, group, admin_user):
+        user, _ = admin_user
+        template = ReflectionTemplate.all_objects.create(
+            organization=org,
+            name="Test Template",
+            slug="test-tmpl-hard-del",
+            cadence="weekly",
+            program_type="summer_camp",
+            schema={"fields": [{"key": "q1", "type": "text", "label": {"en": "Q"}}]},
+        )
+        Reflection.all_objects.create(
+            organization=org,
+            program=program,
+            template=template,
+            assignment_group=group,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 7),
+            answers={"q1": "answer"},
+        )
+        client.force_authenticate(user=user)
+        r = client.delete(f"/api/v1/assignment-groups/{group.pk}/?hard=true", **_hdr(org.slug))
+        assert r.status_code == 409
+        assert "Archive" in r.data["detail"]
+        assert AssignmentGroup.all_objects.filter(pk=group.pk).exists()
+
+    def test_hard_delete_blocked_when_it_contains_groups(self, client, org, program, group, admin_user):
+        AssignmentGroup.all_objects.create(
+            organization=org,
+            program=program,
+            name="Bunk Inside",
+            slug="bunk-inside-write",
+            group_type="bunk",
+            parent=group,
+        )
+        user, _ = admin_user
+        client.force_authenticate(user=user)
+        r = client.delete(f"/api/v1/assignment-groups/{group.pk}/?hard=true", **_hdr(org.slug))
+        assert r.status_code == 409
+        assert "other groups" in r.data["detail"]
+        assert AssignmentGroup.all_objects.filter(pk=group.pk).exists()
+
 
 # ---------------------------------------------------------------------------
 # ADD membership
