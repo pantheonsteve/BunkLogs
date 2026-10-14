@@ -1,15 +1,13 @@
-"""Import a TBE ShulCloud CSV export into Person/Membership/AssignmentGroup records.
+"""Deprecated school-roster importer. Prefer ``import_people_roster``.
 
-TBE uses a lighter format than Campminder. Madrichim are added as *subjects* of
-the classroom (so faculty can observe them) AND as *authors* of their own
-self-reflection group membership.  Faculty are authors of the classroom.
-
-Idempotent: re-running with the same CSV does not create duplicates.
+Madrichim are authors of a class, students are subjects, and faculty are
+authors. Idempotent: re-running with the same CSV does not create duplicates.
 """
 from __future__ import annotations
 
 import csv
 import logging
+import warnings as py_warnings
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -102,8 +100,8 @@ def _upsert_person(
 
 class Command(BaseCommand):
     help = (
-        "Import a TBE ShulCloud CSV export into Person/Membership/AssignmentGroup records. "
-        "Creates classrooms with Madrichim as subjects and faculty as authors."
+        "Deprecated. Use import_people_roster. "
+        "Imports a class roster: madrichim and faculty as authors, students as subjects."
     )
 
     def add_arguments(self, parser) -> None:
@@ -172,6 +170,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options) -> None:
+        py_warnings.warn(
+            "import_tbe_roster is deprecated; use import_people_roster.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         csv_path = Path(options["csv_path"])
         if not csv_path.exists():
             msg = f"CSV file not found: {csv_path}"
@@ -294,26 +297,7 @@ class Command(BaseCommand):
                     )
                     if created_flag:
                         memberships_created += 1
-                elif role == "madrich":
-                    # Madrichim: subject in the classroom (faculty observes them)
-                    _, sub_created = AssignmentGroupMembership.all_objects.get_or_create(
-                        group=classroom,
-                        person=person,
-                        role_in_group="subject",
-                        defaults={"is_active": True},
-                    )
-                    if sub_created:
-                        memberships_created += 1
-                    # Also author in their own self-reflection context.
-                    _, auth_created = AssignmentGroupMembership.all_objects.get_or_create(
-                        group=classroom,
-                        person=person,
-                        role_in_group="author",
-                        defaults={"is_active": True},
-                    )
-                    if auth_created:
-                        memberships_created += 1
-                elif role == "faculty":
+                elif role in {"madrich", "faculty"}:
                     _, auth_created = AssignmentGroupMembership.all_objects.get_or_create(
                         group=classroom,
                         person=person,
@@ -323,7 +307,7 @@ class Command(BaseCommand):
                     if auth_created:
                         memberships_created += 1
                 else:
-                    # Other roles (e.g. admin helpers): add as subjects
+                    # Students, and any other role, are subjects of the class.
                     _, other_created = AssignmentGroupMembership.all_objects.get_or_create(
                         group=classroom,
                         person=person,

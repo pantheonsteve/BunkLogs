@@ -541,12 +541,16 @@ class TestTBEClassroomImport:
         _run_tbe(tmp_path, TBE_CSV)
         assert AssignmentGroup.all_objects.filter(program=tbe_program, group_type="classroom").count() == 2
 
-    def test_madrichim_are_subjects_and_authors(self, tmp_path, tbe_program):
+    def test_madrichim_are_authors_of_the_class_only(self, tmp_path, tbe_program):
         _run_tbe(tmp_path, TBE_CSV)
         classroom = AssignmentGroup.all_objects.get(program=tbe_program, slug="tzedakah-101")
         noah = Person.all_objects.get(first_name="Noah", last_name="Cohen", organization=tbe_program.organization)
-        assert AssignmentGroupMembership.all_objects.filter(group=classroom, person=noah, role_in_group="subject").exists()
-        assert AssignmentGroupMembership.all_objects.filter(group=classroom, person=noah, role_in_group="author").exists()
+        assert AssignmentGroupMembership.all_objects.filter(
+            group=classroom, person=noah, role_in_group="author", is_active=True,
+        ).exists()
+        assert not AssignmentGroupMembership.all_objects.filter(
+            group=classroom, person=noah, role_in_group="subject", is_active=True,
+        ).exists()
 
     def test_faculty_are_authors(self, tmp_path, tbe_program):
         _run_tbe(tmp_path, TBE_CSV)
