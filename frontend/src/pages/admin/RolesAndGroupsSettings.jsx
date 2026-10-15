@@ -30,6 +30,16 @@ function rowsFromMembers(members) {
   return [...byRole.values()];
 }
 
+function messageFrom(err, fallback) {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const text = detail.filter((item) => typeof item === 'string' && item.trim()).join(' ');
+    if (text) return text;
+  }
+  return fallback;
+}
+
 function membersFromRows(rows) {
   const members = [];
   for (const row of rows) {
@@ -76,6 +86,7 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
   const [groups, setGroups] = useState(() => initialGroups(settings.group_type_config));
   const [roleError, setRoleError] = useState('');
   const [groupError, setGroupError] = useState('');
+  const [groupSaved, setGroupSaved] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
   const [savingGroups, setSavingGroups] = useState(false);
 
@@ -99,17 +110,19 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
         enabled_roles: roles,
       });
     } catch (err) {
-      setRoleError(err?.response?.data?.detail || 'Could not save roles.');
+      setRoleError(messageFrom(err, 'Could not save roles.'));
     } finally {
       setSavingRoles(false);
     }
   };
 
   const updateType = (type, patch) => {
+    setGroupSaved(false);
     setGroups((prev) => ({ ...prev, [type]: { ...prev[type], ...patch } }));
   };
 
   const updateRow = (type, role, patch) => {
+    setGroupSaved(false);
     setGroups((prev) => ({
       ...prev,
       [type]: {
@@ -121,6 +134,7 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
 
   const addRow = (type, role) => {
     if (!role) return;
+    setGroupSaved(false);
     setGroups((prev) => {
       if (prev[type].rows.some((row) => row.role === role)) return prev;
       return {
@@ -136,23 +150,50 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
   const saveGroups = async () => {
     setSavingGroups(true);
     setGroupError('');
-    const groupTypes = {};
-    for (const type of GROUP_TYPE_ORDER) {
-      const entry = groups[type];
-      const rows = (entry?.rows || []).filter((row) => checked.has(row.role));
-      groupTypes[type] = {
-        enabled: Boolean(entry?.enabled),
-        members: membersFromRows(rows),
-      };
-    }
+    setGroupSaved(false);
     try {
+      const groupTypes = {};
+      const unfinished = [];
+      for (const type of GROUP_TYPE_ORDER) {
+        const entry = groups[type];
+        const rows = (entry?.rows || []).filter((row) => checked.has(row.role));
+        for (const row of rows) {
+          if (!row.writes && !row.about) unfinished.push(term(row.role, { capitalize: true }));
+        }
+        groupTypes[type] = {
+          enabled: Boolean(entry?.enabled),
+          members: membersFromRows(rows),
+        };
+      }
+      if (unfinished.length) {
+        const names = [...new Set(unfinished)];
+        const who = names.length === 1 ? names[0] : names.join(', ');
+        setGroupError(`Choose Writer or Written about for ${who}.`);
+        return;
+      }
+      const placed = new Set();
+      for (const cfg of Object.values(groupTypes)) {
+        for (const member of cfg.members || []) {
+          if (member.role) placed.add(member.role);
+        }
+      }
+      const enabledRoles = catalog
+        .map((entry) => entry.role)
+        .filter((role) => (settings.enabled_roles || []).includes(role) || placed.has(role));
       const saved = await patchAdminSettings({ settings: { group_types: groupTypes } });
       onSaved({
         settings: { ...(settings.settings || {}), ...(saved?.settings || {}), group_types: groupTypes },
         group_type_config: groupTypes,
+        enabled_roles: enabledRoles,
       });
+      setChecked((prev) => {
+        const next = new Set(prev);
+        for (const role of placed) next.add(role);
+        return next;
+      });
+      setGroupSaved(true);
     } catch (err) {
-      setGroupError(err?.response?.data?.detail || 'Could not save groups.');
+      setGroupError(messageFrom(err, 'Could not save groups.'));
     } finally {
       setSavingGroups(false);
     }
@@ -283,7 +324,8 @@ export default function RolesAndGroupsTab({ settings, onSaved }) {
               </section>
             );
           })}
-          {groupError && <Note tone="danger">{groupError}</Note>}
+          {groupError && <Note tone="danger" data-testid="settings-groups-error">{groupError}</Note>}
+          {groupSaved && <Note tone="ok" data-testid="settings-groups-saved">Groups saved.</Note>}
           <div className="flex justify-end">
             <Button onClick={saveGroups} disabled={savingGroups} data-testid="settings-groups-save">
               {savingGroups ? 'Saving…' : 'Save groups'}
