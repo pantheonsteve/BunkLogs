@@ -96,24 +96,47 @@ def _ordered(roles: set[str]) -> list[str]:
     return [code for code, _ in Membership.ROLES if code in roles]
 
 
+def _roles_placed_in_groups(org) -> set[str]:
+    """Roles seated on a group type that is turned on.
+
+    A placement has to stay available. Otherwise the next settings load
+    hides the row and the save looks like it did nothing.
+    """
+    config = saved_group_type_config(org)
+    if not config:
+        return set()
+    placed: set[str] = set()
+    for cfg in config.values():
+        if not cfg.get("enabled", True):
+            continue
+        for member in cfg.get("members") or []:
+            role = member.get("role")
+            if role in KNOWN_ROLES:
+                placed.add(role)
+    return placed
+
+
 def enabled_roles(org) -> list[str]:
     """Role slugs this org may assign.
 
     An explicit ``settings["roles"]`` list wins. Otherwise every role that
     has any Membership in the org, plus admin, so a tenant with no setting
-    keeps the roles it already uses.
+    keeps the roles it already uses. Roles seated on an enabled group type
+    are included either way, so a placement is not hidden on the next load.
     """
+    placed = _roles_placed_in_groups(org)
     raw = (getattr(org, "settings", None) or {}).get("roles")
     if isinstance(raw, list) and raw:
         chosen = {role for role in raw if role in KNOWN_ROLES}
         if chosen:
-            return _ordered(chosen)
+            return _ordered(chosen | placed)
     in_use = set(
         Membership.all_objects.filter(
             program__organization=org,
         ).values_list("role", flat=True),
     )
     in_use.add("admin")
+    in_use |= placed
     return _ordered(in_use)
 
 
@@ -134,7 +157,11 @@ def role_allowed(org, role: str) -> bool:
     chosen = explicit_role_list(org)
     if chosen is None:
         return role in KNOWN_ROLES
-    return role in chosen
+    if role in chosen:
+        return True
+    # A group can still seat a role the saved list left out. The settings
+    # page blocks turning that role off until the group no longer uses it.
+    return role in _roles_placed_in_groups(org)
 
 
 def saved_group_type_config(org) -> dict[str, dict[str, Any]] | None:
@@ -205,15 +232,22 @@ def validate_roles_update(org, roles: Any) -> str | None:
         .annotate(n=Count("id"))
         .order_by("role")
     )
-    parts = []
+    people = []
     for row in rows:
         label = term(org, row["role"], capitalize=True)
         noun = "person" if row["n"] == 1 else "people"
-        parts.append(f"{label} still has {row['n']} active {noun}")
-    if not parts:
-        return None
-    joined = "; ".join(parts)
-    return f"{joined}. Change their role before turning it off."
+        people.append(f"{label} still has {row['n']} active {noun}")
+    placed = []
+    for role in _ordered(_roles_placed_in_groups(org) - chosen):
+        label = term(org, role, capitalize=True)
+        placed.append(f"{label} is still used on a group")
+    if people and not placed:
+        return f"{'; '.join(people)}. Change their role before turning it off."
+    if placed and not people:
+        return f"{'; '.join(placed)}. Remove them from the group before turning the role off."
+    if people or placed:
+        return f"{'; '.join(people + placed)}. Change that before turning the role off."
+    return None
 
 
 def validate_group_types(org, raw: Any) -> str | None:

@@ -112,6 +112,45 @@ describe('AdminSettings — Roles & groups', () => {
       settings: { roles: ['admin'] },
     });
   });
+
+  it('saves a role added to a group and says so', async () => {
+    getAdminSettings.mockResolvedValue({
+      ...SETTINGS,
+      enabled_roles: ['counselor', 'admin', 'specialist'],
+      role_catalog: [
+        { role: 'counselor', description: 'Writes logs about the people in their group.', can_supervise: false },
+        { role: 'specialist', description: 'Writes logs for an activity they lead.', can_supervise: false },
+        { role: 'admin', description: 'Runs the organization.', can_supervise: true },
+      ],
+      group_type_config: {
+        bunk: {
+          enabled: true,
+          members: [
+            { role: 'counselor', placed_as: 'author', supervises_group: false },
+          ],
+        },
+      },
+    });
+    patchAdminSettings.mockResolvedValue({ settings: {} });
+
+    renderSettings();
+    fireEvent.click(await screen.findByTestId('settings-tab-roles'));
+    fireEvent.change(await screen.findByTestId('settings-group-add-role-bunk'), {
+      target: { value: 'specialist' },
+    });
+    fireEvent.click(screen.getByTestId('settings-groups-save'));
+
+    await screen.findByTestId('settings-groups-saved');
+    const payload = patchAdminSettings.mock.calls.at(-1)[0];
+    expect(payload.settings.group_types.bunk.members).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'counselor', placed_as: 'author' }),
+      expect.objectContaining({ role: 'specialist', placed_as: 'author' }),
+    ]));
+
+    fireEvent.click(screen.getByTestId('settings-tab-identity'));
+    fireEvent.click(screen.getByTestId('settings-tab-roles'));
+    expect(await screen.findByTestId('settings-group-type-bunk')).toHaveTextContent('Specialist');
+  });
 });
 
 describe('AdminSettings — Notifications tab', () => {

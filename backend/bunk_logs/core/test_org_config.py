@@ -16,6 +16,7 @@ from bunk_logs.core.models import Program
 from bunk_logs.core.org_config import DEFAULT_GROUP_TYPE_CONFIG
 from bunk_logs.core.org_config import enabled_roles
 from bunk_logs.core.org_config import group_type_config
+from bunk_logs.core.org_config import role_allowed
 from bunk_logs.core.org_config import validate_group_types
 from bunk_logs.core.org_config import validate_roles_update
 
@@ -111,6 +112,38 @@ def test_cannot_disable_a_role_that_still_has_people():
     assert "Counselor still has 2 active people" in message
 
     assert validate_roles_update(org, ["admin", "counselor"]) is None
+
+
+def test_a_role_placed_on_a_group_stays_available():
+    """Saving a group seat must not vanish on the next settings load."""
+    org = Organization.objects.create(
+        name="Placed Org",
+        slug="placed-org",
+        settings={
+            "group_types": {
+                "bunk": {
+                    "enabled": True,
+                    "members": [
+                        {"role": "specialist", "placed_as": "author", "supervises_group": False},
+                    ],
+                },
+            },
+        },
+    )
+    assert "specialist" in enabled_roles(org)
+    assert "admin" in enabled_roles(org)
+
+    org.settings = {
+        **org.settings,
+        "roles": ["admin", "camper"],
+    }
+    org.save(update_fields=["settings"])
+    assert "specialist" in enabled_roles(org)
+    assert role_allowed(org, "specialist") is True
+
+    message = validate_roles_update(org, ["admin", "camper"])
+    assert message is not None
+    assert "Specialist is still used on a group" in message
 
 
 def test_participant_cannot_be_marked_as_supervising():
