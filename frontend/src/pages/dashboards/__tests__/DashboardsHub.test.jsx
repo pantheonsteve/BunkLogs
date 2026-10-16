@@ -2,9 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
-vi.mock('../../../partials/Header', () => ({ default: () => null }));
-vi.mock('../../../partials/Sidebar', () => ({ default: () => null }));
-
 import DashboardsHub from '../DashboardsHub';
 
 function renderHub() {

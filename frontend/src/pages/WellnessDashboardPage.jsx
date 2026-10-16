@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
-import Header from '../partials/Header';
-import Sidebar from '../partials/Sidebar';
 import TemplateDashboard from '../dashboards/TemplateDashboard';
 
 const WELLNESS_ROLES = new Set([
@@ -16,7 +14,6 @@ const WELLNESS_ROLES = new Set([
  * lets the user pick one, then renders TemplateDashboard for that template.
  */
 export default function WellnessDashboardPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -49,10 +46,6 @@ export default function WellnessDashboardPage() {
   const selected = templates.find((t) => t.id === selectedId);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
           <div className="mb-6">
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Wellness team</h1>
@@ -120,7 +113,5 @@ export default function WellnessDashboardPage() {
             </>
           )}
         </main>
-      </div>
-    </div>
   );
 }

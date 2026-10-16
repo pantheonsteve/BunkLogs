@@ -10,6 +10,7 @@ import {
   DashboardsIndex,
   HomeRedirect,
   LegacyAdminTemplateEditRedirect,
+  LegacyAdminTemplateResponsesRedirect,
   LegacyBunkDashboardRedirect,
   LegacyLtTemplatesRedirect,
   LeadershipTemplatesRoute,
@@ -18,6 +19,7 @@ import {
 } from './guards';
 import AdminLayout from '../layouts/AdminLayout';
 import AppLayout from '../layouts/AppLayout';
+import DashboardsLayout from '../layouts/DashboardsLayout';
 import HelpRoute from '../pages/help/HelpRoute';
 import Signin from '../pages/Signin';
 
@@ -51,7 +53,6 @@ const FormsHub = lazy(() => import('../pages/admin/forms/FormsHub'));
 const ReportsHub = lazy(() => import('../pages/admin/reports/ReportsHub'));
 const CatalogManagePage = lazy(() => import('../pages/admin/catalog/CatalogManagePage'));
 const CatalogPlanningDashboard = lazy(() => import('../pages/admin/catalog/PlanningDashboard'));
-const AdminReflectionsDashboard = lazy(() => import('../pages/admin/reflections/AdminReflectionsDashboard'));
 const AdminReflectionMemberDetail = lazy(() => import('../pages/admin/reflections/AdminReflectionMemberDetail'));
 const AdminAvailabilityMatrix = lazy(() => import('../pages/admin/reflections/AvailabilityMatrix'));
 const AdminGrowthDashboard = lazy(() => import('../pages/admin/reflections/AdminGrowthDashboard'));
@@ -237,9 +238,6 @@ export const routeConfig = [
       { path: '/leadership-team/self-reflection', element: <LeadershipTeamSelfReflectionPage /> },
       { path: '/leadership-team/self-reflection/:reflectionId/edit', element: <LeadershipTeamSelfReflectionPage /> },
       { path: '/leadership-team/templates/*', element: <LegacyLtTemplatesRedirect /> },
-      { path: '/dashboards/subject-trends/:groupId', element: <SubjectTrendsPage /> },
-      { path: '/dashboards/group/:groupId', element: <GroupDashboardPage /> },
-      { path: '/dashboards/bunk/:bunkId', element: <LegacyBunkDashboardRedirect /> },
     ],
   },
 
@@ -247,17 +245,28 @@ export const routeConfig = [
   { path: '/reflections/:id', element: protect(<ReflectionDetailPage />) },
   { path: '/team/dashboard', element: <Navigate to="/dashboards/logs" replace /> },
   { path: '/wellness/dashboard', element: <Navigate to="/dashboards/wellness" replace /> },
-  { path: '/dashboards', element: protect(<DashboardsIndex />) },
-  { path: '/dashboards/coverage', element: protect(<CoverageDashboardPage />) },
   { path: '/profile/:personId', element: protect(<SubjectDetailPage />) },
   { path: '/profile/:personId/entries', element: protect(<SubjectEntriesPage />) },
   { path: '/dashboards/subject/:personId', element: <SubjectProfileRedirect /> },
-  { path: '/dashboards/authors', element: protect(<AuthorAttributionPage />) },
-  { path: '/dashboards/concerns', element: protect(<ConcernsInboxPage />) },
   { path: '/dashboards/team', element: <Navigate to="/dashboards/logs" replace /> },
-  { path: '/dashboards/logs', element: protect(<LogsDashboardPage />) },
-  { path: '/dashboards/reflections', element: protect(<ReflectionsDashboardPage />) },
-  { path: '/dashboards/wellness', element: protect(<WellnessDashboardPage />) },
+  {
+    path: '/dashboards',
+    element: protect(<DashboardsLayout />),
+    children: [
+      { index: true, element: <DashboardsIndex /> },
+      { path: 'coverage', element: <CoverageDashboardPage /> },
+      { path: 'authors', element: <AuthorAttributionPage /> },
+      { path: 'concerns', element: <ConcernsInboxPage /> },
+      { path: 'logs', element: <LogsDashboardPage /> },
+      { path: 'logs/:templateId', element: ltTemplates(<LeadershipTeamResponses />) },
+      { path: 'reflections', element: <ReflectionsDashboardPage /> },
+      { path: 'reflections/:templateId', element: ltTemplates(<LeadershipTeamResponses />) },
+      { path: 'wellness', element: <WellnessDashboardPage /> },
+      { path: 'subject-trends/:groupId', element: <SubjectTrendsPage /> },
+      { path: 'group/:groupId', element: <GroupDashboardPage /> },
+      { path: 'bunk/:bunkId', element: <LegacyBunkDashboardRedirect /> },
+    ],
+  },
 
   {
     path: '/admin',
@@ -275,7 +284,7 @@ export const routeConfig = [
       { path: 'templates', element: ltTemplates(<LeadershipTeamTemplateLibrary />) },
       { path: 'templates/library', element: <Navigate to="/admin/templates" replace /> },
       { path: 'templates/new', element: ltTemplates(<LeadershipTeamTemplateBuilderPage />) },
-      { path: 'templates/:id/responses', element: ltTemplates(<LeadershipTeamResponses />) },
+      { path: 'templates/:id/responses', element: <LegacyAdminTemplateResponsesRedirect /> },
       { path: 'templates/:id', element: ltTemplates(<LeadershipTeamTemplateBuilderPage />) },
       { path: 'groups', element: admin(<GroupListPage />) },
       { path: 'groups/:id', element: admin(<GroupDetailPage />) },
@@ -284,7 +293,7 @@ export const routeConfig = [
       { path: 'field-keys', element: admin(<FieldKeyListPage />) },
       { path: 'catalog', element: admin(<CatalogManagePage />) },
       { path: 'catalog/planning', element: admin(<CatalogPlanningDashboard />) },
-      { path: 'reflections', element: admin(<AdminReflectionsDashboard />) },
+      { path: 'reflections', element: <Navigate to="/dashboards/reflections?tab=completion" replace /> },
       { path: 'reflections/growth', element: admin(<AdminGrowthDashboard />) },
       {
         path: 'threads/:threadId',

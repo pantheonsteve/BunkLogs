@@ -1,29 +1,23 @@
 /**
- * Admin Reflections dashboard — Step 4_4 (TBE).
+ * Reflection completion roster. Shown on the Reflections dashboard when
+ * the organization has turned on the reflection_completion setting.
  *
- * Weekly completion view for Madrichim with a grade-level filter
- * (8-12) and a CSV export for board reporting. Reuses the Wave-3
- * team-dashboard shape (period + submission-status + member rows) via
- * a dedicated org-admin-gated backend endpoint that doesn't require a
- * Supervision relationship (see `admin_flow/reflections.py`).
- *
- * Gated to religious-school orgs -- the grade-level model doesn't apply to
- * a camp's unit-based roster.
+ * The role list is this org's enabled membership roles that have a
+ * self-reflection template. The grade filter appears only when the
+ * roster rows carry grades, so a camp can use the same tab.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CalendarCheck2, Download, GraduationCap, Users } from 'lucide-react';
+import { getAdminSettings } from '../../../api/admin';
 import {
   exportAdminReflectionsTeamUrl,
   fetchAdminReflectionsTeam,
 } from '../../../api/adminReflections';
+import { listTemplates } from '../../../api/leadershipTeam';
 import { useAuth } from '../../../auth/AuthContext';
-import BackLink from '../../../components/ui/BackLink';
 import HomeCard from '../../../components/ui/HomeCard';
-import { orgSurfaces } from '../../../utils/auth/orgProfile';
-
-const ROLE = 'madrich';
-const GRADE_OPTIONS = [8, 9, 10, 11, 12];
+import { useTerm } from '../../../context/OrgBrandingContext';
 
 const STATUS_META = {
   submitted: {
@@ -46,7 +40,6 @@ const STATUS_META = {
   },
 };
 
-// Tone per stat tile, spelled out because Tailwind only picks up literal names.
 const STAT_TILES = [
   {
     key: 'submitted',
@@ -70,6 +63,56 @@ const STAT_TILES = [
   },
 ];
 
+function templateInUse(template) {
+  if (!template || template.subject_mode !== 'self' || !template.role) return false;
+  if (template.status && template.status !== 'published') return false;
+  // A global catalog form is not this org's roster until they assign it.
+  return template.organization != null || Number(template.active_assignment_count) > 0;
+}
+
+/**
+ * Roles for the completion roster, in the org's role order.
+ * Prefer forms the org owns or has assigned. Fall back to any
+ * self-reflection form when nothing is assigned yet.
+ * `label` stays the org's word for the role, and adds the form name
+ * when two roles would otherwise read the same.
+ */
+export function completionRoleOptions(enabledRoles, templates, term) {
+  const list = Array.isArray(templates) ? templates : [];
+  const inUse = [];
+  const any = [];
+  const seenInUse = new Set();
+  const seenAny = new Set();
+  list.forEach((template) => {
+    if (!template?.role || template.subject_mode !== 'self') return;
+    if (template.status && template.status !== 'published') return;
+    if (!seenAny.has(template.role)) {
+      seenAny.add(template.role);
+      any.push(template);
+    }
+    if (templateInUse(template) && !seenInUse.has(template.role)) {
+      seenInUse.add(template.role);
+      inUse.push(template);
+    }
+  });
+  const pool = inUse.length ? inUse : any;
+  const byRole = new Map(pool.map((template) => [template.role, template]));
+  const enabled = Array.isArray(enabledRoles) ? enabledRoles : [];
+  const ordered = enabled.filter((role) => byRole.has(role));
+  const roles = ordered.length ? ordered : [...byRole.keys()];
+  const labelFor = (role) => (typeof term === 'function' ? term(role, { capitalize: true }) : role);
+  return roles.map((role) => {
+    const template = byRole.get(role);
+    const label = labelFor(role);
+    const shared = roles.some((other) => other !== role && labelFor(other) === label);
+    const formName = template?.name ? String(template.name) : '';
+    return {
+      role,
+      label: shared && formName ? `${label} · ${formName}` : label,
+    };
+  });
+}
+
 function initialsFor(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -89,10 +132,6 @@ function StatusPill({ status }) {
   );
 }
 
-/**
- * Completion is measured against the members who were expected to submit, so a
- * day off reads as "not owed" rather than dragging the rate down.
- */
 function CompletionBar({ submissionStatus }) {
   const expected = submissionStatus.total - submissionStatus.day_off;
   const pct = expected > 0 ? Math.round((submissionStatus.submitted / expected) * 100) : null;
@@ -123,30 +162,60 @@ function CompletionBar({ submissionStatus }) {
   );
 }
 
-export default function AdminReflectionsDashboard() {
-  const { user, loading: authLoading } = useAuth();
-  const showGradeReflections = orgSurfaces(user).gradeReflections;
+export default function CompletionTab() {
+  const { orgSlug } = useAuth();
+  const term = useTerm();
   const [searchParams, setSearchParams] = useSearchParams();
   const dateParam = searchParams.get('date') || '';
+  const roleParam = searchParams.get('role') || '';
   const gradeParams = searchParams
     .getAll('grade')
     .map(Number)
     .filter((n) => !Number.isNaN(n));
   const gradeKey = gradeParams.slice().sort().join(',');
 
+  const [roles, setRoles] = useState(null);
+  const [rolesError, setRolesError] = useState(null);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [knownGrades, setKnownGrades] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      getAdminSettings(),
+      listTemplates(orgSlug),
+    ]).then(([settings, data]) => {
+      if (cancelled) return;
+      setRoles(completionRoleOptions(settings?.enabled_roles, data?.templates, term));
+      setRolesError(null);
+    }).catch(() => {
+      if (!cancelled) setRolesError('Could not load reflection roles.');
+    });
+    return () => { cancelled = true; };
+  }, [orgSlug, term]);
+
+  const role = roles?.some((option) => option.role === roleParam)
+    ? roleParam
+    : (roles?.[0]?.role || '');
 
   const load = useCallback(async () => {
+    if (!role) return;
     setLoading(true);
     try {
-      const data = await fetchAdminReflectionsTeam(ROLE, {
+      const data = await fetchAdminReflectionsTeam(role, {
         date: dateParam || undefined,
         gradeLevels: gradeParams,
       });
       setPayload(data);
       setError(null);
+      const found = (data?.members || [])
+        .map((member) => member.grade_level)
+        .filter((grade) => grade != null);
+      if (found.length) {
+        setKnownGrades((prev) => [...new Set([...prev, ...found])].sort((a, b) => a - b));
+      }
     } catch (err) {
       const status = err?.response?.status;
       if (status === 403) setError('Admin access required.');
@@ -155,95 +224,113 @@ export default function AdminReflectionsDashboard() {
     } finally {
       setLoading(false);
     }
+    // gradeKey stands in for the grade list so the callback stays stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateParam, gradeKey]);
+  }, [role, dateParam, gradeKey]);
 
   useEffect(() => {
-    if (showGradeReflections) load();
-  }, [load, showGradeReflections]);
+    if (role) load();
+  }, [load, role]);
+
+  const roleLabel = role ? term(role, { capitalize: true }) : '';
+  const gradeOptions = useMemo(() => knownGrades, [knownGrades]);
+
+  const setParam = (mutate) => {
+    const next = new URLSearchParams(searchParams);
+    mutate(next);
+    setSearchParams(next, { replace: true });
+  };
 
   const onDateChange = (e) => {
     const value = e.target.value;
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set('date', value);
-    else next.delete('date');
-    setSearchParams(next, { replace: true });
+    setParam((next) => {
+      if (value) next.set('date', value);
+      else next.delete('date');
+    });
+  };
+
+  const onRoleChange = (e) => {
+    const value = e.target.value;
+    setKnownGrades([]);
+    setParam((next) => {
+      next.set('role', value);
+      next.delete('grade');
+    });
   };
 
   const toggleGrade = (grade) => {
-    const next = new URLSearchParams(searchParams);
-    const current = next.getAll('grade').map(Number);
-    next.delete('grade');
-    const updated = current.includes(grade)
-      ? current.filter((g) => g !== grade)
-      : [...current, grade];
-    updated.forEach((g) => next.append('grade', String(g)));
-    setSearchParams(next, { replace: true });
+    setParam((next) => {
+      const current = next.getAll('grade').map(Number);
+      next.delete('grade');
+      const updated = current.includes(grade)
+        ? current.filter((g) => g !== grade)
+        : [...current, grade];
+      updated.forEach((g) => next.append('grade', String(g)));
+    });
   };
 
-  if (authLoading) {
+  if (rolesError) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-reflections-loading">
-        <p className="text-gray-500 dark:text-gray-400">Loading…</p>
-      </div>
+      <p className="text-red-600 dark:text-red-400" data-testid="admin-reflections-error">
+        {rolesError}
+      </p>
     );
   }
 
-  if (!showGradeReflections) {
+  if (!roles) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-reflections-unavailable">
-        <BackLink to="/admin/home" label="Back to Admin Home" className="mb-2" />
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Madrich completion</h1>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Weekly Madrich completion by grade isn't available for this organization.
-        </p>
-      </div>
+      <p className="text-gray-500 dark:text-gray-400" data-testid="admin-reflections-loading">
+        Loading…
+      </p>
     );
   }
 
-  if (loading) {
+  if (roles.length === 0) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" data-testid="admin-reflections-loading">
-        <p className="text-gray-500 dark:text-gray-400">Loading…</p>
-      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="admin-reflections-no-roles">
+        No self-reflection forms are set up yet. Add one under Forms.
+      </p>
+    );
+  }
+
+  if (loading && !payload) {
+    return (
+      <p className="text-gray-500 dark:text-gray-400" data-testid="admin-reflections-loading">
+        Loading…
+      </p>
     );
   }
 
   if (error || !payload) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-3" data-testid="admin-reflections-error">
-        <BackLink to="/admin/home" label="Back to Admin Home" />
-        <p className="text-red-600 dark:text-red-400">{error || 'Failed to load the reflections dashboard.'}</p>
-      </div>
+      <p className="text-red-600 dark:text-red-400" data-testid="admin-reflections-error">
+        {error || 'Failed to load the reflections dashboard.'}
+      </p>
     );
   }
 
   const { header, submission_status: submissionStatus, members, template } = payload;
-  const exportUrl = exportAdminReflectionsTeamUrl(ROLE, {
+  const exportUrl = exportAdminReflectionsTeamUrl(role, {
     date: dateParam || undefined,
     gradeLevels: gradeParams,
   });
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
+    <div className="space-y-4" data-testid="reflections-completion">
       <div>
-        <BackLink
-          to="/admin/home"
-          label="Back to Admin Home"
-          className="mb-2"
-          data-testid="admin-reflections-back"
-        />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl shrink-0 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
               <GraduationCap size={22} aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {header.role_label} completion
-              </h1>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {roleLabel} completion
+              </h2>
               <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">
-                Weekly roster · {header.program?.name} · {header.member_count} members
+                {header.period?.cadence ? `${header.period.cadence} roster` : 'Roster'}
+                {header.program?.name ? ` · ${header.program.name}` : ''}
+                {` · ${header.member_count} members`}
               </p>
             </div>
           </div>
@@ -268,6 +355,24 @@ export default function AdminReflectionsDashboard() {
         </div>
 
         <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+          {roles.length > 1 && (
+            <label className="text-sm font-medium text-gray-800 dark:text-gray-200">
+              Role{' '}
+              <select
+                value={role}
+                onChange={onRoleChange}
+                className="ml-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
+                data-testid="admin-reflections-role"
+                aria-label="Role"
+              >
+                {roles.map((option) => (
+                  <option key={option.role} value={option.role}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="text-sm font-medium text-gray-800 dark:text-gray-200">
             Week of{' '}
             <input
@@ -285,28 +390,30 @@ export default function AdminReflectionsDashboard() {
             </span>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-            <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Grade:</span>
-            {GRADE_OPTIONS.map((grade) => {
-              const active = gradeParams.includes(grade);
-              return (
-                <button
-                  key={grade}
-                  type="button"
-                  onClick={() => toggleGrade(grade)}
-                  aria-pressed={active}
-                  className={`text-xs font-semibold w-8 h-8 rounded-full border transition-colors ${
-                    active
-                      ? 'bg-violet-600 text-white border-violet-600 hover:bg-violet-700'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:border-violet-400 hover:text-violet-700 dark:hover:text-violet-300'
-                  }`}
-                  data-testid={`admin-reflections-grade-${grade}`}
-                >
-                  {grade}
-                </button>
-              );
-            })}
-          </div>
+          {gradeOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Grade:</span>
+              {gradeOptions.map((grade) => {
+                const active = gradeParams.includes(grade);
+                return (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => toggleGrade(grade)}
+                    aria-pressed={active}
+                    className={`text-xs font-semibold w-8 h-8 rounded-full border transition-colors ${
+                      active
+                        ? 'bg-violet-600 text-white border-violet-600 hover:bg-violet-700'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:border-violet-400 hover:text-violet-700 dark:hover:text-violet-300'
+                    }`}
+                    data-testid={`admin-reflections-grade-${grade}`}
+                  >
+                    {grade}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -342,10 +449,10 @@ export default function AdminReflectionsDashboard() {
       )}
 
       <section aria-label="Members" data-testid="admin-reflections-members">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white mb-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white mb-2">
           <Users size={17} className="text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
           Members
-        </h2>
+        </h3>
         {members.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
             No members match this filter.
@@ -361,7 +468,7 @@ export default function AdminReflectionsDashboard() {
                   data-testid={`admin-reflections-member-${m.membership_id}`}
                 >
                   <Link
-                    to={`/admin/reflections/${ROLE}/members/${m.membership_id}`}
+                    to={`/admin/reflections/${role}/members/${m.membership_id}`}
                     className="block px-4 py-3 rounded-r-xl hover:bg-indigo-50/70 dark:hover:bg-indigo-900/20 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-3">

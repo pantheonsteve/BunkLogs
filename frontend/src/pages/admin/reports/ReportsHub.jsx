@@ -1,15 +1,17 @@
 import { useAuth } from '../../../auth/AuthContext';
 import { adminReportLinks } from '../../../partials/adminNavConfig';
-import { orgSurfaces } from '../../../utils/auth/orgProfile';
+import { orgSurfaces, reflectionCompletionEnabled } from '../../../utils/auth/orgProfile';
 import HubPage from '../HubPage';
 
 /**
- * Which reports exist depends on the tenant: a religious school gets the
- * madrich reflection reports, a camp gets request planning.
+ * Which reports exist depends on the organization: reflection completion
+ * turns on growth and availability, and camp operations add request planning.
  */
 export default function ReportsHub() {
   const { user } = useAuth();
-  const links = adminReportLinks(orgSurfaces(user));
+  const links = adminReportLinks(orgSurfaces(user), {
+    reflectionCompletion: reflectionCompletionEnabled(user),
+  });
 
   return (
     <HubPage

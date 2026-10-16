@@ -28,7 +28,7 @@ import {
   isMaintenanceOnlyMember,
   membershipRolesForUser,
 } from "../utils/auth/capability";
-import { orgSurfaces } from "../utils/auth/orgProfile";
+import { orgSurfaces, reflectionCompletionEnabled } from "../utils/auth/orgProfile";
 import api from "../api";
 
 import SidebarLinkGroup from "./SidebarLinkGroup";
@@ -97,8 +97,8 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  *
  *   MY WORK
  *     Performance Dashboard /groups/performance
- *     Log Entries         /dashboards/logs
- *     Reflections         /dashboards/reflections
+ *     Daily logs          /dashboards/logs
+ *     Reflections         /dashboards/reflections  (admins and program leads)
  *     Observations      /observations
  *     Maintenance Queue /maintenance
  *     Camper Care orders /camper-care/orders
@@ -119,8 +119,9 @@ const PROGRAM_LEAD_PLUS = ['program_lead'];
  * reflections are folded into those home dashboards, not the global nav.
  *
  * Default nav (non-admin, non-LT): an unheaded Home (+ Help for
- * program_lead+), My work (tasks/reflections/observations/maintenance),
- * Supervise (supervisor+). Camper Care omits My tasks / File a reflection /
+ * program_lead+), My work (tasks/personal reflections/observations/maintenance),
+ * Supervise (supervisor+). The Reflections dashboard is not in this nav.
+ * Camper Care omits My tasks / File a reflection /
  * My reflections / Daily logs — those live on the Camper Care home dashboard.
  * Camper Care also gets Flagged campers + Camper Care orders in the global
  * nav (dashboard cards remain secondary entry points with counts).
@@ -213,9 +214,7 @@ function Sidebar({
   const isUnitHead = membershipRoles.includes('unit_head');
   const isCamperCare = CAMPER_CARE_ROLES.some((r) => membershipRoles.includes(r));
   const canSeeFileReflectionNav = canFileReflection && !isCounselor && !isCamperCare && !isUnitHead;
-  const canSeeLogs = canSupervise || canAdmin;
-  // Counselors see assigned/submitted work via My tasks + My reflections, not the org-wide dashboard.
-  const canSeeReflectionsDashboard = (canSeeLogs || canFileReflection) && !isCounselor;
+  const showReflectionsNav = canAdmin || canSeeDashboards;
   // Maintenance staff get a stripped-down nav: just the queue. The canonical
   // role lives on Membership (legacy User.role has no maintenance value),
   // surfaced via `membership_roles` on the profile payload.
@@ -225,7 +224,10 @@ function Sidebar({
   const homePath = homePathForUser(user);
   // Which product surfaces this tenant gets (camp vs religious school).
   const surfaces = orgSurfaces(user);
-  const adminNav = canAdmin ? adminNavItems(surfaces, term) : leadershipNavItems();
+  const reflectionCompletion = reflectionCompletionEnabled(user);
+  const adminNav = canAdmin
+    ? adminNavItems(surfaces, term, { reflectionCompletion })
+    : leadershipNavItems();
   const hasReflectionWork = PERSONAL_REFLECTION_ROLES.some((role) => membershipRoles.includes(role))
     || (navBadges?.questionsForYou > 0);
   const setupProgress = navBadges?.setupProgress;
@@ -293,7 +295,7 @@ function Sidebar({
             )}
           </Section>
 
-          {(hasReflectionWork || surfaces.campDashboards || surfaces.observations || surfaces.campOps) && (
+          {(hasReflectionWork || showReflectionsNav || surfaces.campDashboards || surfaces.observations || surfaces.campOps) && (
           <Section heading="My work">
             {surfaces.campDashboards && (
               <>
@@ -312,16 +314,9 @@ function Sidebar({
                 />
               </>
             )}
-            {surfaces.campDashboards && canSeeReflectionsDashboard && (
+            {showReflectionsNav && (
               <NavItem
                 to="/dashboards/reflections"
-                label="Reflections"
-                icon={IconClipboard}
-              />
-            )}
-            {!surfaces.campDashboards && hasReflectionWork && (
-              <NavItem
-                to="/admin/reflections"
                 label="Reflections"
                 icon={IconClipboard}
               />
@@ -476,13 +471,6 @@ function Sidebar({
                 icon={IconGrid}
               />
             )}
-            {canSeeReflectionsDashboard && !canAdmin && !isUnitHead && !isFaculty && (
-              <NavItem
-                to="/dashboards/reflections"
-                label="Reflections"
-                icon={IconClipboard}
-              />
-            )}
           </Section>
 
           {canSupervise && (
@@ -522,11 +510,6 @@ function Sidebar({
                     to="/dashboards/logs"
                     label="Daily logs"
                     icon={IconBars}
-                  />
-                  <NavItem
-                    to="/dashboards/reflections"
-                    label="Reflections"
-                    icon={IconClipboard}
                   />
                 </>
               )}

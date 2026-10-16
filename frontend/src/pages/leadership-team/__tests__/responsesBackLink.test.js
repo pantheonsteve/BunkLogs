@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { responsesBackLink, subjectRowHref } from '../Responses';
 
 describe('responsesBackLink', () => {
-  it('sends admins to reflections with date by default', () => {
-    expect(responsesBackLink({ isAdmin: true, date: '2026-06-03' })).toEqual({
+  it('sends everyone to reflections with date by default', () => {
+    expect(responsesBackLink({ date: '2026-06-03' })).toEqual({
       href: '/dashboards/reflections?date=2026-06-03',
       label: 'Back to Reflections',
     });
@@ -11,29 +11,21 @@ describe('responsesBackLink', () => {
 
   it('honours dashboard query param for admins', () => {
     expect(
-      responsesBackLink({ dashboard: 'logs', date: '2026-06-03', isAdmin: true }),
+      responsesBackLink({ dashboard: 'logs', date: '2026-06-03' }),
     ).toEqual({
       href: '/dashboards/logs?date=2026-06-03',
       label: 'Back to Bunk Logs',
     });
   });
 
-  it('keeps non-admins on template library', () => {
-    expect(responsesBackLink({ isAdmin: false, date: '2026-06-03' })).toEqual({
-      href: '/admin/templates',
-      label: 'Back to template library',
+  it('reads the logs dashboard from the path when the query omits it', () => {
+    expect(responsesBackLink({
+      date: '2026-06-03',
+      pathname: '/dashboards/logs/9',
+    })).toEqual({
+      href: '/dashboards/logs?date=2026-06-03',
+      label: 'Back to Bunk Logs',
     });
-  });
-
-  it('sends role-based orgs home, ignoring the dashboard hub', () => {
-    expect(
-      responsesBackLink({
-        dashboard: 'reflections',
-        date: '2026-06-03',
-        isAdmin: true,
-        homePath: '/admin/home',
-      }),
-    ).toEqual({ href: '/admin/home', label: 'Back to Admin Home' });
   });
 });
 

@@ -49,6 +49,7 @@ def test_membership_roles_and_organizations_for_member(org, program):
     assert data["organizations"][0]["slug"] == "serializer-camp"
     assert data["organizations"][0]["capability"] == "participant"
     assert data["organizations"][0]["program_types"] == ["summer_camp"]
+    assert data["organizations"][0]["reflection_completion"] is False
 
 
 @pytest.mark.django_db
@@ -73,6 +74,35 @@ def test_program_types_for_religious_school_member(db):
 
     data = UserSerializer(user).data
     assert data["organizations"][0]["program_types"] == ["religious_school"]
+    assert data["organizations"][0]["reflection_completion"] is False
+
+
+@pytest.mark.django_db
+def test_reflection_completion_setting_reaches_the_auth_payload(db):
+    school = Organization.objects.create(
+        name="Completion School",
+        slug="completion-school",
+        settings={"reflection_completion": True},
+    )
+    program = Program.all_objects.create(
+        organization=school,
+        name="Completion School Year",
+        slug="year",
+        program_type="religious_school",
+        start_date=TODAY - timedelta(days=30),
+        end_date=TODAY + timedelta(days=60),
+        is_active=True,
+    )
+    user = User.objects.create_user(email="lead@completion.test", password="pass")
+    person = Person.all_objects.create(
+        organization=school, first_name="Lea", last_name="D", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="admin", is_active=True,
+    )
+
+    data = UserSerializer(user).data
+    assert data["organizations"][0]["reflection_completion"] is True
 
 
 @pytest.mark.django_db

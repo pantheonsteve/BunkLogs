@@ -6,6 +6,9 @@
  * of silently 404-ing someone's bookmark.
  */
 import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { LegacyAdminTemplateResponsesRedirect } from '../routes/guards';
 import { routeConfig } from '../routes/routeConfig';
 
 const adminChildren = routeConfig.find((r) => r.path === '/admin').children;
@@ -22,8 +25,25 @@ describe('legacy admin redirects', () => {
     // Memberships folded into People, Assignments into Groups.
     ['memberships', '/admin/people'],
     ['assignments', '/admin/groups'],
+    ['reflections', '/dashboards/reflections?tab=completion'],
   ])('redirects /admin/%s to %s', (path, target) => {
     expect(redirectTarget(path)).toBe(target);
+  });
+
+  it('sends /admin/templates/:id/responses to the reflections dashboard with the query', async () => {
+    function Landed() {
+      const location = useLocation();
+      return <div data-testid="responses">{`${location.pathname}${location.search}`}</div>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/admin/templates/5/responses?date=x']}>
+        <Routes>
+          <Route path="/admin/templates/:id/responses" element={<LegacyAdminTemplateResponsesRedirect />} />
+          <Route path="/dashboards/reflections/:templateId" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByTestId('responses')).toHaveTextContent('/dashboards/reflections/5?date=x');
   });
 
   it('replaces history so Back does not bounce off the redirect', () => {

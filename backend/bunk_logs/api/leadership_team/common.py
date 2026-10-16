@@ -50,6 +50,7 @@ __all__ = [
     "assignment_viewer_or_403",
     "leadership_team_self_template",
     "resolve_period",
+    "responses_reader_or_403",
     "supervised_role_supervisions",
     "supervised_roles",
     "team_membership_ids",
@@ -126,6 +127,53 @@ def admin_only_or_403(request) -> ViewerContext:
         raise PermissionDenied(msg)
     if membership is None:
         msg = "Admin role required."
+        raise PermissionDenied(msg)
+    return ViewerContext(
+        person=person,
+        organization=org,
+        membership=membership,
+        program=membership.program,
+        today=get_today(org),
+    )
+
+
+def responses_reader_or_403(request) -> ViewerContext:
+    """Active admin, active program lead, or super admin may read responses.
+
+    Write surfaces stay on :func:`admin_only_or_403`. Callers still filter
+    rows with ``reflections_visible_for_user``, so a program lead does not
+    see reflections an admin would.
+    """
+    org = getattr(request, "organization", None)
+    if org is None:
+        msg = "Organization context required."
+        raise PermissionDenied(msg)
+    if not request.user.is_authenticated:
+        msg = "Authentication required."
+        raise PermissionDenied(msg)
+    person = Person.objects.filter(user=request.user).first()
+    membership = None
+    if person is not None:
+        membership = (
+            Membership.objects.filter(
+                person=person,
+                capability__in=["admin", "program_lead"],
+                is_active=True,
+            )
+            .select_related("program", "program__organization")
+            .order_by("-created_at")
+            .first()
+        )
+    if membership is None and is_super_admin(request.user):
+        return ViewerContext(
+            person=person,
+            organization=org,
+            membership=None,
+            program=None,
+            today=get_today(org),
+        )
+    if person is None or membership is None:
+        msg = "Admin or program lead role required."
         raise PermissionDenied(msg)
     return ViewerContext(
         person=person,

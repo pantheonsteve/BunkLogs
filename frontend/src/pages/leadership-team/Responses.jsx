@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   ChevronLeft,
@@ -40,8 +40,6 @@ import {
   getTemplate,
 } from '../../api/leadershipTeam';
 import { useAuth } from '../../auth/AuthContext';
-import isSuperAdmin from '../../utils/auth/isSuperAdmin';
-import { hasCapability, homePathForUser } from '../../utils/auth/capability';
 import { orgSurfaces } from '../../utils/auth/orgProfile';
 import BackLink from '../../components/ui/BackLink';
 import SingleDatePicker from '../../components/ui/SingleDatePicker';
@@ -118,23 +116,14 @@ const DASHBOARD_BACK_PATHS = Object.freeze({
 });
 
 /**
- * Back link for template responses.
- *
- * Camp orgs came here from a dashboards hub, so they go back to it. Role-based
- * orgs reach this page from their home page and have no hub in between, so
- * `homePath` short-circuits to home instead.
+ * Back link for template responses. Every org returns to the dashboard
+ * the responses were opened from.
  */
-export function responsesBackLink({ dashboard, date, isAdmin, homePath = null }) {
-  if (homePath) {
-    return {
-      href: homePath,
-      label: homePath === '/admin/home' ? 'Back to Admin Home' : 'Back to home',
-    };
-  }
-  const scope = dashboard === 'logs' || dashboard === 'reflections'
-    ? dashboard
-    : (isAdmin ? 'reflections' : null);
-  if (!scope) return { href: '/admin/templates', label: 'Back to template library' };
+export function responsesBackLink({ dashboard, date, pathname = '' } = {}) {
+  let scope = null;
+  if (dashboard === 'logs' || dashboard === 'reflections') scope = dashboard;
+  else if (String(pathname).startsWith('/dashboards/logs')) scope = 'logs';
+  else scope = 'reflections';
   const base = DASHBOARD_BACK_PATHS[scope];
   const href = date ? `${base}?date=${encodeURIComponent(date)}` : base;
   const label = scope === 'logs' ? 'Back to Bunk Logs' : 'Back to Reflections';
@@ -848,9 +837,10 @@ function buildApiParams(urlParams, activeTab) {
 }
 
 export default function LeadershipTeamResponses() {
-  const { id } = useParams();
+  const { id: routeId, templateId } = useParams();
+  const id = templateId || routeId;
+  const { pathname } = useLocation();
   const { orgSlug, user } = useAuth();
-  const isAdmin = isSuperAdmin(user) || hasCapability(user, 'admin');
   // Role-based orgs (TBE) have a different information architecture than the
   // camp orgs: no dashboards hub above this page, and member reflection
   // history in place of the camper profile.
@@ -994,8 +984,7 @@ export default function LeadershipTeamResponses() {
   const { href: backHref, label: backLabel } = responsesBackLink({
     dashboard: params.get('dashboard'),
     date: dateStr,
-    isAdmin,
-    homePath: roleBasedOrg ? homePathForUser(user) : null,
+    pathname,
   });
 
   return (
@@ -1264,7 +1253,7 @@ export default function LeadershipTeamResponses() {
                 sections={sections}
                 dateStr={dateStr}
                 memberDetail={roleBasedOrg}
-                returnTo={`/admin/templates/${id}/responses${params.toString() ? `?${params}` : ''}`}
+                returnTo={`${pathname}${params.toString() ? `?${params}` : ''}`}
               />
             )}
             {!error && tab === 'aggregate' && aggregatePayload && (

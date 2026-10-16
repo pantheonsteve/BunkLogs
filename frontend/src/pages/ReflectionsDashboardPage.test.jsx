@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ReflectionsDashboardPage from './ReflectionsDashboardPage';
 
@@ -26,6 +26,32 @@ const adminUser = {
   organizations: [{ slug: 'tbe', name: 'TBE', capability: 'admin', roles: ['admin'] }],
   membership_roles: ['admin'],
 };
+
+const programLeadUser = {
+  organizations: [{
+    slug: 'tbe', name: 'TBE', capability: 'program_lead', roles: ['leadership_team'],
+  }],
+  membership_roles: ['leadership_team'],
+};
+
+const supervisorUser = {
+  organizations: [{ slug: 'tbe', name: 'TBE', capability: 'supervisor', roles: ['faculty'] }],
+  membership_roles: ['faculty'],
+};
+
+function userWithCompletion(extra = {}) {
+  return {
+    organizations: [{
+      slug: 'tbe',
+      name: 'TBE',
+      capability: 'admin',
+      roles: ['admin'],
+      reflection_completion: true,
+      ...extra,
+    }],
+    membership_roles: ['admin'],
+  };
+}
 
 const templates = [
   {
@@ -59,9 +85,9 @@ function routeGet(url) {
   return Promise.resolve({ data: {} });
 }
 
-function renderPage() {
+function renderPage(entry = '/dashboards/reflections') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <ReflectionsDashboardPage />
     </MemoryRouter>,
   );
@@ -71,7 +97,7 @@ describe('ReflectionsDashboardPage', () => {
   beforeEach(() => {
     getMock.mockReset();
     getMock.mockImplementation(routeGet);
-    mockUseAuth.mockReturnValue({ user: null });
+    mockUseAuth.mockReturnValue({ user: programLeadUser });
   });
 
   it('offers admins a way back to Admin Home', async () => {
@@ -81,19 +107,73 @@ describe('ReflectionsDashboardPage', () => {
     expect(screen.getByTestId('reflections-back')).toHaveAttribute('href', '/admin/home');
   });
 
-  it('hides the Admin Home link from non-admins, who cannot open it', async () => {
+  it('hides the Admin Home link from program leads, who cannot open it', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
     expect(screen.queryByTestId('reflections-back')).toBeNull();
   });
 
-  it('renders form tiles linking to admin template responses', async () => {
+  it('does not show form tiles to someone who cannot open responses', async () => {
+    mockUseAuth.mockReturnValue({ user: supervisorUser });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('reflections-responses-restricted')).toBeInTheDocument());
+    expect(screen.queryByTestId('reflections-form-tiles')).not.toBeInTheDocument();
+  });
+
+  it('hides the Completion tab unless an admin has the setting on', async () => {
+    renderPage('/dashboards/reflections?tab=completion');
+    await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
+    expect(screen.queryByTestId('reflections-tab-completion')).not.toBeInTheDocument();
+
+    cleanup();
+    mockUseAuth.mockReturnValue({ user: adminUser });
+    renderPage('/dashboards/reflections?tab=completion');
+    await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
+    expect(screen.queryByTestId('reflections-tab-completion')).not.toBeInTheDocument();
+  });
+
+  it('opens the Completion tab from the URL for an admin with the setting on', async () => {
+    mockUseAuth.mockReturnValue({ user: userWithCompletion() });
+    getMock.mockImplementation((url) => {
+      if (url === '/api/v1/admin/settings/') {
+        return Promise.resolve({ data: { enabled_roles: ['madrich'] } });
+      }
+      if (url === '/api/v1/leadership-team/templates/') {
+        return Promise.resolve({
+          data: { templates: [{ role: 'madrich', subject_mode: 'self' }] },
+        });
+      }
+      if (String(url).includes('/api/v1/admin/reflections/teams/')) {
+        return Promise.resolve({
+          data: {
+            header: {
+              role: 'madrich',
+              program: { name: 'School' },
+              member_count: 0,
+              date: '2026-08-03',
+              period: { start: '2026-08-03', end: '2026-08-09', cadence: 'weekly' },
+            },
+            template: { id: 5 },
+            submission_status: { submitted: 0, day_off: 0, not_submitted: 0, total: 0 },
+            members: [],
+          },
+        });
+      }
+      return routeGet(url);
+    });
+    renderPage('/dashboards/reflections?tab=completion');
+    expect(await screen.findByTestId('reflections-tab-completion')).toBeInTheDocument();
+    expect(await screen.findByTestId('reflections-completion')).toBeInTheDocument();
+    expect(screen.queryByTestId('reflections-form-tiles')).not.toBeInTheDocument();
+  });
+
+  it('renders form tiles linking to the reflections dashboard', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByTestId('reflections-form-tiles')).toBeInTheDocument());
     expect(screen.getByTestId('reflections-form-tile-10')).toHaveAttribute(
       'href',
       expect.stringMatching(
-        /^\/admin\/templates\/10\/responses\?date=\d{4}-\d{2}-\d{2}&dashboard=reflections$/,
+        /^\/dashboards\/reflections\/10\?date=\d{4}-\d{2}-\d{2}$/,
       ),
     );
     expect(screen.getByTestId('reflections-form-tile-20')).toBeInTheDocument();

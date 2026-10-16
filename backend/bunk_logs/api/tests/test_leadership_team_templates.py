@@ -18,6 +18,7 @@ from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from bunk_logs.core.context import organization_context
+from bunk_logs.core.filters import reflections_visible_for_user
 from bunk_logs.core.models import AssignmentGroup
 from bunk_logs.core.models import AssignmentGroupMembership
 from bunk_logs.core.models import Membership
@@ -867,3 +868,116 @@ def test_delete_draft_with_responses_rejected(org, program, builder_membership, 
     with organization_context(org):
         resp = c.delete(f"/api/v1/leadership-team/templates/{tpl.id}/")
     assert resp.status_code == 400
+
+
+def _reflection(org, program, template, person, *, answers):
+    return Reflection.all_objects.create(
+        organization=org, program=program, template=template,
+        author=person, subject=person,
+        period_start=date.today(), period_end=date.today(),
+        answers=answers, is_complete=True,
+    )
+
+
+@pytest.mark.django_db
+def test_program_lead_reads_only_visible_responses(
+    org, program, lt_membership, lt_user, builder_membership, builder_user, published_template,
+):
+    """Program leads may read responses, but only rows they can already see."""
+    lt_membership.metadata = {"assigned_unit_slugs": ["north"]}
+    lt_membership.save(update_fields=["metadata"])
+
+    visible_person = Person.all_objects.create(
+        organization=org, first_name="North", last_name="Camper",
+    )
+    Membership.all_objects.create(
+        program=program, person=visible_person, role="kitchen_staff", is_active=True,
+        metadata={"unit_slug": "north"},
+    )
+    hidden_person = Person.all_objects.create(
+        organization=org, first_name="South", last_name="Camper",
+    )
+    Membership.all_objects.create(
+        program=program, person=hidden_person, role="kitchen_staff", is_active=True,
+        metadata={"unit_slug": "south"},
+    )
+    visible = _reflection(org, program, published_template, visible_person, answers={"x": "seen"})
+    hidden = _reflection(org, program, published_template, hidden_person, answers={"x": "hidden"})
+
+    c = _client(lt_user, org)
+    url = f"/api/v1/leadership-team/templates/{published_template.id}/responses/"
+    with organization_context(org):
+        allowed = set(
+            reflections_visible_for_user(
+                lt_user,
+                Reflection.objects.filter(template=published_template),
+            ).values_list("pk", flat=True),
+        )
+        resp = c.get(url)
+        export = c.get(f"{url}export/")
+        detail = c.get(f"/api/v1/leadership-team/templates/{published_template.id}/")
+    assert resp.status_code == 200
+    returned = {row["id"] for row in resp.json()["results"]}
+    assert returned == allowed
+    assert visible.pk in returned
+    assert hidden.pk not in returned
+    assert export.status_code == 200
+    body = export.content.decode()
+    assert "North Camper" in body
+    assert "South Camper" not in body
+    assert detail.status_code == 200
+
+    admin = _client(builder_user, org)
+    with organization_context(org):
+        admin_resp = admin.get(url)
+    assert admin_resp.status_code == 200
+    admin_ids = {row["id"] for row in admin_resp.json()["results"]}
+    assert visible.pk in admin_ids
+    assert hidden.pk in admin_ids
+
+
+@pytest.mark.django_db
+def test_program_lead_cannot_write_templates(org, program, lt_membership, lt_user, published_template):
+    """Builder, publish, and edit stay admin-only."""
+    c = _client(lt_user, org)
+    with organization_context(org):
+        created = c.post(
+            "/api/v1/leadership-team/templates/",
+            data={
+                "name": "Nope",
+                "slug": "nope-lead",
+                "cadence": "daily",
+                "schema": {"fields": [{"key": "x", "type": "text", "prompts": {"en": "x?"}}]},
+                "languages": ["en"],
+                "subject_mode": "self",
+            },
+            format="json",
+        )
+        patched = c.patch(
+            f"/api/v1/leadership-team/templates/{published_template.id}/",
+            data={"name": "Renamed"},
+            format="json",
+        )
+        published = c.post(
+            f"/api/v1/leadership-team/templates/{published_template.id}/publish/",
+        )
+    assert created.status_code == 403
+    assert patched.status_code == 403
+    assert published.status_code == 403
+
+
+@pytest.mark.django_db
+def test_unrelated_role_cannot_read_responses(org, program, published_template):
+    user = User.objects.create_user(email="counselor-resp@lt.test", password="pw")
+    person = Person.all_objects.create(
+        organization=org, first_name="Cam", last_name="Counselor", user=user,
+    )
+    Membership.all_objects.create(
+        program=program, person=person, role="counselor", is_active=True,
+    )
+    c = _client(user, org)
+    with organization_context(org):
+        resp = c.get(
+            f"/api/v1/leadership-team/templates/{published_template.id}/responses/",
+        )
+    assert resp.status_code == 403

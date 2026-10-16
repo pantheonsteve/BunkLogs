@@ -68,11 +68,16 @@ describe('adminNavItems', () => {
 describe('hub contents', () => {
   it('splits reports by surface', () => {
     expect(paths(adminReportLinks(CAMP))).toEqual(['/admin/catalog/planning']);
-    expect(paths(adminReportLinks(SCHOOL))).toEqual([
-      '/admin/reflections',
+    expect(paths(adminReportLinks(SCHOOL, { reflectionCompletion: true }))).toEqual([
       '/admin/reflections/growth',
       '/admin/reflections/availability',
     ]);
+    expect(paths(adminReportLinks(CAMP, { reflectionCompletion: true }))).toEqual([
+      '/admin/reflections/growth',
+      '/admin/reflections/availability',
+      '/admin/catalog/planning',
+    ]);
+    expect(adminReportLinks(SCHOOL)).toEqual([]);
     expect(adminReportLinks(BARE)).toEqual([]);
   });
 

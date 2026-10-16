@@ -363,8 +363,8 @@ export default function AdminGrowthDashboard() {
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto space-y-4">
       <div>
         <BackLink
-          to="/admin/home"
-          label="Back to Admin Home"
+          to="/dashboards/reflections?tab=completion"
+          label="Back to Reflections"
           className="mb-2"
           data-testid="admin-growth-back"
         />
@@ -377,7 +377,7 @@ export default function AdminGrowthDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              to="/admin/reflections"
+              to="/dashboards/reflections?tab=completion"
               className="rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium px-3 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               data-testid="admin-growth-completion-tab"
             >
