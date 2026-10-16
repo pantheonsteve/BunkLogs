@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
-import { fetchAdminNavBadges } from '../api/admin';
-import { AdminProgramProvider, useAdminProgram } from '../context/AdminProgramContext';
+import { AdminProgramProvider } from '../context/AdminProgramContext';
 import Header from '../partials/Header';
 import Sidebar from '../partials/Sidebar';
+import useNavBadges from './useNavBadges';
 
 /**
  * Shared layout for /admin/* routes. Renders Sidebar + Header + a
@@ -50,33 +50,4 @@ function AdminShell() {
       </div>
     </div>
   );
-}
-
-/**
- * Sidebar counts. Refetched when the program changes and left null on
- * failure, which renders no badge -- a stale or missing count must never
- * take the nav down with it.
- */
-function useNavBadges() {
-  const { programId, ready } = useAdminProgram();
-  const [badges, setBadges] = useState(null);
-
-  useEffect(() => {
-    if (!ready) return undefined;
-    let cancelled = false;
-    fetchAdminNavBadges(programId ? { program: programId } : {})
-      .then((data) => {
-        if (cancelled) return;
-        setBadges(data && {
-          peopleNeverInvited: data.people_never_invited,
-          groupsNeedingAttention: data.groups_needing_attention,
-          setupProgress: data.setup_progress,
-          questionsForYou: data.questions_for_you,
-        });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [programId, ready]);
-
-  return badges;
 }

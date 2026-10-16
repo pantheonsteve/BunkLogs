@@ -132,6 +132,18 @@ export function LegacyAdminTemplateEditRedirect() {
   return <Navigate to={`/admin/templates/${id}${location.search}${location.hash}`} replace />;
 }
 
+/** Old form-responses URLs land on the reflections dashboard, query string intact. */
+export function LegacyAdminTemplateResponsesRedirect() {
+  const { id } = useParams();
+  const location = useLocation();
+  return (
+    <Navigate
+      to={`/dashboards/reflections/${id}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
 export function DashboardsIndex() {
   const { user, loading } = useAuth();
   if (loading) {

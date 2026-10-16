@@ -117,11 +117,13 @@ def organizations_payload(user) -> list[dict]:
 
     One entry per organization where the user holds a Person, e.g.
     ``{"slug": "tbe", "name": "Temple Beth-El", "capability": "participant",
-    "roles": ["madrich"], "program_types": ["religious_school"]}``.
+    "roles": ["madrich"], "program_types": ["religious_school"],
+    "reflection_completion": true}``.
     ``capability`` is the highest RBAC capability across the person's active,
     operationally-scoped memberships (None when they have none). See
     :func:`_operationally_scoped_memberships`. ``program_types`` drives which
     product surfaces the frontend shows (camp ops vs religious school).
+    ``reflection_completion`` mirrors ``Organization.settings``.
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return []
@@ -141,5 +143,8 @@ def organizations_payload(user) -> list[dict]:
             "capability": capability,
             "roles": roles,
             "program_types": _program_types_for(person, memberships),
+            "reflection_completion": bool(
+                (person.organization.settings or {}).get("reflection_completion"),
+            ),
         })
     return sorted(entries, key=lambda entry: entry["slug"])

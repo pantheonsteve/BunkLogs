@@ -20,6 +20,11 @@ export function orgProgramTypes(user) {
   return Array.isArray(types) ? types : [];
 }
 
+/** Org setting: show the Reflections completion roster. Default off. */
+export function reflectionCompletionEnabled(user) {
+  return currentOrgContext(user)?.reflection_completion === true;
+}
+
 /** True only when every known program in this org is a religious school. */
 export function isReligiousSchoolOrg(user) {
   const types = orgProgramTypes(user);

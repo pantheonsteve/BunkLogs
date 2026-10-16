@@ -192,6 +192,7 @@ describe('Sidebar — section gating (3.32)', () => {
     expect(links).toContain('/groups/performance');
     expect(links).toContain('/dashboards/concerns');
     expect(links).not.toContain('/dashboards/logs');
+    expect(links).not.toContain('/dashboards/reflections');
     expect(links).not.toContain('/tasks');
     expect(links).not.toContain('/reflect');
     expect(links).not.toContain('/my-reflections');
@@ -474,19 +475,23 @@ describe('Sidebar — religious-school admin surfaces', () => {
     expect(screen.getByRole('link', { name: 'Coverage dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/admin/home');
     expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
-    expect(links).not.toContain('/dashboards/reflections');
-    expect(screen.queryByText('My work')).not.toBeInTheDocument();
-  });
-
-  it('opens My work on Reflections when questions are waiting', () => {
-    renderWith(schoolUser('admin', ['admin']), {
-      path: '/admin/home',
-      navBadges: { questionsForYou: 2 },
-    });
+    expect(links.filter((h) => h === '/dashboards/reflections')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Reflections' })).toHaveAttribute(
       'href',
-      '/admin/reflections',
+      '/dashboards/reflections',
     );
+  });
+
+  it('keeps the Reflections item on the reflections dashboard', () => {
+    renderWith(schoolUser('admin', ['admin']), { path: '/dashboards/reflections' });
+    expect(screen.getByRole('link', { name: 'Reflections' })).toHaveAttribute(
+      'href',
+      '/dashboards/reflections',
+    );
+    renderWith(orgUser('admin', ['admin']), { path: '/dashboards/reflections' });
+    expect(screen.getAllByRole('link', { name: 'Reflections' }).every(
+      (link) => link.getAttribute('href') === '/dashboards/reflections',
+    )).toBe(true);
   });
 
   it('gives a Madrich only their own weekly-reflection surfaces', () => {

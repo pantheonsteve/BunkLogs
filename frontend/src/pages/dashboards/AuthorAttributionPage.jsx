@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api';
-import Header from '../../partials/Header';
-import Sidebar from '../../partials/Sidebar';
 import AuthorAttribution from '../../dashboards/authors/AuthorAttribution';
 
 function todayIso() {
@@ -16,7 +14,6 @@ function isoDaysAgo(n) {
 }
 
 export default function AuthorAttributionPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dateStart, setDateStart] = useState(() => isoDaysAgo(13));
   const [dateEnd, setDateEnd] = useState(todayIso);
   const [payload, setPayload] = useState(null);
@@ -46,10 +43,6 @@ export default function AuthorAttributionPage() {
   }, [load]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -102,7 +95,5 @@ export default function AuthorAttributionPage() {
           )}
           {!loading && payload && <AuthorAttribution payload={payload} />}
         </main>
-      </div>
-    </div>
   );
 }

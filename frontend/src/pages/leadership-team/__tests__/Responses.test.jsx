@@ -364,7 +364,7 @@ describe('LeadershipTeamResponses', () => {
     );
   });
 
-  it('sends role-based orgs home and opens member reflection history from a row', async () => {
+  it('sends every org back to reflections and opens member history from a row', async () => {
     authState.user = orgUser('admin', ['admin'], ['religious_school']);
     getMock.mockImplementation((url) => {
       if (url.includes('/responses/')) {
@@ -375,8 +375,8 @@ describe('LeadershipTeamResponses', () => {
     renderAt('/admin/templates/7/responses?date=2026-06-03&dashboard=reflections');
 
     const back = await screen.findByTestId('lt-responses-back');
-    expect(back).toHaveAttribute('href', '/admin/home');
-    expect(back).toHaveTextContent('Back to Admin Home');
+    expect(back).toHaveAttribute('href', '/dashboards/reflections?date=2026-06-03');
+    expect(back).toHaveTextContent('Back to Reflections');
 
     // Rows arrive from the responses fetch, which settles independently of the
     // template fetch behind the back link -- wait for them rather than assuming.

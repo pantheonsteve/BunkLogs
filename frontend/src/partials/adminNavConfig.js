@@ -35,17 +35,16 @@ export function adminFormLinks() {
  * Contents of the /admin/reports hub. Empty for an org with neither
  * surface, which is also what hides the Reports item from the sidebar.
  *
+ * Growth and availability follow the reflection_completion setting.
+ * Completion itself lives on the Reflections dashboard.
+ *
  * @param {{campOps: boolean, gradeReflections: boolean}} surfaces
+ * @param {{reflectionCompletion?: boolean}} [options]
  */
-export function adminReportLinks(surfaces) {
+export function adminReportLinks(surfaces, { reflectionCompletion = false } = {}) {
   const links = [];
-  if (surfaces.gradeReflections) {
+  if (reflectionCompletion) {
     links.push(
-      {
-        to: '/admin/reflections',
-        label: 'Madrich completion',
-        description: 'Who has written their reflections, by team.',
-      },
       {
         to: '/admin/reflections/growth',
         label: 'Growth by grade',
@@ -54,7 +53,7 @@ export function adminReportLinks(surfaces) {
       {
         to: '/admin/reflections/availability',
         label: 'Availability',
-        description: 'Which madrichim are free for which sessions.',
+        description: 'Who is free for which sessions.',
       },
     );
   }
@@ -90,9 +89,11 @@ export function adminSetupLinks(surfaces, term) {
  * Admin nav: seven items, top to bottom.
  *
  * @param {{campOps: boolean, gradeReflections: boolean}} surfaces
+ * @param {Function} [_term]
+ * @param {{reflectionCompletion?: boolean}} [options]
  * @returns {Array<{to: string, label: string, icon: string, badge?: string, end?: boolean}>}
  */
-export function adminNavItems(surfaces) {
+export function adminNavItems(surfaces, _term, { reflectionCompletion = false } = {}) {
   const items = [
     { to: '/admin/home', label: 'Home', icon: 'dashboard', end: true, placement: 'home' },
     {
@@ -111,7 +112,7 @@ export function adminNavItems(surfaces) {
     { to: '/admin/forms', label: 'Forms', icon: 'forms', placement: 'manage' },
   ];
 
-  if (adminReportLinks(surfaces).length) {
+  if (adminReportLinks(surfaces, { reflectionCompletion }).length) {
     items.push({ to: '/admin/reports', label: 'Reports', icon: 'reports', placement: 'manage' });
   }
 

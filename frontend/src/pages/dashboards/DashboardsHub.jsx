@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BarChart3,
@@ -8,9 +7,6 @@ import {
   UserCog,
   LineChart,
 } from 'lucide-react';
-
-import Header from '../../partials/Header';
-import Sidebar from '../../partials/Sidebar';
 
 const DASHBOARD_CARDS = [
   {
@@ -111,12 +107,7 @@ function Card({ card }) {
 }
 
 export default function DashboardsHub() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
           <header className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -137,7 +128,5 @@ export default function DashboardsHub() {
             ))}
           </div>
         </main>
-      </div>
-    </div>
   );
 }

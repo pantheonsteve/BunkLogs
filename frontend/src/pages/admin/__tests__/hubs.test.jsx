@@ -20,11 +20,12 @@ function renderPage(ui) {
   return render(<MemoryRouter>{ui}</MemoryRouter>);
 }
 
-function orgUser(programTypes) {
+function orgUser(programTypes, extra = {}) {
   return {
     organizations: [{
       slug: 'org', name: 'Org', capability: 'admin',
       roles: ['admin'], program_types: programTypes,
+      ...extra,
     }],
     membership_roles: ['admin'],
   };
@@ -48,14 +49,21 @@ describe('FormsHub', () => {
 });
 
 describe('ReportsHub', () => {
-  it('gives a religious school the reflection reports', () => {
-    mockUseAuth.mockReturnValue({ user: orgUser(['religious_school']) });
+  it('gives a completion-enabled org growth and availability', () => {
+    mockUseAuth.mockReturnValue({
+      user: orgUser(['religious_school'], { reflection_completion: true }),
+    });
     renderPage(<ReportsHub />);
     expect(hrefs()).toEqual([
-      '/admin/reflections',
       '/admin/reflections/growth',
       '/admin/reflections/availability',
     ]);
+  });
+
+  it('hides reflection reports when the setting is off', () => {
+    mockUseAuth.mockReturnValue({ user: orgUser(['religious_school']) });
+    renderPage(<ReportsHub />);
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
   });
 
   it('gives a camp request planning instead', () => {

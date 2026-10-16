@@ -4,8 +4,7 @@ import { FileText } from 'lucide-react';
 import api from '../../api';
 import { useAuth } from '../../auth/AuthContext';
 import BackLink from '../../components/ui/BackLink';
-import Header from '../../partials/Header';
-import Sidebar from '../../partials/Sidebar';
+import isSuperAdmin from '../../utils/auth/isSuperAdmin';
 import { hasCapability } from '../../utils/auth/capability';
 
 const STATUS_TABS = [
@@ -25,10 +24,9 @@ function titleCase(s) {
 
 function FormTile({ template, isoDate, testIdPrefix, dashboardScope }) {
   const responsesQs = new URLSearchParams({ date: isoDate });
-  if (dashboardScope) responsesQs.set('dashboard', dashboardScope);
   return (
     <Link
-      to={`/admin/templates/${template.template_id}/responses?${responsesQs.toString()}`}
+      to={`/dashboards/${dashboardScope}/${template.template_id}?${responsesQs.toString()}`}
       data-testid={`${testIdPrefix}-form-tile-${template.template_id}`}
       className="flex flex-col gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-shadow"
     >
@@ -66,9 +64,10 @@ export default function AssignmentTemplatesDashboard({
   emptyLabel,
   adminBackTo,
   adminBackLabel = 'Back to Admin Home',
+  banner = null,
 }) {
   const { user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const canOpenResponses = isSuperAdmin(user) || hasCapability(user, ['program_lead', 'admin']);
 
   const [statusTab, setStatusTab] = useState('active');
   const [audience, setAudience] = useState('all');
@@ -169,11 +168,8 @@ export default function AssignmentTemplatesDashboard({
   }, [filteredByAudience, selectedProgram, selectedGroup]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+          {banner}
           <div className="mb-6">
             {adminBackTo && hasCapability(user, 'admin') && (
               <BackLink
@@ -297,7 +293,7 @@ export default function AssignmentTemplatesDashboard({
             </p>
           )}
 
-          {!loadingTemplates && !templatesError && visibleTemplates.length > 0 && (
+          {!loadingTemplates && !templatesError && visibleTemplates.length > 0 && canOpenResponses && (
             <div
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
               data-testid={`${testIdPrefix}-form-tiles`}
@@ -313,8 +309,12 @@ export default function AssignmentTemplatesDashboard({
               ))}
             </div>
           )}
+
+          {!loadingTemplates && !templatesError && visibleTemplates.length > 0 && !canOpenResponses && (
+            <p className="text-gray-500 dark:text-gray-400 text-sm" data-testid={`${testIdPrefix}-responses-restricted`}>
+              Your own reflections stay on your home page.
+            </p>
+          )}
         </main>
-      </div>
-    </div>
   );
 }

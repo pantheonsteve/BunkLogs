@@ -61,6 +61,7 @@ from bunk_logs.core.validators.template_schema import check_field_key_hints
 from bunk_logs.core.validators.template_schema import validate_template_schema
 
 from .common import admin_only_or_403
+from .common import responses_reader_or_403
 from .common import viewer_or_403  # noqa: F401  (re-exported for callers/tests)
 
 if TYPE_CHECKING:
@@ -299,7 +300,11 @@ class LeadershipTeamTemplateDetailView(APIView):
             raise NotFound
 
     def get(self, request, pk: int, *args, **kwargs):
-        tpl = self._get_template(request, pk)
+        ctx = responses_reader_or_403(request)
+        try:
+            tpl = _lt_template_queryset(ctx.organization).get(pk=pk)
+        except ReflectionTemplate.DoesNotExist as exc:
+            raise NotFound from exc
         reflection_count = Reflection.all_objects.filter(template=tpl).count()
         return Response(_serialize(tpl, request, reflection_count=reflection_count))
 
