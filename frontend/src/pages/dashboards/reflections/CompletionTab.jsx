@@ -63,6 +63,56 @@ const STAT_TILES = [
   },
 ];
 
+function templateInUse(template) {
+  if (!template || template.subject_mode !== 'self' || !template.role) return false;
+  if (template.status && template.status !== 'published') return false;
+  // A global catalog form is not this org's roster until they assign it.
+  return template.organization != null || Number(template.active_assignment_count) > 0;
+}
+
+/**
+ * Roles for the completion roster, in the org's role order.
+ * Prefer forms the org owns or has assigned. Fall back to any
+ * self-reflection form when nothing is assigned yet.
+ * `label` stays the org's word for the role, and adds the form name
+ * when two roles would otherwise read the same.
+ */
+export function completionRoleOptions(enabledRoles, templates, term) {
+  const list = Array.isArray(templates) ? templates : [];
+  const inUse = [];
+  const any = [];
+  const seenInUse = new Set();
+  const seenAny = new Set();
+  list.forEach((template) => {
+    if (!template?.role || template.subject_mode !== 'self') return;
+    if (template.status && template.status !== 'published') return;
+    if (!seenAny.has(template.role)) {
+      seenAny.add(template.role);
+      any.push(template);
+    }
+    if (templateInUse(template) && !seenInUse.has(template.role)) {
+      seenInUse.add(template.role);
+      inUse.push(template);
+    }
+  });
+  const pool = inUse.length ? inUse : any;
+  const byRole = new Map(pool.map((template) => [template.role, template]));
+  const enabled = Array.isArray(enabledRoles) ? enabledRoles : [];
+  const ordered = enabled.filter((role) => byRole.has(role));
+  const roles = ordered.length ? ordered : [...byRole.keys()];
+  const labelFor = (role) => (typeof term === 'function' ? term(role, { capitalize: true }) : role);
+  return roles.map((role) => {
+    const template = byRole.get(role);
+    const label = labelFor(role);
+    const shared = roles.some((other) => other !== role && labelFor(other) === label);
+    const formName = template?.name ? String(template.name) : '';
+    return {
+      role,
+      label: shared && formName ? `${label} · ${formName}` : label,
+    };
+  });
+}
+
 function initialsFor(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -138,22 +188,17 @@ export default function CompletionTab() {
       listTemplates(orgSlug),
     ]).then(([settings, data]) => {
       if (cancelled) return;
-      const enabled = Array.isArray(settings?.enabled_roles) ? settings.enabled_roles : [];
-      const withTemplate = new Set(
-        (data?.templates || [])
-          .filter((tpl) => tpl.subject_mode === 'self' && tpl.role)
-          .map((tpl) => tpl.role),
-      );
-      const matched = enabled.filter((role) => withTemplate.has(role));
-      setRoles(matched.length ? matched : [...withTemplate]);
+      setRoles(completionRoleOptions(settings?.enabled_roles, data?.templates, term));
       setRolesError(null);
     }).catch(() => {
       if (!cancelled) setRolesError('Could not load reflection roles.');
     });
     return () => { cancelled = true; };
-  }, [orgSlug]);
+  }, [orgSlug, term]);
 
-  const role = roles?.includes(roleParam) ? roleParam : (roles?.[0] || '');
+  const role = roles?.some((option) => option.role === roleParam)
+    ? roleParam
+    : (roles?.[0]?.role || '');
 
   const load = useCallback(async () => {
     if (!role) return;
@@ -321,8 +366,8 @@ export default function CompletionTab() {
                 aria-label="Role"
               >
                 {roles.map((option) => (
-                  <option key={option} value={option}>
-                    {term(option, { capitalize: true })}
+                  <option key={option.role} value={option.role}>
+                    {option.label}
                   </option>
                 ))}
               </select>

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import CompletionTab from '../CompletionTab';
+import CompletionTab, { completionRoleOptions } from '../CompletionTab';
 
 const fetchMock = vi.fn();
 const exportUrlMock = vi.fn();
@@ -59,8 +59,14 @@ beforeEach(() => {
   templatesMock.mockReset();
   templatesMock.mockResolvedValue({
     templates: [
-      { role: 'madrich', subject_mode: 'self' },
-      { role: 'counselor', subject_mode: 'self' },
+      {
+        role: 'madrich', subject_mode: 'self', name: 'Weekly 3-2-1',
+        organization: 9, active_assignment_count: 2, status: 'published',
+      },
+      {
+        role: 'counselor', subject_mode: 'self', name: 'Counselor Self-Reflection',
+        organization: null, active_assignment_count: 0, status: 'published',
+      },
       { role: 'faculty', subject_mode: 'single_subject' },
     ],
   });
@@ -77,15 +83,50 @@ function renderTab() {
   );
 }
 
+describe('completionRoleOptions', () => {
+  const term = (key, { capitalize } = {}) => {
+    const words = { counselor: 'madrich', madrich: 'madrich', faculty: 'faculty' };
+    const word = words[key] || key;
+    return capitalize ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word;
+  };
+
+  it('skips a global form the org has not assigned, and names a form when labels collide', () => {
+    const options = completionRoleOptions(
+      ['counselor', 'madrich', 'faculty'],
+      [
+        {
+          role: 'counselor', subject_mode: 'self', name: 'Counselor Self-Reflection',
+          organization: null, active_assignment_count: 1, status: 'published',
+        },
+        {
+          role: 'madrich', subject_mode: 'self', name: 'Weekly 3-2-1',
+          organization: null, active_assignment_count: 2, status: 'published',
+        },
+        {
+          role: 'faculty', subject_mode: 'self', name: 'Faculty Weekly',
+          organization: 9, active_assignment_count: 0, status: 'published',
+        },
+      ],
+      term,
+    );
+    expect(options.map((option) => option.role)).toEqual(['counselor', 'madrich', 'faculty']);
+    expect(options.map((option) => option.label)).toEqual([
+      'Madrich · Counselor Self-Reflection',
+      'Madrich · Weekly 3-2-1',
+      'Faculty',
+    ]);
+  });
+});
+
 describe('CompletionTab', () => {
-  it('defaults to the first role that has a self-reflection template', async () => {
+  it('defaults to the first role whose self-reflection form this org uses', async () => {
     renderTab();
-    await waitFor(() => expect(screen.getByText('Counselor completion')).toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledWith('counselor', expect.any(Object));
-    expect(screen.getByTestId('admin-reflections-role')).toHaveValue('counselor');
+    await waitFor(() => expect(screen.getByText('Madrich completion')).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith('madrich', expect.any(Object));
+    expect(screen.queryByTestId('admin-reflections-role')).not.toBeInTheDocument();
     expect(screen.getByTestId('admin-reflections-export')).toHaveAttribute(
       'href',
-      '/api/v1/admin/reflections/teams/counselor/export/',
+      '/api/v1/admin/reflections/teams/madrich/export/',
     );
   });
 
@@ -95,7 +136,7 @@ describe('CompletionTab', () => {
     expect(screen.getByTestId('admin-reflections-grade-10')).toBeInTheDocument();
     fireEvent.click(gradeEight);
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(
-      'counselor',
+      'madrich',
       expect.objectContaining({ gradeLevels: [8] }),
     ));
   });
@@ -106,7 +147,7 @@ describe('CompletionTab', () => {
       members: samplePayload.members.map((member) => ({ ...member, grade_level: null })),
     });
     renderTab();
-    await screen.findByText('Counselor completion');
+    await screen.findByText('Madrich completion');
     expect(screen.queryByTestId('admin-reflections-grade-8')).not.toBeInTheDocument();
   });
 });
